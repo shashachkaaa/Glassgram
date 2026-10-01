@@ -7,7 +7,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,7 +25,6 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedLinearLayout;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.glass.GlassTabView;
-import org.telegram.ui.Components.glass.LiquidTabIndicator;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -43,50 +41,35 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     public MainTabsLayout(Context context, Theme.ResourcesProvider resourcesProvider) {
         super(context);
         this.resourcesProvider = resourcesProvider;
-        if (LiquidTabIndicator.isSupported()) {
-            liquidIndicator = new LiquidTabIndicator(this);
-        }
     }
 
-    /** Selected-tab lens after the library's LiquidBottomTabs; null below Android 12. */
-    private Object liquidIndicator;
+    /**
+     * When set, the tabs are painted by someone else (the liquid tab bar): this layout keeps
+     * them attached and laid out, but draws nothing and reports when a tab needs repainting.
+     */
+    private Runnable externalRenderer;
 
-    @Override
-    public void onViewAdded(View child) {
-        super.onViewAdded(child);
-        if (liquidIndicator != null && child instanceof GlassTabView) {
-            ((GlassTabView) child).setLiquidSelector(true);
-        }
-    }
-
-    private void drawLiquidIndicator(Canvas canvas) {
-        final LiquidTabIndicator indicator = (LiquidTabIndicator) liquidIndicator;
-        final float height = getHeight() - getPaddingTop() - getPaddingBottom();
-        if (isInLongPress) {
-            final float x = animatedLongSelectedViewCenterX + animatedLongSelectedViewOffsetX;
-            indicator.drag(x, getInterpolatedWidthByX(x, this));
-        } else {
-            indicator.endDrag();
-            final View selected = findSelectedTab();
-            if (selected instanceof GlassTabView) {
-                final float w = ((GlassTabView) selected).getSelectorWidth();
-                indicator.follow(selected, selected.getX() + w / 2f, w);
+    public void setExternalRenderer(Runnable onTabsInvalidated) {
+        externalRenderer = onTabsInvalidated;
+        for (int a = 0, N = getChildCount(); a < N; a++) {
+            final View child = getChildAt(a);
+            if (child instanceof GlassTabView) {
+                ((GlassTabView) child).setLiquidSelector(onTabsInvalidated != null);
             }
         }
-        final Drawable background = getBackground();
-        indicator.draw(canvas, this, getPaddingTop(), height,
-            Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider),
-            Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
-            background == null ? null : () -> background.draw(indicator.getBackgroundCanvas()),
-            c -> {
-                final long time = getDrawingTime();
-                for (int a = 0, N = getChildCount(); a < N; a++) {
-                    final View child = getChildAt(a);
-                    if (child.getVisibility() == VISIBLE) {
-                        drawChild(c, child, time);
-                    }
-                }
-            });
+        invalidate();
+    }
+
+    public boolean isRenderedExternally() {
+        return externalRenderer != null;
+    }
+
+    @Override
+    public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+        super.onDescendantInvalidated(child, target);
+        if (externalRenderer != null) {
+            externalRenderer.run();
+        }
     }
 
     private static final float[] PASS_TEXT_SIZES_DP = {12f, 12f, 10f};
@@ -308,6 +291,9 @@ public class MainTabsLayout extends AnimatedLinearLayout {
                 ((GlassTabView) child).setSelected(child == tab, animated);
             }
         }
+        if (externalRenderer != null) {
+            externalRenderer.run();
+        }
     }
 
     private View findSelectedTab() {
@@ -355,9 +341,7 @@ public class MainTabsLayout extends AnimatedLinearLayout {
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        if (liquidIndicator != null) {
-            super.dispatchDraw(canvas);
-            drawLiquidIndicator(canvas);
+        if (externalRenderer != null) {
             return;
         }
         if (drawCustomSelector) {

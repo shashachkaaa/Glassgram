@@ -154,7 +154,6 @@ import org.telegram.ui.Components.blur3.utils.Blur3Utils;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.chat.layouts.ChatActivityFadeView;
 import org.telegram.ui.Components.glass.GlassTabView;
-import org.telegram.ui.Components.glass.LiquidTabIndicator;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.GradientClip;
 import org.telegram.ui.LaunchActivity;
@@ -1170,7 +1169,6 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             setFocusable(true);
 
             glassTabView = GlassTabView.createAttachTab(context, resourcesProvider);
-            glassTabView.setLiquidSelector(LiquidTabIndicator.isSupported());
             addView(glassTabView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
 
@@ -2624,51 +2622,12 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
             private boolean mHasFadeLeft, mHasFadeRight;
 
-            // Selected-tab lens after the library's LiquidBottomTabs; null below Android 12
-            private final Object liquidIndicator = LiquidTabIndicator.isSupported() ? new LiquidTabIndicator(this) : null;
-
             @Override
             protected void dispatchDraw(@NonNull Canvas canvas) {
                 mHasFadeLeft = mHasFadeRight = false;
                 super.dispatchDraw(canvas);
                 hasFadeLeft.setValue(mHasFadeLeft, true);
                 hasFadeRight.setValue(mHasFadeRight, true);
-                if (liquidIndicator != null) {
-                    drawLiquidIndicator(canvas);
-                }
-            }
-
-            private void drawLiquidIndicator(Canvas canvas) {
-                final LiquidTabIndicator indicator = (LiquidTabIndicator) liquidIndicator;
-                GlassTabView selected = null;
-                View selectedButton = null;
-                for (int a = 0, N = getChildCount(); a < N; a++) {
-                    final View child = getChildAt(a);
-                    if (child instanceof AttachButton && ((AttachButton) child).glassTabView.isTabSelected()) {
-                        selectedButton = child;
-                        selected = ((AttachButton) child).glassTabView;
-                        break;
-                    }
-                }
-                if (selected == null) {
-                    return;
-                }
-                final float w = selected.getSelectorWidth();
-                indicator.follow(Integer.valueOf(((AttachButton) selectedButton).currentId),
-                    selectedButton.getX() + selected.getX() + w / 2f, w);
-                indicator.draw(canvas, this, selectedButton.getY() + selected.getY(), selected.getHeight(),
-                    getThemedColor(Theme.key_glass_tabSelected),
-                    getThemedColor(Theme.key_dialogBackground),
-                    null,
-                    c -> {
-                        final long time = getDrawingTime();
-                        for (int a = 0, N = getChildCount(); a < N; a++) {
-                            final View child = getChildAt(a);
-                            if (child.getVisibility() == VISIBLE) {
-                                drawChild(c, child, time);
-                            }
-                        }
-                    });
             }
 
             @Override

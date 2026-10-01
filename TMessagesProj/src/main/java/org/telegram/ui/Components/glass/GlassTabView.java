@@ -147,7 +147,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
 
     private boolean liquidSelector;
 
-    /** The selection is drawn by a {@link LiquidTabIndicator} in the parent; never draw our own. */
+    /** The selection is drawn by a liquid tab bar; never draw our own. */
     public void setLiquidSelector(boolean liquidSelector) {
         this.liquidSelector = liquidSelector;
         setSkipDrawSelector(skipDrawSelector);
