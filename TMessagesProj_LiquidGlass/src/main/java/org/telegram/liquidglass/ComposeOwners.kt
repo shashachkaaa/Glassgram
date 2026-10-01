@@ -31,14 +31,19 @@ internal class ComposeOwners private constructor() : LifecycleOwner, SavedStateR
     }
 
     companion object {
-        /** Gives [view] its own owners unless the window already provides them. */
+        /**
+         * Gives the window of [view] owners unless it already has them. They go on the root
+         * view: Compose looks up the lifecycle for its window recomposer from there, so
+         * owners set on the host alone crash it.
+         */
         fun install(view: View) {
-            if (view.findViewTreeLifecycleOwner() != null && view.findViewTreeSavedStateRegistryOwner() != null) {
+            val root = view.rootView
+            if (root.findViewTreeLifecycleOwner() != null && root.findViewTreeSavedStateRegistryOwner() != null) {
                 return
             }
             val owners = ComposeOwners()
-            view.setViewTreeLifecycleOwner(owners)
-            view.setViewTreeSavedStateRegistryOwner(owners)
+            root.setViewTreeLifecycleOwner(owners)
+            root.setViewTreeSavedStateRegistryOwner(owners)
         }
     }
 }

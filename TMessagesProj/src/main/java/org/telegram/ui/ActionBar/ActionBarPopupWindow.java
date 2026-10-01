@@ -53,6 +53,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LiquidPanelDrawable;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.PopupSwipeBackLayout;
 
 import java.lang.reflect.Field;
@@ -372,6 +373,14 @@ public class ActionBarPopupWindow extends PopupWindow {
 
         @Override
         public void setBackgroundDrawable(Drawable drawable) {
+            if (drawable instanceof BlurredBackgroundDrawable && LiquidPanelDrawable.isSupported()) {
+                // Telegram's glass for menus samples the screen the menu was opened from and
+                // comes out nearly opaque here; menus are the library's glass instead
+                final LiquidPanelDrawable panel = (LiquidPanelDrawable) LiquidPanelDrawable.wrap(drawable, dp(12), dp(12),
+                    () -> getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
+                panel.setHost(this);
+                drawable = panel;
+            }
             backgroundColor = Color.WHITE;
             backgroundDrawable = drawable;
             if (backgroundDrawable != null) {
