@@ -44,6 +44,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SECONDS = 11;
     private static final int ID_RELATIVE_LAST_SEEN = 12;
     private static final int ID_HIDE_PHONE = 13;
+    private static final int ID_SHOW_ID = 14;
+    private static final int ID_YANDEX_MAPS = 15;
+    private static final int ID_DOWNLOAD_BOOST = 16;
+    private static final int ID_UPLOAD_BOOST = 17;
 
     private static final int ID_TITLE_TEXT = 20;
     private static final int ID_HIDE_STORIES = 21;
@@ -89,9 +93,17 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_NUMBER_ROUNDING, getString(R.string.GlassgramDisableNumberRounding)).setChecked(GlassgramConfig.disableNumberRounding));
                 items.add(UItem.asCheck(ID_SECONDS, getString(R.string.GlassgramTimeWithSeconds)).setChecked(GlassgramConfig.formatTimeWithSeconds));
                 items.add(UItem.asShadow(getString(R.string.GlassgramGeneralInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramMaps)));
+                items.add(UItem.asCheck(ID_YANDEX_MAPS, getString(R.string.GlassgramUseYandexMaps)).setChecked(GlassgramConfig.useYandexMaps));
+                items.add(UItem.asShadow(getString(R.string.GlassgramUseYandexMapsInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramDownloadBoost)));
+                items.add(UItem.asButton(ID_DOWNLOAD_BOOST, getString(R.string.GlassgramDownloadBoost), boostNames()[GlassgramConfig.downloadBoost]));
+                items.add(UItem.asCheck(ID_UPLOAD_BOOST, getString(R.string.GlassgramUploadBoost)).setChecked(GlassgramConfig.uploadBoost));
+                items.add(UItem.asShadow(getString(R.string.GlassgramBoostInfo)));
                 items.add(UItem.asHeader(getString(R.string.GlassgramProfile)));
                 items.add(UItem.asCheck(ID_RELATIVE_LAST_SEEN, getString(R.string.GlassgramRelativeLastSeen)).setChecked(GlassgramConfig.relativeLastSeen));
                 items.add(UItem.asCheck(ID_HIDE_PHONE, getString(R.string.GlassgramHidePhone)).setChecked(GlassgramConfig.hidePhoneNumber));
+                items.add(UItem.asButton(ID_SHOW_ID, getString(R.string.GlassgramShowId), showIdNames()[GlassgramConfig.showId]));
                 items.add(UItem.asShadow(getString(R.string.GlassgramProfileInfo)));
                 break;
             case PAGE_APPEARANCE:
@@ -140,6 +152,18 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
                 return;
+            case ID_DOWNLOAD_BOOST:
+                showChoice(getString(R.string.GlassgramDownloadBoost), boostNames(), GlassgramConfig.downloadBoost, which -> {
+                    GlassgramConfig.downloadBoost = which;
+                    GlassgramConfig.putInt("downloadBoost", which);
+                });
+                return;
+            case ID_SHOW_ID:
+                showChoice(getString(R.string.GlassgramShowId), showIdNames(), GlassgramConfig.showId, which -> {
+                    GlassgramConfig.showId = which;
+                    GlassgramConfig.putInt("showId", which);
+                });
+                return;
         }
         final boolean value;
         switch (item.id) {
@@ -160,6 +184,14 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.hidePhoneNumber = !GlassgramConfig.hidePhoneNumber;
                 GlassgramConfig.putBoolean("hidePhoneNumber", value);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
+                break;
+            case ID_YANDEX_MAPS:
+                value = GlassgramConfig.useYandexMaps = !GlassgramConfig.useYandexMaps;
+                GlassgramConfig.putBoolean("useYandexMaps", value);
+                break;
+            case ID_UPLOAD_BOOST:
+                value = GlassgramConfig.uploadBoost = !GlassgramConfig.uploadBoost;
+                GlassgramConfig.putBoolean("uploadBoost", value);
                 break;
             case ID_HIDE_STORIES:
                 value = GlassgramConfig.hideStories = !GlassgramConfig.hideStories;
@@ -206,6 +238,37 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (parentLayout != null) {
             parentLayout.rebuildAllFragmentViews(false, false);
         }
+    }
+
+    private static String[] boostNames() {
+        return new String[] { getString(R.string.GlassgramBoostOff), getString(R.string.GlassgramBoostFast), getString(R.string.GlassgramBoostUltra) };
+    }
+
+    private static String[] showIdNames() {
+        return new String[] { getString(R.string.GlassgramShowIdOff), "Telegram API", "Bot API" };
+    }
+
+    private void showChoice(CharSequence title, String[] names, int current, org.telegram.messenger.Utilities.Callback<Integer> onChoose) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final CharSequence[] items = new CharSequence[names.length];
+        for (int i = 0; i < names.length; i++) {
+            items[i] = (i == current ? "✓ " : "") + names[i];
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(title);
+        builder.setItems(items, (dialog, which) -> {
+            onChoose.run(which);
+            if (listView != null) {
+                listView.adapter.update(true);
+            }
+            if (parentLayout != null) {
+                parentLayout.rebuildAllFragmentViews(false, false);
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        builder.show();
     }
 
     private void showTitleTextDialog() {

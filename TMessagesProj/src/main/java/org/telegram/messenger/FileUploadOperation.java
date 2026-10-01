@@ -318,6 +318,12 @@ public class FileUploadOperation {
                     uploadChunkSize = chunkSize;
                 }
                 maxRequestsCount = Math.max(1, (slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes) / uploadChunkSize);
+                if (GlassgramConfig.uploadBoost && !slowNetwork) {
+                    // Glassgram upload boost: the largest part upload.saveFilePart takes (512 KB)
+                    // and twice the data in flight
+                    uploadChunkSize = Math.max(uploadChunkSize, 512);
+                    maxRequestsCount = Math.max(1, maxUploadingKBytes * 2 / uploadChunkSize);
+                }
 
                 if (isEncrypted) {
                     freeRequestIvs = new ArrayList<>(maxRequestsCount);

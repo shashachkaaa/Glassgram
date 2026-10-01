@@ -11253,7 +11253,7 @@
     <string name="GlassgramProfile">Profile</string>
     <string name="GlassgramRelativeLastSeen">Relative Last Seen</string>
     <string name="GlassgramHidePhone">Hide Phone Number</string>
-    <string name="GlassgramProfileInfo">Relative last seen shows \"last seen 5 minutes ago\" instead of the time. Hiding the phone number removes it from the top of Settings.</string>
+    <string name="GlassgramProfileInfo">Relative last seen shows \"last seen 5 minutes ago\" instead of the time. Hiding the phone number removes it from the top of Settings. The ID row in profiles copies the ID on tap; the Bot API adds a minus sign for groups and -100 for supergroups and channels.</string>
     <string name="GlassgramChatList">Chat List</string>
     <string name="GlassgramTitleText">Title Text</string>
     <string name="GlassgramTitleTextInfo">Text shown at the top of the chat list. Leave empty for the app\'s name.</string>
@@ -11275,4 +11275,15 @@
     <string name="GlassgramLastSeenMinutes_other">last seen %1$d minutes ago</string>
     <string name="GlassgramLastSeenHours_one">last seen %1$d hour ago</string>
     <string name="GlassgramLastSeenHours_other">last seen %1$d hours ago</string>
+    <string name="GlassgramMaps">Maps</string>
+    <string name="GlassgramUseYandexMaps">Use Yandex Maps</string>
+    <string name="GlassgramUseYandexMapsInfo">Location previews in chats come from Yandex, and \"Open in Maps\" and directions open Yandex Maps.</string>
+    <string name="GlassgramDownloadBoost">Download Speed Boost</string>
+    <string name="GlassgramUploadBoost">Upload Speed Boost</string>
+    <string name="GlassgramBoostOff">Off</string>
+    <string name="GlassgramBoostFast">Fast</string>
+    <string name="GlassgramBoostUltra">Ultra</string>
+    <string name="GlassgramBoostInfo">Downloads and uploads use bigger parts and more parallel requests. Ultra can cause problems downloading files and streaming videos on slow connections.</string>
+    <string name="GlassgramShowId">Show ID</string>
+    <string name="GlassgramShowIdOff">Hidden</string>
 </resources>

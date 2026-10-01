@@ -581,7 +581,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                     try {
                         double lat = messageObject.messageOwner.media.geo.lat;
                         double lon = messageObject.messageOwner.media.geo._long;
-                        getParentActivity().startActivity(new Intent(android.content.Intent.ACTION_VIEW, Uri.parse("geo:" + lat + "," + lon + "?q=" + lat + "," + lon)));
+                        getParentActivity().startActivity(new Intent(android.content.Intent.ACTION_VIEW, Uri.parse(glassgramOpenInMapsUrl(lat, lon))));
                     } catch (Exception e) {
                         FileLog.e(e);
                     }
@@ -735,7 +735,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                     try {
                         double lat = messageObject.messageOwner.media.geo.lat;
                         double lon = messageObject.messageOwner.media.geo._long;
-                        getParentActivity().startActivity(new Intent(android.content.Intent.ACTION_VIEW, Uri.parse("geo:" + lat + "," + lon + "?q=" + lat + "," + lon)));
+                        getParentActivity().startActivity(new Intent(android.content.Intent.ACTION_VIEW, Uri.parse(glassgramOpenInMapsUrl(lat, lon))));
                     } catch (Exception e) {
                         FileLog.e(e);
                     }
@@ -1584,6 +1584,14 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         return 0;
     }
 
+    /** "Open in maps": Yandex Maps (app or site) when chosen in Glassgram Preferences. */
+    private static String glassgramOpenInMapsUrl(double lat, double lon) {
+        if (org.telegram.messenger.GlassgramConfig.useYandexMaps) {
+            return String.format(Locale.US, "https://yandex.ru/maps/?pt=%f,%f&z=16&l=map", lon, lat);
+        }
+        return "geo:" + lat + "," + lon + "?q=" + lat + "," + lon;
+    }
+
     private void openDirections(LiveLocation location) {
         double daddrLat, daddrLong;
         if (location != null && location.object != null) {
@@ -1595,6 +1603,16 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         } else {
             daddrLat = chatLocation.geo_point.lat;
             daddrLong = chatLocation.geo_point._long;
+        }
+        if (org.telegram.messenger.GlassgramConfig.useYandexMaps) {
+            try {
+                final String from = myLocation != null ? String.format(Locale.US, "%f,%f", myLocation.getLatitude(), myLocation.getLongitude()) : "";
+                final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(String.format(Locale.US, "https://yandex.ru/maps/?rtext=%s~%f,%f&rtt=auto", from, daddrLat, daddrLong)));
+                getParentActivity().startActivity(intent);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return;
         }
         String domain;
         if (BuildVars.isHuaweiStoreApp()) {

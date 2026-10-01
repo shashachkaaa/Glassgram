@@ -16,6 +16,13 @@ public class GlassgramConfig {
     public static boolean formatTimeWithSeconds;
     public static boolean relativeLastSeen;
     public static boolean hidePhoneNumber;
+    public static int showId;
+    public static boolean useYandexMaps;
+    public static int downloadBoost;
+    public static boolean uploadBoost;
+
+    public static final int SHOW_ID_OFF = 0, SHOW_ID_TELEGRAM_API = 1, SHOW_ID_BOT_API = 2;
+    public static final int BOOST_OFF = 0, BOOST_FAST = 1, BOOST_ULTRA = 2;
 
     // Appearance
     public static String titleText = "";
@@ -43,6 +50,10 @@ public class GlassgramConfig {
         formatTimeWithSeconds = p.getBoolean("formatTimeWithSeconds", false);
         relativeLastSeen = p.getBoolean("relativeLastSeen", false);
         hidePhoneNumber = p.getBoolean("hidePhoneNumber", false);
+        showId = p.getInt("showId", SHOW_ID_OFF);
+        useYandexMaps = p.getBoolean("useYandexMaps", false);
+        downloadBoost = p.getInt("downloadBoost", BOOST_OFF);
+        uploadBoost = p.getBoolean("uploadBoost", false);
         titleText = p.getString("titleText", "");
         hideStories = p.getBoolean("hideStories", false);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
@@ -60,6 +71,10 @@ public class GlassgramConfig {
 
     public static void putBoolean(String key, boolean value) {
         prefs().edit().putBoolean(key, value).apply();
+    }
+
+    public static void putInt(String key, int value) {
+        prefs().edit().putInt(key, value).apply();
     }
 
     public static void setTitleText(String text) {

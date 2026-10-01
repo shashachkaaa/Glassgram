@@ -522,6 +522,11 @@ public class MessagesController extends BaseController implements NotificationCe
     public int maxFolderPinnedDialogsCountDefault;
     public int maxFolderPinnedDialogsCountPremium;
     public int mapProvider;
+
+    /** Static map previews: Yandex when chosen in Glassgram Preferences, else the server's choice. */
+    public int getMapProvider() {
+        return GlassgramConfig.useYandexMaps ? 1 : mapProvider;
+    }
     public int availableMapProviders;
     public int updateCheckDelay;
     public int chatReadMarkSizeThreshold;

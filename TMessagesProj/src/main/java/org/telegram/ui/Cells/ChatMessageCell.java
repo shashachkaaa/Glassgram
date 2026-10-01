@@ -9576,7 +9576,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                             currentMapProvider = -1;
                         }
                     } else {
-                        currentMapProvider = MessagesController.getInstance(messageObject.currentAccount).mapProvider;
+                        currentMapProvider = MessagesController.getInstance(messageObject.currentAccount).getMapProvider();
                     }
                     if (locationLoadingThumb == null) {
                         SvgHelper.SvgDrawable svgThumb = DocumentObject.getSvgThumb(R.raw.map_placeholder, Theme.key_chat_outLocationIcon, (Theme.isCurrentThemeDark() ? 3 : 6) * .12f);

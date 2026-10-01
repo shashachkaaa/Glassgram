@@ -178,7 +178,7 @@ public class RichMapCell extends RichBlockCell
             return;
         }
         loadedKey = key;
-        currentMapProvider = MessagesController.getInstance(currentAccount).mapProvider;
+        currentMapProvider = MessagesController.getInstance(currentAccount).getMapProvider();
         if (currentMapProvider == 2) {
             final WebFile webFile = WebFile.createWithGeoPoint(map.geo, wDp, hDp, MAP_ZOOM, Math.min(2, (int) Math.ceil(AndroidUtilities.density)));
             imageReceiver.setImage(ImageLocation.getForWebFile(webFile), null, null, null, null, 0);

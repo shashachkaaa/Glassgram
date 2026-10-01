@@ -2852,7 +2852,7 @@ public class AndroidUtilities {
     public static String formapMapUrl(int account, double lat, double lon, int width, int height, boolean marker, int zoom, int provider) {
         int scale = Math.min(2, (int) Math.ceil(AndroidUtilities.density));
         if (provider == -1) {
-            provider = MessagesController.getInstance(account).mapProvider;
+            provider = MessagesController.getInstance(account).getMapProvider();
         }
         if (provider == 1 || provider == 3) {
             String lang = null;

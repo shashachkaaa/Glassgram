@@ -281,7 +281,7 @@
     <string name="GlassgramProfile">Профиль</string>
     <string name="GlassgramRelativeLastSeen">Относительное «был(а) в сети»</string>
     <string name="GlassgramHidePhone">Скрыть номер телефона</string>
-    <string name="GlassgramProfileInfo">Относительное время показывает «был(а) 5 минут назад» вместо времени. Скрытие номера убирает его из шапки настроек.</string>
+    <string name="GlassgramProfileInfo">Относительное время показывает «был(а) 5 минут назад» вместо времени. Скрытие номера убирает его из шапки настроек. Строка ID в профиле копирует ID по нажатию; Bot API добавляет минус для групп и -100 для супергрупп и каналов.</string>
     <string name="GlassgramChatList">Список чатов</string>
     <string name="GlassgramTitleText">Текст заголовка</string>
     <string name="GlassgramTitleTextInfo">Текст вверху списка чатов. Оставьте пустым, чтобы показывать название приложения.</string>
@@ -307,4 +307,15 @@
     <string name="GlassgramLastSeenHours_few">был(а) %1$d часа назад</string>
     <string name="GlassgramLastSeenHours_many">был(а) %1$d часов назад</string>
     <string name="GlassgramLastSeenHours_other">был(а) %1$d часа назад</string>
+    <string name="GlassgramMaps">Карты</string>
+    <string name="GlassgramUseYandexMaps">Использовать Яндекс Карты</string>
+    <string name="GlassgramUseYandexMapsInfo">Превью геопозиций в чатах берутся из Яндекса, а «Открыть в картах» и маршрут открывают Яндекс Карты.</string>
+    <string name="GlassgramDownloadBoost">Ускорение загрузки</string>
+    <string name="GlassgramUploadBoost">Ускорение выгрузки</string>
+    <string name="GlassgramBoostOff">Выкл</string>
+    <string name="GlassgramBoostFast">Быстро</string>
+    <string name="GlassgramBoostUltra">Ультра</string>
+    <string name="GlassgramBoostInfo">Файлы скачиваются и отправляются большими частями и в несколько потоков. «Ультра» может мешать загрузке файлов и просмотру видео на медленном интернете.</string>
+    <string name="GlassgramShowId">Показывать ID</string>
+    <string name="GlassgramShowIdOff">Не показывать</string>
 </resources>

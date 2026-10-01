@@ -286,6 +286,16 @@ public class FileLoadOperation {
     }
 
     private void updateParams() {
+        if (!forceSmallChunk && GlassgramConfig.downloadBoost != GlassgramConfig.BOOST_OFF) {
+            // Glassgram download boost: bigger parts and more parallel requests. Ultra uses
+            // upload.getFile's largest part (1 MB), which can stall on slow connections.
+            final boolean ultra = GlassgramConfig.downloadBoost == GlassgramConfig.BOOST_ULTRA;
+            downloadChunkSizeBig = ultra ? 1024 * 1024 : 1024 * 512;
+            maxDownloadRequests = ultra ? 12 : 8;
+            maxDownloadRequestsBig = ultra ? 12 : 8;
+            maxCdnParts = (int) (FileLoader.DEFAULT_MAX_FILE_SIZE / downloadChunkSizeBig);
+            return;
+        }
         if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
             downloadChunkSizeBig = 1024 * 512;
             maxDownloadRequests = 8;
