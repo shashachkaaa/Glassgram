@@ -103,8 +103,12 @@ public class ChatGreetingsView extends LinearLayout {
         setText(getString(R.string.NoMessages), getString(R.string.NoMessagesGreetingsDescription));
 
         preloadedGreetingsSticker = sticker;
-        if (preloadedGreetingsSticker == null) {
+        if (preloadedGreetingsSticker == null && !org.telegram.messenger.GlassgramConfig.disableGreetingSticker) {
             preloadedGreetingsSticker = MediaDataController.getInstance(currentAccount).getGreetingsSticker();
+        }
+        if (org.telegram.messenger.GlassgramConfig.disableGreetingSticker) {
+            preloadedGreetingsSticker = null;
+            stickerContainer.setVisibility(View.GONE);
         }
     }
 
@@ -241,7 +245,7 @@ public class ChatGreetingsView extends LinearLayout {
     }
 
     public void setSticker(TLRPC.Document sticker) {
-        if (sticker == null) {
+        if (sticker == null || org.telegram.messenger.GlassgramConfig.disableGreetingSticker) {
             return;
         }
         wasDraw = true;

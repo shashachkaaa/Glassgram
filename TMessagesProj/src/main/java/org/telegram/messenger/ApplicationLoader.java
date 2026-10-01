@@ -322,6 +322,7 @@ public class ApplicationLoader extends Application {
         if (applicationContext == null) {
             applicationContext = getApplicationContext();
         }
+        GlassgramConfig.load();
 
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
 

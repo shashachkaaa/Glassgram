@@ -11144,6 +11144,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (delegate == null) {
             return;
         }
+        forceHide |= org.telegram.messenger.GlassgramConfig.hideSendAsButton;
         createMessageEditText();
         TLRPC.Chat chat;
         TLRPC.Peer defPeer;

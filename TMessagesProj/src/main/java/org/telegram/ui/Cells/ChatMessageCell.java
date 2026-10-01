@@ -23872,6 +23872,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
             return;
         }
+        if (org.telegram.messenger.GlassgramConfig.hideTimeOnStickers && currentMessageObject != null && currentMessageObject.isAnyKindOfSticker()) {
+            return;
+        }
         for (int i = 0; i < 2; i++) {
             float currentAlpha = alpha;
             if (i == 0 && isDrawSelectionBackground() && currentSelectedBackgroundAlpha == 1f && !shouldDrawTimeOnMedia()) {

@@ -87,7 +87,12 @@ public class LocaleController {
                         lang = "en";
                     }
                     lang = lang.toLowerCase();
-                    formatterDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, is24HourFormat ? getStringInternal("formatterDay24H", R.string.formatterDay24H) : getStringInternal("formatterDay12H", R.string.formatterDay12H), is24HourFormat ? "HH:mm" : "h:mm a");
+                    if (GlassgramConfig.formatTimeWithSeconds) {
+                        final String withSeconds = is24HourFormat ? "HH:mm:ss" : "h:mm:ss a";
+                        formatterDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, withSeconds, withSeconds);
+                    } else {
+                        formatterDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, is24HourFormat ? getStringInternal("formatterDay24H", R.string.formatterDay24H) : getStringInternal("formatterDay12H", R.string.formatterDay12H), is24HourFormat ? "HH:mm" : "h:mm a");
+                    }
                 }
             }
         }
@@ -2605,6 +2610,19 @@ public class LocaleController {
     }
 
     public static String formatDateOnline(long date, boolean[] madeShorter) {
+        if (GlassgramConfig.relativeLastSeen) {
+            final long diff = System.currentTimeMillis() / 1000 - date;
+            if (diff >= 0 && diff < 24 * 60 * 60) {
+                final int minutes = (int) (diff / 60);
+                if (minutes < 1) {
+                    return LocaleController.getString(R.string.GlassgramLastSeenNow);
+                } else if (minutes < 60) {
+                    return LocaleController.formatPluralString("GlassgramLastSeenMinutes", minutes);
+                } else {
+                    return LocaleController.formatPluralString("GlassgramLastSeenHours", minutes / 60);
+                }
+            }
+        }
         try {
             date *= 1000;
             Calendar rightNow = Calendar.getInstance();
@@ -2863,6 +2881,12 @@ public class LocaleController {
     }
 
     public static String formatShortNumber(int number, int[] rounded) {
+        if (GlassgramConfig.disableNumberRounding) {
+            if (rounded != null) {
+                rounded[0] = number;
+            }
+            return String.format(Locale.US, "%,d", number);
+        }
         StringBuilder K = new StringBuilder();
         int lastDec = 0;
         int KCount = 0;
