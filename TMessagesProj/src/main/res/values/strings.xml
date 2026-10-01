@@ -11286,4 +11286,16 @@
     <string name="GlassgramBoostInfo">Downloads and uploads use bigger parts and more parallel requests. Ultra can cause problems downloading files and streaming videos on slow connections.</string>
     <string name="GlassgramShowId">Show ID</string>
     <string name="GlassgramShowIdOff">Hidden</string>
+    <string name="GlassgramGhostMode">Ghost Mode</string>
+    <string name="GlassgramGhostModeInfo">Read chats and watch stories without others knowing, and stay offline. Works for all your accounts.</string>
+    <string name="GlassgramGhostIncludes">Ghost Mode Includes</string>
+    <string name="GlassgramGhostNoRead">Don\'t Read Messages</string>
+    <string name="GlassgramGhostNoStories">Don\'t Read Stories</string>
+    <string name="GlassgramGhostNoOnline">Don\'t Send Online</string>
+    <string name="GlassgramGhostNoTyping">Don\'t Send Typing</string>
+    <string name="GlassgramGhostAutoOffline">Go Offline Automatically</string>
+    <string name="GlassgramGhostReadOnInteract">Read on Interact</string>
+    <string name="GlassgramGhostReadOnInteractInfo">Marks a chat as read for the other side when you send a message there. Going offline automatically sets you offline again right after you send a message.</string>
+    <string name="GlassgramOn">On</string>
+    <string name="GlassgramOff">Off</string>
 </resources>

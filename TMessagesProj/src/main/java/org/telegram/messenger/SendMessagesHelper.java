@@ -4257,6 +4257,15 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void sendMessage(SendMessageParams sendMessageParams) {
+        if (GlassgramConfig.ghostMode && sendMessageParams != null && sendMessageParams.peer != 0) {
+            final long ghostPeer = sendMessageParams.peer;
+            if (GlassgramConfig.ghostNoReadMessages() && GlassgramConfig.ghostReadOnInteract) {
+                getMessagesController().glassgramReadOnInteract(ghostPeer);
+            }
+            if (GlassgramConfig.ghostAutoOffline()) {
+                Utilities.stageQueue.postRunnable(() -> getMessagesController().glassgramGoOffline(), 2500);
+            }
+        }
         final SendMessageChatArguments sendMessageChatArguments = sendMessageParams.sendMessageChatArguments != null ?
                 sendMessageParams.sendMessageChatArguments : SendMessageChatArguments.EMPTY;
         String message = sendMessageParams.message;

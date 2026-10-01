@@ -10529,7 +10529,7 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            if (!ignoreSetOnline && !GlassgramConfig.ghostNoOnline() && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
                         statusSettingState = 1;
@@ -11388,6 +11388,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+        if (GlassgramConfig.ghostNoTyping()) {
+            return false;
+        }
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
@@ -14562,6 +14565,10 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        if (GlassgramConfig.ghostNoReadMessages()) {
+            // Ghost mode: read here, unread for everyone else
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -14612,6 +14619,47 @@ public class MessagesController extends BaseController implements NotificationCe
                 });
             }
         }
+    }
+
+    /** Ghost mode, "read on interact": reading a chat you write to, up to its last message. */
+    public void glassgramReadOnInteract(long dialogId) {
+        if (dialogId == 0 || DialogObject.isEncryptedDialog(dialogId)) {
+            return;
+        }
+        final TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+        if (dialog == null || dialog.top_message == 0) {
+            return;
+        }
+        final TLRPC.InputPeer inputPeer = getInputPeer(dialogId);
+        final TLObject req;
+        if (inputPeer instanceof TLRPC.TL_inputPeerChannel) {
+            final TLRPC.TL_channels_readHistory request = new TLRPC.TL_channels_readHistory();
+            request.channel = getInputChannel(-dialogId);
+            request.max_id = dialog.top_message;
+            req = request;
+        } else {
+            final TLRPC.TL_messages_readHistory request = new TLRPC.TL_messages_readHistory();
+            request.peer = inputPeer;
+            request.max_id = dialog.top_message;
+            req = request;
+        }
+        getConnectionsManager().sendRequest(req, (response, error) -> {
+            if (error == null && response instanceof TLRPC.TL_messages_affectedMessages) {
+                final TLRPC.TL_messages_affectedMessages res = (TLRPC.TL_messages_affectedMessages) response;
+                processNewDifferenceParams(-1, res.pts, -1, res.pts_count);
+            }
+        });
+    }
+
+    /** Ghost mode, "go offline automatically": sending a message shows you online; take it back. */
+    public void glassgramGoOffline() {
+        final TL_account.updateStatus req = new TL_account.updateStatus();
+        req.offline = true;
+        getConnectionsManager().sendRequest(req, (response, error) -> {
+            if (error == null) {
+                offlineSent = true;
+            }
+        });
     }
 
     private void checkReadTasks() {

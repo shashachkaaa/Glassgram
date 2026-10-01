@@ -318,4 +318,16 @@
     <string name="GlassgramBoostInfo">Файлы скачиваются и отправляются большими частями и в несколько потоков. «Ультра» может мешать загрузке файлов и просмотру видео на медленном интернете.</string>
     <string name="GlassgramShowId">Показывать ID</string>
     <string name="GlassgramShowIdOff">Не показывать</string>
+    <string name="GlassgramGhostMode">Режим призрака</string>
+    <string name="GlassgramGhostModeInfo">Читайте чаты и смотрите истории незаметно для других и оставайтесь не в сети. Действует для всех ваших аккаунтов.</string>
+    <string name="GlassgramGhostIncludes">Режим призрака включает</string>
+    <string name="GlassgramGhostNoRead">Не читать сообщения</string>
+    <string name="GlassgramGhostNoStories">Не просматривать истории</string>
+    <string name="GlassgramGhostNoOnline">Не отправлять «в сети»</string>
+    <string name="GlassgramGhostNoTyping">Не отправлять «печатает»</string>
+    <string name="GlassgramGhostAutoOffline">Автоматически уходить из сети</string>
+    <string name="GlassgramGhostReadOnInteract">Читать при взаимодействии</string>
+    <string name="GlassgramGhostReadOnInteractInfo">Когда вы отправляете сообщение в чат, он отмечается прочитанным и для собеседника. Автоматический уход из сети снова делает вас не в сети сразу после отправки сообщения.</string>
+    <string name="GlassgramOn">Вкл</string>
+    <string name="GlassgramOff">Выкл</string>
 </resources>

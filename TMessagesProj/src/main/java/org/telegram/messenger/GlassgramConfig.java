@@ -24,6 +24,21 @@ public class GlassgramConfig {
     public static final int SHOW_ID_OFF = 0, SHOW_ID_TELEGRAM_API = 1, SHOW_ID_BOT_API = 2;
     public static final int BOOST_OFF = 0, BOOST_FAST = 1, BOOST_ULTRA = 2;
 
+    // Ghost mode: the master switch and what it covers
+    public static boolean ghostMode;
+    public static boolean ghostNoReadMessages = true;
+    public static boolean ghostNoReadStories = true;
+    public static boolean ghostNoOnline = true;
+    public static boolean ghostNoTyping = true;
+    public static boolean ghostAutoOffline = true;
+    public static boolean ghostReadOnInteract = true;
+
+    public static boolean ghostNoReadMessages() { return ghostMode && ghostNoReadMessages; }
+    public static boolean ghostNoReadStories() { return ghostMode && ghostNoReadStories; }
+    public static boolean ghostNoOnline() { return ghostMode && ghostNoOnline; }
+    public static boolean ghostNoTyping() { return ghostMode && ghostNoTyping; }
+    public static boolean ghostAutoOffline() { return ghostMode && ghostAutoOffline; }
+
     // Appearance
     public static String titleText = "";
     public static boolean hideStories;
@@ -55,6 +70,13 @@ public class GlassgramConfig {
         downloadBoost = p.getInt("downloadBoost", BOOST_OFF);
         uploadBoost = p.getBoolean("uploadBoost", false);
         titleText = p.getString("titleText", "");
+        ghostMode = p.getBoolean("ghostMode", false);
+        ghostNoReadMessages = p.getBoolean("ghostNoReadMessages", true);
+        ghostNoReadStories = p.getBoolean("ghostNoReadStories", true);
+        ghostNoOnline = p.getBoolean("ghostNoOnline", true);
+        ghostNoTyping = p.getBoolean("ghostNoTyping", true);
+        ghostAutoOffline = p.getBoolean("ghostAutoOffline", true);
+        ghostReadOnInteract = p.getBoolean("ghostReadOnInteract", true);
         hideStories = p.getBoolean("hideStories", false);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);

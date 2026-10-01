@@ -35,10 +35,20 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public static final int PAGE_GENERAL = 1;
     public static final int PAGE_APPEARANCE = 2;
     public static final int PAGE_CHATS = 3;
+    public static final int PAGE_GHOST = 4;
 
     private static final int ID_GENERAL = 1;
     private static final int ID_APPEARANCE = 2;
     private static final int ID_CHATS = 3;
+    private static final int ID_GHOST = 4;
+
+    private static final int ID_GHOST_MODE = 40;
+    private static final int ID_GHOST_READ = 41;
+    private static final int ID_GHOST_STORIES = 42;
+    private static final int ID_GHOST_ONLINE = 43;
+    private static final int ID_GHOST_TYPING = 44;
+    private static final int ID_GHOST_OFFLINE = 45;
+    private static final int ID_GHOST_READ_ON_INTERACT = 46;
 
     private static final int ID_NUMBER_ROUNDING = 10;
     private static final int ID_SECONDS = 11;
@@ -80,6 +90,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return getString(R.string.GlassgramAppearance);
             case PAGE_CHATS:
                 return getString(R.string.GlassgramChats);
+            case PAGE_GHOST:
+                return getString(R.string.GlassgramGhostMode);
             default:
                 return getString(R.string.GlassgramPreferences);
         }
@@ -127,8 +139,22 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
                 items.add(UItem.asShadow(getString(R.string.GlassgramAlwaysSendHDInfo)));
                 break;
+            case PAGE_GHOST:
+                items.add(UItem.asRippleCheck(ID_GHOST_MODE, getString(R.string.GlassgramGhostMode)).setChecked(GlassgramConfig.ghostMode));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostModeInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramGhostIncludes)));
+                items.add(UItem.asCheck(ID_GHOST_READ, getString(R.string.GlassgramGhostNoRead)).setChecked(GlassgramConfig.ghostNoReadMessages));
+                items.add(UItem.asCheck(ID_GHOST_STORIES, getString(R.string.GlassgramGhostNoStories)).setChecked(GlassgramConfig.ghostNoReadStories));
+                items.add(UItem.asCheck(ID_GHOST_ONLINE, getString(R.string.GlassgramGhostNoOnline)).setChecked(GlassgramConfig.ghostNoOnline));
+                items.add(UItem.asCheck(ID_GHOST_TYPING, getString(R.string.GlassgramGhostNoTyping)).setChecked(GlassgramConfig.ghostNoTyping));
+                items.add(UItem.asCheck(ID_GHOST_OFFLINE, getString(R.string.GlassgramGhostAutoOffline)).setChecked(GlassgramConfig.ghostAutoOffline));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asCheck(ID_GHOST_READ_ON_INTERACT, getString(R.string.GlassgramGhostReadOnInteract)).setChecked(GlassgramConfig.ghostReadOnInteract));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostReadOnInteractInfo)));
+                break;
             default:
                 items.add(UItem.asHeader(getString(R.string.GlassgramCategories)));
+                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_secret, getString(R.string.GlassgramGhostMode), GlassgramConfig.ghostMode ? getString(R.string.GlassgramOn) : getString(R.string.GlassgramOff)));
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
@@ -148,6 +174,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_CHATS:
                 presentFragment(new GlassgramSettingsActivity(PAGE_CHATS));
+                return;
+            case ID_GHOST:
+                presentFragment(new GlassgramSettingsActivity(PAGE_GHOST));
                 return;
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
@@ -184,6 +213,44 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.hidePhoneNumber = !GlassgramConfig.hidePhoneNumber;
                 GlassgramConfig.putBoolean("hidePhoneNumber", value);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
+                break;
+            case ID_GHOST_MODE:
+                value = GlassgramConfig.ghostMode = !GlassgramConfig.ghostMode;
+                GlassgramConfig.putBoolean("ghostMode", value);
+                if (value && GlassgramConfig.ghostNoOnline) {
+                    for (int a = 0; a < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                        if (org.telegram.messenger.UserConfig.getInstance(a).isClientActivated()) {
+                            MessagesController.getInstance(a).glassgramGoOffline();
+                        }
+                    }
+                }
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setBackgroundColorAnimated(value, Theme.getColor(value ? Theme.key_windowBackgroundChecked : Theme.key_windowBackgroundUnchecked));
+                }
+                break;
+            case ID_GHOST_READ:
+                value = GlassgramConfig.ghostNoReadMessages = !GlassgramConfig.ghostNoReadMessages;
+                GlassgramConfig.putBoolean("ghostNoReadMessages", value);
+                break;
+            case ID_GHOST_STORIES:
+                value = GlassgramConfig.ghostNoReadStories = !GlassgramConfig.ghostNoReadStories;
+                GlassgramConfig.putBoolean("ghostNoReadStories", value);
+                break;
+            case ID_GHOST_ONLINE:
+                value = GlassgramConfig.ghostNoOnline = !GlassgramConfig.ghostNoOnline;
+                GlassgramConfig.putBoolean("ghostNoOnline", value);
+                break;
+            case ID_GHOST_TYPING:
+                value = GlassgramConfig.ghostNoTyping = !GlassgramConfig.ghostNoTyping;
+                GlassgramConfig.putBoolean("ghostNoTyping", value);
+                break;
+            case ID_GHOST_OFFLINE:
+                value = GlassgramConfig.ghostAutoOffline = !GlassgramConfig.ghostAutoOffline;
+                GlassgramConfig.putBoolean("ghostAutoOffline", value);
+                break;
+            case ID_GHOST_READ_ON_INTERACT:
+                value = GlassgramConfig.ghostReadOnInteract = !GlassgramConfig.ghostReadOnInteract;
+                GlassgramConfig.putBoolean("ghostReadOnInteract", value);
                 break;
             case ID_YANDEX_MAPS:
                 value = GlassgramConfig.useYandexMaps = !GlassgramConfig.useYandexMaps;
