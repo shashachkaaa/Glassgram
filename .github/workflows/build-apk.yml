@@ -1,0 +1,122 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "*" ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Что собирать"
+        type: choice
+        default: release
+        options:
+          - release
+          - debug
+          - standalone
+          - huawei
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ANDROID_NDK_VERSION: 27.2.12479018
+  ANDROID_CMAKE_VERSION: 3.22.1
+  ANDROID_BUILD_TOOLS_VERSION: 36.0.0
+  ANDROID_PLATFORM: android-36
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/node_modules /opt/ghc /usr/local/.ghcup \
+                      /usr/local/share/boost /opt/hostedtoolcache/CodeQL /usr/local/share/powershell
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages, NDK and CMake
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq nasm ninja-build
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platforms;${ANDROID_PLATFORM}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
+            "platform-tools" \
+            "ndk;${ANDROID_NDK_VERSION}" \
+            "cmake;${ANDROID_CMAKE_VERSION}"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Select Gradle task
+        id: task
+        run: |
+          VARIANT="${{ github.event.inputs.variant || 'release' }}"
+          case "$VARIANT" in
+            release)    TASK=":TMessagesProj_App:assembleAfatRelease";               OUT="TMessagesProj_App/build/outputs/apk" ;;
+            debug)      TASK=":TMessagesProj_App:assembleAfatDebug";                 OUT="TMessagesProj_App/build/outputs/apk" ;;
+            standalone) TASK=":TMessagesProj_AppStandalone:assembleAfatStandalone";  OUT="TMessagesProj_AppStandalone/build/outputs/apk" ;;
+            huawei)     TASK=":TMessagesProj_AppHuawei:assembleAfatRelease";         OUT="TMessagesProj_AppHuawei/build/outputs/apk" ;;
+            *) echo "Unknown variant: $VARIANT"; exit 1 ;;
+          esac
+          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
+          echo "task=$TASK" >> "$GITHUB_OUTPUT"
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew ${{ steps.task.outputs.task }} \
+            --no-daemon --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            -Dorg.gradle.workers.max=4
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          find "${{ steps.task.outputs.out }}" -name '*.apk' | while read -r apk; do
+            flavor_dir="$(basename "$(dirname "$apk")")"
+            cp "$apk" "dist/Telegram-${{ steps.task.outputs.variant }}-${flavor_dir}-${GITHUB_SHA::7}.apk"
+          done
+          ls -lh dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-${{ steps.task.outputs.variant }}-${{ github.sha }}
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
