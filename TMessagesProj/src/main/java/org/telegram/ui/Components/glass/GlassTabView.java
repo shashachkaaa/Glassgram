@@ -105,6 +105,11 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
 
     private boolean hasVisualWidth;
     private float visualWidth;
+
+    /** Width of the tab's selection capsule. */
+    public float getSelectorWidth() {
+        return hasVisualWidth ? visualWidth : getWidth();
+    }
     public void setVisualWidth(float width) {
         hasVisualWidth = true;
         if (visualWidth != width) {
@@ -140,7 +145,16 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         invalidate();
     }
 
+    private boolean liquidSelector;
+
+    /** The selection is drawn by a {@link LiquidTabIndicator} in the parent; never draw our own. */
+    public void setLiquidSelector(boolean liquidSelector) {
+        this.liquidSelector = liquidSelector;
+        setSkipDrawSelector(skipDrawSelector);
+    }
+
     public void setSkipDrawSelector(boolean skipDrawSelector) {
+        skipDrawSelector |= liquidSelector;
         if (this.skipDrawSelector != skipDrawSelector) {
             this.skipDrawSelector = skipDrawSelector;
             invalidate();
