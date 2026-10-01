@@ -95,7 +95,7 @@ public class BlurredBackgroundDrawableViewFactory {
 
     public BlurredBackgroundDrawable create(View view, BlurredBackgroundColorProvider provider, boolean multiwindow) {
         final BlurredBackgroundDrawable drawable = source.createDrawable();
-        if (isLiquidGlassEffectAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (isLiquidGlassEffectAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (drawable instanceof BlurredBackgroundDrawableRenderNode) {
                 ((BlurredBackgroundDrawableRenderNode) drawable).setLiquidGlassEffectAllowed();
             }

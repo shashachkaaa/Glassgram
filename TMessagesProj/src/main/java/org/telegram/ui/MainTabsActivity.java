@@ -43,7 +43,6 @@ import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
-import org.telegram.liquidglass.LiquidGlassPanelView;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
@@ -118,7 +117,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private FrameLayout tabsViewWrapper;
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
-    private LiquidGlassPanelView tabsGlassView;
     private View fadeView;
 
     public MainTabsActivity() {
@@ -360,19 +358,14 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         final ViewPositionWatcher viewPositionWatcher = new ViewPositionWatcher(contentView);
 
-        final boolean useBackdropGlass = iBlur3SourceTabGlass != null
-                && LiquidGlassPanelView.isSupported()
-                && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
-        if (!useBackdropGlass) {
-            BlurredBackgroundDrawableViewFactory iBlur3FactoryGlass = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
-            iBlur3FactoryGlass.setSourceRootView(viewPositionWatcher, contentView);
-            iBlur3FactoryGlass.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
+        BlurredBackgroundDrawableViewFactory iBlur3FactoryGlass = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
+        iBlur3FactoryGlass.setSourceRootView(viewPositionWatcher, contentView);
+        iBlur3FactoryGlass.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
 
-            tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
-            tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
-            tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
-            tabsView.setBackground(tabsViewBackground);
-        }
+        tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
+        tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
+        tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        tabsView.setBackground(tabsViewBackground);
 
         BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
         iBlur3FactoryFade.setSourceRootView(viewPositionWatcher, contentView);
@@ -389,29 +382,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsViewWrapper.addView(tabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
         tabsViewWrapper.setClipToPadding(false);
         contentView.addView(tabsViewWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
-
-        if (useBackdropGlass) {
-            tabsGlassView = new LiquidGlassPanelView(context);
-            tabsGlassView.setSource(new LiquidGlassPanelView.Source() {
-                @Override
-                public View getSourceView() {
-                    return contentView;
-                }
-
-                @Override
-                public void draw(Canvas canvas) {
-                    iBlur3SourceTabGlass.draw(canvas, 0, 0, contentView.getWidth(), contentView.getHeight());
-                }
-            });
-            tabsGlassView.setInset(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
-            tabsGlassView.setCornerRadius(-1);
-            tabsViewWrapper.addView(tabsGlassView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
-            tabsView.getViewTreeObserver().addOnPreDrawListener(() -> {
-                checkUi_tabsGlass();
-                return true;
-            });
-            blur3_updateGlassColors();
-        }
 
         updateLayoutWrapper = new UpdateLayoutWrapper(context);
         contentView.addView(updateLayoutWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
@@ -1241,44 +1211,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
-    private void blur3_updateGlassColors() {
-        if (tabsGlassView == null) {
-            return;
-        }
-        final int colorBg = getThemedColor(Theme.key_windowBackgroundWhite);
-        final int colorTarget = getThemedColor(Theme.key_glass_targetMainTabs);
-        tabsGlassView.setSurfaceColor(Theme.multAlpha(ColorUtils.blendARGB(colorBg, colorTarget, 0.5f), 0.55f));
-        tabsGlassView.setDark(Theme.isCurrentThemeDark());
-    }
-
-    /** Keeps the Backdrop glass panel in sync with bounds and transforms of {@link #tabsView}. */
-    private void checkUi_tabsGlass() {
-        if (tabsGlassView == null || tabsView == null) {
-            return;
-        }
-        final int l = tabsView.getLeft(), t = tabsView.getTop(), r = tabsView.getRight(), b = tabsView.getBottom();
-        if (tabsGlassView.getLeft() != l || tabsGlassView.getTop() != t || tabsGlassView.getRight() != r || tabsGlassView.getBottom() != b) {
-            tabsGlassView.measure(
-                View.MeasureSpec.makeMeasureSpec(r - l, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(b - t, View.MeasureSpec.EXACTLY));
-            tabsGlassView.layout(l, t, r, b);
-        }
-        tabsGlassView.setPivotX(tabsView.getPivotX());
-        tabsGlassView.setPivotY(tabsView.getPivotY());
-        tabsGlassView.setScaleX(tabsView.getScaleX());
-        tabsGlassView.setScaleY(tabsView.getScaleY());
-        tabsGlassView.setTranslationX(tabsView.getTranslationX());
-        tabsGlassView.setTranslationY(tabsView.getTranslationY());
-        tabsGlassView.setAlpha(tabsView.getAlpha());
-        tabsGlassView.setVisibility(tabsView.getVisibility());
-    }
-
     private void blur3_updateColors() {
         blur3_updateFadeColors();
         if (tabsViewBackground != null) {
             tabsViewBackground.updateColors();
         }
-        blur3_updateGlassColors();
         blur3_invalidateBlur();
         if (fadeView != null) {
             fadeView.invalidate();

@@ -14,8 +14,11 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
+import androidx.core.graphics.ColorUtils;
+
+import org.telegram.liquidglass.BackdropGlass;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.blur3.LiquidGlassEffect;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)
@@ -52,11 +55,13 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         return super.setClipToOutline(clipToOutline);
     }
 
-    private LiquidGlassEffect liquidGlassEffect;
+    /** Liquid Glass rendered by Kyant0/AndroidLiquidGlass; null for plain frosted blur. */
+    private BackdropGlass backdropGlass;
+    private final float[] glassRadii = new float[4];
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    @RequiresApi(api = Build.VERSION_CODES.S)
     public void setLiquidGlassEffectAllowed() {
-        liquidGlassEffect = new LiquidGlassEffect(renderNodeFill);
+        backdropGlass = new BackdropGlass();
     }
 
 
@@ -101,10 +106,17 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
 
     @Override
     public void updateDisplayList() {
+        if (backdropGlass != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Color.alpha(backgroundColor) != 255) {
+            updateDisplayListBackdropGlass();
+            return;
+        }
+
         final float offsetX = sourceOffsetX;
         final float offsetY = sourceOffsetY;
 
         Canvas c;
+
+        renderNodeFill.setPosition(0, 0, boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height());
 
         final float sL = boundProps.boundsWithPadding.left + offsetX;
         final float sT = boundProps.boundsWithPadding.top + offsetY;
@@ -114,20 +126,6 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         c = renderNodeFill.beginRecording();
         c.save();
         c.translate(-sL, -sT);
-        if (liquidGlassEffect != null && Build.VERSION.SDK_INT >= 33) {
-            final int thickness = Math.max(Math.min(
-                boundProps.liquidThickness <= 0 ? dp(11) : boundProps.liquidThickness,
-                Math.min(boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height()) / 5), 1);
-
-            liquidGlassEffect.update(
-                0, 0, boundProps.boundsWithPadding.width(), boundProps.boundsWithPadding.height(),
-                boundProps.shaderRadii[0], boundProps.shaderRadii[2], boundProps.shaderRadii[4], boundProps.shaderRadii[6],
-                thickness,
-                boundProps.liquidIntensity,
-                boundProps.liquidIndex,
-                backgroundColor
-            );
-        }
         source.draw(c, sL, sT, sR, sB);
         c.save();
         renderNodeFill.endRecording();
@@ -138,10 +136,61 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
             c.drawColor(backgroundColor);
         } else {
             c.drawRenderNode(renderNodeFill);
-            if (liquidGlassEffect == null && Color.alpha(backgroundColor) != 0) {
+            if (Color.alpha(backgroundColor) != 0) {
                 c.drawColor(backgroundColor);
             }
         }
+        drawStrokes(c);
+        renderNode.endRecording();
+    }
+
+    /**
+     * Liquid Glass: the content behind is recorded into {@link #renderNodeFill} with the
+     * library's color controls, blur and lens as its RenderEffect, then tinted and outlined
+     * with the library's highlight. The fill node is enlarged by the effect padding so the
+     * blur and the lens can sample past the glass edge.
+     */
+    @RequiresApi(api = Build.VERSION_CODES.S)
+    private void updateDisplayListBackdropGlass() {
+        final int width = boundProps.boundsWithPadding.width();
+        final int height = boundProps.boundsWithPadding.height();
+        final boolean dark = ColorUtils.calculateLuminance(backgroundColor | 0xFF000000) < 0.5f;
+
+        final int thickness = Math.max(Math.min(
+            boundProps.liquidThickness <= 0 ? dp(12) : boundProps.liquidThickness,
+            Math.min(width, height) / 4), 1);
+        glassRadii[0] = boundProps.shaderRadii[0];
+        glassRadii[1] = boundProps.shaderRadii[2];
+        glassRadii[2] = boundProps.shaderRadii[4];
+        glassRadii[3] = boundProps.shaderRadii[6];
+        if (backdropGlass.update(width, height, glassRadii, AndroidUtilities.density,
+                thickness, dp(24) * boundProps.liquidIntensity / 0.75f, dark)) {
+            renderNodeFill.setRenderEffect(backdropGlass.getRenderEffect());
+        }
+        final int pad = (int) Math.ceil(backdropGlass.getPadding());
+
+        final float sL = boundProps.boundsWithPadding.left + sourceOffsetX - pad;
+        final float sT = boundProps.boundsWithPadding.top + sourceOffsetY - pad;
+        final float sR = boundProps.boundsWithPadding.right + sourceOffsetX + pad;
+        final float sB = boundProps.boundsWithPadding.bottom + sourceOffsetY + pad;
+
+        renderNodeFill.setPosition(-pad, -pad, width + pad, height + pad);
+        Canvas c = renderNodeFill.beginRecording();
+        c.translate(-sL, -sT);
+        source.draw(c, sL, sT, sR, sB);
+        renderNodeFill.endRecording();
+
+        c = renderNode.beginRecording();
+        c.drawRenderNode(renderNodeFill);
+        final float tintAlpha = Math.min(Color.alpha(backgroundColor) / 255f, BackdropGlass.tintAlpha(dark));
+        if (tintAlpha > 0) {
+            c.drawColor(ColorUtils.setAlphaComponent(backgroundColor, (int) (tintAlpha * 255)));
+        }
+        backdropGlass.drawHighlight(c);
+        renderNode.endRecording();
+    }
+
+    private void drawStrokes(Canvas c) {
         if (strokeColorTop != 0) {
             drawStroke(c, 0, 0, boundProps.boundsWithPadding.width(),
                     boundProps.boundsWithPadding.height(), boundProps.radii,
@@ -152,7 +201,6 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
                     boundProps.boundsWithPadding.height(), boundProps.radii,
                     boundProps.strokeWidthBottom, false, paintStrokeBottom);
         }
-        renderNode.endRecording();
     }
 
     @Override
