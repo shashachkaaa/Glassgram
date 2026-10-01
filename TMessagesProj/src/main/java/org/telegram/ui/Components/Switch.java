@@ -27,12 +27,19 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.util.StateSet;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewParent;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import androidx.annotation.Keep;
 import androidx.core.graphics.ColorUtils;
+import androidx.dynamicanimation.animation.FloatValueHolder;
+import androidx.dynamicanimation.animation.SpringAnimation;
+import androidx.dynamicanimation.animation.SpringForce;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.liquidglass.BackdropGlass;
 import org.telegram.liquidglass.GlassLayer;
@@ -408,36 +415,150 @@ public class Switch extends View {
         c.restore();
     };
 
+    // Proportions of the catalog's 64x28 track with a 40x24 thumb, a bit smaller to fit Telegram's rows
+    private static final float LIQUID_TRACK_WIDTH = 54f;
+    private static final float LIQUID_TRACK_HEIGHT = 26f;
+    private static final float LIQUID_PADDING = 2f;
+
     private float liquidThumbWidth() {
-        return liquidTrackWidth * 22f / 37f;
+        return liquidTrackWidth * 40f / 64f;
     }
 
     private float liquidThumbHeight() {
-        return liquidTrackHeight - 2 * AndroidUtilities.dpf2(1.5f);
+        return liquidTrackHeight - 2 * AndroidUtilities.dpf2(LIQUID_PADDING);
+    }
+
+    private float liquidTravel() {
+        final float trackWidth = AndroidUtilities.dpf2(LIQUID_TRACK_WIDTH);
+        return trackWidth - trackWidth * 40f / 64f - 2 * AndroidUtilities.dpf2(LIQUID_PADDING);
+    }
+
+    /* Touch: the thumb can be dragged or the switch tapped, like the catalog's LiquidToggle */
+
+    private final FloatValueHolder touchPress = new FloatValueHolder(0f);
+    private final SpringAnimation touchPressAnimation = new SpringAnimation(touchPress);
+    {
+        // DampedDragAnimation's pressProgress spring(1f, 1000f)
+        touchPressAnimation.setSpring(new SpringForce().setDampingRatio(1f).setStiffness(1000f));
+        touchPressAnimation.setMinimumVisibleChange(0.001f);
+        touchPressAnimation.addUpdateListener((a, value, velocity) -> invalidate());
+    }
+    private float touchStartX, touchStartProgress;
+    private boolean touchDown, touchDragging;
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (!isEnabled() || overrideColorProgress != 0) {
+            return super.onTouchEvent(event);
+        }
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                touchDown = true;
+                touchDragging = false;
+                touchStartX = event.getX();
+                touchStartProgress = progress;
+                touchPressAnimation.animateToFinalPosition(1f);
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (!touchDown) {
+                    break;
+                }
+                final float dx = event.getX() - touchStartX;
+                if (!touchDragging && Math.abs(dx) > ViewConfiguration.get(getContext()).getScaledTouchSlop()) {
+                    touchDragging = true;
+                    if (getParent() != null) {
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    cancelCheckAnimator();
+                }
+                if (touchDragging) {
+                    final float travel = liquidTravel();
+                    setProgress(Math.max(0f, Math.min(1f, touchStartProgress + (travel > 0 ? dx / travel : 0))));
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (!touchDown) {
+                    break;
+                }
+                touchDown = false;
+                touchPressAnimation.animateToFinalPosition(0f);
+                if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                    final boolean target = touchDragging ? progress >= 0.5f : !isChecked;
+                    if (target != isChecked) {
+                        performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                        performOwnerClick();
+                    }
+                }
+                touchDragging = false;
+                // Settle on whatever the owner decided
+                if (progress != (isChecked ? 1f : 0f) && checkAnimator == null) {
+                    animateToCheckedState(isChecked);
+                }
+                return true;
+        }
+        return super.onTouchEvent(event);
+    }
+
+    /**
+     * Toggles through whoever owns the switch, so the setting is saved exactly as when the row
+     * is tapped: the switch's own click listener, a clickable ancestor, or the list's item click.
+     */
+    private void performOwnerClick() {
+        if (hasOnClickListeners()) {
+            performClick();
+            return;
+        }
+        View child = this;
+        ViewParent parent = getParent();
+        while (parent instanceof View) {
+            final View parentView = (View) parent;
+            if (parentView instanceof RecyclerListView) {
+                final RecyclerListView list = (RecyclerListView) parentView;
+                final int position = list.getChildAdapterPosition(child);
+                if (position != RecyclerView.NO_POSITION) {
+                    if (list.getOnItemClickListener() != null) {
+                        list.getOnItemClickListener().onItemClick(child, position);
+                        return;
+                    }
+                    if (list.getOnItemClickListenerExtended() != null) {
+                        list.getOnItemClickListenerExtended().onItemClick(child, position, child.getWidth() / 2f, child.getHeight() / 2f);
+                        return;
+                    }
+                }
+                break;
+            }
+            if (parentView.hasOnClickListeners()) {
+                parentView.performClick();
+                return;
+            }
+            child = parentView;
+            parent = parentView.getParent();
+        }
+        setChecked(!isChecked, true);
     }
 
     private void drawLiquid(Canvas canvas) {
-        final float trackWidth = liquidTrackWidth = Math.min(getMeasuredWidth(), AndroidUtilities.dp(37));
-        final float trackHeight = liquidTrackHeight = AndroidUtilities.dpf2(17);
+        final float trackWidth = liquidTrackWidth = AndroidUtilities.dpf2(LIQUID_TRACK_WIDTH);
+        final float trackHeight = liquidTrackHeight = AndroidUtilities.dpf2(LIQUID_TRACK_HEIGHT);
         final float trackLeft = (getMeasuredWidth() - trackWidth) / 2f;
         final float trackTop = (getMeasuredHeight() - trackHeight) / 2f;
-        final float padding = AndroidUtilities.dpf2(1.5f);
+        final float padding = AndroidUtilities.dpf2(LIQUID_PADDING);
         final float thumbWidth = liquidThumbWidth();
         final float thumbHeight = liquidThumbHeight();
         final float travel = trackWidth - thumbWidth - 2 * padding;
 
-        // The library shows the lens only while the thumb is pressed; here the switch is
-        // toggled by its cell, so the thumb is "pressed" for the length of the move.
-        final float press = liquidPress = checkAnimator != null ? (float) Math.sin(Math.PI * progress) : 0f;
+        // The lens shows while the thumb is held or dragged, as in the catalog; when the row is
+        // tapped instead, the thumb is "pressed" for the length of its move.
+        final float movePress = checkAnimator != null ? (float) Math.sin(Math.PI * progress) : 0f;
+        final float press = liquidPress = Math.max(movePress, Math.max(0f, Math.min(1f, touchPress.getValue())));
 
         final int trackColor = liquidTrackColor = ColorUtils.blendARGB(
             processColor(Theme.getColor(trackColorKey, resourcesProvider)),
             processColor(Theme.getColor(trackCheckedColorKey, resourcesProvider)),
             progress);
-        final int thumbColor = ColorUtils.blendARGB(
-            Theme.getColor(thumbColorKey, resourcesProvider),
-            processColor(Theme.getColor(thumbCheckedColorKey, resourcesProvider)),
-            progress);
+        // The catalog's thumb is always white (onDrawSurface: Color.White)
+        final int thumbColor = Color.WHITE;
         liquidBackgroundColor = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
 
         int color1 = processColor(Theme.getColor(trackColorKey, resourcesProvider));

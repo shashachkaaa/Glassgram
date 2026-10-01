@@ -18,6 +18,7 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.liquidglass.BackdropGlass;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 
@@ -47,6 +48,11 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         this.paintShadow.setColor(0);
         this.paintStrokeTop.setStyle(Paint.Style.STROKE);
         this.paintStrokeBottom.setStyle(Paint.Style.STROKE);
+
+        // Every glass surface, frosted ones included, is rendered by the library, like in ward
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            setLiquidGlassEffectAllowed();
+        }
     }
 
     @Override
@@ -61,7 +67,9 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
 
     @RequiresApi(api = Build.VERSION_CODES.S)
     public void setLiquidGlassEffectAllowed() {
-        backdropGlass = new BackdropGlass();
+        if (backdropGlass == null) {
+            backdropGlass = new BackdropGlass();
+        }
     }
 
 

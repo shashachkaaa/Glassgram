@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#40a0bcdd">
-</ripple>
+<!-- Liquid press feedback instead of the spreading Material ripple: a soft fade in and out. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:enterFadeDuration="120"
+    android:exitFadeDuration="320">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#30a0bcdd" />
+        </shape>
+    </item>
+    <item android:drawable="@android:color/transparent" />
+</selector>
