@@ -35,6 +35,8 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Loadable;
 import org.telegram.ui.Components.LoadingDrawable;
+import org.telegram.ui.Components.LiquidButtonBackground;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.ScaleStateListAnimator;
 
 public class ButtonWithCounterView extends FrameLayout implements Loadable {
@@ -80,7 +82,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
     public void setRoundRadius(int radiusDp) {
         this.radiusDp = radiusDp;
         if (filled) {
-            setBackground(Theme.createRoundRectDrawable(dp(radiusDp), backgroundColor));
+            setBackground(new LiquidButtonBackground(backgroundColor));
         } else {
             setBackground(null);
         }
@@ -91,7 +93,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
         if (this.filled == filled) return;
         this.filled = filled;
         if (filled) {
-            setBackground(Theme.createRoundRectDrawable(dp(radiusDp), backgroundColor));
+            setBackground(new LiquidButtonBackground(backgroundColor));
             text.setTypeface(AndroidUtilities.bold());
         } else {
             setBackground(null);
@@ -106,13 +108,17 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
         this.filled = filled;
         this.resourcesProvider = resourcesProvider;
 
-        ScaleStateListAnimator.apply(this, .02f, 1.2f);
+        // Filled buttons press like the library's LiquidButton; plain ones keep Telegram's bounce.
+        liquidPress = new LiquidPressEffect(this);
+        if (!filled) {
+            ScaleStateListAnimator.apply(this, .02f, 1.2f);
+        }
 
         rippleView = new View(context);
         addView(rippleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (filled) {
-            setBackground(Theme.createRoundRectDrawable(dp(8), backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
+            setBackground(new LiquidButtonBackground(backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
         }
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -164,7 +170,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
     public void setColor(int color) {
         if (filled) {
             customBackgroundColor = true;
-            setBackground(Theme.createRoundRectDrawable(dp(radiusDp), backgroundColor = color));
+            setBackground(new LiquidButtonBackground(backgroundColor = color));
         } else {
             text.setTextColor(color);
             rippleView.setBackground(Theme.createRadSelectorDrawable(Theme.multAlpha(color, .10f), radiusDp, radiusDp));
@@ -182,7 +188,11 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
         }
         text.setTextColor(Theme.getColor(filled ? (neutral ? Theme.key_buttonNeutralText : Theme.key_featuredStickers_buttonText) : Theme.key_featuredStickers_addButton, resourcesProvider));
         if (filled) {
-            rippleView.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), radiusDp, radiusDp));
+            // LiquidButton has no ripple: the press is the swell and the light spot.
+            rippleView.setBackground(null);
+            if (getBackground() instanceof LiquidButtonBackground) {
+                ((LiquidButtonBackground) getBackground()).setColor(backgroundColor);
+            }
         } else {
             rippleView.setBackground(Theme.createRadSelectorDrawable(Theme.multAlpha(text.getTextColor(), .10f), radiusDp, radiusDp));
         }
@@ -471,8 +481,33 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
         return width * percent;
     }
 
+    private final LiquidPressEffect liquidPress;
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (filled) {
+            liquidPress.onTouchEvent(ev);
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
+    public void draw(@NonNull Canvas canvas) {
+        if (filled) {
+            canvas.save();
+            liquidPress.transform(canvas, getWidth(), getHeight());
+            super.draw(canvas);
+            canvas.restore();
+        } else {
+            super.draw(canvas);
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
+        if (filled) {
+            liquidPress.drawGlow(canvas, getWidth(), getHeight(), Math.min(getWidth(), getHeight()) / 2f);
+        }
         rippleView.draw(canvas);
 
         if (flickeringLoading) {

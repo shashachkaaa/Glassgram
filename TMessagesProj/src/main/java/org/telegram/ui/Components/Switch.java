@@ -28,10 +28,14 @@ import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.util.StateSet;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import androidx.annotation.Keep;
+import androidx.core.graphics.ColorUtils;
 
+import org.telegram.liquidglass.BackdropGlass;
+import org.telegram.liquidglass.GlassLayer;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.BaseCell;
@@ -235,7 +239,7 @@ public class Switch extends View {
 
     private void animateToCheckedState(boolean newCheckedState) {
         checkAnimator = ObjectAnimator.ofFloat(this, "progress", newCheckedState ? 1 : 0);
-        checkAnimator.setDuration(200);
+        checkAnimator.setDuration(LIQUID_TOGGLE_DURATION);
         checkAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
@@ -261,6 +265,11 @@ public class Switch extends View {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         attachedToWindow = true;
+        // The glass thumb grows 1.5x while it moves, like the library's LiquidToggle,
+        // and needs room around the switch's own bounds.
+        if (getParent() instanceof ViewGroup) {
+            ((ViewGroup) getParent()).setClipChildren(false);
+        }
     }
 
     @Override
@@ -371,9 +380,182 @@ public class Switch extends View {
         invalidate();
     }
 
+    // Liquid toggle, after LiquidToggle from the Kyant0/AndroidLiquidGlass catalog: a capsule
+    // track and a capsule thumb that turns into a glass lens over the track while it moves.
+    private static final long LIQUID_TOGGLE_DURATION = 360;
+    private static final float LIQUID_PRESSED_SCALE = 1.5f;
+
+    private final Paint liquidPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint liquidShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF liquidRect = new RectF();
+    private Object liquidThumb;
+
+    private float liquidTrackWidth, liquidTrackHeight, liquidThumbLeft, liquidThumbTop;
+    private float liquidPress;
+    private int liquidTrackColor, liquidBackgroundColor;
+
+    private final GlassLayer.Backdrop liquidThumbBackdrop = c -> {
+        // What the thumb sees: the background, and the track shrunk towards the thumb's
+        // center, exactly like the catalog's rememberBackdrop(trackBackdrop) { scale(...) }.
+        c.drawColor(liquidBackgroundColor);
+        final float thumbWidth = liquidThumbWidth(), thumbHeight = liquidThumbHeight();
+        c.save();
+        c.scale(AndroidUtilities.lerp(2f / 3f, 0.75f, liquidPress), AndroidUtilities.lerp(0f, 0.75f, liquidPress), thumbWidth / 2f, thumbHeight / 2f);
+        c.translate(-liquidThumbLeft, -liquidThumbTop);
+        liquidPaint.setColor(liquidTrackColor);
+        liquidRect.set(0, 0, liquidTrackWidth, liquidTrackHeight);
+        c.drawRoundRect(liquidRect, liquidTrackHeight / 2f, liquidTrackHeight / 2f, liquidPaint);
+        c.restore();
+    };
+
+    private float liquidThumbWidth() {
+        return liquidTrackWidth * 22f / 37f;
+    }
+
+    private float liquidThumbHeight() {
+        return liquidTrackHeight - 2 * AndroidUtilities.dpf2(1.5f);
+    }
+
+    private void drawLiquid(Canvas canvas) {
+        final float trackWidth = liquidTrackWidth = Math.min(getMeasuredWidth(), AndroidUtilities.dp(37));
+        final float trackHeight = liquidTrackHeight = AndroidUtilities.dpf2(17);
+        final float trackLeft = (getMeasuredWidth() - trackWidth) / 2f;
+        final float trackTop = (getMeasuredHeight() - trackHeight) / 2f;
+        final float padding = AndroidUtilities.dpf2(1.5f);
+        final float thumbWidth = liquidThumbWidth();
+        final float thumbHeight = liquidThumbHeight();
+        final float travel = trackWidth - thumbWidth - 2 * padding;
+
+        // The library shows the lens only while the thumb is pressed; here the switch is
+        // toggled by its cell, so the thumb is "pressed" for the length of the move.
+        final float press = liquidPress = checkAnimator != null ? (float) Math.sin(Math.PI * progress) : 0f;
+
+        final int trackColor = liquidTrackColor = ColorUtils.blendARGB(
+            processColor(Theme.getColor(trackColorKey, resourcesProvider)),
+            processColor(Theme.getColor(trackCheckedColorKey, resourcesProvider)),
+            progress);
+        final int thumbColor = ColorUtils.blendARGB(
+            Theme.getColor(thumbColorKey, resourcesProvider),
+            processColor(Theme.getColor(thumbCheckedColorKey, resourcesProvider)),
+            progress);
+        liquidBackgroundColor = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+
+        int color1 = processColor(Theme.getColor(trackColorKey, resourcesProvider));
+        int color2 = processColor(Theme.getColor(trackCheckedColorKey, resourcesProvider));
+        if (iconDrawable != null && lastIconColor != (isChecked ? color2 : color1)) {
+            iconDrawable.setColorFilter(new PorterDuffColorFilter(lastIconColor = (isChecked ? color2 : color1), PorterDuff.Mode.MULTIPLY));
+        }
+
+        liquidPaint.setColor(trackColor);
+        liquidRect.set(trackLeft, trackTop, trackLeft + trackWidth, trackTop + trackHeight);
+        canvas.drawRoundRect(liquidRect, trackHeight / 2f, trackHeight / 2f, liquidPaint);
+
+        liquidThumbLeft = padding + travel * progress;
+        liquidThumbTop = padding;
+        final float thumbLeft = trackLeft + liquidThumbLeft;
+        final float thumbTop = trackTop + liquidThumbTop;
+        final float cx = thumbLeft + thumbWidth / 2f;
+        final float cy = thumbTop + thumbHeight / 2f;
+
+        if (rippleDrawable != null) {
+            rippleDrawable.setBounds((int) cx - AndroidUtilities.dp(18), (int) cy - AndroidUtilities.dp(18), (int) cx + AndroidUtilities.dp(18), (int) cy + AndroidUtilities.dp(18));
+            rippleDrawable.draw(canvas);
+        }
+
+        canvas.save();
+        final float scale = AndroidUtilities.lerp(1f, LIQUID_PRESSED_SCALE, press);
+        canvas.scale(scale, scale, cx, cy);
+
+        // Shadow(radius = 4.dp, color = Black 5%)
+        liquidShadowPaint.setColor(liquidBackgroundColor);
+        liquidShadowPaint.setShadowLayer(AndroidUtilities.dpf2(4), 0, AndroidUtilities.dpf2(4) / 6f, 0x0D000000);
+        liquidRect.set(thumbLeft, thumbTop, thumbLeft + thumbWidth, thumbTop + thumbHeight);
+        canvas.drawRoundRect(liquidRect, thumbHeight / 2f, thumbHeight / 2f, liquidShadowPaint);
+
+        if (GlassLayer.isSupported() && canvas.isHardwareAccelerated() && press > 0f) {
+            if (liquidThumb == null) {
+                liquidThumb = new GlassLayer();
+            }
+            final boolean dark = ColorUtils.calculateLuminance(liquidBackgroundColor | 0xFF000000) < 0.5f;
+            canvas.save();
+            canvas.translate(thumbLeft, thumbTop);
+            ((GlassLayer) liquidThumb).draw(canvas, thumbWidth, thumbHeight, thumbHeight / 2f, AndroidUtilities.density,
+                BackdropGlass.COLOR_NONE,
+                AndroidUtilities.dpf2(8) * (1f - press),
+                AndroidUtilities.dpf2(5) * press,
+                AndroidUtilities.dpf2(10) * press,
+                false, true, dark,
+                liquidThumbBackdrop,
+                Theme.multAlpha(thumbColor, 1f - press),
+                press, 1f / 1.5f);
+            canvas.restore();
+        } else {
+            liquidPaint.setColor(thumbColor);
+            canvas.drawRoundRect(liquidRect, thumbHeight / 2f, thumbHeight / 2f, liquidPaint);
+        }
+
+        drawThumbIcon(canvas, (int) cx, (int) cy, thumbColor);
+        canvas.restore();
+    }
+
+    private void drawThumbIcon(Canvas canvas, int tx, int ty, int thumbColor) {
+        if (iconDrawable != null) {
+            final float factor = animatorIconVisibility.getFloatValue();
+            if (factor > 0) {
+                final boolean needScale = factor < 1;
+                if (needScale) {
+                    canvas.save();
+                    canvas.scale(factor, factor, tx, ty);
+                }
+                iconDrawable.setBounds(tx - iconDrawable.getIntrinsicWidth() / 2, ty - iconDrawable.getIntrinsicHeight() / 2, tx + iconDrawable.getIntrinsicWidth() / 2, ty + iconDrawable.getIntrinsicHeight() / 2);
+                iconDrawable.draw(canvas);
+                if (needScale) {
+                    canvas.restore();
+                }
+            }
+        } else if (drawIconType == 1) {
+            tx -= AndroidUtilities.dp(10.8f) - AndroidUtilities.dp(1.3f) * progress;
+            ty -= AndroidUtilities.dp(8.5f) - AndroidUtilities.dp(0.5f) * progress;
+            int startX2 = (int) AndroidUtilities.dpf2(4.6f) + tx;
+            int startY2 = (int) (AndroidUtilities.dpf2(9.5f) + ty);
+            int endX2 = startX2 + AndroidUtilities.dp(2);
+            int endY2 = startY2 + AndroidUtilities.dp(2);
+
+            int startX = (int) AndroidUtilities.dpf2(7.5f) + tx;
+            int startY = (int) AndroidUtilities.dpf2(5.4f) + ty;
+            int endX = startX + AndroidUtilities.dp(7);
+            int endY = startY + AndroidUtilities.dp(7);
+
+            startX = (int) (startX + (startX2 - startX) * progress);
+            startY = (int) (startY + (startY2 - startY) * progress);
+            endX = (int) (endX + (endX2 - endX) * progress);
+            endY = (int) (endY + (endY2 - endY) * progress);
+            paint2.setColor(liquidTrackColor);
+            canvas.drawLine(startX, startY, endX, endY, paint2);
+
+            startX = (int) AndroidUtilities.dpf2(7.5f) + tx;
+            startY = (int) AndroidUtilities.dpf2(12.5f) + ty;
+            endX = startX + AndroidUtilities.dp(7);
+            endY = startY - AndroidUtilities.dp(7);
+            canvas.drawLine(startX, startY, endX, endY, paint2);
+        } else if (drawIconType == 2 || iconAnimator != null) {
+            paint2.setColor(liquidTrackColor);
+            paint2.setAlpha((int) (255 * (1.0f - iconProgress)));
+            canvas.drawLine(tx, ty, tx, ty - AndroidUtilities.dp(5), paint2);
+            canvas.save();
+            canvas.rotate(-90 * iconProgress, tx, ty);
+            canvas.drawLine(tx, ty, tx + AndroidUtilities.dp(4), ty, paint2);
+            canvas.restore();
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (getVisibility() != VISIBLE) {
+            return;
+        }
+        if (overrideColorProgress == 0) {
+            drawLiquid(canvas);
             return;
         }
 

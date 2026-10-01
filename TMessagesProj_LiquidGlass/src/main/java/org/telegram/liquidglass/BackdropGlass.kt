@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import kotlin.math.ceil
 import kotlin.math.min
@@ -49,8 +50,12 @@ class BackdropGlass {
     private var height = -1f
     private var radii = FloatArray(4)
     private var density = 0f
-    private var refractionHeight = -1f
-    private var refractionAmount = -1f
+    private var colorMode = -1
+    private var blurRadius = -1f
+    private var lensHeight = -1f
+    private var lensAmount = -1f
+    private var depthEffect = false
+    private var chromaticAberration = false
     private var dark = false
     private var built = false
 
@@ -65,7 +70,8 @@ class BackdropGlass {
         private set
 
     /**
-     * Rebuilds the effect when anything changed.
+     * Glass surface preset (bars, pills, buttons, sheets): color controls for the theme,
+     * blur and an edge lens, following ward's `glassBackground` / `glassPanel`.
      *
      * @param radii corner radii in px: top-left, top-right, bottom-right, bottom-left
      * @param refractionHeight width of the refracting band at the edge, px
@@ -82,10 +88,45 @@ class BackdropGlass {
         refractionAmount: Float,
         dark: Boolean
     ): Boolean {
+        val panel = min(width, height) >= PanelMinSize * density
+        return updateEffect(
+            width, height, radii, density,
+            if (dark) COLOR_CONTROLS_DARK else COLOR_CONTROLS_LIGHT,
+            (if (panel) PanelBlurRadius else BlurRadius) * density,
+            if (panel) refractionHeight * 2f else refractionHeight,
+            refractionAmount,
+            depthEffect = panel,
+            chromaticAberration = !panel,
+            dark = dark
+        )
+    }
+
+    /**
+     * Builds the effect chain in the order the library requires: color filter, blur, lens.
+     * Zero [blurRadius] or lens values skip that effect.
+     *
+     * @param colorMode one of [COLOR_NONE], [COLOR_CONTROLS_DARK], [COLOR_CONTROLS_LIGHT], [COLOR_VIBRANCY]
+     * @return true if [renderEffect] or [padding] changed
+     */
+    fun updateEffect(
+        width: Float,
+        height: Float,
+        radii: FloatArray,
+        density: Float,
+        colorMode: Int,
+        blurRadius: Float,
+        lensHeight: Float,
+        lensAmount: Float,
+        depthEffect: Boolean,
+        chromaticAberration: Boolean,
+        dark: Boolean
+    ): Boolean {
         if (built &&
             this.width == width && this.height == height &&
             this.radii.contentEquals(radii) && this.density == density &&
-            this.refractionHeight == refractionHeight && this.refractionAmount == refractionAmount &&
+            this.colorMode == colorMode && this.blurRadius == blurRadius &&
+            this.lensHeight == lensHeight && this.lensAmount == lensAmount &&
+            this.depthEffect == depthEffect && this.chromaticAberration == chromaticAberration &&
             this.dark == dark
         ) {
             return false
@@ -94,8 +135,12 @@ class BackdropGlass {
         this.height = height
         this.radii = radii.copyOf()
         this.density = density
-        this.refractionHeight = refractionHeight
-        this.refractionAmount = refractionAmount
+        this.colorMode = colorMode
+        this.blurRadius = blurRadius
+        this.lensHeight = lensHeight
+        this.lensAmount = lensAmount
+        this.depthEffect = depthEffect
+        this.chromaticAberration = chromaticAberration
         this.dark = dark
         built = true
 
@@ -107,21 +152,20 @@ class BackdropGlass {
         GlassEffectScope.setShape(scope, shape)
         GlassEffectScope.reset(scope)
 
-        val panel = min(width, height) >= PanelMinSize * density
         with(GlassEffectScope.asScope(scope)) {
             // Under the glass there is the app's own background: on dark themes the blurred
             // copy turns into a flat grey, so lift and stretch it; on light ones tone it
             // down, otherwise the glass washes out to white.
-            if (dark) {
-                colorControls(brightness = 0.03f, contrast = 1.12f, saturation = 1.15f)
-            } else {
-                colorControls(brightness = -0.03f, contrast = 1.06f, saturation = 1.5f)
+            when (colorMode) {
+                COLOR_CONTROLS_DARK -> colorControls(brightness = 0.03f, contrast = 1.12f, saturation = 1.15f)
+                COLOR_CONTROLS_LIGHT -> colorControls(brightness = -0.03f, contrast = 1.06f, saturation = 1.5f)
+                COLOR_VIBRANCY -> vibrancy()
             }
-            blur((if (panel) PanelBlurRadius else BlurRadius).dp.toPx())
-            if (panel) {
-                lens(refractionHeight * 2f, refractionAmount, depthEffect = true, chromaticAberration = false)
-            } else {
-                lens(refractionHeight, refractionAmount, depthEffect = false, chromaticAberration = true)
+            if (blurRadius > 0f) {
+                blur(blurRadius)
+            }
+            if (lensHeight > 0f && lensAmount > 0f) {
+                lens(lensHeight, lensAmount, depthEffect = depthEffect, chromaticAberration = chromaticAberration)
             }
         }
 
@@ -133,14 +177,39 @@ class BackdropGlass {
 
     /** Draws the library's ambient highlight along the glass outline, at (0, 0). */
     fun drawHighlight(canvas: android.graphics.Canvas) {
-        if (!built || width <= 0f || height <= 0f) return
-        val highlight = Highlight.Ambient
+        drawHighlight(canvas, if (dark) 0.7f else 1f, 1f)
+    }
+
+    /**
+     * Draws the library's ambient highlight along the glass outline, at (0, 0).
+     *
+     * @param alpha highlight opacity
+     * @param widthScale scale of the highlight width and blur, like `Highlight.Ambient.width / 1.5f` in the catalog toggle
+     */
+    fun drawHighlight(canvas: android.graphics.Canvas, alpha: Float, widthScale: Float) {
+        drawHighlight(canvas, alpha, widthScale, true)
+    }
+
+    /**
+     * Draws the library's highlight along the glass outline, at (0, 0).
+     *
+     * @param ambient `Highlight.Ambient` if true, otherwise `Highlight.Default` (the one
+     *   `drawBackdrop` uses unless told otherwise, as on the catalog's LiquidButton)
+     */
+    fun drawHighlight(canvas: android.graphics.Canvas, alpha: Float, widthScale: Float, ambient: Boolean) {
+        if (!built || width <= 0f || height <= 0f || alpha <= 0f) return
+        val base = if (ambient) Highlight.Ambient else Highlight.Default
+        val highlight = base.copy(
+            width = base.width * widthScale,
+            blurRadius = base.blurRadius * widthScale,
+            alpha = alpha.coerceIn(0f, 1f)
+        )
         val size = Size(width, height)
         drawScope.draw(Density(density), LayoutDirection.Ltr, Canvas(canvas), size) {
             val outline = shape.createOutline(size, layoutDirection, this)
 
             highlightPaint.color = highlight.style.color
-            highlightPaint.alpha = highlight.style.color.alpha * highlight.alpha * if (dark) 0.7f else 1f
+            highlightPaint.alpha = highlight.style.color.alpha * highlight.alpha
             highlightPaint.blendMode = highlight.style.blendMode
             highlightPaint.strokeWidth = ceil(min(highlight.width.toPx(), size.minDimension / 2f)) * 2f
             val blurRadius = highlight.blurRadius.toPx()
@@ -184,6 +253,11 @@ class BackdropGlass {
         /** Blur and color controls need RenderEffect (Android 12); the lens needs RuntimeShader (Android 13). */
         @JvmStatic
         fun isSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+        const val COLOR_NONE = 0
+        const val COLOR_CONTROLS_DARK = 1
+        const val COLOR_CONTROLS_LIGHT = 2
+        const val COLOR_VIBRANCY = 3
 
         /** Alpha of the tint over the glass, so the backdrop stays visible like in ward. */
         @JvmStatic
