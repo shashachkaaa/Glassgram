@@ -1,0 +1,41 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+dependencies {
+    implementation 'io.github.kyant0:backdrop:1.0.6'
+
+    api 'androidx.compose.ui:ui:1.10.3'
+    implementation 'androidx.compose.ui:ui-graphics:1.10.3'
+    implementation 'androidx.compose.foundation:foundation:1.10.3'
+}
+
+android {
+    compileSdkVersion 36
+    namespace 'org.telegram.liquidglass'
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+
+    buildFeatures {
+        compose true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
