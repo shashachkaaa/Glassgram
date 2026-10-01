@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glassgram launcher icon: background layer (108dp adaptive grid). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108">
+                <item android:offset="0" android:color="#FF14183F" />
+                <item android:offset="0.55" android:color="#FF2649C9" />
+                <item android:offset="1" android:color="#FF1FB6FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="26" android:centerY="84" android:gradientRadius="42">
+                <item android:offset="0" android:color="#D9FF5FD2" />
+                <item android:offset="1" android:color="#00FF5FD2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="88" android:centerY="22" android:gradientRadius="40">
+                <item android:offset="0" android:color="#CC5CF2FF" />
+                <item android:offset="1" android:color="#005CF2FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
