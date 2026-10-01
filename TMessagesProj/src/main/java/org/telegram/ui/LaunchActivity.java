@@ -6960,6 +6960,49 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     View feedbackView;
 
+    /**
+     * Glassgram's notifications come over its own background connection, which Android stops
+     * under battery optimization. Ask once to lift it.
+     */
+    private void checkBackgroundBatteryPrompt() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !isResumed || isFinishing()) {
+            return;
+        }
+        final SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
+        if (preferences.getBoolean("glassgramBatteryAsked", false) || !preferences.getBoolean("pushService", true)) {
+            return;
+        }
+        if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
+            return;
+        }
+        try {
+            final android.os.PowerManager powerManager = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (powerManager == null || powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
+                return;
+            }
+        } catch (Throwable e) {
+            return;
+        }
+        preferences.edit().putBoolean("glassgramBatteryAsked", true).apply();
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(LocaleController.getString(R.string.GlassgramBatteryTitle));
+        builder.setMessage(LocaleController.getString(R.string.GlassgramBatteryText));
+        builder.setPositiveButton(LocaleController.getString(R.string.GlassgramBatteryAllow), (dialog, which) -> {
+            try {
+                final Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Throwable e) {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                } catch (Throwable ignore) {
+                }
+            }
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        builder.show();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -6985,6 +7028,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         });
         checkFreeDiscSpace(0);
         MediaController.checkGallery();
+        // The keep-alive service may only start while the app is in front (Android 12+)
+        ApplicationLoader.startPushService();
+        AndroidUtilities.runOnUIThread(this::checkBackgroundBatteryPrompt, 1500);
         onPasscodeResume();
         if (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE) {
             actionBarLayout.onResume();

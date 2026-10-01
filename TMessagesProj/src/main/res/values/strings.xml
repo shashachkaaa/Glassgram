@@ -11235,4 +11235,10 @@
     <string name="RoundVideoComposition">Composition</string>
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
+    <string name="GlassgramBackgroundChannel">Background connection</string>
+    <string name="GlassgramBackgroundTitle">Glassgram is connected</string>
+    <string name="GlassgramBackgroundText">Receiving messages in the background. You can hide this notification in system settings.</string>
+    <string name="GlassgramBatteryTitle">Notifications in the background</string>
+    <string name="GlassgramBatteryText">Glassgram keeps its own connection to deliver notifications instead of push. To keep it alive, allow Glassgram to run in the background without battery restrictions.\n\nOn some phones (Xiaomi, vivo, Huawei, Samsung) also allow autostart and background activity in the app\'s system settings.</string>
+    <string name="GlassgramBatteryAllow">Allow</string>
 </resources>

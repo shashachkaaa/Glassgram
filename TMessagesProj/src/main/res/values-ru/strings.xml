@@ -263,4 +263,10 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+    <string name="GlassgramBackgroundChannel">Фоновое соединение</string>
+    <string name="GlassgramBackgroundTitle">Glassgram подключён</string>
+    <string name="GlassgramBackgroundText">Получает сообщения в фоне. Это уведомление можно скрыть в настройках системы.</string>
+    <string name="GlassgramBatteryTitle">Уведомления в фоне</string>
+    <string name="GlassgramBatteryText">Вместо push Glassgram держит своё соединение, чтобы присылать уведомления. Чтобы оно не обрывалось, разрешите Glassgram работать в фоне без ограничений батареи.\n\nНа некоторых телефонах (Xiaomi, vivo, Huawei, Samsung) также разрешите автозапуск и работу в фоне в системных настройках приложения.</string>
+    <string name="GlassgramBatteryAllow">Разрешить</string>
 </resources>

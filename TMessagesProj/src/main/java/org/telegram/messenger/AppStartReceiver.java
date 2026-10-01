@@ -15,6 +15,11 @@ import android.content.Intent;
 public class AppStartReceiver extends BroadcastReceiver {
 
     public void onReceive(Context context, Intent intent) {
+        if (intent != null && "org.telegram.start".equals(intent.getAction())) {
+            // The keep-alive service was killed: bring it back
+            AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
+            return;
+        }
         if (intent != null && Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             AndroidUtilities.runOnUIThread(() -> {
                 SharedConfig.loadConfig();

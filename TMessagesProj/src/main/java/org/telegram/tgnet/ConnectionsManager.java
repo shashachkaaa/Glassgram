@@ -285,11 +285,8 @@ public class ConnectionsManager extends BaseController {
 
     public boolean isPushConnectionEnabled() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        if (preferences.contains("pushConnection")) {
-            return preferences.getBoolean("pushConnection", true);
-        } else {
-            return MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("backgroundConnection", false);
-        }
+        // On by default: Glassgram has no Firebase pushes, see ApplicationLoader.startPushService
+        return preferences.getBoolean("pushConnection", true);
     }
 
     public long getCurrentTimeMillis() {

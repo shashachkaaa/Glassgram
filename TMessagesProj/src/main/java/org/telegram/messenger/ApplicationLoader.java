@@ -366,17 +366,32 @@ public class ApplicationLoader extends Application {
 
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
+        // Glassgram gets no Firebase pushes (Telegram sends them only to its own app), so the
+        // keep-alive service and the background connection are what deliver notifications:
+        // on by default, the user can still turn them off in Notifications and Sounds
+        if (!preferences.contains("pushService") || !preferences.contains("pushConnection")) {
+            SharedPreferences.Editor editor = preferences.edit();
+            if (!preferences.contains("pushService")) {
+                editor.putBoolean("pushService", true);
+            }
+            if (!preferences.contains("pushConnection")) {
+                editor.putBoolean("pushConnection", true);
+            }
+            editor.apply();
         }
+        boolean enabled = preferences.getBoolean("pushService", true);
         if (enabled) {
             try {
-                applicationContext.startService(new Intent(applicationContext, NotificationsService.class));
-            } catch (Throwable ignore) {
-
+                final Intent intent = new Intent(applicationContext, NotificationsService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    applicationContext.startForegroundService(intent);
+                } else {
+                    applicationContext.startService(intent);
+                }
+            } catch (Throwable e) {
+                // Android 12+ refuses to start it from the background unless the app is exempt
+                // from battery optimizations; it starts the next time the app is opened
+                FileLog.e(e);
             }
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
