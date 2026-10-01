@@ -144,6 +144,18 @@ android {
         minSdkVersion 21
         targetSdkVersion 36
 
+        // Telegram API credentials (https://my.telegram.org/apps). CI passes the fork's own
+        // pair from the APP_ID / APP_HASH repository secrets; without them the public
+        // credentials of the Telegram sources are used.
+        def tgAppId = (System.getenv("APP_ID") ?: "").trim()
+        def tgAppHash = (System.getenv("APP_HASH") ?: "").trim()
+        if (!tgAppId.isInteger() || tgAppHash.isEmpty()) {
+            tgAppId = "4"
+            tgAppHash = "014b35b6184100b085b0d0572f9b5103"
+        }
+        buildConfigField "int", "TG_APP_ID", tgAppId
+        buildConfigField "String", "TG_APP_HASH", "\"" + tgAppHash + "\""
+
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         multiDexEnabled true

@@ -91,6 +91,10 @@ jobs:
           echo "out=$OUT" >> "$GITHUB_OUTPUT"
 
       - name: Build APK
+        env:
+          # Telegram API credentials of this fork, from the repository secrets
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
         run: |
           chmod +x gradlew
           ./gradlew ${{ steps.task.outputs.task }} \

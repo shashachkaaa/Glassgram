@@ -79,6 +79,7 @@ import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.LaunchActivity;
 
 import java.util.ArrayList;
@@ -1220,7 +1221,7 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
         touchSlop = vc.getScaledTouchSlop();
 
         Rect padding = new Rect();
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.wrap(context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate(), dp(16), 0, () -> internalBackgroundColor);
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(internalBackgroundColor = getThemedColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY));
         shadowDrawable.getPadding(padding);
         backgroundPaddingLeft = padding.left;
@@ -1388,6 +1389,10 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
             };
             containerView.setBackgroundDrawable(shadowDrawable);
             containerView.setPadding(backgroundPaddingLeft, (applyTopPadding ? dp(8) : 0) + backgroundPaddingTop - 1, backgroundPaddingLeft, (applyBottomPadding ? dp(8) : 0));
+        }
+        if (shadowDrawable instanceof LiquidPanelDrawable) {
+            // Subclasses often draw the background by hand in their container
+            ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
         }
         containerView.setVisibility(View.INVISIBLE);
         container.addView(containerView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));

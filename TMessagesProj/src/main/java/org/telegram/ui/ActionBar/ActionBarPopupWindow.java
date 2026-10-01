@@ -52,6 +52,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.PopupSwipeBackLayout;
 
 import java.lang.reflect.Field;
@@ -162,7 +163,8 @@ public class ActionBarPopupWindow extends PopupWindow {
             this.resourcesProvider = resourcesProvider;
 
             if (resId != 0) {
-                backgroundDrawable = getResources().getDrawable(resId).mutate();
+                backgroundDrawable = LiquidPanelDrawable.wrap(getResources().getDrawable(resId).mutate(), dp(12), dp(12), () -> backgroundColor);
+                ((LiquidPanelDrawable) backgroundDrawable).setHost(this);
                 setPadding(dp(8), dp(8), dp(8), dp(8));
             }
             if (backgroundDrawable != null) {

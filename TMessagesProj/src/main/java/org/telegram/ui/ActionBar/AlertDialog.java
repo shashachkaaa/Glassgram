@@ -73,6 +73,7 @@ import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.AttachableDrawable;
 import org.telegram.ui.Components.EffectsTextView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LineProgressView;
 import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RLottieImageView;
@@ -308,10 +309,15 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         final boolean isDark = AndroidUtilities.computePerceivedBrightness(backgroundColor) < 0.721f;
         blurredNativeBackground = supportsNativeBlur() && progressViewStyle == ALERT_TYPE_MESSAGE;
         blurredBackground = (blurredNativeBackground || !supportsNativeBlur() && SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_HIGH && LiteMode.isEnabled(LiteMode.FLAG_CHAT_BLUR)) && isDark;
+        if (LiquidPanelDrawable.isSupported()) {
+            // Liquid Glass replaces the window blur
+            blurredNativeBackground = false;
+            blurredBackground = false;
+        }
 
         backgroundPaddings = new Rect();
         if (progressStyle != ALERT_TYPE_SPINNER || blurredBackground) {
-            shadowDrawable = context.getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate();
+            shadowDrawable = LiquidPanelDrawable.wrap(context.getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate(), dp(20), dp(20), () -> backgroundColor);
             blurOpacity = progressStyle == ALERT_TYPE_SPINNER ? 0.55f : (isDark ? 0.80f : 0.985f);
             shadowDrawable.setColorFilter(new PorterDuffColorFilter(backgroundColor, PorterDuff.Mode.MULTIPLY));
             shadowDrawable.getPadding(backgroundPaddings);
@@ -643,6 +649,9 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
 
     protected View inflateContent(boolean setContent) {
         containerView = new AlertDialogView(getContext());
+        if (shadowDrawable instanceof LiquidPanelDrawable) {
+            ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
+        }
         containerView.setOrientation(LinearLayout.VERTICAL);
         if ((blurredBackground || progressViewStyle == ALERT_TYPE_SPINNER) && progressViewStyle != ALERT_TYPE_LOADING) {
             containerView.setBackground(null);
