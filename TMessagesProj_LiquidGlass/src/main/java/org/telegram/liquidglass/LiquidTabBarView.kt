@@ -87,6 +87,12 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
     }
 
+    override fun onAttachedToWindow() {
+        // Also used in Telegram's dialogs, whose windows have no lifecycle
+        ComposeOwners.install(this)
+        super.onAttachedToWindow()
+    }
+
     fun setSource(source: Source?) {
         this.source = source
         backdropTick++

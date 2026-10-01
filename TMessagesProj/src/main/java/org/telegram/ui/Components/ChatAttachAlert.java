@@ -153,6 +153,7 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode
 import org.telegram.ui.Components.blur3.utils.Blur3Utils;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.chat.layouts.ChatActivityFadeView;
+import org.telegram.liquidglass.LiquidTabBarView;
 import org.telegram.ui.Components.glass.GlassTabView;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.GradientClip;
@@ -179,6 +180,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1152,6 +1154,118 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private final boolean showingFromDialog;
 
     protected boolean captionLimitBulletinShown = false;
+
+    /*
+     * The buttons bar as LiquidBottomTabs from the Kyant0/AndroidLiquidGlass catalog, the same
+     * bar as on the main screen. The buttons stay Telegram's (animated icons, counters, bot
+     * avatars): laid out but not drawn in their list, and painted into the bar's slots. A bar
+     * with more buttons than fit side by side keeps the scrolling list.
+     */
+    private static final int LIQUID_ATTACH_TABS_MAX = 6;
+
+    private LiquidTabBarView liquidAttachTabs;
+    private Drawable attachTabsGlassBackground;
+    private final ArrayList<View> liquidAttachVisibleTabs = new ArrayList<>();
+    private final ArrayList<View> liquidAttachTabsTmp = new ArrayList<>();
+
+    private void createLiquidAttachTabs(Context context, Drawable glassBackground) {
+        attachTabsGlassBackground = glassBackground;
+        liquidAttachTabs = new LiquidTabBarView(context);
+        liquidAttachTabs.setSource(new LiquidTabBarView.Source() {
+            @Override
+            public View getSourceView() {
+                return containerView;
+            }
+
+            @Override
+            public void draw(Canvas canvas) {
+                if (iBlur3SourceGlass != null) {
+                    iBlur3SourceGlass.draw(canvas, 0, 0, containerView.getWidth(), containerView.getHeight());
+                }
+            }
+        });
+        liquidAttachTabs.setListener(new LiquidTabBarView.Listener() {
+            @Override
+            public void onTabSelected(int index) {
+                if (index >= 0 && index < liquidAttachVisibleTabs.size() && buttonsRecyclerView.getOnItemClickListener() != null) {
+                    final View view = liquidAttachVisibleTabs.get(index);
+                    final int position = buttonsRecyclerView.getChildAdapterPosition(view);
+                    if (position != RecyclerView.NO_POSITION) {
+                        buttonsRecyclerView.getOnItemClickListener().onItemClick(view, position);
+                    }
+                }
+            }
+
+            @Override
+            public void onTabLongPress(int index) {
+                if (index >= 0 && index < liquidAttachVisibleTabs.size() && buttonsRecyclerView.getOnItemLongClickListener() != null) {
+                    final View view = liquidAttachVisibleTabs.get(index);
+                    final int position = buttonsRecyclerView.getChildAdapterPosition(view);
+                    if (position != RecyclerView.NO_POSITION) {
+                        buttonsRecyclerView.getOnItemLongClickListener().onItemClick(view, position);
+                    }
+                }
+            }
+        });
+        // The glass background of the bar was padded by 7dp around a 56dp capsule
+        liquidAttachTabs.setInset(dp(7));
+        liquidAttachTabs.setVisibility(View.GONE);
+        buttonsRecyclerViewWrapper.addView(liquidAttachTabs, LayoutHelper.createFrameMatchParent());
+        updateLiquidAttachTabsColors();
+    }
+
+    private void updateLiquidAttachTabsColors() {
+        if (liquidAttachTabs == null) {
+            return;
+        }
+        liquidAttachTabs.setAccentColor(getThemedColor(Theme.key_glass_tabSelected));
+        liquidAttachTabs.setLight(!Theme.isCurrentThemeDark());
+        liquidAttachTabs.invalidateTabs();
+    }
+
+    private void checkUi_liquidAttachTabs() {
+        if (liquidAttachTabs == null || buttonsAdapter == null) {
+            return;
+        }
+        liquidAttachTabsTmp.clear();
+        for (int a = 0, N = buttonsRecyclerView.getChildCount(); a < N; a++) {
+            final View child = buttonsRecyclerView.getChildAt(a);
+            if (child instanceof AttachButtonBase && buttonsRecyclerView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION) {
+                liquidAttachTabsTmp.add(child);
+            }
+        }
+        Collections.sort(liquidAttachTabsTmp, (a, b) -> Integer.compare(buttonsRecyclerView.getChildAdapterPosition(a), buttonsRecyclerView.getChildAdapterPosition(b)));
+
+        final int count = buttonsAdapter.getItemCount();
+        final boolean use = count > 0 && count <= LIQUID_ATTACH_TABS_MAX && liquidAttachTabsTmp.size() == count && !isPollAttach;
+        if (use) {
+            int selected = 0;
+            for (int a = 0; a < liquidAttachTabsTmp.size(); a++) {
+                final GlassTabView tab = ((AttachButtonBase) liquidAttachTabsTmp.get(a)).glassTabView;
+                tab.setLiquidSelector(true);
+                if (tab.isTabSelected()) {
+                    selected = a;
+                }
+            }
+            if (!liquidAttachTabsTmp.equals(liquidAttachVisibleTabs)) {
+                liquidAttachVisibleTabs.clear();
+                liquidAttachVisibleTabs.addAll(liquidAttachTabsTmp);
+                liquidAttachTabs.setTabs(liquidAttachVisibleTabs);
+            }
+            liquidAttachTabs.setSelectedIndex(selected);
+        } else {
+            for (int a = 0; a < liquidAttachTabsTmp.size(); a++) {
+                ((AttachButtonBase) liquidAttachTabsTmp.get(a)).glassTabView.setLiquidSelector(false);
+            }
+        }
+        if ((liquidAttachTabs.getVisibility() == View.VISIBLE) != use) {
+            liquidAttachTabs.setVisibility(use ? View.VISIBLE : View.GONE);
+            // The list stays laid out for its buttons, which the bar paints
+            buttonsRecyclerView.setAlpha(use ? 0f : 1f);
+            buttonsRecyclerViewWrapper.setBackground(use ? null : attachTabsGlassBackground);
+        }
+        liquidAttachTabs.invalidateTabs();
+    }
 
     private abstract static class AttachButtonBase extends FrameLayout {
         protected GlassTabView glassTabView;
@@ -2623,6 +2737,20 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             private boolean mHasFadeLeft, mHasFadeRight;
 
             @Override
+            public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+                super.onDescendantInvalidated(child, target);
+                if (liquidAttachTabs != null) {
+                    liquidAttachTabs.invalidateTabs();
+                }
+            }
+
+            @Override
+            protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                super.onLayout(changed, l, t, r, b);
+                checkUi_liquidAttachTabs();
+            }
+
+            @Override
             protected void dispatchDraw(@NonNull Canvas canvas) {
                 mHasFadeLeft = mHasFadeRight = false;
                 super.dispatchDraw(canvas);
@@ -2749,6 +2877,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         buttonsRecyclerView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         buttonsRecyclerViewWrapper.addView(buttonsRecyclerView, LayoutHelper.createFrameMatchParent());
         containerView.addView(buttonsRecyclerViewWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 70, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+        if (LiquidTabBarView.isSupported() && iBlur3SourceGlass != null && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            createLiquidAttachTabs(context, tabsViewBackground);
+        }
         buttonsRecyclerView.setOnItemClickListener((view, position) -> {
             BaseFragment lastFragment = baseFragment;
             if (lastFragment == null) {
@@ -4593,6 +4724,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         }
 
         selectedId = newId;
+        AndroidUtilities.runOnUIThread(this::checkUi_liquidAttachTabs);
         int count = buttonsRecyclerView.getChildCount();
         for (int a = 0; a < count; a++) {
             View child = buttonsRecyclerView.getChildAt(a);
@@ -7189,7 +7321,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
         final int bottomBlurHeight = Math.max(AndroidUtilities.navigationBarHeight, getEmojiPadding()) + dp(180);
         iBlur3PositionMainTabs.set(0, containerView.getMeasuredHeight() - bottomBlurHeight, containerView.getMeasuredWidth(), containerView.getMeasuredHeight());
-        iBlur3PositionMainTabs.inset(0, LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) ? 0 : -dp(48));
+        iBlur3PositionMainTabs.inset(0, -dp(48));
 
         boolean hasFastScroll = false;
         if (currentAttachLayout == photoLayout && photoLayout != null && photoLayout.gridView.getFastScroll() != null) {

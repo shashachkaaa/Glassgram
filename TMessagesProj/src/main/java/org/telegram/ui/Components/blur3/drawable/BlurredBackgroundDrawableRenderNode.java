@@ -73,6 +73,25 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
     }
 
 
+    /*
+     * How far around the glass the source must be captured. Telegram's own liquid shader
+     * reads only inside the shape, so its screens capture with a few dp of outset; the
+     * library's blur and lens read past the edge, and with that outset they ran into the
+     * border of the captured copy and showed it as a thin dotted rectangle. Capture as much
+     * as frosted blur does.
+     */
+    private static final int LIBRARY_GLASS_OUTSET_DP = 48;
+
+    @Override
+    public int getOutsetX() {
+        return backdropGlass != null ? Math.max(super.getOutsetX(), dp(LIBRARY_GLASS_OUTSET_DP)) : super.getOutsetX();
+    }
+
+    @Override
+    public int getOutsetY() {
+        return backdropGlass != null ? Math.max(super.getOutsetY(), dp(LIBRARY_GLASS_OUTSET_DP)) : super.getOutsetY();
+    }
+
     @Override
     public BlurredBackgroundSource getSource() {
         return source;

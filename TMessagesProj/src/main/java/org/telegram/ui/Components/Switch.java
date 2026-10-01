@@ -33,6 +33,7 @@ import android.view.ViewConfiguration;
 import android.view.ViewParent;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.FrameLayout;
 
 import androidx.annotation.Keep;
 import androidx.core.graphics.ColorUtils;
@@ -41,15 +42,15 @@ import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.telegram.liquidglass.BackdropGlass;
-import org.telegram.liquidglass.GlassLayer;
+import org.telegram.liquidglass.LiquidToggleView;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.BaseCell;
 
 import me.vkryl.android.animator.BoolAnimator;
 
-public class Switch extends View {
+public class Switch extends FrameLayout {
     private final BoolAnimator animatorIconVisibility = new BoolAnimator(this, CubicBezierInterpolator.EASE_OUT_QUINT, 380L, true);
 
     private RectF rectF;
@@ -117,6 +118,80 @@ public class Switch extends View {
         paint2.setStrokeWidth(AndroidUtilities.dp(2));
 
         setHapticFeedbackEnabled(true);
+        setWillNotDraw(false);
+        setClipChildren(false);
+        setClipToPadding(false);
+
+        if (LiquidToggleView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            // The toggle itself is the library's: LiquidToggle from the Kyant0/AndroidLiquidGlass catalog
+            toggleView = new LiquidToggleView(context);
+            toggleView.setListener(this::onToggleRequested);
+            final int overflow = LiquidToggleView.OVERFLOW_DP;
+            addView(toggleView, LayoutHelper.createFrame(LiquidToggleView.WIDTH_DP + 2 * overflow, LiquidToggleView.HEIGHT_DP + 2 * overflow, android.view.Gravity.CENTER));
+        }
+    }
+
+    private LiquidToggleView toggleView;
+
+    private void onToggleRequested(boolean checked) {
+        if (checked != isChecked) {
+            performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+            performOwnerClick();
+        }
+        if (isChecked != checked) {
+            // The owner kept the old state: the thumb goes back
+            toggleView.resync();
+        }
+    }
+
+    private void updateToggleColors() {
+        if (toggleView == null) {
+            return;
+        }
+        final int background = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+        final boolean dark = ColorUtils.calculateLuminance(background | 0xFF000000) < 0.5f;
+        // The catalog's track: gray at 20% (light) or 36% (dark), the accent when on
+        toggleView.setColors(
+            processColor(Theme.getColor(trackCheckedColorKey, resourcesProvider)),
+            dark ? 0x5C787880 : 0x33787878
+        );
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        // Sized as the plain View it used to be; the toggle overflows it, centered
+        setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec), getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+        if (toggleView != null) {
+            final int overflow = LiquidToggleView.OVERFLOW_DP;
+            toggleView.measure(
+                MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(LiquidToggleView.WIDTH_DP + 2 * overflow), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(LiquidToggleView.HEIGHT_DP + 2 * overflow), MeasureSpec.EXACTLY)
+            );
+        }
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        if (toggleView != null) {
+            final int w = toggleView.getMeasuredWidth(), h = toggleView.getMeasuredHeight();
+            final int x = (getMeasuredWidth() - w) / 2, y = (getMeasuredHeight() - h) / 2;
+            toggleView.layout(x, y, x + w, y + h);
+        }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (toggleView != null) {
+            if (!isEnabled() || overrideColorProgress != 0) {
+                return false;
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && getParent() != null) {
+                // The toggle can be dragged; keep the list from scrolling meanwhile
+                getParent().requestDisallowInterceptTouchEvent(true);
+            }
+            return super.dispatchTouchEvent(event);
+        }
+        return super.dispatchTouchEvent(event);
     }
 
     @Keep
@@ -242,6 +317,7 @@ public class Switch extends View {
         trackCheckedColorKey = trackChecked;
         thumbColorKey = thumb;
         thumbCheckedColorKey = thumbChecked;
+        updateToggleColors();
     }
 
     private void animateToCheckedState(boolean newCheckedState) {
@@ -272,6 +348,7 @@ public class Switch extends View {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         attachedToWindow = true;
+        updateToggleColors();
         // The glass thumb grows 1.5x while it moves, like the library's LiquidToggle,
         // and needs room around the switch's own bounds.
         if (getParent() instanceof ViewGroup) {
@@ -294,6 +371,9 @@ public class Switch extends View {
     }
 
     public void setChecked(boolean checked, int iconType, boolean animated) {
+        if (toggleView != null) {
+            toggleView.setChecked(checked, animated);
+        }
         if (checked != isChecked) {
             isChecked = checked;
             if (attachedToWindow && animated) {
@@ -387,33 +467,19 @@ public class Switch extends View {
         invalidate();
     }
 
-    // Liquid toggle, after LiquidToggle from the Kyant0/AndroidLiquidGlass catalog: a capsule
-    // track and a capsule thumb that turns into a glass lens over the track while it moves.
+    // Without liquid glass (or below Android 12) the toggle keeps the catalog's shape, drawn
+    // plainly: a capsule track and a white capsule thumb, no glass.
     private static final long LIQUID_TOGGLE_DURATION = 360;
     private static final float LIQUID_PRESSED_SCALE = 1.5f;
 
     private final Paint liquidPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint liquidShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF liquidRect = new RectF();
-    private Object liquidThumb;
 
     private float liquidTrackWidth, liquidTrackHeight, liquidThumbLeft, liquidThumbTop;
     private float liquidPress;
     private int liquidTrackColor, liquidBackgroundColor;
 
-    private final GlassLayer.Backdrop liquidThumbBackdrop = c -> {
-        // What the thumb sees: the background, and the track shrunk towards the thumb's
-        // center, exactly like the catalog's rememberBackdrop(trackBackdrop) { scale(...) }.
-        c.drawColor(liquidBackgroundColor);
-        final float thumbWidth = liquidThumbWidth(), thumbHeight = liquidThumbHeight();
-        c.save();
-        c.scale(AndroidUtilities.lerp(2f / 3f, 0.75f, liquidPress), AndroidUtilities.lerp(0f, 0.75f, liquidPress), thumbWidth / 2f, thumbHeight / 2f);
-        c.translate(-liquidThumbLeft, -liquidThumbTop);
-        liquidPaint.setColor(liquidTrackColor);
-        liquidRect.set(0, 0, liquidTrackWidth, liquidTrackHeight);
-        c.drawRoundRect(liquidRect, liquidTrackHeight / 2f, liquidTrackHeight / 2f, liquidPaint);
-        c.restore();
-    };
 
     // Proportions of the catalog's 64x28 track with a 40x24 thumb, a bit smaller to fit Telegram's rows
     private static final float LIQUID_TRACK_WIDTH = 54f;
@@ -593,27 +659,8 @@ public class Switch extends View {
         liquidRect.set(thumbLeft, thumbTop, thumbLeft + thumbWidth, thumbTop + thumbHeight);
         canvas.drawRoundRect(liquidRect, thumbHeight / 2f, thumbHeight / 2f, liquidShadowPaint);
 
-        if (GlassLayer.isSupported() && canvas.isHardwareAccelerated() && press > 0f) {
-            if (liquidThumb == null) {
-                liquidThumb = new GlassLayer();
-            }
-            final boolean dark = ColorUtils.calculateLuminance(liquidBackgroundColor | 0xFF000000) < 0.5f;
-            canvas.save();
-            canvas.translate(thumbLeft, thumbTop);
-            ((GlassLayer) liquidThumb).draw(canvas, thumbWidth, thumbHeight, thumbHeight / 2f, AndroidUtilities.density,
-                BackdropGlass.COLOR_NONE,
-                AndroidUtilities.dpf2(8) * (1f - press),
-                AndroidUtilities.dpf2(5) * press,
-                AndroidUtilities.dpf2(10) * press,
-                false, true, dark,
-                liquidThumbBackdrop,
-                Theme.multAlpha(thumbColor, 1f - press),
-                press, 1f / 1.5f);
-            canvas.restore();
-        } else {
-            liquidPaint.setColor(thumbColor);
-            canvas.drawRoundRect(liquidRect, thumbHeight / 2f, thumbHeight / 2f, liquidPaint);
-        }
+        liquidPaint.setColor(thumbColor);
+        canvas.drawRoundRect(liquidRect, thumbHeight / 2f, thumbHeight / 2f, liquidPaint);
 
         drawThumbIcon(canvas, (int) cx, (int) cy, thumbColor);
         canvas.restore();
@@ -674,6 +721,13 @@ public class Switch extends View {
     protected void onDraw(Canvas canvas) {
         if (getVisibility() != VISIBLE) {
             return;
+        }
+        if (toggleView != null) {
+            toggleView.setVisibility(overrideColorProgress == 0 ? VISIBLE : INVISIBLE);
+            if (overrideColorProgress == 0) {
+                updateToggleColors();
+                return;
+            }
         }
         if (overrideColorProgress == 0) {
             drawLiquid(canvas);

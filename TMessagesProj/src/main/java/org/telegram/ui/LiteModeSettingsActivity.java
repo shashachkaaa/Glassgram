@@ -303,7 +303,17 @@ public class LiteModeSettingsActivity extends BaseFragment {
         }
     }
 
+    private boolean liquidGlassWas = LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
+
     private void updateValues() {
+        final boolean liquidGlass = LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
+        if (liquidGlass != liquidGlassWas) {
+            liquidGlassWas = liquidGlass;
+            // Glass is chosen when views are made: rebuild the screens below so it applies now
+            if (parentLayout != null) {
+                parentLayout.rebuildAllFragmentViews(false, false);
+            }
+        }
         if (listView == null) {
             return;
         }

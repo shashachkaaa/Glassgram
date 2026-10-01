@@ -1444,6 +1444,13 @@ public class LocaleController {
     }
 
     private String getStringInternal(String key, String fallback, int res) {
+        // Language packs come from Telegram's servers and name the app Telegram
+        if (res == R.string.AppName || res == R.string.Page1Title || "AppName".equals(key) || "Page1Title".equals(key)) {
+            return "Glassgram";
+        }
+        if (res == R.string.AppNameBeta || "AppNameBeta".equals(key)) {
+            return "Glassgram Beta";
+        }
         final String value = getStringV2(key, res, fallback);
         if (value == null) {
             return "LOC_ERR:" + key;

@@ -120,6 +120,11 @@ class DampedDragAnimation(
         }
     }
 
+    /** Jumps to [value] without motion, for a toggle rebound to another setting. */
+    fun snapToValue(value: Float) {
+        animationScope.launch { valueAnimation.snapTo(value.coerceIn(valueRange)) }
+    }
+
     fun animateToValue(value: Float) {
         animationScope.launch {
             mutatorMutex.mutate {

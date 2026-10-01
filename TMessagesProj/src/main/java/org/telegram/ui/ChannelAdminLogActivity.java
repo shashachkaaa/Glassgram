@@ -361,14 +361,14 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                 glassBackgroundSourceRenderNode.setUnderSource(navbarContentSourceWallpaper);
                 glassBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(glassBackgroundSourceRenderNode);
                 glassBackgroundDrawableFactory.setGlassEngine(glassEngine);
-                glassBackgroundDrawableFactory.setOutset(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) ? dp(8) : dp(48));
+                glassBackgroundDrawableFactory.setOutset(dp(48));
                 glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
                 recommendedAdditionalSizeY = 0;
             } else {
                 glassBackgroundSourceRenderNode = null;
                 glassBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(glassBackgroundSourceFrostedRenderNode);
                 glassBackgroundDrawableFactory.setGlassEngine(glassEngine);
-                glassBackgroundDrawableFactory.setOutset(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) ? dp(8) : dp(48));
+                glassBackgroundDrawableFactory.setOutset(dp(48));
                 recommendedAdditionalSizeY = dp(48);
             }
         } else {

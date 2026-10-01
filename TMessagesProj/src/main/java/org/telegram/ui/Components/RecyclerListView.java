@@ -1957,6 +1957,10 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         onItemClickListenerExtended = listener;
     }
 
+    public OnItemLongClickListener getOnItemLongClickListener() {
+        return onItemLongClickListener;
+    }
+
     public OnItemClickListenerExtended getOnItemClickListenerExtended() {
         return onItemClickListenerExtended;
     }

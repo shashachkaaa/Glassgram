@@ -14,6 +14,7 @@ import android.graphics.RenderNode;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.View;
+import android.view.ViewTreeObserver;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -59,6 +60,38 @@ public class LiquidPanelDrawable extends Drawable {
     private final int[] decorLocation = new int[2];
     private View drawingDecor;
     private float backdropDx, backdropDy;
+
+    // The recorded backdrop is placed for where the panel was when it was drawn. Sheets slide
+    // in by translation, which does not redraw their background, so the panel watches its
+    // position every frame and redraws when it moved.
+    private ViewTreeObserver observedTree;
+    private View observedHost;
+    private final int[] drawnLocation = new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE};
+    private final int[] checkLocation = new int[2];
+    private final ViewTreeObserver.OnPreDrawListener positionWatcher = () -> {
+        final View h = observedHost;
+        if (h != null && h.isAttachedToWindow()) {
+            h.getLocationOnScreen(checkLocation);
+            if (checkLocation[0] != drawnLocation[0] || checkLocation[1] != drawnLocation[1]) {
+                invalidateSelf();
+                h.invalidate();
+            }
+        }
+        return true;
+    };
+
+    private void watchPosition(View h) {
+        final ViewTreeObserver tree = h.getViewTreeObserver();
+        if (observedHost == h && observedTree == tree && tree.isAlive()) {
+            return;
+        }
+        if (observedTree != null && observedTree.isAlive()) {
+            observedTree.removeOnPreDrawListener(positionWatcher);
+        }
+        observedHost = h;
+        observedTree = tree;
+        tree.addOnPreDrawListener(positionWatcher);
+    }
 
     /** Whether panels are glass at all; when not, they keep the opaque fill. */
     public static boolean isSupported() {
@@ -161,6 +194,9 @@ public class LiquidPanelDrawable extends Drawable {
         node.endRecording();
 
         host.getLocationOnScreen(hostLocation);
+        drawnLocation[0] = hostLocation[0];
+        drawnLocation[1] = hostLocation[1];
+        watchPosition(host);
         decor.getLocationOnScreen(decorLocation);
         backdropDx = decorLocation[0] - (hostLocation[0] + rect.left);
         backdropDy = decorLocation[1] - (hostLocation[1] + rect.top);
