@@ -2080,6 +2080,24 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
+        if ((GlassgramConfig.ignoreContentProtection || GlassgramConfig.spyDisableSelfDestruct) && !DialogObject.isEncryptedDialog(peer)) {
+            // Telegram refuses to forward these; they go as copies instead
+            ArrayList<MessageObject> forwardable = new ArrayList<>(messages.size());
+            for (int i = 0; i < messages.size(); i++) {
+                MessageObject msg = messages.get(i);
+                if (GlassgramCopySender.needsCopy(currentAccount, msg)) {
+                    GlassgramCopySender.send(currentAccount, msg, peer, notify);
+                } else {
+                    forwardable.add(msg);
+                }
+            }
+            if (forwardable.size() != messages.size()) {
+                if (forwardable.isEmpty()) {
+                    return 0;
+                }
+                return sendMessage(forwardable, peer, forwardFromMyName, hideCaption, notify, scheduleDate, scheduleRepeatPeriod, replyToTopMsg, video_timestamp, payStars, monoForumPeerId, suggestionParams);
+            }
+        }
         int sendResult = 0;
         long myId = getUserConfig().getClientUserId();
         boolean isChannel = false;

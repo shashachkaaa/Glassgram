@@ -77,6 +77,11 @@ import org.telegram.messenger.Emoji;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.MediaController;
+import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -332,6 +337,60 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
     }
 
     private int currentAccount;
+
+    // Glassgram: save and forward self-destructing media
+    private static final int GLASSGRAM_SAVE = 1;
+    private static final int GLASSGRAM_FORWARD = 2;
+    private ActionBarMenuItem glassgramSaveItem;
+    private ActionBarMenuItem glassgramForwardItem;
+
+    private void updateGlassgramItems() {
+        int visibility = GlassgramConfig.spyDisableSelfDestruct ? View.VISIBLE : View.GONE;
+        if (glassgramSaveItem != null) glassgramSaveItem.setVisibility(visibility);
+        if (glassgramForwardItem != null) glassgramForwardItem.setVisibility(visibility);
+    }
+
+    private java.io.File glassgramMediaFile() {
+        if (currentMessageObject == null || currentMessageObject.messageOwner == null) {
+            return null;
+        }
+        String attachPath = currentMessageObject.messageOwner.attachPath;
+        if (!android.text.TextUtils.isEmpty(attachPath)) {
+            java.io.File f = new java.io.File(attachPath);
+            if (f.exists()) {
+                return f;
+            }
+        }
+        java.io.File f = FileLoader.getInstance(currentAccount).getPathToMessage(currentMessageObject.messageOwner);
+        return f != null && f.exists() ? f : null;
+    }
+
+    private void glassgramSaveToGallery() {
+        java.io.File file = glassgramMediaFile();
+        if (file == null || parentActivity == null) {
+            android.widget.Toast.makeText(ApplicationLoader.applicationContext, LocaleController.getString(R.string.GlassgramCopyFailed), android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean video = currentMessageObject.isVideo() || currentMessageObject.isRoundVideo();
+        MediaController.saveFile(file.getAbsolutePath(), parentActivity, video ? 1 : 0, null, null, uri -> {
+            android.widget.Toast.makeText(ApplicationLoader.applicationContext, LocaleController.getString(video ? R.string.VideoSavedHint : R.string.PhotoSavedHint), android.widget.Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void glassgramForward() {
+        if (currentMessageObject == null || parentActivity == null) {
+            return;
+        }
+        // Telegram refuses to forward these; the share sheet goes through SendMessagesHelper,
+        // which sends a copy instead
+        final MessageObject message = currentMessageObject;
+        final Activity activity = parentActivity;
+        closePhoto(false, false);
+        AndroidUtilities.runOnUIThread(() -> {
+            org.telegram.ui.Components.ShareAlert alert = org.telegram.ui.Components.ShareAlert.createShareAlert(activity, message, null, false, null, false);
+            alert.show();
+        }, 150);
+    }
     private Activity parentActivity;
     private WindowManager.LayoutParams windowLayoutParams;
     private FrameLayout windowView;
@@ -870,9 +929,17 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
             public void onItemClick(int id) {
                 if (id == -1) {
                     closePhoto(true, false);
+                } else if (id == GLASSGRAM_SAVE) {
+                    glassgramSaveToGallery();
+                } else if (id == GLASSGRAM_FORWARD) {
+                    glassgramForward();
                 }
             }
         });
+        ActionBarMenu glassgramMenu = actionBar.createMenu();
+        glassgramForwardItem = glassgramMenu.addItem(GLASSGRAM_FORWARD, R.drawable.msg_forward);
+        glassgramSaveItem = glassgramMenu.addItem(GLASSGRAM_SAVE, R.drawable.msg_download);
+        updateGlassgramItems();
 
         secretHint = new HintView2(activity, HintView2.DIRECTION_TOP);
         secretHint.setJoint(1, -26);
@@ -965,8 +1032,10 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
                 WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR |
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
                 WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS;
-        windowLayoutParams.flags |= WindowManager.LayoutParams.FLAG_SECURE;
-        AndroidUtilities.logFlagSecure();
+        if (!GlassgramConfig.spyDisableSelfDestruct) {
+            windowLayoutParams.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+            AndroidUtilities.logFlagSecure();
+        }
         centerImage.setParentView(containerView);
         centerImage.setForceCrossfade(true);
 
@@ -1566,6 +1635,13 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         }
 
         WindowManager wm = (WindowManager) parentActivity.getSystemService(Context.WINDOW_SERVICE);
+        // The setting may have changed since the viewer was created
+        if (GlassgramConfig.spyDisableSelfDestruct) {
+            windowLayoutParams.flags &= ~WindowManager.LayoutParams.FLAG_SECURE;
+        } else {
+            windowLayoutParams.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+        }
+        updateGlassgramItems();
         wm.addView(windowView, windowLayoutParams);
         secretDeleteTimer.invalidate();
         isVisible = true;

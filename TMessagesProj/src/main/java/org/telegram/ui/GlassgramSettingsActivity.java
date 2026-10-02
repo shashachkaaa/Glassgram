@@ -239,7 +239,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButtonCheck(ID_SPY_ATTACHMENTS, getString(R.string.GlassgramSpySaveAttachments), getString(R.string.GlassgramSpySaveAttachmentsSub)).setChecked(GlassgramConfig.spySaveAttachments));
                 items.add(UItem.asCheck(ID_CUSTOM_SELF_DESTRUCT, getString(R.string.GlassgramDisableSelfDestruct)).setChecked(GlassgramConfig.spyDisableSelfDestruct));
                 items.add(UItem.asCheck(ID_CONTENT_PROTECTION, getString(R.string.GlassgramIgnoreContentProtection)).setChecked(GlassgramConfig.ignoreContentProtection));
-                items.add(UItem.asShadow(null));
+                items.add(UItem.asShadow(getString(R.string.GlassgramProtectedInfo)));
                 items.add(UItem.asHeader(getString(R.string.GlassgramSpyMaxFolderSize)));
                 items.add(UItem.asSlideView(folderSizeNames(), Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize)), which -> {
                     GlassgramConfig.spyMaxFolderSize = which;

@@ -389,4 +389,8 @@
     <string name="GlassgramCrashText">В прошлый раз приложение закрылось из-за ошибки. Скопируйте отчёт и отправьте разработчику, чтобы её исправили.</string>
     <string name="GlassgramCrashCopy">Скопировать отчёт</string>
     <string name="GlassgramIgnoreContentProtection">Игнорировать защиту контента</string>
+    <string name="GlassgramCopyUnsupported">Такое сообщение нельзя скопировать</string>
+    <string name="GlassgramCopyDownloading">Скачиваю, чтобы отправить копию…</string>
+    <string name="GlassgramCopyFailed">Не удалось получить файл</string>
+    <string name="GlassgramProtectedInfo">Самоуничтожающиеся медиа можно сохранить в галерею и переслать, скриншоты разрешены. Если защита контента игнорируется, сообщения из чатов с запретом пересылки отправляются копией с подписью источника.</string>
 </resources>
