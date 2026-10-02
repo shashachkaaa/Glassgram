@@ -5,6 +5,7 @@ import android.net.Uri;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.telegram.tgnet.TLRPC;
 
 import java.io.BufferedReader;
 import java.io.File;
