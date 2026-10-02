@@ -426,6 +426,11 @@ public class Switch extends FrameLayout {
     }
 
     public void setOverrideColor(int override) {
+        // The override recolors the old drawn switch for a cell's background ripple; with it the
+        // toggle would fall back to that switch, so it always keeps the liquid one instead.
+        if (true) {
+            return;
+        }
         if (overrideColorProgress == override) {
             return;
         }

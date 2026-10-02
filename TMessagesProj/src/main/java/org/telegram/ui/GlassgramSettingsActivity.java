@@ -140,7 +140,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(getString(R.string.GlassgramAlwaysSendHDInfo)));
                 break;
             case PAGE_GHOST:
-                items.add(UItem.asRippleCheck(ID_GHOST_MODE, getString(R.string.GlassgramGhostMode)).setChecked(GlassgramConfig.ghostMode));
+                items.add(UItem.asCheck(ID_GHOST_MODE, getString(R.string.GlassgramGhostMode)).setChecked(GlassgramConfig.ghostMode));
                 items.add(UItem.asShadow(getString(R.string.GlassgramGhostModeInfo)));
                 items.add(UItem.asHeader(getString(R.string.GlassgramGhostIncludes)));
                 items.add(UItem.asCheck(ID_GHOST_READ, getString(R.string.GlassgramGhostNoRead)).setChecked(GlassgramConfig.ghostNoReadMessages));
@@ -223,9 +223,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                             MessagesController.getInstance(a).glassgramGoOffline();
                         }
                     }
-                }
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setBackgroundColorAnimated(value, Theme.getColor(value ? Theme.key_windowBackgroundChecked : Theme.key_windowBackgroundUnchecked));
                 }
                 break;
             case ID_GHOST_READ:
