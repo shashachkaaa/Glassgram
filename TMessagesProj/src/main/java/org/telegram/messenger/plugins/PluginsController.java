@@ -350,6 +350,10 @@ public final class PluginsController {
     }
 
     public static void installPlugin(File file, Utilities.Callback2<String, String> done) {
+        installPlugin(file, true, done);
+    }
+
+    public static void installPlugin(File file, boolean enable, Utilities.Callback2<String, String> done) {
         pluginsQueue.postRunnable(() -> {
             String id = null;
             String error = null;
@@ -358,7 +362,7 @@ public final class PluginsController {
                 error = "Plugins engine is not running";
             } else {
                 try {
-                    id = module.callAttr("install", file.getAbsolutePath()).toString();
+                    id = module.callAttr("install", file.getAbsolutePath(), enable).toString();
                     PluginInfo info = plugins.get(id);
                     if (info != null && info.error != null) {
                         error = info.error;

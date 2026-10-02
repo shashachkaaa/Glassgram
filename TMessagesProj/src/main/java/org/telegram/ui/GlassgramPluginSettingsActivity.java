@@ -169,10 +169,9 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
             return;
         }
         if (subFactory == null) {
-            items.add(UItem.asHeader(formatString(R.string.GlassgramPluginVersion, plugin.version)
-                    + (TextUtils.isEmpty(plugin.author) ? "" : " · " + plugin.author)));
+            items.add(UItem.asCustomShadow(getPluginHeader(plugin)));
             items.add(UItem.asCheck(ID_ENABLED, getString(R.string.GlassgramPluginEnabled)).setChecked(plugin.enabled));
-            items.add(UItem.asShadow(TextUtils.isEmpty(plugin.description) ? null : AndroidUtilities.replaceTags(plugin.description)));
+            items.add(UItem.asShadow(null));
             if (plugin.error != null) {
                 items.add(UItem.asHeader(getString(R.string.GlassgramPluginLoadError)));
                 items.add(UItem.asButton(ID_ERROR, R.drawable.msg_info, errorLine(plugin.error)).red());
@@ -202,6 +201,22 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
             items.add(UItem.asButton(ID_DELETE, R.drawable.msg_delete, getString(R.string.GlassgramPluginDelete)).red());
             items.add(UItem.asShadow(null));
         }
+    }
+
+    private View pluginHeader;
+    private String pluginHeaderKey;
+
+    private View getPluginHeader(PluginInfo plugin) {
+        String key = plugin.name + "\n" + plugin.version + "\n" + plugin.author + "\n" + plugin.icon + "\n" + plugin.description;
+        if (pluginHeader == null || !key.equals(pluginHeaderKey)) {
+            pluginHeaderKey = key;
+            View header = GlassgramPluginInstaller.createPluginHeader(getContext(), currentAccount, plugin.name, plugin.version, plugin.author, plugin.description, plugin.icon, getResourceProvider());
+            android.widget.FrameLayout frame = new android.widget.FrameLayout(getContext());
+            frame.setPadding(dp(16), dp(16), dp(16), dp(20));
+            frame.addView(header);
+            pluginHeader = frame;
+        }
+        return pluginHeader;
     }
 
     private static String errorLine(String error) {

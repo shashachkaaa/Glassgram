@@ -76,6 +76,7 @@ public class GlassgramConfig {
     public static boolean spyDisableSelfDestruct;
     public static boolean ignoreContentProtection;
     public static boolean pluginsEngine;
+    public static boolean pluginsEnableAfterInstall = true;
 
     public static final int SPY_LIMIT_300_MB = 0;
     public static final int SPY_LIMIT_1_GB = 1;
@@ -133,6 +134,7 @@ public class GlassgramConfig {
         spyDisableSelfDestruct = p.getBoolean("spyDisableSelfDestruct", false);
         ignoreContentProtection = p.getBoolean("ignoreContentProtection", false);
         pluginsEngine = p.getBoolean("pluginsEngine", false);
+        pluginsEnableAfterInstall = p.getBoolean("pluginsEnableAfterInstall", true);
         loaded = true;
     }
 

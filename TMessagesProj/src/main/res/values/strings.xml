@@ -11391,5 +11391,6 @@
     <string name="GlassgramPluginUpdate">Update</string>
     <string name="GlassgramPluginTrustWarning">The plugin will have full access to the app and your account. Install it only if you trust its author.</string>
     <string name="GlassgramPluginInstallFailed">Couldn\'t install the plugin: %1$s</string>
-    <string name="GlassgramPluginInstalledToast">%1$s installed</string>
+    <string name="GlassgramPluginInstalledToast">%1$s installed successfully.</string>
+    <string name="GlassgramPluginEnableAfterInstall">Enable after installation</string>
 </resources>
