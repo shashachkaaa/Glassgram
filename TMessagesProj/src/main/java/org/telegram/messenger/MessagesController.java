@@ -18000,6 +18000,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
             if (!updates.out && user != null && user.status != null && user.status.expires <= 0 && Math.abs(getConnectionsManager().getCurrentTime() - updates.date) < 30) {
                 onlinePrivacy.put(user.id, updates.date);
+                GlassgramSpyStorage.saveLastSeen(user.id, updates.date * 1000L);
                 updateStatus = true;
             }
 
@@ -19540,6 +19541,19 @@ public class MessagesController extends BaseController implements NotificationCe
                     message.attachPath = "";
                 }
 
+                if (GlassgramConfig.spySaveEditsHistory) {
+                    ArrayList<MessageObject> oldObjects = dialogMessage.get(message.dialog_id);
+                    if (oldObjects != null) {
+                        for (int oi = 0; oi < oldObjects.size(); oi++) {
+                            MessageObject oldObject = oldObjects.get(oi);
+                            if (oldObject != null && oldObject.getId() == message.id) {
+                                GlassgramSpyStorage.saveEdit(oldObject, new MessageObject(currentAccount, message, usersDict, chatsDict, false, false));
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
 
@@ -21068,6 +21082,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     for (int b = 0, size = markAsReadMessagesInboxFinal.size(); b < size; b++) {
                         long key = markAsReadMessagesInboxFinal.keyAt(b);
                         int messageId = markAsReadMessagesInboxFinal.valueAt(b);
+                        GlassgramSpyStorage.saveRead(key, messageId, System.currentTimeMillis());
                         TLRPC.Dialog dialog = dialogs_dict.get(key);
                         if (dialog != null && dialog.top_message > 0 && dialog.top_message <= messageId) {
                             ArrayList<MessageObject> objs = dialogMessage.get(dialog.id);
@@ -21092,6 +21107,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     for (int b = 0, size = markAsReadMessagesOutboxFinal.size(); b < size; b++) {
                         long key = markAsReadMessagesOutboxFinal.keyAt(b);
                         int messageId = markAsReadMessagesOutboxFinal.valueAt(b);
+                        GlassgramSpyStorage.saveRead(key, messageId, System.currentTimeMillis());
                         TLRPC.Dialog dialog = dialogs_dict.get(key);
                         if (dialog != null && messageId > dialog.read_outbox_max_id) {
                             dialog.read_outbox_max_id = messageId;
@@ -21156,6 +21172,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("mark messages " + obj.getId() + " deleted");
                                 }
+                                GlassgramSpyStorage.saveMessage(obj, "deleted");
                                 obj.deleted = true;
                             }
                         }
@@ -21167,6 +21184,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (obj != null) {
                                     for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
                                         if (obj.getId() == arrayList.get(b)) {
+                                            GlassgramSpyStorage.saveMessage(obj, "deleted");
                                             obj.deleted = true;
                                             break;
                                         }

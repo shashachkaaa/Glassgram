@@ -54,6 +54,32 @@ public class GlassgramConfig {
     /** Recent stickers kept when the limit is lifted; Telegram's own is 20-30. */
     public static final int UNLIMITED_RECENT_STICKERS = 200;
 
+
+
+    // Spy
+    public static boolean spySaveDeletedMessages;
+    public static boolean spySaveEditsHistory;
+    public static boolean spySaveInBotDialogs;
+    public static boolean spySaveReadDate;
+    public static boolean spySaveLastSeenDate;
+    public static boolean spySaveAttachments;
+    public static int spyMaxFolderSize = 1; // 1 GB
+    public static boolean spyEnableFilters;
+    public static boolean spyEnableSharedFilters;
+    public static boolean spyHideBlockedUsers;
+    public static boolean spyShadowBan;
+    public static boolean spyTranslucentDeleted;
+    public static boolean spyDeletedTrashMark;
+    public static boolean spyDisableAds;
+    public static boolean spyDisplayGhostStatus;
+
+    public static final int SPY_LIMIT_300_MB = 0;
+    public static final int SPY_LIMIT_1_GB = 1;
+    public static final int SPY_LIMIT_2_GB = 2;
+    public static final int SPY_LIMIT_5_GB = 3;
+    public static final int SPY_LIMIT_16_GB = 4;
+    public static final int SPY_LIMIT_UNLIMITED = 5;
+
     private static boolean loaded;
 
     public static synchronized void load() {
@@ -84,6 +110,21 @@ public class GlassgramConfig {
         hideKeyboardOnScroll = p.getBoolean("hideKeyboardOnScroll", false);
         hideSendAsButton = p.getBoolean("hideSendAsButton", false);
         unlimitedRecentStickers = p.getBoolean("unlimitedRecentStickers", false);
+        spySaveDeletedMessages = p.getBoolean("spySaveDeletedMessages", false);
+        spySaveEditsHistory = p.getBoolean("spySaveEditsHistory", false);
+        spySaveInBotDialogs = p.getBoolean("spySaveInBotDialogs", false);
+        spySaveReadDate = p.getBoolean("spySaveReadDate", false);
+        spySaveLastSeenDate = p.getBoolean("spySaveLastSeenDate", false);
+        spySaveAttachments = p.getBoolean("spySaveAttachments", false);
+        spyMaxFolderSize = p.getInt("spyMaxFolderSize", SPY_LIMIT_1_GB);
+        spyEnableFilters = p.getBoolean("spyEnableFilters", false);
+        spyEnableSharedFilters = p.getBoolean("spyEnableSharedFilters", false);
+        spyHideBlockedUsers = p.getBoolean("spyHideBlockedUsers", false);
+        spyShadowBan = p.getBoolean("spyShadowBan", false);
+        spyTranslucentDeleted = p.getBoolean("spyTranslucentDeleted", false);
+        spyDeletedTrashMark = p.getBoolean("spyDeletedTrashMark", true);
+        spyDisableAds = p.getBoolean("spyDisableAds", false);
+        spyDisplayGhostStatus = p.getBoolean("spyDisplayGhostStatus", false);
         loaded = true;
     }
 
