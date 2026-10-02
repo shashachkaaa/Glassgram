@@ -88,6 +88,7 @@ import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramKeepDeleted;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
@@ -7908,6 +7909,8 @@ public class AlertsCreator {
         }
 
         final boolean[] deleteForAll = new boolean[1];
+        final boolean[] keepForMe = new boolean[1];
+        final View[] deleteForAllView = new View[1];
         boolean canRevokeInbox = user != null && MessagesController.getInstance(currentAccount).canRevokePmInbox;
         int revokeTimeLimit;
         if (user != null) {
@@ -8056,8 +8059,7 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell12.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                deleteForAllView[0] = frameLayout;
             }
         } else if (!scheduled && !isSavedMessages && !ChatObject.isChannel(chat) && encryptedChat == null) {
             if (user != null && user.id != UserConfig.getInstance(currentAccount).getClientUserId() && (!user.bot || user.support) || chat != null) {
@@ -8115,9 +8117,34 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell1.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                deleteForAllView[0] = frameLayout;
             }
+        }
+
+        // Glassgram: "Keep for me" deletes for everyone on Telegram but leaves the messages here,
+        // marked as deleted
+        if (!scheduled && !isSavedMessages && !quickReplies && encryptedChat == null) {
+            LinearLayout checksLayout = new LinearLayout(activity);
+            checksLayout.setOrientation(LinearLayout.VERTICAL);
+            if (deleteForAllView[0] != null) {
+                checksLayout.addView(deleteForAllView[0], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+            }
+            CheckBoxCell keepCell = new CheckBoxCell(activity, 1, resourcesProvider);
+            keepCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            keepCell.setText(LocaleController.getString(R.string.GlassgramKeepForMe), "", false, false);
+            keepCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0, LocaleController.isRTL ? dp(8) : dp(16), 0);
+            keepCell.setOnClickListener(v -> {
+                keepForMe[0] = !keepForMe[0];
+                ((CheckBoxCell) v).setChecked(keepForMe[0], true);
+            });
+            FrameLayout keepFrame = new FrameLayout(activity);
+            keepFrame.addView(keepCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 0, 0, 0));
+            checksLayout.addView(keepFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+            builder.setView(checksLayout);
+            builder.setCustomViewOffset(9);
+        } else if (deleteForAllView[0] != null) {
+            builder.setView(deleteForAllView[0]);
+            builder.setCustomViewOffset(9);
         }
 
         AlertDialog.OnButtonClickListener deleteAction = (dialogInterface, i) -> {
@@ -8161,7 +8188,11 @@ public class AlertsCreator {
                     thisDialogId = mergeDialogId;
                 }
                 if (!ids.isEmpty()) {
-                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
+                    if (keepForMe[0]) {
+                        GlassgramKeepDeleted.delete(currentAccount, ids, thisDialogId);
+                    } else {
+                        MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
+                    }
                 }
                 for (MessageObject msg: ephemeralMessages) {
                     MessagesController.getInstance(currentAccount).deleteEphemeralMessage(thisDialogId, topicId, msg);
@@ -8182,7 +8213,13 @@ public class AlertsCreator {
                             }
                         }
                     }
-                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode);
+                    if (keepForMe[0]) {
+                        if (!ids.isEmpty()) {
+                            GlassgramKeepDeleted.delete(currentAccount, ids, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId);
+                        }
+                    } else {
+                        MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode);
+                    }
                     selectedMessages[a].clear();
                 }
             }

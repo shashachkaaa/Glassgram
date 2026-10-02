@@ -21061,13 +21061,40 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         });
 
-        // Glassgram Spy: messages deleted on the server stay in the chat, marked as deleted.
-        final boolean keepDeletedMessages = deletedMessages != null && GlassgramConfig.spySaveDeletedMessages;
-        if (keepDeletedMessages) {
+        // Glassgram Spy: messages others deleted on the server stay in the chat, marked as
+        // deleted. Our own messages go as usual, unless they were deleted with "Keep for me".
+        LongSparseArray<ArrayList<Integer>> keptDeletedMessages = null;
+        if (deletedMessages != null && GlassgramConfig.spySaveDeletedMessages) {
+            keptDeletedMessages = new LongSparseArray<>();
+            LongSparseArray<ArrayList<Integer>> ownDeletedMessages = new LongSparseArray<>();
             for (int a = 0, size = deletedMessages.size(); a < size; a++) {
-                GlassgramSpyStorage.markDeleted(currentAccount, -deletedMessages.keyAt(a), deletedMessages.valueAt(a));
+                long key = deletedMessages.keyAt(a);
+                ArrayList<Integer> ids = deletedMessages.valueAt(a);
+                java.util.HashSet<Integer> own = GlassgramSpyStorage.findOwnMessageIds(currentAccount, key, ids);
+                ArrayList<Integer> keep = new ArrayList<>();
+                ArrayList<Integer> drop = new ArrayList<>();
+                for (int b = 0; b < ids.size(); b++) {
+                    Integer id = ids.get(b);
+                    if (own.contains(id) && !GlassgramSpyStorage.isMarkedDeleted(currentAccount, -key, id)) {
+                        drop.add(id);
+                    } else {
+                        keep.add(id);
+                    }
+                }
+                if (!keep.isEmpty()) {
+                    GlassgramSpyStorage.markDeleted(currentAccount, -key, keep);
+                    keptDeletedMessages.put(key, keep);
+                }
+                if (!drop.isEmpty()) {
+                    ownDeletedMessages.put(key, drop);
+                }
+            }
+            deletedMessages = ownDeletedMessages.size() > 0 ? ownDeletedMessages : null;
+            if (keptDeletedMessages.size() == 0) {
+                keptDeletedMessages = null;
             }
         }
+        final LongSparseArray<ArrayList<Integer>> keptDeletedMessagesFinal = keptDeletedMessages;
         LongSparseIntArray markAsReadMessagesInboxFinal = markAsReadMessagesInbox;
         LongSparseIntArray markAsReadMessagesOutboxFinal = markAsReadMessagesOutbox;
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
@@ -21161,32 +21188,35 @@ public class MessagesController extends BaseController implements NotificationCe
                     getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, key, value);
                 }
             }
+            if (keptDeletedMessagesFinal != null) {
+                for (int a = 0, size = keptDeletedMessagesFinal.size(); a < size; a++) {
+                    long dialogId = keptDeletedMessagesFinal.keyAt(a);
+                    ArrayList<Integer> arrayList = keptDeletedMessagesFinal.valueAt(a);
+                    for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
+                        MessageObject obj = dialogId == 0 ? dialogMessagesByIds.get(arrayList.get(b)) : null;
+                        if (obj != null) {
+                            GlassgramSpyStorage.saveMessage(obj, "deleted");
+                        }
+                    }
+                    if (dialogId != 0) {
+                        ArrayList<MessageObject> objs = dialogMessage.get(dialogId);
+                        if (objs != null) {
+                            for (int i = 0; i < objs.size(); ++i) {
+                                MessageObject obj = objs.get(i);
+                                if (obj != null && arrayList.contains(obj.getId())) {
+                                    GlassgramSpyStorage.saveMessage(obj, "deleted");
+                                }
+                            }
+                        }
+                    }
+                    getNotificationCenter().postNotificationName(NotificationCenter.glassgramMessagesMarkedDeleted, arrayList, -dialogId);
+                }
+            }
             if (deletedMessagesFinal != null) {
                 for (int a = 0, size = deletedMessagesFinal.size(); a < size; a++) {
                     long dialogId = deletedMessagesFinal.keyAt(a);
                     ArrayList<Integer> arrayList = deletedMessagesFinal.valueAt(a);
                     if (arrayList == null) {
-                        continue;
-                    }
-                    if (keepDeletedMessages) {
-                        for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
-                            MessageObject obj = dialogId == 0 ? dialogMessagesByIds.get(arrayList.get(b)) : null;
-                            if (obj != null) {
-                                GlassgramSpyStorage.saveMessage(obj, "deleted");
-                            }
-                        }
-                        if (dialogId != 0) {
-                            ArrayList<MessageObject> objs = dialogMessage.get(dialogId);
-                            if (objs != null) {
-                                for (int i = 0; i < objs.size(); ++i) {
-                                    MessageObject obj = objs.get(i);
-                                    if (obj != null && arrayList.contains(obj.getId())) {
-                                        GlassgramSpyStorage.saveMessage(obj, "deleted");
-                                    }
-                                }
-                            }
-                        }
-                        getNotificationCenter().postNotificationName(NotificationCenter.glassgramMessagesMarkedDeleted, arrayList, -dialogId);
                         continue;
                     }
                     getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false);
@@ -21302,7 +21332,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 getMessagesStorage().markMessagesContentAsRead(key, arrayList, currentTime2, markContentAsReadMessagesDate);
             }
         }
-        if (deletedMessages != null && !keepDeletedMessages) {
+        if (deletedMessages != null) {
             for (int a = 0, size = deletedMessages.size(); a < size; a++) {
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> arrayList = deletedMessages.valueAt(a);

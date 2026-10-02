@@ -422,6 +422,55 @@ public final class GlassgramSpyStorage {
         }
     }
 
+    public static boolean isMarkedDeleted(int account, long channelId, int messageId) {
+        synchronized (DELETED_LOCK) {
+            HashSet<String> set = loadDeletedIds();
+            return !set.isEmpty() && set.contains(deletedKey(account, channelId, messageId));
+        }
+    }
+
+    /**
+     * Which of the deleted message ids are our own outgoing messages, read from the local database.
+     * key is the update's key: 0 for private chats and basic groups, -channelId for a channel.
+     * Waits for the storage queue, like MessagesStorage.getDialogReadMax.
+     */
+    public static HashSet<Integer> findOwnMessageIds(int account, long key, ArrayList<Integer> ids) {
+        HashSet<Integer> own = new HashSet<>();
+        if (ids == null || ids.isEmpty()) {
+            return own;
+        }
+        MessagesStorage storage = MessagesStorage.getInstance(account);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        storage.getStorageQueue().postRunnable(() -> {
+            SQLiteCursor cursor = null;
+            try {
+                String idList = TextUtils.join(",", ids);
+                String query = key != 0
+                    ? String.format(Locale.US, "SELECT mid FROM messages_v2 WHERE uid = %d AND mid IN (%s) AND out = 1", key, idList)
+                    : String.format(Locale.US, "SELECT mid FROM messages_v2 WHERE mid IN (%s) AND out = 1 AND is_channel = 0", idList);
+                cursor = storage.getDatabase().queryFinalized(query);
+                while (cursor.next()) {
+                    own.add(cursor.intValue(0));
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (cursor != null) {
+                    cursor.dispose();
+                }
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        synchronized (own) {
+            return own;
+        }
+    }
+
     public static boolean isMarkedDeleted(MessageObject message) {
         if (message == null || message.messageOwner == null || message.getId() <= 0 || message.scheduled) {
             return false;
