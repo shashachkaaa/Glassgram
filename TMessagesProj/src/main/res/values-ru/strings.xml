@@ -378,4 +378,10 @@
     <string name="GlassgramPrivacySection">Шпион и призрак</string>
     <string name="GlassgramLinks">Ссылки</string>
     <string name="GlassgramSourceCode">Исходный код</string>
+    <string name="GlassgramIconDark">Тёмная</string>
+    <string name="GlassgramIconViolet">Фиолетовая</string>
+    <string name="GlassgramIconTeal">Бирюзовая</string>
+    <string name="GlassgramIconOrange">Оранжевая</string>
+    <string name="GlassgramIconPink">Розовая</string>
+    <string name="GlassgramIconLight">Светлая</string>
 </resources>

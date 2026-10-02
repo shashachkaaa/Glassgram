@@ -11346,4 +11346,10 @@
     <string name="GlassgramPrivacySection">Spy &amp; Ghost</string>
     <string name="GlassgramLinks">Links</string>
     <string name="GlassgramSourceCode">Source Code</string>
+    <string name="GlassgramIconDark">Dark</string>
+    <string name="GlassgramIconViolet">Violet</string>
+    <string name="GlassgramIconTeal">Teal</string>
+    <string name="GlassgramIconOrange">Orange</string>
+    <string name="GlassgramIconPink">Pink</string>
+    <string name="GlassgramIconLight">Light</string>
 </resources>

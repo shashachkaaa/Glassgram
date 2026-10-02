@@ -34,12 +34,13 @@ public class LauncherIconController {
     }
 
     public enum LauncherIcon {
-        DEFAULT("DefaultIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconDefault),
-        VINTAGE("VintageIcon", R.drawable.icon_6_background_sa, R.mipmap.icon_6_foreground_sa, R.string.AppIconVintage),
-        AQUA("AquaIcon", R.drawable.icon_4_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconAqua),
-        PREMIUM("PremiumIcon", R.drawable.icon_3_background_sa, R.mipmap.icon_3_foreground_sa, R.string.AppIconPremium, true),
-        TURBO("TurboIcon", R.drawable.icon_5_background_sa, R.mipmap.icon_5_foreground_sa, R.string.AppIconTurbo, true),
-        NOX("NoxIcon", R.mipmap.icon_2_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconNox, true);
+        // Glassgram variants; the alias names stay so the chosen icon survives updates.
+        DEFAULT("DefaultIcon", R.drawable.glassgram_icon_pick_bg_dark, R.drawable.glassgram_icon_pick_fg_dark, R.string.GlassgramIconDark),
+        VINTAGE("VintageIcon", R.drawable.glassgram_icon_pick_bg_violet, R.drawable.glassgram_icon_pick_fg_violet, R.string.GlassgramIconViolet),
+        AQUA("AquaIcon", R.drawable.glassgram_icon_pick_bg_teal, R.drawable.glassgram_icon_pick_fg_teal, R.string.GlassgramIconTeal),
+        PREMIUM("PremiumIcon", R.drawable.glassgram_icon_pick_bg_orange, R.drawable.glassgram_icon_pick_fg_orange, R.string.GlassgramIconOrange),
+        TURBO("TurboIcon", R.drawable.glassgram_icon_pick_bg_pink, R.drawable.glassgram_icon_pick_fg_pink, R.string.GlassgramIconPink),
+        NOX("NoxIcon", R.drawable.glassgram_icon_pick_bg_light, R.drawable.glassgram_icon_pick_fg_light, R.string.GlassgramIconLight);
 
         public final String key;
         public final int background;

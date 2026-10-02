@@ -33,7 +33,8 @@ public class PremiumAppIconsPreviewView extends FrameLayout implements PagerHead
         this.resourcesProvider = resourcesProvider;
 
         for (LauncherIconController.LauncherIcon icon : LauncherIconController.LauncherIcon.values()) {
-            if (icon.premium) {
+            // Glassgram has no premium-only icons; show the alternate ones
+            if (icon != LauncherIconController.LauncherIcon.DEFAULT) {
                 icons.add(icon);
             }
             if (icons.size() == 3) {
