@@ -2923,6 +2923,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.glassgramMessagesMarkedDeleted)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -22269,6 +22270,36 @@ public class ChatActivity extends BaseFragment implements
             removeUnreadPlane(true);
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
+            }
+        } else if (id == NotificationCenter.glassgramMessagesMarkedDeleted) {
+            if (chatMode == MODE_SCHEDULED) {
+                return;
+            }
+            ArrayList<Integer> markedIds = (ArrayList<Integer>) args[0];
+            long channelId = (Long) args[1];
+            int loadIndex = 0;
+            if (ChatObject.isChannel(currentChat)) {
+                if (channelId == 0 && mergeDialogId != 0) {
+                    loadIndex = 1;
+                } else if (channelId != -dialog_id) {
+                    return;
+                }
+            } else if (channelId != 0) {
+                return;
+            }
+            ArrayList<MessageObject> changed = new ArrayList<>();
+            for (int i = 0; i < markedIds.size(); i++) {
+                MessageObject msg = messagesDict[loadIndex].get(markedIds.get(i));
+                if (msg != null) {
+                    msg.forceUpdate = true;
+                    changed.add(msg);
+                }
+            }
+            if (!changed.isEmpty()) {
+                updateVisibleRows();
+                for (int i = 0; i < changed.size(); i++) {
+                    changed.get(i).forceUpdate = false;
+                }
             }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];

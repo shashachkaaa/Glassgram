@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -119,6 +120,98 @@ public final class GlassgramSpyStorage {
         }
     }
 
+    // Messages deleted by the other side that are kept in the chat. Telegram ids of
+    // non-channel messages are unique per account, channel ones per channel, so a mark
+    // is "<own user id>_<channel id or 0>_<message id>".
+    private static final String DELETED_FILE_NAME = "glassgram_deleted_ids.txt";
+    private static final Object DELETED_LOCK = new Object();
+    private static HashSet<String> deletedIds;
+
+    private static File deletedFile() {
+        return new File(file().getParentFile(), DELETED_FILE_NAME);
+    }
+
+    private static String deletedKey(int account, long channelId, int messageId) {
+        return UserConfig.getInstance(account).getClientUserId() + "_" + channelId + "_" + messageId;
+    }
+
+    private static HashSet<String> loadDeletedIds() {
+        if (deletedIds != null) {
+            return deletedIds;
+        }
+        HashSet<String> set = new HashSet<>();
+        File f = deletedFile();
+        if (f.exists()) {
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (!line.isEmpty()) {
+                        set.add(line);
+                    }
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (reader != null) {
+                    try { reader.close(); } catch (Exception ignore) {}
+                }
+            }
+        }
+        deletedIds = set;
+        return set;
+    }
+
+    /**
+     * Remembers that these messages were deleted on the server while keeping them in the chat.
+     * channelId is 0 for private chats and basic groups.
+     */
+    public static void markDeleted(int account, long channelId, ArrayList<Integer> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return;
+        }
+        synchronized (DELETED_LOCK) {
+            HashSet<String> set = loadDeletedIds();
+            StringBuilder lines = new StringBuilder();
+            for (int i = 0; i < messageIds.size(); i++) {
+                String key = deletedKey(account, channelId, messageIds.get(i));
+                if (set.add(key)) {
+                    lines.append(key).append('\n');
+                }
+            }
+            if (lines.length() == 0) {
+                return;
+            }
+            FileOutputStream out = null;
+            try {
+                out = new FileOutputStream(deletedFile(), true);
+                out.write(lines.toString().getBytes(StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (out != null) {
+                    try { out.close(); } catch (Exception ignore) {}
+                }
+            }
+        }
+    }
+
+    public static boolean isMarkedDeleted(MessageObject message) {
+        if (message == null || message.messageOwner == null || message.getId() <= 0 || message.scheduled) {
+            return false;
+        }
+        long channelId = 0;
+        if (message.messageOwner.peer_id != null && message.messageOwner.peer_id.channel_id != 0) {
+            channelId = message.messageOwner.peer_id.channel_id;
+        }
+        synchronized (DELETED_LOCK) {
+            HashSet<String> set = loadDeletedIds();
+            return !set.isEmpty() && set.contains(deletedKey(message.currentAccount, channelId, message.getId()));
+        }
+    }
+
     private static boolean isBotDialog(long dialogId) {
         if (dialogId <= 0) {
             return false;
@@ -149,6 +242,13 @@ public final class GlassgramSpyStorage {
     }
 
     public static void clear() {
+        synchronized (DELETED_LOCK) {
+            File d = deletedFile();
+            if (d.exists()) {
+                d.delete();
+            }
+            deletedIds = new HashSet<>();
+        }
         synchronized (LOCK) {
             File f = file();
             if (f.exists() && !f.delete()) {

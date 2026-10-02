@@ -121,7 +121,7 @@ public class GlassgramConfig {
         spyEnableSharedFilters = p.getBoolean("spyEnableSharedFilters", false);
         spyHideBlockedUsers = p.getBoolean("spyHideBlockedUsers", false);
         spyShadowBan = p.getBoolean("spyShadowBan", false);
-        spyTranslucentDeleted = p.getBoolean("spyTranslucentDeleted", false);
+        spyTranslucentDeleted = p.getBoolean("spyTranslucentDeleted", true);
         spyDeletedTrashMark = p.getBoolean("spyDeletedTrashMark", true);
         spyDisableAds = p.getBoolean("spyDisableAds", false);
         spyDisplayGhostStatus = p.getBoolean("spyDisplayGhostStatus", false);

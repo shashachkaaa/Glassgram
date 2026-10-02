@@ -116,6 +116,8 @@ import org.telegram.messenger.DownloadController;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.FlagSecureReason;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageLocation;
@@ -1727,6 +1729,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private float drawTimeX;
     private float drawTimeY;
     public StaticLayout timeLayout;
+    // Glassgram Spy: the message was deleted on the server but is kept in the chat.
+    private boolean spyDeleted;
     public int timeWidth;
     private int timeTextWidth;
     public int timeX;
@@ -16772,6 +16776,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (textLayoutBlocks == null || textLayoutBlocks.isEmpty() || alpha == 0) {
             return;
         }
+        if (spyDeleted && GlassgramConfig.spyTranslucentDeleted) {
+            alpha *= 0.5f;
+        }
 
         int firstVisibleBlockNum;
         int lastVisibleBlockNum;
@@ -18529,7 +18536,21 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentTimeString = TextUtils.concat(formatString(R.string.MessageScheduledRepeatSeconds, period), ", ", currentTimeString);
             }
         }
+        spyDeleted = GlassgramSpyStorage.isMarkedDeleted(messageObject);
+        int spyTrashExtraWidth = 0;
+        if (spyDeleted && GlassgramConfig.spyDeletedTrashMark) {
+            // Paint.measureText ignores the span, so the width is corrected below.
+            final int iconSize = dp(14);
+            SpannableStringBuilder trash = new SpannableStringBuilder("d ");
+            ColoredImageSpan trashSpan = new ColoredImageSpan(R.drawable.msg_delete_filled);
+            trashSpan.setSize(iconSize);
+            trash.setSpan(trashSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spyTrashExtraWidth = iconSize - (int) Math.ceil(Theme.chat_timePaint.measureText("d"));
+            currentTimeString = TextUtils.concat(trash, currentTimeString);
+        }
         timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        timeTextWidth += spyTrashExtraWidth;
+        timeWidth += spyTrashExtraWidth;
         if (currentMessageObject.scheduled && currentMessageObject.messageOwner.date == 0x7FFFFFFE || currentMessageObject.notime) {
             timeWidth -= dp(8);
         }

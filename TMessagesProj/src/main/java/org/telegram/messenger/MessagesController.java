@@ -21063,6 +21063,13 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         });
 
+        // Glassgram Spy: messages deleted on the server stay in the chat, marked as deleted.
+        final boolean keepDeletedMessages = deletedMessages != null && GlassgramConfig.spySaveDeletedMessages;
+        if (keepDeletedMessages) {
+            for (int a = 0, size = deletedMessages.size(); a < size; a++) {
+                GlassgramSpyStorage.markDeleted(currentAccount, -deletedMessages.keyAt(a), deletedMessages.valueAt(a));
+            }
+        }
         LongSparseIntArray markAsReadMessagesInboxFinal = markAsReadMessagesInbox;
         LongSparseIntArray markAsReadMessagesOutboxFinal = markAsReadMessagesOutbox;
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
@@ -21163,6 +21170,27 @@ public class MessagesController extends BaseController implements NotificationCe
                     if (arrayList == null) {
                         continue;
                     }
+                    if (keepDeletedMessages) {
+                        for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
+                            MessageObject obj = dialogId == 0 ? dialogMessagesByIds.get(arrayList.get(b)) : null;
+                            if (obj != null) {
+                                GlassgramSpyStorage.saveMessage(obj, "deleted");
+                            }
+                        }
+                        if (dialogId != 0) {
+                            ArrayList<MessageObject> objs = dialogMessage.get(dialogId);
+                            if (objs != null) {
+                                for (int i = 0; i < objs.size(); ++i) {
+                                    MessageObject obj = objs.get(i);
+                                    if (obj != null && arrayList.contains(obj.getId())) {
+                                        GlassgramSpyStorage.saveMessage(obj, "deleted");
+                                    }
+                                }
+                            }
+                        }
+                        getNotificationCenter().postNotificationName(NotificationCenter.glassgramMessagesMarkedDeleted, arrayList, -dialogId);
+                        continue;
+                    }
                     getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false);
                     if (dialogId == 0) {
                         for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
@@ -21172,7 +21200,6 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("mark messages " + obj.getId() + " deleted");
                                 }
-                                GlassgramSpyStorage.saveMessage(obj, "deleted");
                                 obj.deleted = true;
                             }
                         }
@@ -21184,7 +21211,6 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (obj != null) {
                                     for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
                                         if (obj.getId() == arrayList.get(b)) {
-                                            GlassgramSpyStorage.saveMessage(obj, "deleted");
                                             obj.deleted = true;
                                             break;
                                         }
@@ -21278,7 +21304,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 getMessagesStorage().markMessagesContentAsRead(key, arrayList, currentTime2, markContentAsReadMessagesDate);
             }
         }
-        if (deletedMessages != null) {
+        if (deletedMessages != null && !keepDeletedMessages) {
             for (int a = 0, size = deletedMessages.size(); a < size; a++) {
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> arrayList = deletedMessages.valueAt(a);
