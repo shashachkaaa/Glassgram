@@ -89,6 +89,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_CUSTOM_TRASH = 61;
     private static final int ID_CUSTOM_ADS = 62;
     private static final int ID_CUSTOM_GHOST_STATUS = 63;
+    private static final int ID_CUSTOM_CONTENT_PROTECTION = 64;
 
     private static final int ID_FILTER_ENABLE = 70;
     private static final int ID_FILTER_SHARED = 71;
@@ -260,6 +261,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asHeader(getString(R.string.GlassgramUsefulFeatures)));
                 items.add(UItem.asCheck(ID_CUSTOM_ADS, getString(R.string.GlassgramDisableAds)).setChecked(GlassgramConfig.spyDisableAds));
                 items.add(UItem.asCheck(ID_CUSTOM_GHOST_STATUS, getString(R.string.GlassgramDisplayGhostStatus)).setChecked(GlassgramConfig.spyDisplayGhostStatus));
+                items.add(UItem.asCheck(ID_CUSTOM_CONTENT_PROTECTION, getString(R.string.GlassgramIgnoreContentProtection)).setChecked(GlassgramConfig.ignoreContentProtection));
+                items.add(UItem.asShadow(getString(R.string.GlassgramIgnoreContentProtectionInfo)));
                 items.add(UItem.asShadow(null));
                 break;
             case PAGE_FILTERS:
@@ -470,6 +473,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_CUSTOM_GHOST_STATUS:
                 value = GlassgramConfig.spyDisplayGhostStatus = !GlassgramConfig.spyDisplayGhostStatus;
                 GlassgramConfig.putBoolean("spyDisplayGhostStatus", value); break;
+            case ID_CUSTOM_CONTENT_PROTECTION:
+                value = GlassgramConfig.ignoreContentProtection = !GlassgramConfig.ignoreContentProtection;
+                GlassgramConfig.putBoolean("ignoreContentProtection", value); break;
             case ID_FILTER_ENABLE:
                 value = GlassgramConfig.spyEnableFilters = !GlassgramConfig.spyEnableFilters;
                 GlassgramConfig.putBoolean("spyEnableFilters", value); break;
