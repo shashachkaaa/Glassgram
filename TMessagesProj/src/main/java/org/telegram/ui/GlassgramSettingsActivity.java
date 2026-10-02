@@ -278,11 +278,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
-                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_settings_premium, getString(R.string.GlassgramCustomization)));
+                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
                 items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramPrivacySection)));
-                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode), GlassgramConfig.ghostMode ? getString(R.string.GlassgramOn) : getString(R.string.GlassgramOff)));
-                items.add(UItem.asButton(ID_SPY, R.drawable.msg_views, getString(R.string.GlassgramSpy)));
+                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
+                items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
                 items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramLinks)));

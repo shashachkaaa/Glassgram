@@ -133,11 +133,6 @@ public class Switch extends FrameLayout {
 
     private LiquidToggleView toggleView;
 
-    private boolean isInActivityWindow() {
-        android.app.Activity activity = AndroidUtilities.findActivity(getContext());
-        return activity != null && activity.getWindow() != null && getRootView() == activity.getWindow().peekDecorView();
-    }
-
     private void onToggleRequested(boolean checked) {
         if (checked != isChecked) {
             performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
@@ -166,7 +161,10 @@ public class Switch extends FrameLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         // Sized as the plain View it used to be; the toggle overflows it, centered
         setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec), getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
-        if (toggleView != null) {
+        // A Compose view cannot be measured before it has a window: sheets measure their
+        // content in show(), before the dialog window is attached, which crashed (a session's
+        // sheet in Devices). It is measured on the layout pass after attaching.
+        if (toggleView != null && toggleView.isAttachedToWindow()) {
             final int overflow = LiquidToggleView.OVERFLOW_DP;
             toggleView.measure(
                 MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(LiquidToggleView.WIDTH_DP + 2 * overflow), MeasureSpec.EXACTLY),
@@ -177,7 +175,7 @@ public class Switch extends FrameLayout {
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        if (toggleView != null) {
+        if (toggleView != null && toggleView.isAttachedToWindow()) {
             final int w = toggleView.getMeasuredWidth(), h = toggleView.getMeasuredHeight();
             final int x = (getMeasuredWidth() - w) / 2, y = (getMeasuredHeight() - h) / 2;
             toggleView.layout(x, y, x + w, y + h);
@@ -353,12 +351,8 @@ public class Switch extends FrameLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         attachedToWindow = true;
-        if (toggleView != null && !isInActivityWindow()) {
-            // The liquid toggle is a Compose view, and Compose crashes in Telegram's dialog
-            // windows (sheets such as a session's). There the drawn capsule is used instead.
-            // The toggle is not attached yet at this point, so removing it is safe.
-            removeView(toggleView);
-            toggleView = null;
+        if (toggleView != null) {
+            // The toggle is measured only once attached (see onMeasure)
             requestLayout();
         }
         updateToggleColors();
