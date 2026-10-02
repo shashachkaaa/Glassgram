@@ -74,6 +74,7 @@ public class GlassgramConfig {
     public static boolean spyDisableAds;
     public static boolean spyDisplayGhostStatus;
     public static boolean spyDisableSelfDestruct;
+    public static boolean ignoreContentProtection;
 
     public static final int SPY_LIMIT_300_MB = 0;
     public static final int SPY_LIMIT_1_GB = 1;
@@ -129,6 +130,7 @@ public class GlassgramConfig {
         spyDisableAds = p.getBoolean("spyDisableAds", false);
         spyDisplayGhostStatus = p.getBoolean("spyDisplayGhostStatus", false);
         spyDisableSelfDestruct = p.getBoolean("spyDisableSelfDestruct", false);
+        ignoreContentProtection = p.getBoolean("ignoreContentProtection", false);
         loaded = true;
     }
 

@@ -90,6 +90,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_CUSTOM_ADS = 62;
     private static final int ID_CUSTOM_GHOST_STATUS = 63;
     private static final int ID_CUSTOM_SELF_DESTRUCT = 64;
+    private static final int ID_CONTENT_PROTECTION = 65;
 
     private static final int ID_FILTER_ENABLE = 70;
     private static final int ID_FILTER_SHARED = 71;
@@ -237,6 +238,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(AndroidUtilities.replaceTags(getString(R.string.GlassgramSpySaveLastSeenInfo))));
                 items.add(UItem.asButtonCheck(ID_SPY_ATTACHMENTS, getString(R.string.GlassgramSpySaveAttachments), getString(R.string.GlassgramSpySaveAttachmentsSub)).setChecked(GlassgramConfig.spySaveAttachments));
                 items.add(UItem.asCheck(ID_CUSTOM_SELF_DESTRUCT, getString(R.string.GlassgramDisableSelfDestruct)).setChecked(GlassgramConfig.spyDisableSelfDestruct));
+                items.add(UItem.asCheck(ID_CONTENT_PROTECTION, getString(R.string.GlassgramIgnoreContentProtection)).setChecked(GlassgramConfig.ignoreContentProtection));
                 items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramSpyMaxFolderSize)));
                 items.add(UItem.asSlideView(folderSizeNames(), Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize)), which -> {
@@ -475,6 +477,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_CUSTOM_SELF_DESTRUCT:
                 value = GlassgramConfig.spyDisableSelfDestruct = !GlassgramConfig.spyDisableSelfDestruct;
                 GlassgramConfig.putBoolean("spyDisableSelfDestruct", value); break;
+            case ID_CONTENT_PROTECTION:
+                value = GlassgramConfig.ignoreContentProtection = !GlassgramConfig.ignoreContentProtection;
+                GlassgramConfig.putBoolean("ignoreContentProtection", value); break;
             case ID_FILTER_ENABLE:
                 value = GlassgramConfig.spyEnableFilters = !GlassgramConfig.spyEnableFilters;
                 GlassgramConfig.putBoolean("spyEnableFilters", value); break;
