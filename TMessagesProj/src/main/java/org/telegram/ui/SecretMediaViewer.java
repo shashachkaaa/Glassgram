@@ -341,6 +341,7 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
     // Glassgram: save and forward self-destructing media
     private static final int GLASSGRAM_SAVE = 1;
     private static final int GLASSGRAM_FORWARD = 2;
+    private static final int GLASSGRAM_TIMER_SPACE = 3;
     private ActionBarMenuItem glassgramSaveItem;
     private ActionBarMenuItem glassgramForwardItem;
 
@@ -939,6 +940,12 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         ActionBarMenu glassgramMenu = actionBar.createMenu();
         glassgramForwardItem = glassgramMenu.addItem(GLASSGRAM_FORWARD, R.drawable.msg_forward);
         glassgramSaveItem = glassgramMenu.addItem(GLASSGRAM_SAVE, R.drawable.msg_download);
+        // The self-destruct timer covers the right end of the bar (it is added on top of it and is
+        // clickable itself); this empty slot keeps the buttons to its left
+        ActionBarMenuItem timerSpace = glassgramMenu.addItemWithWidth(GLASSGRAM_TIMER_SPACE, 0, dp(119));
+        timerSpace.setClickable(false);
+        timerSpace.setEnabled(false);
+        timerSpace.setBackground(null);
         updateGlassgramItems();
 
         secretHint = new HintView2(activity, HintView2.DIRECTION_TOP);
