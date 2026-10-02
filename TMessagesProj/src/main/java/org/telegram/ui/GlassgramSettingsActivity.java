@@ -6,11 +6,17 @@ import static org.telegram.messenger.LocaleController.getString;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.text.InputType;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewOutlineProvider;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.FrameLayout;
 
@@ -58,6 +64,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SPY = 5;
     private static final int ID_CUSTOMIZATION = 6;
     private static final int ID_FILTERS = 7;
+    private static final int ID_SOURCE_CODE = 8;
 
     private static final int ID_GHOST_MODE = 40;
     private static final int ID_GHOST_READ = 41;
@@ -119,6 +126,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private ChatMessageCell previewCell;
     private MessageObject previewMessage;
     private View colorsView;
+    private View aboutHeader;
 
     // 0 keeps the time color.
     private static final int[] MARK_COLORS = {0, 0xFFFF0000, 0xFFDC2B2B, 0xFFDB2777, 0xFFC026D3, 0xFF9333EA, 0xFF4F46E5, 0xFF2563EB};
@@ -150,7 +158,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case PAGE_FILTERS:
                 return getString(R.string.GlassgramMessageFilters);
             default:
-                return getString(R.string.GlassgramPreferences);
+                // The header below the action bar carries the name
+                return "";
         }
     }
 
@@ -264,14 +273,20 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(getString(R.string.GlassgramFiltersInfo)));
                 break;
             default:
+                items.add(UItem.asCustomShadow(getAboutHeader()));
                 items.add(UItem.asHeader(getString(R.string.GlassgramCategories)));
-                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_secret, getString(R.string.GlassgramGhostMode), GlassgramConfig.ghostMode ? getString(R.string.GlassgramOn) : getString(R.string.GlassgramOff)));
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
+                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_settings_premium, getString(R.string.GlassgramCustomization)));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asHeader(getString(R.string.GlassgramPrivacySection)));
+                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode), GlassgramConfig.ghostMode ? getString(R.string.GlassgramOn) : getString(R.string.GlassgramOff)));
                 items.add(UItem.asButton(ID_SPY, R.drawable.msg_views, getString(R.string.GlassgramSpy)));
-                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_palette, getString(R.string.GlassgramCustomization)));
                 items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asHeader(getString(R.string.GlassgramLinks)));
+                items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -300,6 +315,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_FILTERS:
                 presentFragment(new GlassgramSettingsActivity(PAGE_FILTERS));
+                return;
+            case ID_SOURCE_CODE:
+                org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://github.com/shashachkaaa/Telegram");
                 return;
             case ID_SPY_LIMIT:
                 showChoice("Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}, GlassgramConfig.spyMaxFolderSize, which -> {
@@ -625,6 +643,62 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             }
         };
         return colorsView;
+    }
+
+    /** App icon, name and version at the top of the main page. */
+    private View getAboutHeader() {
+        if (aboutHeader != null) {
+            return aboutHeader;
+        }
+        Context context = getContext();
+        LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        layout.setPadding(0, dp(8), 0, dp(20));
+
+        ImageView icon = new ImageView(context);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        try {
+            icon.setImageDrawable(context.getPackageManager().getApplicationIcon(context.getPackageName()));
+        } catch (Exception e) {
+            icon.setImageResource(R.mipmap.ic_launcher);
+        }
+        icon.setClipToOutline(true);
+        icon.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(26));
+            }
+        });
+        layout.addView(icon, LayoutHelper.createLinear(96, 96, Gravity.CENTER_HORIZONTAL));
+
+        TextView name = new TextView(context);
+        name.setText(getString(R.string.AppName));
+        name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
+        name.setTypeface(AndroidUtilities.bold());
+        name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        name.setGravity(Gravity.CENTER);
+        layout.addView(name, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0));
+
+        TextView version = new TextView(context);
+        version.setText(getVersionText(context));
+        version.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+        version.setTypeface(AndroidUtilities.bold());
+        version.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        version.setGravity(Gravity.CENTER);
+        layout.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
+
+        aboutHeader = layout;
+        return aboutHeader;
+    }
+
+    private static String getVersionText(Context context) {
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return info.versionName + " (" + info.versionCode + ")";
+        } catch (Exception e) {
+            return org.telegram.messenger.BuildVars.BUILD_VERSION_STRING;
+        }
     }
 
     private static String[] boostNames() {

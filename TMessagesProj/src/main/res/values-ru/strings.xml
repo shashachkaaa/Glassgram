@@ -375,4 +375,7 @@
     <string name="GlassgramFiltersShadowBan">Теневой бан</string>
     <string name="GlassgramFiltersInfo">Фильтры работают только на устройстве и не меняют блокировки в Telegram.</string>
     <string name="GlassgramSpy">Шпион</string>
+    <string name="GlassgramPrivacySection">Шпион и призрак</string>
+    <string name="GlassgramLinks">Ссылки</string>
+    <string name="GlassgramSourceCode">Исходный код</string>
 </resources>

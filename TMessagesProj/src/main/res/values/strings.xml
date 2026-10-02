@@ -11343,4 +11343,7 @@
     <string name="GlassgramFiltersShadowBan">Shadow Ban</string>
     <string name="GlassgramFiltersInfo">Filters are local-only and do not change who is blocked on Telegram.</string>
     <string name="GlassgramSpy">Spy</string>
+    <string name="GlassgramPrivacySection">Spy &amp; Ghost</string>
+    <string name="GlassgramLinks">Links</string>
+    <string name="GlassgramSourceCode">Source Code</string>
 </resources>
