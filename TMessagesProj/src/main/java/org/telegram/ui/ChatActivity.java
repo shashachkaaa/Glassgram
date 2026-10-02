@@ -157,6 +157,7 @@ import org.telegram.messenger.FactCheckController;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramBadges;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.FlagSecureReason;
 import org.telegram.messenger.HashtagSearchController;
@@ -19470,20 +19471,20 @@ public class ChatActivity extends BaseFragment implements
                     if (currentChat.linked_monoforum_id != 0) {
                         TLRPC.Chat chat = getMessagesController().getChat(currentChat.linked_monoforum_id);
                         if (chat == null) chat = currentChat;
-                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
+                        avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat, 16), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
                     } else {
-                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
+                        avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat, 16), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
                     }
                 } else if (threadMessageId > 0) {
                     final TLRPC.User user = getMessagesController().getUser(threadMessageId);
-                    avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))), user.scam, user.fake, user.verified, user.premium, user.emoji_status, animated);
+                    avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))), user, 16), user.scam, user.fake, user.verified, user.premium, user.emoji_status, animated);
                 } else {
                     TLRPC.Chat chat = getMessagesController().getChat(-threadMessageId);
                     if (chat == null) chat = currentChat;
-                    avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
+                    avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat, 16), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
                 }
             } else {
-                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
+                avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat, 16), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
             }
         } else if (chatMode == MODE_WELCOME_MESSAGES) {
             avatarContainer.setTitle(getString(R.string.WelcomeMessage));

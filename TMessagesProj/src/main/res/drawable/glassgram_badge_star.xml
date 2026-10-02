@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glassgram badge glyph (star), drawn white on the badge's colored shape -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,4.5 L14.2,9.2 L19.3,9.7 L15.4,13.1 L16.6,18.2 L12,15.5 L7.4,18.2 L8.6,13.1 L4.7,9.7 L9.8,9.2 Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "badges": {
+    "glassgram": {
+      "icon": "arrow",
+      "color": "#2AABEE",
+      "text": {
+        "en": "Official Glassgram source. Plugins from it are verified and safe to use.",
+        "ru": "Официальный источник Glassgram. Плагины отсюда проверены и безопасны."
+      }
+    },
+    "developer": {
+      "icon": "code",
+      "color": "#1F8B4C",
+      "text": {
+        "en": "Glassgram developer.",
+        "ru": "Разработчик Glassgram."
+      }
+    },
+    "partner": {
+      "icon": "star",
+      "color": "#F5A623",
+      "text": {
+        "en": "Glassgram partner.",
+        "ru": "Партнёр Glassgram."
+      }
+    }
+  },
+  "peers": {
+  },
+  "usernames": {
+    "glassgramdev": "glassgram"
+  }
+}

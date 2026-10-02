@@ -2386,6 +2386,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameString = ((String) nameString).replace('\n', ' ');
             }
             CharSequence nameStringFinal = nameString;
+            final org.telegram.messenger.GlassgramBadges.Badge glassgramBadge = isDialogCell && !isSavedDialog ? org.telegram.messenger.GlassgramBadges.get(currentAccount, currentDialogId) : null;
+            if (glassgramBadge != null) {
+                // Room for the badge appended after the name is cut to fit
+                ellipsizeWidth = Math.max(0, ellipsizeWidth - dp(20));
+            }
             if (nameLayoutEllipsizeByGradient) {
                 nameLayoutFits = nameStringFinal.length() == TextUtils.ellipsize(nameStringFinal, Theme.dialogs_namePaint[paintIndex], ellipsizeWidth, TextUtils.TruncateAt.END).length();
                 ellipsizeWidth += dp(48);
@@ -2398,6 +2403,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.dialogs_namePaint[paintIndex], ellipsizeWidth, TextUtils.TruncateAt.END);
             }
             nameStringFinal = Emoji.replaceEmoji(nameStringFinal, Theme.dialogs_namePaint[paintIndex].getFontMetricsInt(), false);
+            if (glassgramBadge != null) {
+                nameStringFinal = org.telegram.messenger.GlassgramBadges.withBadge(nameStringFinal, glassgramBadge, 16);
+                ellipsizeWidth += dp(20);
+            }
             if (message != null && message.hasHighlightedWords()) {
                 CharSequence s = AndroidUtilities.highlightText(nameStringFinal, message.highlightedWords, resourcesProvider);
                 if (s != null) {

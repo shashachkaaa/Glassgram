@@ -7012,6 +7012,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onResume();
         isResumed = true;
         org.telegram.messenger.plugins.PluginsController.onAppEvent("resume");
+        org.telegram.messenger.GlassgramBadges.refresh(false);
         AndroidUtilities.runOnUIThread(() -> {
             if (isResumed && !isFinishing()) {
                 org.telegram.messenger.GlassgramCrashReporter.showIfNeeded(this);

@@ -11079,6 +11079,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    /** Tapping the name shows what the Glassgram badge next to it means. */
+    private void setGlassgramBadgeClick(org.telegram.messenger.GlassgramBadges.Badge badge) {
+        if (nameTextView[1] == null) {
+            return;
+        }
+        if (badge == null || TextUtils.isEmpty(badge.getText())) {
+            nameTextView[1].setOnClickListener(null);
+            nameTextView[1].setClickable(false);
+            return;
+        }
+        nameTextView[1].setOnClickListener(v -> {
+            Drawable icon = badge.createDrawable(getContext(), dp(28));
+            BulletinFactory.of(this).createSimpleBulletin(icon, badge.getText()).show();
+        });
+    }
+
     private Drawable getScamDrawable(int type) {
         if (scamDrawable == null) {
             scamDrawable = new ScamDrawable(11, type);
@@ -11426,6 +11442,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 newString = Emoji.replaceEmoji(newString, nameTextView[1].getPaint().getFontMetricsInt(), false);
             } catch (Exception ignore) {
             }
+            newString = org.telegram.messenger.GlassgramBadges.withBadge(newString, user, 20);
+            setGlassgramBadgeClick(org.telegram.messenger.GlassgramBadges.get(user));
             if (copyFromChatActivity) {
                 ChatActivity chatActivity = (ChatActivity) prevFragment;
                 BackupImageView fromAvatarImage = chatActivity.avatarContainer.getAvatarImageView();
@@ -11783,6 +11801,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         title = Emoji.replaceEmoji(title, nameTextView[a].getPaint().getFontMetricsInt(), false);
                     } catch (Exception ignore) {
                     }
+                    title = org.telegram.messenger.GlassgramBadges.withBadge(title, chat, 20);
+                    setGlassgramBadgeClick(org.telegram.messenger.GlassgramBadges.get(chat));
                     if (nameTextView[a].setText(title)) {
                         changed = true;
                     }
