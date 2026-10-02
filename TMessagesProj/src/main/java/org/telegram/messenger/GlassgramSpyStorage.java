@@ -5,7 +5,12 @@ import android.net.Uri;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.telegram.SQLite.SQLiteCursor;
+import org.telegram.SQLite.SQLiteDatabase;
+import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
+
+import androidx.collection.LongSparseArray;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -18,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Local-only storage for Glassgram Spy.
@@ -67,28 +73,6 @@ public final class GlassgramSpyStorage {
         }
     }
 
-    public static void saveEdit(MessageObject oldMessage, MessageObject newMessage) {
-        if (!GlassgramConfig.spySaveEditsHistory || oldMessage == null) {
-            return;
-        }
-        if (!GlassgramConfig.spySaveInBotDialogs && isBotDialog(oldMessage.getDialogId())) {
-            return;
-        }
-        try {
-            JSONObject o = new JSONObject();
-            o.put("type", "edit");
-            o.put("account", oldMessage.currentAccount);
-            o.put("dialog_id", oldMessage.getDialogId());
-            o.put("message_id", oldMessage.getId());
-            o.put("saved_at", System.currentTimeMillis());
-            o.put("old_text", oldMessage.messageOwner != null && oldMessage.messageOwner.message != null ? oldMessage.messageOwner.message : "");
-            o.put("new_text", newMessage != null && newMessage.messageOwner != null && newMessage.messageOwner.message != null ? newMessage.messageOwner.message : "");
-            append(o);
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
-    }
-
     public static void saveRead(long dialogId, int maxMessageId, long timestamp) {
         if (!GlassgramConfig.spySaveReadDate) {
             return;
@@ -118,6 +102,131 @@ public final class GlassgramSpyStorage {
         } catch (Exception e) {
             FileLog.e(e);
         }
+    }
+
+    /** One earlier text of an edited message. date is when that text became current. */
+    public static final class EditVersion {
+        public final String text;
+        public final int date;
+
+        EditVersion(String text, int date) {
+            this.text = text;
+            this.date = date;
+        }
+    }
+
+    /**
+     * Reads the stored texts of messages that are about to be overwritten by an edit and
+     * records each changed text. Must run on the storage queue before the edit is written.
+     */
+    public static void saveEditsFromDatabase(int account, LongSparseArray<ArrayList<MessageObject>> edits) {
+        if (!GlassgramConfig.spySaveEditsHistory || edits == null) {
+            return;
+        }
+        SQLiteDatabase database = MessagesStorage.getInstance(account).getDatabase();
+        if (database == null) {
+            return;
+        }
+        long selfId = UserConfig.getInstance(account).getClientUserId();
+        for (int a = 0, size = edits.size(); a < size; a++) {
+            long dialogId = edits.keyAt(a);
+            if (!GlassgramConfig.spySaveInBotDialogs && isBotDialog(account, dialogId)) {
+                continue;
+            }
+            ArrayList<MessageObject> objects = edits.valueAt(a);
+            for (int b = 0; b < objects.size(); b++) {
+                MessageObject edited = objects.get(b);
+                if (edited == null || edited.messageOwner == null) {
+                    continue;
+                }
+                SQLiteCursor cursor = null;
+                try {
+                    cursor = database.queryFinalized(String.format(Locale.US, "SELECT data FROM messages_v2 WHERE mid = %d AND uid = %d LIMIT 1", edited.getId(), dialogId));
+                    if (!cursor.next()) {
+                        continue;
+                    }
+                    NativeByteBuffer data = cursor.byteBufferValue(0);
+                    if (data == null) {
+                        continue;
+                    }
+                    TLRPC.Message old = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                    data.reuse();
+                    if (old == null) {
+                        continue;
+                    }
+                    String oldText = old.message == null ? "" : old.message;
+                    String newText = edited.messageOwner.message == null ? "" : edited.messageOwner.message;
+                    // Edit updates also arrive for reactions and views; only text changes count.
+                    if (oldText.equals(newText)) {
+                        continue;
+                    }
+                    JSONObject o = new JSONObject();
+                    o.put("type", "edit");
+                    o.put("account", account);
+                    o.put("self_id", selfId);
+                    o.put("dialog_id", dialogId);
+                    o.put("message_id", edited.getId());
+                    o.put("saved_at", System.currentTimeMillis());
+                    o.put("old_text", oldText);
+                    o.put("old_date", old.edit_date != 0 ? old.edit_date : old.date);
+                    o.put("new_text", newText);
+                    append(o);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                } finally {
+                    if (cursor != null) {
+                        cursor.dispose();
+                    }
+                }
+            }
+        }
+    }
+
+    /** Earlier texts of a message, oldest first. Reads the whole store, so call it off the UI thread. */
+    public static ArrayList<EditVersion> loadEditHistory(int account, long dialogId, int messageId) {
+        ArrayList<EditVersion> result = new ArrayList<>();
+        long selfId = UserConfig.getInstance(account).getClientUserId();
+        synchronized (LOCK) {
+            File f = file();
+            if (!f.exists()) {
+                return result;
+            }
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.indexOf("\"edit\"") < 0) {
+                        continue;
+                    }
+                    JSONObject o;
+                    try {
+                        o = new JSONObject(line);
+                    } catch (Exception ignore) {
+                        continue;
+                    }
+                    if (!"edit".equals(o.optString("type")) || o.optLong("dialog_id") != dialogId || o.optInt("message_id") != messageId) {
+                        continue;
+                    }
+                    if (o.has("self_id") ? o.optLong("self_id") != selfId : o.optInt("account", account) != account) {
+                        continue;
+                    }
+                    String text = o.optString("old_text", "");
+                    int date = o.optInt("old_date", (int) (o.optLong("saved_at") / 1000));
+                    if (!result.isEmpty() && result.get(result.size() - 1).text.equals(text)) {
+                        continue;
+                    }
+                    result.add(new EditVersion(text, date));
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (reader != null) {
+                    try { reader.close(); } catch (Exception ignore) {}
+                }
+            }
+        }
+        return result;
     }
 
     // Messages deleted by the other side that are kept in the chat. Telegram ids of
@@ -213,10 +322,14 @@ public final class GlassgramSpyStorage {
     }
 
     private static boolean isBotDialog(long dialogId) {
+        return isBotDialog(UserConfig.selectedAccount, dialogId);
+    }
+
+    private static boolean isBotDialog(int account, long dialogId) {
         if (dialogId <= 0) {
             return false;
         }
-        TLRPC.User user = MessagesController.getInstance(UserConfig.selectedAccount).getUser(dialogId);
+        TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
         return user != null && user.bot;
     }
 

@@ -5,8 +5,11 @@ import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.text.InputType;
 import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Toast;
 import android.widget.FrameLayout;
@@ -15,13 +18,18 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.CheckBoxCell;
+import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.EditTextBoldCursor;
+import org.telegram.ui.Components.GlassgramWallpaperLayout;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
@@ -105,6 +113,15 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_ALWAYS_HD = 35;
 
     private final int page;
+    private boolean ghostExpanded;
+
+    private GlassgramWallpaperLayout previewView;
+    private ChatMessageCell previewCell;
+    private MessageObject previewMessage;
+    private View colorsView;
+
+    // 0 keeps the time color.
+    private static final int[] MARK_COLORS = {0, 0xFFFF0000, 0xFFDC2B2B, 0xFFDB2777, 0xFFC026D3, 0xFF9333EA, 0xFF4F46E5, 0xFF2563EB};
 
     public GlassgramSettingsActivity() {
         this(PAGE_MAIN);
@@ -127,11 +144,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case PAGE_GHOST:
                 return getString(R.string.GlassgramGhostMode);
             case PAGE_SPY:
-                return "Spy";
+                return getString(R.string.GlassgramSpy);
             case PAGE_CUSTOMIZATION:
-                return "Customization";
+                return getString(R.string.GlassgramCustomization);
             case PAGE_FILTERS:
-                return "Message Filters";
+                return getString(R.string.GlassgramMessageFilters);
             default:
                 return getString(R.string.GlassgramPreferences);
         }
@@ -179,49 +196,72 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
                 items.add(UItem.asShadow(getString(R.string.GlassgramAlwaysSendHDInfo)));
                 break;
-            case PAGE_GHOST:
-                items.add(UItem.asCheck(ID_GHOST_MODE, getString(R.string.GlassgramGhostMode)).setChecked(GlassgramConfig.ghostMode));
-                items.add(UItem.asShadow(getString(R.string.GlassgramGhostModeInfo)));
-                items.add(UItem.asHeader(getString(R.string.GlassgramGhostIncludes)));
-                items.add(UItem.asCheck(ID_GHOST_READ, getString(R.string.GlassgramGhostNoRead)).setChecked(GlassgramConfig.ghostNoReadMessages));
-                items.add(UItem.asCheck(ID_GHOST_STORIES, getString(R.string.GlassgramGhostNoStories)).setChecked(GlassgramConfig.ghostNoReadStories));
-                items.add(UItem.asCheck(ID_GHOST_ONLINE, getString(R.string.GlassgramGhostNoOnline)).setChecked(GlassgramConfig.ghostNoOnline));
-                items.add(UItem.asCheck(ID_GHOST_TYPING, getString(R.string.GlassgramGhostNoTyping)).setChecked(GlassgramConfig.ghostNoTyping));
-                items.add(UItem.asCheck(ID_GHOST_OFFLINE, getString(R.string.GlassgramGhostAutoOffline)).setChecked(GlassgramConfig.ghostAutoOffline));
-                items.add(UItem.asShadow(null));
+            case PAGE_GHOST: {
+                int enabled = ghostOptionsEnabled();
+                items.add(UItem.asHeader(getString(R.string.GlassgramGhostEssentials)));
+                items.add(UItem.asExpandableSwitch(ID_GHOST_MODE, getString(R.string.GlassgramGhostMode), enabled + "/5")
+                        .setChecked(GlassgramConfig.ghostMode)
+                        .setCollapsed(!ghostExpanded)
+                        .setClickCallback(v -> toggleGhostMode()));
+                if (ghostExpanded) {
+                    items.add(UItem.asRoundCheckbox(ID_GHOST_READ, getString(R.string.GlassgramGhostNoRead)).setChecked(GlassgramConfig.ghostNoReadMessages).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_GHOST_STORIES, getString(R.string.GlassgramGhostNoStories)).setChecked(GlassgramConfig.ghostNoReadStories).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_GHOST_ONLINE, getString(R.string.GlassgramGhostNoOnline)).setChecked(GlassgramConfig.ghostNoOnline).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_GHOST_TYPING, getString(R.string.GlassgramGhostNoTyping)).setChecked(GlassgramConfig.ghostNoTyping).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_GHOST_OFFLINE, getString(R.string.GlassgramGhostAutoOffline)).setChecked(GlassgramConfig.ghostAutoOffline).setPad(1));
+                }
                 items.add(UItem.asCheck(ID_GHOST_READ_ON_INTERACT, getString(R.string.GlassgramGhostReadOnInteract)).setChecked(GlassgramConfig.ghostReadOnInteract));
-                items.add(UItem.asShadow(getString(R.string.GlassgramGhostReadOnInteractInfo)));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostInfo) + "\n\n" + getString(R.string.GlassgramGhostReadOnInteractInfo2)));
                 break;
+            }
             case PAGE_SPY:
-                items.add(UItem.asHeader("Spy"));
-                items.add(UItem.asCheck(ID_SPY_DELETED, "Save Deleted Messages").setChecked(GlassgramConfig.spySaveDeletedMessages));
-                items.add(UItem.asCheck(ID_SPY_EDITS, "Save Edits History").setChecked(GlassgramConfig.spySaveEditsHistory));
-                items.add(UItem.asCheck(ID_SPY_BOTS, "Save in Bot Dialogs").setChecked(GlassgramConfig.spySaveInBotDialogs));
-                items.add(UItem.asCheck(ID_SPY_READ_DATE, "Save Read Date").setChecked(GlassgramConfig.spySaveReadDate));
-                items.add(UItem.asCheck(ID_SPY_LAST_SEEN, "Save Last Seen Date").setChecked(GlassgramConfig.spySaveLastSeenDate));
-                items.add(UItem.asCheck(ID_SPY_ATTACHMENTS, "Save Attachments").setChecked(GlassgramConfig.spySaveAttachments));
-                items.add(UItem.asButton(ID_SPY_LIMIT, "Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}[Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize))]));
-                items.add(UItem.asButton(ID_SPY_EXPORT, "Export Database"));
-                items.add(UItem.asButton(ID_SPY_IMPORT, "Import Database"));
-                items.add(UItem.asButton(ID_SPY_CLEAR, "Clear"));
-                items.add(UItem.asShadow("Local-only Spy storage: " + GlassgramSpyStorage.size() / 1024 + " KB"));
+                items.add(UItem.asHeader(getString(R.string.GlassgramSpyEssentials)));
+                items.add(UItem.asCheck(ID_SPY_DELETED, getString(R.string.GlassgramSpySaveDeleted)).setChecked(GlassgramConfig.spySaveDeletedMessages));
+                items.add(UItem.asCheck(ID_SPY_EDITS, getString(R.string.GlassgramSpySaveEdits)).setChecked(GlassgramConfig.spySaveEditsHistory));
+                items.add(UItem.asShadow(getString(R.string.GlassgramSpyEssentialsInfo)));
+                items.add(UItem.asCheck(ID_SPY_BOTS, getString(R.string.GlassgramSpySaveBots)).setChecked(GlassgramConfig.spySaveInBotDialogs));
+                items.add(UItem.asShadow(getString(R.string.GlassgramSpySaveBotsInfo)));
+                items.add(UItem.asCheck(ID_SPY_READ_DATE, getString(R.string.GlassgramSpySaveReadDate)).setChecked(GlassgramConfig.spySaveReadDate));
+                items.add(UItem.asShadow(getString(R.string.GlassgramSpySaveReadDateInfo)));
+                items.add(UItem.asCheck(ID_SPY_LAST_SEEN, getString(R.string.GlassgramSpySaveLastSeen)).setChecked(GlassgramConfig.spySaveLastSeenDate));
+                items.add(UItem.asShadow(AndroidUtilities.replaceTags(getString(R.string.GlassgramSpySaveLastSeenInfo))));
+                items.add(UItem.asButtonCheck(ID_SPY_ATTACHMENTS, getString(R.string.GlassgramSpySaveAttachments), getString(R.string.GlassgramSpySaveAttachmentsSub)).setChecked(GlassgramConfig.spySaveAttachments));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asHeader(getString(R.string.GlassgramSpyMaxFolderSize)));
+                items.add(UItem.asSlideView(folderSizeNames(), Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize)), which -> {
+                    GlassgramConfig.spyMaxFolderSize = which;
+                    GlassgramConfig.putInt("spyMaxFolderSize", which);
+                }));
+                items.add(UItem.asShadow(getString(R.string.GlassgramSpyMaxFolderSizeInfo)));
+                items.add(UItem.asButton(ID_SPY_EXPORT, R.drawable.msg_unarchive, getString(R.string.GlassgramSpyExport)));
+                items.add(UItem.asButton(ID_SPY_IMPORT, R.drawable.msg_archive, getString(R.string.GlassgramSpyImport)));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asButton(ID_SPY_CLEAR, R.drawable.msg_clearcache, getString(R.string.GlassgramSpyClear)).red());
+                items.add(UItem.asShadow(LocaleController.formatString(R.string.GlassgramSpyStorageInfo, AndroidUtilities.formatFileSize(GlassgramSpyStorage.size()))));
                 break;
             case PAGE_CUSTOMIZATION:
-                items.add(UItem.asHeader("Customization"));
-                items.add(UItem.asCheck(ID_CUSTOM_TRANSLUCENT, "Translucent Deleted Messages").setChecked(GlassgramConfig.spyTranslucentDeleted));
-                items.add(UItem.asCheck(ID_CUSTOM_TRASH, "Deleted Mark with trash icon").setChecked(GlassgramConfig.spyDeletedTrashMark));
-                items.add(UItem.asCheck(ID_CUSTOM_ADS, "Disable Ads").setChecked(GlassgramConfig.spyDisableAds));
-                items.add(UItem.asCheck(ID_CUSTOM_GHOST_STATUS, "Display Ghost Mode Status").setChecked(GlassgramConfig.spyDisplayGhostStatus));
-                items.add(UItem.asShadow("Navigation and Pill Stack are kept compatible with the current Glassgram UI."));
+                items.add(UItem.asHeader(getString(R.string.GlassgramCustomization)));
+                items.add(UItem.asCustom(getPreviewView()));
+                items.add(UItem.asCheck(ID_CUSTOM_TRANSLUCENT, getString(R.string.GlassgramTranslucentDeleted)).setChecked(GlassgramConfig.spyTranslucentDeleted));
+                items.add(UItem.asCheck(ID_CUSTOM_TRASH, getString(R.string.GlassgramDeletedMark)).setChecked(GlassgramConfig.spyDeletedTrashMark));
+                if (GlassgramConfig.spyDeletedTrashMark) {
+                    items.add(UItem.asCustom(getColorsView()));
+                }
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asHeader(getString(R.string.GlassgramUsefulFeatures)));
+                items.add(UItem.asCheck(ID_CUSTOM_ADS, getString(R.string.GlassgramDisableAds)).setChecked(GlassgramConfig.spyDisableAds));
+                items.add(UItem.asCheck(ID_CUSTOM_GHOST_STATUS, getString(R.string.GlassgramDisplayGhostStatus)).setChecked(GlassgramConfig.spyDisplayGhostStatus));
+                items.add(UItem.asShadow(null));
                 break;
             case PAGE_FILTERS:
-                items.add(UItem.asHeader("Message Filters"));
-                items.add(UItem.asCheck(ID_FILTER_ENABLE, "Enable Filters").setChecked(GlassgramConfig.spyEnableFilters));
-                items.add(UItem.asCheck(ID_FILTER_SHARED, "Enable Shared Filters in Chats").setChecked(GlassgramConfig.spyEnableSharedFilters));
-                items.add(UItem.asCheck(ID_FILTER_BLOCKED, "Hide from Blocked Users").setChecked(GlassgramConfig.spyHideBlockedUsers));
-                items.add(UItem.asButton(ID_FILTER_SHARED_LIST, "Shared Filters"));
-                items.add(UItem.asCheck(ID_FILTER_SHADOW, "Shadow Ban").setChecked(GlassgramConfig.spyShadowBan));
-                items.add(UItem.asShadow("Filters are local-only and do not change Telegram server-side block status."));
+                items.add(UItem.asHeader(getString(R.string.GlassgramFiltersEssentials)));
+                items.add(UItem.asCheck(ID_FILTER_ENABLE, getString(R.string.GlassgramFiltersEnable)).setChecked(GlassgramConfig.spyEnableFilters));
+                items.add(UItem.asCheck(ID_FILTER_SHARED, getString(R.string.GlassgramFiltersShared)).setChecked(GlassgramConfig.spyEnableSharedFilters));
+                items.add(UItem.asCheck(ID_FILTER_BLOCKED, getString(R.string.GlassgramFiltersBlocked)).setChecked(GlassgramConfig.spyHideBlockedUsers));
+                items.add(UItem.asShadow(null));
+                items.add(UItem.asButton(ID_FILTER_SHARED_LIST, R.drawable.msg_settings, getString(R.string.GlassgramFiltersSharedList)));
+                items.add(UItem.asCheck(ID_FILTER_SHADOW, getString(R.string.GlassgramFiltersShadowBan)).setChecked(GlassgramConfig.spyShadowBan));
+                items.add(UItem.asShadow(getString(R.string.GlassgramFiltersInfo)));
                 break;
             default:
                 items.add(UItem.asHeader(getString(R.string.GlassgramCategories)));
@@ -229,9 +269,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
-                items.add(UItem.asButton(ID_SPY, R.drawable.msg_secret, "Spy"));
-                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_palette, "Customization"));
-                items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_settings, "Message Filters"));
+                items.add(UItem.asButton(ID_SPY, R.drawable.msg_views, getString(R.string.GlassgramSpy)));
+                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_palette, getString(R.string.GlassgramCustomization)));
+                items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -274,12 +314,16 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE), REQUEST_SPY_IMPORT);
                 return;
             case ID_SPY_CLEAR:
-                new AlertDialog.Builder(getParentActivity()).setTitle("Clear Spy database?")
-                        .setMessage("Only Glassgram Spy data will be deleted.")
+                new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.GlassgramSpyClearTitle))
+                        .setMessage(getString(R.string.GlassgramSpyClearText))
                         .setPositiveButton(getString(R.string.Delete), (d, w) -> {
                             GlassgramSpyStorage.clear();
                             if (listView != null) listView.adapter.update(true);
                         }).setNegativeButton(getString(R.string.Cancel), null).show();
+                return;
+            case ID_GHOST_MODE:
+                ghostExpanded = !ghostExpanded;
+                if (listView != null) listView.adapter.update(true);
                 return;
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
@@ -316,17 +360,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.hidePhoneNumber = !GlassgramConfig.hidePhoneNumber;
                 GlassgramConfig.putBoolean("hidePhoneNumber", value);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
-                break;
-            case ID_GHOST_MODE:
-                value = GlassgramConfig.ghostMode = !GlassgramConfig.ghostMode;
-                GlassgramConfig.putBoolean("ghostMode", value);
-                if (value && GlassgramConfig.ghostNoOnline) {
-                    for (int a = 0; a < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                        if (org.telegram.messenger.UserConfig.getInstance(a).isClientActivated()) {
-                            MessagesController.getInstance(a).glassgramGoOffline();
-                        }
-                    }
-                }
                 break;
             case ID_GHOST_READ:
                 value = GlassgramConfig.ghostNoReadMessages = !GlassgramConfig.ghostNoReadMessages;
@@ -443,10 +476,155 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (view instanceof TextCheckCell) {
             ((TextCheckCell) view).setChecked(value);
         }
+        if (view instanceof CheckBoxCell) {
+            ((CheckBoxCell) view).setChecked(value, true);
+        }
+        if (page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH) {
+            // The Ghost Mode counter and the mark colors row follow these switches
+            if (listView != null) listView.adapter.update(true);
+        }
+        if (item.id == ID_CUSTOM_TRANSLUCENT || item.id == ID_CUSTOM_TRASH) {
+            updatePreview();
+        }
         // Screens below show the change when they are rebuilt
         if (parentLayout != null) {
             parentLayout.rebuildAllFragmentViews(false, false);
         }
+    }
+
+    private static int ghostOptionsEnabled() {
+        return (GlassgramConfig.ghostNoReadMessages ? 1 : 0) + (GlassgramConfig.ghostNoReadStories ? 1 : 0)
+                + (GlassgramConfig.ghostNoOnline ? 1 : 0) + (GlassgramConfig.ghostNoTyping ? 1 : 0)
+                + (GlassgramConfig.ghostAutoOffline ? 1 : 0);
+    }
+
+    private void toggleGhostMode() {
+        boolean value = GlassgramConfig.ghostMode = !GlassgramConfig.ghostMode;
+        GlassgramConfig.putBoolean("ghostMode", value);
+        if (value && GlassgramConfig.ghostNoOnline) {
+            for (int a = 0; a < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (org.telegram.messenger.UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).glassgramGoOffline();
+                }
+            }
+        }
+        if (listView != null) listView.adapter.update(true);
+        if (parentLayout != null) {
+            parentLayout.rebuildAllFragmentViews(false, false);
+        }
+    }
+
+    private static String[] folderSizeNames() {
+        return new String[]{"300 MB", "1 GB", "2 GB", "5 GB", "16 GB", getString(R.string.GlassgramSpyNoLimit)};
+    }
+
+    /** A deleted incoming message on the chat wallpaper, drawn with the current mark settings. */
+    private View getPreviewView() {
+        if (previewView != null) {
+            return previewView;
+        }
+        Context context = getContext();
+        previewView = new GlassgramWallpaperLayout(context) {
+            @Override
+            public boolean onInterceptTouchEvent(MotionEvent ev) {
+                return true;
+            }
+        };
+        previewView.setPadding(0, dp(12), 0, dp(12));
+
+        TLRPC.Message message = new TLRPC.TL_message();
+        message.message = getString(R.string.GlassgramPreviewText);
+        message.date = (int) (System.currentTimeMillis() / 1000) - 60;
+        message.dialog_id = 1;
+        message.flags = TLRPC.MESSAGE_FLAG_HAS_FROM_ID;
+        message.from_id = new TLRPC.TL_peerUser();
+        message.id = 1;
+        message.media = new TLRPC.TL_messageMediaEmpty();
+        message.out = false;
+        message.peer_id = new TLRPC.TL_peerUser();
+        message.peer_id.user_id = getUserConfig().getClientUserId();
+        previewMessage = new MessageObject(currentAccount, message, true, false);
+        previewMessage.eventId = 1;
+        previewMessage.resetLayout();
+
+        previewCell = new ChatMessageCell(context, currentAccount);
+        previewCell.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {
+        });
+        previewCell.isChat = false;
+        previewCell.glassgramForceDeleted = true;
+        previewCell.setFullyDraw(true);
+        previewCell.setMessageObject(previewMessage, null, false, false, false);
+        previewView.addView(previewCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        return previewView;
+    }
+
+    private void updatePreview() {
+        if (previewCell == null || previewMessage == null) {
+            return;
+        }
+        previewMessage.forceUpdate = true;
+        previewCell.setMessageObject(previewMessage, null, false, false, false);
+        previewMessage.forceUpdate = false;
+        previewCell.requestLayout();
+        previewCell.invalidate();
+    }
+
+    /** A row of colors for the trash mark; the first one keeps the time color. */
+    private View getColorsView() {
+        if (colorsView != null) {
+            return colorsView;
+        }
+        colorsView = new View(getContext()) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(dp(64), MeasureSpec.EXACTLY));
+            }
+
+            private float step() {
+                return (getMeasuredWidth() - dp(32)) / (float) MARK_COLORS.length;
+            }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                float step = step();
+                float radius = Math.min(step / 2f - dp(4), dp(19));
+                float cy = getMeasuredHeight() / 2f;
+                for (int i = 0; i < MARK_COLORS.length; i++) {
+                    float cx = dp(16) + step * i + step / 2f;
+                    int color = MARK_COLORS[i] == 0 ? Theme.getColor(Theme.key_windowBackgroundWhiteBlackText) : MARK_COLORS[i];
+                    boolean selected = GlassgramConfig.spyDeletedMarkColor == MARK_COLORS[i];
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(color);
+                    canvas.drawCircle(cx, cy, selected ? radius - dp(6) : radius, paint);
+                    if (selected) {
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(dp(2.5f));
+                        canvas.drawCircle(cx, cy, radius - dp(1.25f), paint);
+                    }
+                }
+            }
+
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    int index = (int) ((event.getX() - dp(16)) / step());
+                    if (index >= 0 && index < MARK_COLORS.length) {
+                        GlassgramConfig.spyDeletedMarkColor = MARK_COLORS[index];
+                        GlassgramConfig.putInt("spyDeletedMarkColor", MARK_COLORS[index]);
+                        invalidate();
+                        updatePreview();
+                    }
+                    return true;
+                }
+                return super.onTouchEvent(event);
+            }
+        };
+        return colorsView;
     }
 
     private static String[] boostNames() {
@@ -531,7 +709,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         } else if (requestCode == REQUEST_SPY_IMPORT) {
             ok = GlassgramSpyStorage.importFromUri(data.getData());
         }
-        Toast.makeText(getParentActivity(), ok ? "Spy database completed" : "Spy database operation failed", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getParentActivity(), getString(ok ? R.string.GlassgramSpyDone : R.string.GlassgramSpyFailed), Toast.LENGTH_SHORT).show();
         if (listView != null) listView.adapter.update(true);
     }
 

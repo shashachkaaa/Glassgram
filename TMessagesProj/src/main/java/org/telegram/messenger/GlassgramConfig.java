@@ -70,6 +70,7 @@ public class GlassgramConfig {
     public static boolean spyShadowBan;
     public static boolean spyTranslucentDeleted;
     public static boolean spyDeletedTrashMark;
+    public static int spyDeletedMarkColor; // 0 = the time color
     public static boolean spyDisableAds;
     public static boolean spyDisplayGhostStatus;
 
@@ -123,6 +124,7 @@ public class GlassgramConfig {
         spyShadowBan = p.getBoolean("spyShadowBan", false);
         spyTranslucentDeleted = p.getBoolean("spyTranslucentDeleted", true);
         spyDeletedTrashMark = p.getBoolean("spyDeletedTrashMark", true);
+        spyDeletedMarkColor = p.getInt("spyDeletedMarkColor", 0);
         spyDisableAds = p.getBoolean("spyDisableAds", false);
         spyDisplayGhostStatus = p.getBoolean("spyDisplayGhostStatus", false);
         loaded = true;

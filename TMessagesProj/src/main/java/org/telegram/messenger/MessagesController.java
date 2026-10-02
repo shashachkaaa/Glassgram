@@ -19541,19 +19541,6 @@ public class MessagesController extends BaseController implements NotificationCe
                     message.attachPath = "";
                 }
 
-                if (GlassgramConfig.spySaveEditsHistory) {
-                    ArrayList<MessageObject> oldObjects = dialogMessage.get(message.dialog_id);
-                    if (oldObjects != null) {
-                        for (int oi = 0; oi < oldObjects.size(); oi++) {
-                            MessageObject oldObject = oldObjects.get(oi);
-                            if (oldObject != null && oldObject.getId() == message.id) {
-                                GlassgramSpyStorage.saveEdit(oldObject, new MessageObject(currentAccount, message, usersDict, chatsDict, false, false));
-                                break;
-                            }
-                        }
-                    }
-                }
-
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
 
@@ -19884,6 +19871,11 @@ public class MessagesController extends BaseController implements NotificationCe
 
 
         if (editingMessages != null) {
+            if (GlassgramConfig.spySaveEditsHistory) {
+                // Runs on the storage queue before the edits below overwrite the stored texts.
+                final LongSparseArray<ArrayList<MessageObject>> spyEdits = editingMessages;
+                getMessagesStorage().getStorageQueue().postRunnable(() -> GlassgramSpyStorage.saveEditsFromDatabase(currentAccount, spyEdits));
+            }
             for (int b = 0, size = editingMessages.size(); b < size; b++) {
                 TLRPC.TL_messages_messages messagesRes = new TLRPC.TL_messages_messages();
                 ArrayList<MessageObject> messageObjects = editingMessages.valueAt(b);

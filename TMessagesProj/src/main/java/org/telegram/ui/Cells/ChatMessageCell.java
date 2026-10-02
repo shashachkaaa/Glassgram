@@ -1731,6 +1731,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public StaticLayout timeLayout;
     // Glassgram Spy: the message was deleted on the server but is kept in the chat.
     private boolean spyDeleted;
+    // Draws the message as deleted regardless of Spy storage, for previews.
+    public boolean glassgramForceDeleted;
     public int timeWidth;
     private int timeTextWidth;
     public int timeX;
@@ -18536,7 +18538,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentTimeString = TextUtils.concat(formatString(R.string.MessageScheduledRepeatSeconds, period), ", ", currentTimeString);
             }
         }
-        spyDeleted = GlassgramSpyStorage.isMarkedDeleted(messageObject);
+        spyDeleted = glassgramForceDeleted || GlassgramSpyStorage.isMarkedDeleted(messageObject);
         int spyTrashExtraWidth = 0;
         if (spyDeleted && GlassgramConfig.spyDeletedTrashMark) {
             // Paint.measureText ignores the span, so the width is corrected below.
@@ -18544,6 +18546,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             SpannableStringBuilder trash = new SpannableStringBuilder("d ");
             ColoredImageSpan trashSpan = new ColoredImageSpan(R.drawable.msg_delete_filled);
             trashSpan.setSize(iconSize);
+            if (GlassgramConfig.spyDeletedMarkColor != 0) {
+                trashSpan.setOverrideColor(GlassgramConfig.spyDeletedMarkColor);
+            }
             trash.setSpan(trashSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             spyTrashExtraWidth = iconSize - (int) Math.ceil(Theme.chat_timePaint.measureText("d"));
             currentTimeString = TextUtils.concat(trash, currentTimeString);

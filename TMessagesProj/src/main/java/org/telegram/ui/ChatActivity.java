@@ -1247,6 +1247,7 @@ public class ChatActivity extends BaseFragment implements
 
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
+    public final static int OPTION_GLASSGRAM_EDIT_HISTORY = 900;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -33818,6 +33819,12 @@ public class ChatActivity extends BaseFragment implements
                 chatActivityEnterView.addRecentGif(document);
                 break;
             }
+            case OPTION_GLASSGRAM_EDIT_HISTORY: {
+                if (selectedObject != null) {
+                    presentFragment(new GlassgramEditHistoryActivity(selectedObject));
+                }
+                break;
+            }
             case OPTION_SUGGESTION_EDIT_MESSAGE:
             case OPTION_EDIT: {
                 if (selectedObjectToEditCaption != null) {
@@ -45869,6 +45876,11 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_EDIT);
                     icons.add(R.drawable.msg_edit);
                 }
+                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED) {
+                    items.add(LocaleController.getString(R.string.GlassgramEditHistory));
+                    options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
+                    icons.add(R.drawable.msg_log);
+                }
                 if (ChatObject.isMonoForum(currentChat) && selectedObject.getGroupId() == 0 && selectedObjectGroup == null && message != null && message.messageOwner != null && message.messageOwner.suggested_post == null && message.messageOwner.action == null) {
                     items.add(LocaleController.getString(R.string.EditOfferAdd));
                     options.add(OPTION_SUGGESTION_ADD_OFFER);
@@ -46215,6 +46227,11 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.Edit));
                     options.add(OPTION_EDIT);
                     icons.add(R.drawable.msg_edit);
+                }
+                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED) {
+                    items.add(LocaleController.getString(R.string.GlassgramEditHistory));
+                    options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
+                    icons.add(R.drawable.msg_log);
                 }
                 if (ChatObject.isMonoForum(currentChat) && selectedObject.getGroupId() == 0 && selectedObjectGroup == null && message != null && message.messageOwner != null && message.messageOwner.suggested_post == null && message.messageOwner.action == null) {
                     items.add(LocaleController.getString(R.string.EditOfferAdd));
