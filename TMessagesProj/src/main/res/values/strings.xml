@@ -11362,4 +11362,5 @@
     <string name="GlassgramCopyFailed">Couldn\'t get the file</string>
     <string name="GlassgramProtectedInfo">Self-destructing media can be saved to the gallery and forwarded, and screenshots are allowed. With protection ignored, messages from chats where forwarding is restricted are sent as copies: albums stay albums, and captions of photos and files are left out.</string>
     <string name="GlassgramKeepForMe">Keep for me</string>
+    <string name="GlassgramChannel">Channel</string>
 </resources>

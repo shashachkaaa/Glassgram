@@ -65,6 +65,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_CUSTOMIZATION = 6;
     private static final int ID_FILTERS = 7;
     private static final int ID_SOURCE_CODE = 8;
+    private static final int ID_CHANNEL = 9;
 
     private static final int ID_GHOST_MODE = 40;
     private static final int ID_GHOST_READ = 41;
@@ -290,6 +291,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramLinks)));
+                items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
                 items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
@@ -319,6 +321,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_FILTERS:
                 presentFragment(new GlassgramSettingsActivity(PAGE_FILTERS));
+                return;
+            case ID_CHANNEL:
+                org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/glassgramdev");
                 return;
             case ID_SOURCE_CODE:
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://github.com/shashachkaaa/Telegram");
