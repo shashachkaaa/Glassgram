@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glassgram launcher icon: monochrome layer for themed icons (Android 13+), a "G" with a glass glint. -->
+<!-- Glassgram launcher icon: monochrome layer for themed icons (Android 13+). The lower facet is lighter. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M66.73,41.27 A18,18 0 1,0 72,54 L59,54"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="6.5"
-        android:strokeLineCap="round"
+        android:pathData="M75,33 L52,56 L58,75 Z"
+        android:fillColor="#99FFFFFF"
+        android:strokeColor="#99FFFFFF"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
     <path
+        android:pathData="M75,33 L33,50 L52,56 Z"
         android:fillColor="#FFFFFFFF"
-        android:pathData="M75,29.5 Q76.1,34.9 81.5,36 Q76.1,37.1 75,42.5 Q73.9,37.1 68.5,36 Q73.9,34.9 75,29.5 Z" />
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M36,28.5 Q37.1,33.9 42.5,35 Q37.1,36.1 36,41.5 Q34.9,36.1 29.5,35 Q34.9,33.9 36,28.5 Z"
+        android:fillColor="#FFFFFFFF" />
 </vector>

@@ -1,44 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glassgram launcher icon: glass paper plane (108dp adaptive grid, inside the 66dp safe zone). -->
+<!-- Glassgram launcher icon: a two-facet glass dart with a sparkle, inside the 66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="1.2" android:translateY="2.4">
-        <path android:pathData="M30.5,53.2 L75.6,34.6 C78,33.6 80.3,35.6 79.7,38.1 L71,73.9 C70.3,76.7 67,77.6 64.9,75.7 L54.2,66.3 L47.6,72.6 C46.5,73.6 44.7,72.9 44.7,71.4 L45.1,62.4 L66.4,42.9 C67,42.3 66.3,41.4 65.6,41.8 L40.9,57.4 L31.3,54.6 C29.9,54.2 29.2,53.7 30.5,53.2 Z" android:fillColor="#2E06457A" />
-    </group>
     <path
-        android:pathData="M30.5,53.2 L75.6,34.6 C78,33.6 80.3,35.6 79.7,38.1 L71,73.9 C70.3,76.7 67,77.6 64.9,75.7 L54.2,66.3 L47.6,72.6 C46.5,73.6 44.7,72.9 44.7,71.4 L45.1,62.4 L66.4,42.9 C67,42.3 66.3,41.4 65.6,41.8 L40.9,57.4 L31.3,54.6 C29.9,54.2 29.2,53.7 30.5,53.2 Z"
-        android:strokeWidth="1.4"
-        android:strokeLineJoin="round">
-        <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="30" android:startY="34" android:endX="78" android:endY="78">
-                <item android:offset="0" android:color="#C7FFFFFF" />
-                <item android:offset="0.55" android:color="#61FFFFFF" />
-                <item android:offset="1" android:color="#38FFFFFF" />
-            </gradient>
-        </aapt:attr>
-        <aapt:attr name="android:strokeColor">
-            <gradient android:type="linear" android:startX="30" android:startY="34" android:endX="78" android:endY="78">
-                <item android:offset="0" android:color="#FFFFFFFF" />
-                <item android:offset="0.5" android:color="#59FFFFFF" />
-                <item android:offset="1" android:color="#D9FFFFFF" />
-            </gradient>
-        </aapt:attr>
-    </path>
-    <path android:pathData="M45.1,62.4 L54.2,66.3 L47.6,72.6 C46.5,73.6 44.7,72.9 44.7,71.4 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="45" android:startY="62" android:endX="52" android:endY="72">
-                <item android:offset="0" android:color="#590B5FA0" />
-                <item android:offset="1" android:color="#260B5FA0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M75,33 L52,56 L58,75 Z"
+        android:fillColor="#FFFFD3E2"
+        android:strokeColor="#FFFFD3E2"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round" />
     <path
-        android:pathData="M35,52.6 L74,36.6"
-        android:strokeColor="#E6FFFFFF"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round" />
+        android:pathData="M75,33 L33,50 L52,56 Z"
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M36,28.5 Q37.1,33.9 42.5,35 Q37.1,36.1 36,41.5 Q34.9,36.1 29.5,35 Q34.9,33.9 36,28.5 Z"
+        android:fillColor="#E6FFFFFF" />
 </vector>
