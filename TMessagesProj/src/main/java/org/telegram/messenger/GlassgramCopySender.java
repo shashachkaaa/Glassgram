@@ -7,26 +7,32 @@ import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 
 /**
- * Sends a copy of a message that Telegram would refuse to forward: media with a self-destruct
+ * Sends a copy of messages that Telegram would refuse to forward: media with a self-destruct
  * timer, or messages from chats with forwarding restricted. The text is sent again and the
- * media is uploaded again from the local file, downloading it first when needed. Copies from
- * protected channels and groups are signed with the source name.
+ * media is uploaded again from the local files, downloading them first when needed.
+ *
+ * Copies from protected channels and groups: an album goes as an album, the original captions
+ * of media are left out, and the copy is signed with the source name.
  */
 public final class GlassgramCopySender implements NotificationCenter.NotificationCenterDelegate {
 
     private final int account;
-    private final MessageObject message;
+    private final ArrayList<MessageObject> messages;
     private final long peer;
     private final boolean notify;
-    private String waitingFileName;
+    private final File[] files;
+    private final ArrayList<String> waitingFileNames = new ArrayList<>();
+    private boolean finished;
 
-    private GlassgramCopySender(int account, MessageObject message, long peer, boolean notify) {
+    private GlassgramCopySender(int account, ArrayList<MessageObject> messages, long peer, boolean notify) {
         this.account = account;
-        this.message = message;
+        this.messages = messages;
         this.peer = peer;
         this.notify = notify;
+        this.files = new File[messages.size()];
     }
 
     /** Whether forwarding this message has to be done as a copy. */
@@ -71,44 +77,100 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
         return userFull != null && (userFull.noforwards_peer_enabled || userFull.noforwards_my_enabled);
     }
 
-    public static void send(int account, MessageObject message, long peer, boolean notify) {
-        new GlassgramCopySender(account, message, peer, notify).start();
+    /** A copy from a protected chat (not self-destructing media): album rules and the signature apply. */
+    private static boolean isProtectedCopy(MessageObject message) {
+        return !isSelfDestructing(message);
+    }
+
+    /**
+     * Sends copies of the messages, in order. Album items from protected chats are collected
+     * back into one album.
+     */
+    public static void send(int account, ArrayList<MessageObject> messages, long peer, boolean notify) {
+        LinkedHashMap<Long, ArrayList<MessageObject>> groups = new LinkedHashMap<>();
+        long single = Long.MIN_VALUE;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject message = messages.get(i);
+            long groupId = message.getGroupId();
+            long key = groupId != 0 && isProtectedCopy(message) && isAlbumMedia(message) ? groupId : single++;
+            ArrayList<MessageObject> group = groups.get(key);
+            if (group == null) {
+                group = new ArrayList<>();
+                groups.put(key, group);
+            }
+            group.add(message);
+        }
+        for (ArrayList<MessageObject> group : groups.values()) {
+            new GlassgramCopySender(account, group, peer, notify).start();
+        }
+    }
+
+    private static boolean hasMedia(MessageObject message) {
+        TLRPC.MessageMedia media = message.messageOwner.media;
+        return media != null && !(media instanceof TLRPC.TL_messageMediaEmpty) && !(media instanceof TLRPC.TL_messageMediaWebPage);
+    }
+
+    private static boolean isVisualMedia(MessageObject message) {
+        return message.isPhoto() || message.isVideo();
+    }
+
+    private static boolean isAlbumMedia(MessageObject message) {
+        return isVisualMedia(message) || isFileMedia(message);
+    }
+
+    private static boolean isFileMedia(MessageObject message) {
+        return message.getDocument() != null && !message.isAnyKindOfSticker() && !isVisualMedia(message);
+    }
+
+    private static boolean isCopyable(MessageObject message) {
+        return message.isPhoto() || message.isVideo() || message.isGif() || message.isRoundVideo() || message.isVoice() || message.isMusic() || message.getDocument() != null && !message.isAnyKindOfSticker();
     }
 
     private void start() {
-        TLRPC.Message owner = message.messageOwner;
-        boolean hasMedia = owner.media != null && !(owner.media instanceof TLRPC.TL_messageMediaEmpty) && !(owner.media instanceof TLRPC.TL_messageMediaWebPage);
-        if (!hasMedia) {
-            sendText();
+        if (messages.size() == 1 && !hasMedia(messages.get(0))) {
+            sendText(messages.get(0));
             return;
         }
-        if (!(message.isPhoto() || message.isVideo() || message.isGif() || message.isRoundVideo() || message.isVoice() || message.isMusic() || message.getDocument() != null && !message.isAnyKindOfSticker())) {
-            toast(R.string.GlassgramCopyUnsupported);
-            return;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject message = messages.get(i);
+            if (!hasMedia(message) || !isCopyable(message)) {
+                toast(R.string.GlassgramCopyUnsupported);
+                return;
+            }
         }
-        File file = localFile();
-        if (file != null) {
-            sendMedia(file);
-            return;
+        boolean downloading = false;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject message = messages.get(i);
+            files[i] = localFile(message);
+            if (files[i] != null) {
+                continue;
+            }
+            String fileName = message.getFileName();
+            if (TextUtils.isEmpty(fileName)) {
+                toast(R.string.GlassgramCopyUnsupported);
+                return;
+            }
+            if (!downloading) {
+                NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.fileLoaded);
+                NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.fileLoadFailed);
+                downloading = true;
+            }
+            waitingFileNames.add(fileName);
+            if (message.isPhoto()) {
+                TLRPC.PhotoSize size = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, AndroidUtilities.getPhotoSize());
+                FileLoader.getInstance(account).loadFile(ImageLocation.getForPhoto(size, message.messageOwner.media.photo), message, null, FileLoader.PRIORITY_HIGH, 0);
+            } else {
+                FileLoader.getInstance(account).loadFile(message.getDocument(), message, FileLoader.PRIORITY_HIGH, 0);
+            }
         }
-        waitingFileName = message.getFileName();
-        if (TextUtils.isEmpty(waitingFileName)) {
-            toast(R.string.GlassgramCopyUnsupported);
-            return;
-        }
-        NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.fileLoaded);
-        NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.fileLoadFailed);
-        if (message.isPhoto()) {
-            TLRPC.PhotoSize size = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, AndroidUtilities.getPhotoSize());
-            TLRPC.Photo photo = owner.media.photo;
-            FileLoader.getInstance(account).loadFile(ImageLocation.getForPhoto(size, photo), message, null, FileLoader.PRIORITY_HIGH, 0);
+        if (downloading) {
+            toast(R.string.GlassgramCopyDownloading);
         } else {
-            FileLoader.getInstance(account).loadFile(message.getDocument(), message, FileLoader.PRIORITY_HIGH, 0);
+            sendMedia();
         }
-        toast(R.string.GlassgramCopyDownloading);
     }
 
-    private File localFile() {
+    private File localFile(MessageObject message) {
         TLRPC.Message owner = message.messageOwner;
         if (!TextUtils.isEmpty(owner.attachPath)) {
             File f = new File(owner.attachPath);
@@ -125,31 +187,40 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (args.length == 0 || !(args[0] instanceof String) || !args[0].equals(waitingFileName)) {
+        if (finished || args.length == 0 || !(args[0] instanceof String) || !waitingFileNames.remove(args[0])) {
             return;
         }
-        NotificationCenter.getInstance(this.account).removeObserver(this, NotificationCenter.fileLoaded);
-        NotificationCenter.getInstance(this.account).removeObserver(this, NotificationCenter.fileLoadFailed);
-        File file = id == NotificationCenter.fileLoaded ? localFile() : null;
-        if (file == null) {
+        if (id == NotificationCenter.fileLoadFailed) {
+            stopWaiting();
             toast(R.string.GlassgramCopyFailed);
             return;
         }
-        sendMedia(file);
+        if (!waitingFileNames.isEmpty()) {
+            return;
+        }
+        stopWaiting();
+        for (int i = 0; i < messages.size(); i++) {
+            if (files[i] == null) {
+                files[i] = localFile(messages.get(i));
+                if (files[i] == null) {
+                    toast(R.string.GlassgramCopyFailed);
+                    return;
+                }
+            }
+        }
+        sendMedia();
     }
 
-    private String signedText(String text) {
-        String signature = signature();
-        if (signature == null) {
-            return text == null ? "" : text;
-        }
-        return TextUtils.isEmpty(text) ? signature : text + "\n\n" + signature;
+    private void stopWaiting() {
+        finished = true;
+        NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.fileLoadFailed);
     }
 
     /** "— Channel name (@username)" for copies from protected channels and groups. */
-    private String signature() {
+    private String signature(MessageObject message) {
         long dialogId = message.getDialogId();
-        if (dialogId >= 0 || isSelfDestructing(message)) {
+        if (dialogId >= 0 || !isProtectedCopy(message)) {
             return null;
         }
         TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
@@ -160,31 +231,64 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
         return "— " + chat.title + (TextUtils.isEmpty(username) ? "" : " (@" + username + ")");
     }
 
-    private ArrayList<TLRPC.MessageEntity> entities() {
-        return message.messageOwner.entities == null ? new ArrayList<>() : new ArrayList<>(message.messageOwner.entities);
-    }
-
-    private void sendText() {
-        String text = signedText(message.messageOwner.message);
+    private void sendText(MessageObject message) {
+        String text = message.messageOwner.message;
+        String signature = signature(message);
+        if (signature != null) {
+            text = TextUtils.isEmpty(text) ? signature : text + "\n\n" + signature;
+        }
         if (TextUtils.isEmpty(text)) {
             toast(R.string.GlassgramCopyUnsupported);
             return;
         }
+        ArrayList<TLRPC.MessageEntity> entities = message.messageOwner.entities == null ? new ArrayList<>() : new ArrayList<>(message.messageOwner.entities);
         SendMessagesHelper.getInstance(account).sendMessage(SendMessagesHelper.SendMessageParams.of(
-            text, peer, null, null, null, true, entities(), null, null, notify, 0, 0, null, false));
+            text, peer, null, null, null, true, entities, null, null, notify, 0, 0, null, false));
     }
 
-    private void sendMedia(File file) {
-        SendMessagesHelper.SendingMediaInfo info = new SendMessagesHelper.SendingMediaInfo();
-        info.path = file.getAbsolutePath();
-        info.caption = signedText(message.messageOwner.message);
-        info.entities = entities();
-        info.isVideo = message.isVideo() || message.isRoundVideo();
-        boolean asDocument = !(message.isPhoto() || message.isVideo() || message.isRoundVideo());
+    private void sendMedia() {
+        MessageObject first = messages.get(0);
+        boolean protectedCopy = isProtectedCopy(first);
+        boolean allVisual = true;
+        boolean allFiles = true;
+        for (int i = 0; i < messages.size(); i++) {
+            allVisual &= isVisualMedia(messages.get(i));
+            allFiles &= isFileMedia(messages.get(i));
+        }
+        boolean album = messages.size() > 1 && (allVisual || allFiles);
         ArrayList<SendMessagesHelper.SendingMediaInfo> media = new ArrayList<>();
-        media.add(info);
-        AndroidUtilities.runOnUIThread(() -> SendMessagesHelper.prepareSendingMedia(AccountInstance.getInstance(account), media, peer,
-            null, null, null, null, asDocument, false, null, notify, 0, 0, 0, false, null, null, 0, false, 0, 0, null));
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject message = messages.get(i);
+            SendMessagesHelper.SendingMediaInfo info = new SendMessagesHelper.SendingMediaInfo();
+            info.path = files[i].getAbsolutePath();
+            info.isVideo = message.isVideo() || message.isRoundVideo();
+            if (protectedCopy) {
+                // The original captions stay behind; one signature goes on the first item
+                info.caption = i == 0 ? signature(message) : null;
+                info.entities = new ArrayList<>();
+            } else {
+                info.caption = message.messageOwner.message;
+                info.entities = message.messageOwner.entities == null ? new ArrayList<>() : new ArrayList<>(message.messageOwner.entities);
+            }
+            media.add(info);
+        }
+        final boolean asDocument = album ? allFiles : !(first.isPhoto() || first.isVideo() || first.isRoundVideo());
+        AndroidUtilities.runOnUIThread(() -> {
+            if (album || media.size() == 1) {
+                SendMessagesHelper.prepareSendingMedia(AccountInstance.getInstance(account), media, peer,
+                    null, null, null, null, asDocument, album, null, notify, 0, 0, 0, false, null, null, 0, false, 0, 0, null);
+            } else {
+                // Mixed items that cannot share an album go one by one
+                for (int i = 0; i < media.size(); i++) {
+                    MessageObject message = messages.get(i);
+                    ArrayList<SendMessagesHelper.SendingMediaInfo> one = new ArrayList<>();
+                    one.add(media.get(i));
+                    boolean document = !(message.isPhoto() || message.isVideo() || message.isRoundVideo());
+                    SendMessagesHelper.prepareSendingMedia(AccountInstance.getInstance(account), one, peer,
+                        null, null, null, null, document, false, null, notify, 0, 0, 0, false, null, null, 0, false, 0, 0, null);
+                }
+            }
+        });
     }
 
     private static void toast(int res) {

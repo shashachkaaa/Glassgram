@@ -2083,13 +2083,17 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if ((GlassgramConfig.ignoreContentProtection || GlassgramConfig.spyDisableSelfDestruct) && !DialogObject.isEncryptedDialog(peer)) {
             // Telegram refuses to forward these; they go as copies instead
             ArrayList<MessageObject> forwardable = new ArrayList<>(messages.size());
+            ArrayList<MessageObject> copies = new ArrayList<>();
             for (int i = 0; i < messages.size(); i++) {
                 MessageObject msg = messages.get(i);
                 if (GlassgramCopySender.needsCopy(currentAccount, msg)) {
-                    GlassgramCopySender.send(currentAccount, msg, peer, notify);
+                    copies.add(msg);
                 } else {
                     forwardable.add(msg);
                 }
+            }
+            if (!copies.isEmpty()) {
+                GlassgramCopySender.send(currentAccount, copies, peer, notify);
             }
             if (forwardable.size() != messages.size()) {
                 if (forwardable.isEmpty()) {
