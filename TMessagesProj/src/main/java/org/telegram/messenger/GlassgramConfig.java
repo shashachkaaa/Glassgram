@@ -73,6 +73,7 @@ public class GlassgramConfig {
     public static int spyDeletedMarkColor; // 0 = the time color
     public static boolean spyDisableAds;
     public static boolean spyDisplayGhostStatus;
+    public static boolean ignoreContentProtection;
 
     public static final int SPY_LIMIT_300_MB = 0;
     public static final int SPY_LIMIT_1_GB = 1;
@@ -127,6 +128,7 @@ public class GlassgramConfig {
         spyDeletedMarkColor = p.getInt("spyDeletedMarkColor", 0);
         spyDisableAds = p.getBoolean("spyDisableAds", false);
         spyDisplayGhostStatus = p.getBoolean("spyDisplayGhostStatus", false);
+        ignoreContentProtection = p.getBoolean("ignoreContentProtection", false);
         loaded = true;
     }
 

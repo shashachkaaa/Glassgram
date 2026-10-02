@@ -6704,6 +6704,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isChatNoForwards(TLRPC.Chat chat) {
+        if (GlassgramConfig.ignoreContentProtection) {
+            return false;
+        }
         if (chat == null) {
             return false;
         }
@@ -6729,6 +6732,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isUserNoForwards(TLRPC.UserFull userFull) {
+        if (GlassgramConfig.ignoreContentProtection) {
+            return false;
+        }
         if (userFull == null) {
             return false;
         }
