@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glassgram launcher icon: a two-facet glass dart with a sparkle, inside the 66dp safe zone. -->
+<!-- Glassgram launcher icon: a two-facet glass arrow, inside the 66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,8 +7,8 @@
     android:viewportHeight="108">
     <path
         android:pathData="M75,33 L52,56 L58,75 Z"
-        android:fillColor="#FFFFD3E2"
-        android:strokeColor="#FFFFD3E2"
+        android:fillColor="#FFE2D6FF"
+        android:strokeColor="#FFE2D6FF"
         android:strokeWidth="5"
         android:strokeLineJoin="round" />
     <path
@@ -17,7 +17,4 @@
         android:strokeColor="#FFFFFFFF"
         android:strokeWidth="5"
         android:strokeLineJoin="round" />
-    <path
-        android:pathData="M36,28.5 Q37.1,33.9 42.5,35 Q37.1,36.1 36,41.5 Q34.9,36.1 29.5,35 Q34.9,33.9 36,28.5 Z"
-        android:fillColor="#E6FFFFFF" />
 </vector>
