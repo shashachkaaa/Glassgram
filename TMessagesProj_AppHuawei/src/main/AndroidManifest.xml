@@ -10,6 +10,9 @@
         <package android:name="com.huawei.maps.app"/>
     </queries>
 
+    <!-- Plugins need Android 7; below it they are off, the rest of the app keeps working -->
+    <uses-sdk tools:overrideLibrary="org.telegram.messenger" />
+
     <application android:name="org.telegram.messenger.HuaweiApplicationLoader" tools:replace="name">
         <service
             android:name="org.telegram.messenger.GoogleVoiceClientService"

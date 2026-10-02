@@ -41630,6 +41630,9 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(fragment);
                 }
             } else if (message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT) {
+                if (GlassgramPluginInstaller.openFromChat(ChatActivity.this, message)) {
+                    return;
+                }
                 if (message.getDocumentName().toLowerCase().endsWith("attheme")) {
                     File locFile = null;
                     if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {

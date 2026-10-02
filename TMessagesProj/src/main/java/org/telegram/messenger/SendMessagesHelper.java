@@ -4279,6 +4279,17 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void sendMessage(SendMessageParams sendMessageParams) {
+        if (sendMessageParams != null && sendMessageParams.retryMessageObject == null && org.telegram.messenger.plugins.PluginsController.hasSendMessageHook()) {
+            // Plugins may rewrite the outgoing message, or cancel it by returning nothing
+            sendMessageParams = org.telegram.messenger.plugins.PluginsController.onSendMessage(currentAccount, sendMessageParams);
+            if (sendMessageParams == null) {
+                return;
+            }
+        }
+        glassgramSendMessage(sendMessageParams);
+    }
+
+    private void glassgramSendMessage(SendMessageParams sendMessageParams) {
         if (GlassgramConfig.ghostMode && sendMessageParams != null && sendMessageParams.peer != 0) {
             final long ghostPeer = sendMessageParams.peer;
             if (GlassgramConfig.ghostNoReadMessages() && GlassgramConfig.ghostReadOnInteract) {

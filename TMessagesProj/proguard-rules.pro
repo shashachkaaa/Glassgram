@@ -54,3 +54,8 @@
 # Use -keep to explicitly keep any other classes shrinking would remove
 #-dontoptimize
 #-dontobfuscate
+
+# Glassgram plugins: Python plugins reach app classes, fields and methods by name
+-keep class org.telegram.** { *; }
+-keep class com.chaquo.python.** { *; }
+-dontwarn com.chaquo.python.**

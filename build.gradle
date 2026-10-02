@@ -12,6 +12,8 @@ buildscript {
         classpath 'com.google.firebase:firebase-crashlytics-gradle:2.9.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21"
         classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.3.21"
+        // Python runtime for Glassgram plugins
+        classpath 'com.chaquo.python:gradle:17.0.0'
     }
 }
 repositories {

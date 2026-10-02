@@ -6728,6 +6728,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onPause() {
         super.onPause();
         isResumed = false;
+        org.telegram.messenger.plugins.PluginsController.onAppEvent("pause");
         pipActivityHandler.onPause();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 4096);
         ApplicationLoader.mainInterfacePaused = true;
@@ -6854,6 +6855,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onDestroy() {
         isActive = false;
         activeInstanceCount--;
+        if (activeInstanceCount == 0) {
+            org.telegram.messenger.plugins.PluginsController.onAppEvent("stop");
+        }
         unregisterReceiver(batteryReceiver);
 
         if (activeInstanceCount == 0) {
@@ -7007,6 +7011,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onResume() {
         super.onResume();
         isResumed = true;
+        org.telegram.messenger.plugins.PluginsController.onAppEvent("resume");
         AndroidUtilities.runOnUIThread(() -> {
             if (isResumed && !isFinishing()) {
                 org.telegram.messenger.GlassgramCrashReporter.showIfNeeded(this);

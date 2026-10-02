@@ -376,14 +376,29 @@ public class ConnectionsManager extends BaseController {
 
     public int sendRequestSync(final TLObject object, final RequestDelegate onComplete, final QuickAckDelegate onQuickAck, final WriteToSocketDelegate onWriteToSocket, final int flags, final int datacenterId, final int connectionType, final boolean immediate) {
         final int requestToken = lastRequestToken.getAndIncrement();
-        sendRequestInternal(object, onComplete, null, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
+        TLObject request = object;
+        if (org.telegram.messenger.plugins.PluginsController.hasHook(request)) {
+            request = org.telegram.messenger.plugins.PluginsController.onPreRequest(currentAccount, request);
+            if (request == null) {
+                return requestToken;
+            }
+        }
+        sendRequestInternal(request, onComplete, null, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
         return requestToken;
     }
 
     public int sendRequest(final TLObject object, final RequestDelegate onComplete, final RequestDelegateTimestamp onCompleteTimestamp, final QuickAckDelegate onQuickAck, final WriteToSocketDelegate onWriteToSocket, final int flags, final int datacenterId, final int connectionType, final boolean immediate) {
         final int requestToken = lastRequestToken.getAndIncrement();
         Utilities.stageQueue.postRunnable(() -> {
-            sendRequestInternal(object, onComplete, onCompleteTimestamp, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
+            TLObject request = object;
+            if (org.telegram.messenger.plugins.PluginsController.hasHook(request)) {
+                // Plugins may change the request, or cancel it by returning nothing
+                request = org.telegram.messenger.plugins.PluginsController.onPreRequest(currentAccount, request);
+                if (request == null) {
+                    return;
+                }
+            }
+            sendRequestInternal(request, onComplete, onCompleteTimestamp, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
         });
         return requestToken;
     }
@@ -451,9 +466,19 @@ public class ConnectionsManager extends BaseController {
                         FileLog.d("java received " + resp + (error != null ? " error = " + error : "") + " messageId = 0x" + Long.toHexString(requestMsgId));
                         FileLog.dumpResponseAndRequest(currentAccount, object, resp, error, requestMsgId, finalStartRequestTime, requestToken);
                     }
-                    final TLObject finalResponse = resp;
-                    final TLRPC.TL_error finalError = error;
+                    final TLObject hookedResponse = resp;
+                    final TLRPC.TL_error hookedError = error;
                     Utilities.stageQueue.postRunnable(() -> {
+                        TLObject finalResponse = hookedResponse;
+                        TLRPC.TL_error finalError = hookedError;
+                        if (org.telegram.messenger.plugins.PluginsController.hasHook(object)) {
+                            Object[] hooked = org.telegram.messenger.plugins.PluginsController.onPostRequest(currentAccount, object, finalResponse, finalError);
+                            if (hooked == null) {
+                                return;
+                            }
+                            finalResponse = (TLObject) hooked[0];
+                            finalError = (TLRPC.TL_error) hooked[1];
+                        }
                         if (onComplete != null) {
                             onComplete.run(finalResponse, finalError);
                         } else if (onCompleteTimestamp != null) {

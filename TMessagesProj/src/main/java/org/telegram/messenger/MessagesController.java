@@ -17913,6 +17913,18 @@ public class MessagesController extends BaseController implements NotificationCe
 
     // must be run from Utilities.stageQueue
     public void processUpdates(final TLRPC.Updates updates, boolean fromQueue) {
+        if (org.telegram.messenger.plugins.PluginsController.hasHook(updates)) {
+            TLRPC.Updates hooked = org.telegram.messenger.plugins.PluginsController.onUpdates(currentAccount, updates);
+            if (hooked == null) {
+                return;
+            }
+            glassgramProcessUpdates(hooked, fromQueue);
+            return;
+        }
+        glassgramProcessUpdates(updates, fromQueue);
+    }
+
+    private void glassgramProcessUpdates(final TLRPC.Updates updates, boolean fromQueue) {
         ArrayList<Long> needGetChannelsDiff = null;
         boolean needGetDiff = false;
         boolean needReceivedQueue = false;
@@ -18452,6 +18464,39 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean processUpdateArray(ArrayList<TLRPC.Update> updates, ArrayList<TLRPC.User> usersArr, ArrayList<TLRPC.Chat> chatsArr, boolean fromGetDifference, int date) {
+        if (updates != null && !updates.isEmpty() && org.telegram.messenger.plugins.PluginsController.isStarted()) {
+            ArrayList<TLRPC.Update> hookedUpdates = null;
+            for (int i = 0; i < updates.size(); i++) {
+                TLRPC.Update update = updates.get(i);
+                if (!org.telegram.messenger.plugins.PluginsController.hasHook(update)) {
+                    continue;
+                }
+                if (hookedUpdates == null) {
+                    hookedUpdates = new ArrayList<>(updates.subList(0, i));
+                }
+                TLRPC.Update hooked = org.telegram.messenger.plugins.PluginsController.onUpdate(currentAccount, update);
+                if (hooked != null) {
+                    hookedUpdates.add(hooked);
+                }
+                for (int j = i + 1; j < updates.size(); j++) {
+                    TLRPC.Update next = updates.get(j);
+                    if (org.telegram.messenger.plugins.PluginsController.hasHook(next)) {
+                        next = org.telegram.messenger.plugins.PluginsController.onUpdate(currentAccount, next);
+                    }
+                    if (next != null) {
+                        hookedUpdates.add(next);
+                    }
+                }
+                break;
+            }
+            if (hookedUpdates != null) {
+                updates = hookedUpdates;
+            }
+        }
+        return glassgramProcessUpdateArray(updates, usersArr, chatsArr, fromGetDifference, date);
+    }
+
+    private boolean glassgramProcessUpdateArray(ArrayList<TLRPC.Update> updates, ArrayList<TLRPC.User> usersArr, ArrayList<TLRPC.Chat> chatsArr, boolean fromGetDifference, int date) {
         if (updates.isEmpty()) {
             if (usersArr != null || chatsArr != null) {
                 AndroidUtilities.runOnUIThread(() -> {
