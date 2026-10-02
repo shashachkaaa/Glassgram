@@ -11334,6 +11334,7 @@
     <string name="GlassgramUsefulFeatures">Useful features</string>
     <string name="GlassgramDisableAds">Disable Ads</string>
     <string name="GlassgramDisplayGhostStatus">Display Ghost Mode Status</string>
+    <string name="GlassgramDisableSelfDestruct">Save Self-Destructing Media</string>
     <string name="GlassgramMessageFilters">Message Filters</string>
     <string name="GlassgramFiltersEssentials">Filters</string>
     <string name="GlassgramFiltersEnable">Enable Filters</string>
