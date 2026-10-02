@@ -366,6 +366,7 @@
     <string name="GlassgramUsefulFeatures">Полезное</string>
     <string name="GlassgramDisableAds">Отключить рекламу</string>
     <string name="GlassgramDisplayGhostStatus">Показывать статус режима призрака</string>
+    <string name="GlassgramDisableSelfDestruct">Сохранять самоуничтожающиеся медиа</string>
     <string name="GlassgramMessageFilters">Фильтры сообщений</string>
     <string name="GlassgramFiltersEssentials">Фильтры</string>
     <string name="GlassgramFiltersEnable">Включить фильтры</string>
