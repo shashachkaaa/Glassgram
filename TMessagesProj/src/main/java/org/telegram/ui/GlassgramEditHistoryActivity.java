@@ -147,8 +147,11 @@ public class GlassgramEditHistoryActivity extends BaseFragment {
         msg.from_id = original.from_id;
         msg.peer_id = original.peer_id;
         msg.post = original.post;
-        msg.media = new TLRPC.TL_messageMediaEmpty();
+        msg.media = version.media != null ? version.media : new TLRPC.TL_messageMediaEmpty();
         msg.flags = original.from_id != null ? TLRPC.MESSAGE_FLAG_HAS_FROM_ID : 0;
+        if (version.media != null) {
+            msg.flags |= TLRPC.MESSAGE_FLAG_HAS_MEDIA;
+        }
         MessageObject object = new MessageObject(currentAccount, msg, true, false);
         object.eventId = 1;
         object.resetLayout();

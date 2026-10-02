@@ -2,12 +2,14 @@ package org.telegram.messenger;
 
 import android.content.Context;
 import android.net.Uri;
+import android.text.TextUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.tgnet.NativeByteBuffer;
+import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLRPC;
 
 import androidx.collection.LongSparseArray;
@@ -108,10 +110,107 @@ public final class GlassgramSpyStorage {
     public static final class EditVersion {
         public final String text;
         public final int date;
+        /** The photo or file of that version, or null for text only. */
+        public final TLRPC.MessageMedia media;
 
-        EditVersion(String text, int date) {
+        EditVersion(String text, int date, TLRPC.MessageMedia media) {
             this.text = text;
             this.date = date;
+            this.media = media;
+        }
+    }
+
+    private static boolean isRealMedia(TLRPC.MessageMedia media) {
+        return media != null && !(media instanceof TLRPC.TL_messageMediaEmpty) && !(media instanceof TLRPC.TL_messageMediaWebPage);
+    }
+
+    /** Photo or document id, so a replaced photo counts as a change. */
+    private static long mediaId(TLRPC.MessageMedia media) {
+        if (!isRealMedia(media)) {
+            return 0;
+        }
+        if (media.photo != null) {
+            return media.photo.id;
+        }
+        if (media.document != null) {
+            return media.document.id;
+        }
+        return media.getClass().getName().hashCode();
+    }
+
+    private static String serializeMedia(TLRPC.MessageMedia media) {
+        try {
+            SerializedData data = new SerializedData(media.getObjectSize());
+            media.serializeToStream(data);
+            String encoded = android.util.Base64.encodeToString(data.toByteArray(), android.util.Base64.NO_WRAP);
+            data.cleanup();
+            return encoded;
+        } catch (Exception e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
+    private static TLRPC.MessageMedia deserializeMedia(String encoded) {
+        if (TextUtils.isEmpty(encoded)) {
+            return null;
+        }
+        try {
+            SerializedData data = new SerializedData(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP));
+            TLRPC.MessageMedia media = TLRPC.MessageMedia.TLdeserialize(data, false);
+            data.cleanup();
+            return media;
+        } catch (Exception e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
+    // Messages with saved earlier versions: "<own user id>_<dialog id>_<message id>"
+    private static HashSet<String> editIndex;
+
+    private static String editKey(long selfId, long dialogId, int messageId) {
+        return selfId + "_" + dialogId + "_" + messageId;
+    }
+
+    /** Whether earlier versions of this message were saved. Reads the store once, then keeps an index. */
+    public static boolean hasEditHistory(MessageObject message) {
+        if (message == null) {
+            return false;
+        }
+        long selfId = UserConfig.getInstance(message.currentAccount).getClientUserId();
+        synchronized (LOCK) {
+            if (editIndex == null) {
+                HashSet<String> index = new HashSet<>();
+                File f = file();
+                if (f.exists()) {
+                    BufferedReader reader = null;
+                    try {
+                        reader = new BufferedReader(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            if (line.indexOf("\"edit\"") < 0) {
+                                continue;
+                            }
+                            try {
+                                JSONObject o = new JSONObject(line);
+                                if ("edit".equals(o.optString("type")) && o.has("self_id")) {
+                                    index.add(editKey(o.optLong("self_id"), o.optLong("dialog_id"), o.optInt("message_id")));
+                                }
+                            } catch (Exception ignore) {
+                            }
+                        }
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    } finally {
+                        if (reader != null) {
+                            try { reader.close(); } catch (Exception ignore) {}
+                        }
+                    }
+                }
+                editIndex = index;
+            }
+            return editIndex.contains(editKey(selfId, message.getDialogId(), message.getId()));
         }
     }
 
@@ -156,8 +255,9 @@ public final class GlassgramSpyStorage {
                     }
                     String oldText = old.message == null ? "" : old.message;
                     String newText = edited.messageOwner.message == null ? "" : edited.messageOwner.message;
-                    // Edit updates also arrive for reactions and views; only text changes count.
-                    if (oldText.equals(newText)) {
+                    // Edit updates also arrive for reactions and views; only a changed text,
+                    // photo or file counts.
+                    if (oldText.equals(newText) && mediaId(old.media) == mediaId(edited.messageOwner.media)) {
                         continue;
                     }
                     JSONObject o = new JSONObject();
@@ -170,7 +270,18 @@ public final class GlassgramSpyStorage {
                     o.put("old_text", oldText);
                     o.put("old_date", old.edit_date != 0 ? old.edit_date : old.date);
                     o.put("new_text", newText);
+                    if (isRealMedia(old.media)) {
+                        String media = serializeMedia(old.media);
+                        if (media != null) {
+                            o.put("old_media", media);
+                        }
+                    }
                     append(o);
+                    synchronized (LOCK) {
+                        if (editIndex != null) {
+                            editIndex.add(editKey(selfId, dialogId, edited.getId()));
+                        }
+                    }
                 } catch (Exception e) {
                     FileLog.e(e);
                 } finally {
@@ -213,10 +324,14 @@ public final class GlassgramSpyStorage {
                     }
                     String text = o.optString("old_text", "");
                     int date = o.optInt("old_date", (int) (o.optLong("saved_at") / 1000));
-                    if (!result.isEmpty() && result.get(result.size() - 1).text.equals(text)) {
-                        continue;
+                    TLRPC.MessageMedia media = deserializeMedia(o.optString("old_media", null));
+                    if (!result.isEmpty()) {
+                        EditVersion last = result.get(result.size() - 1);
+                        if (last.text.equals(text) && mediaId(last.media) == mediaId(media)) {
+                            continue;
+                        }
                     }
-                    result.add(new EditVersion(text, date));
+                    result.add(new EditVersion(text, date, media));
                 }
             } catch (Exception e) {
                 FileLog.e(e);
@@ -363,6 +478,7 @@ public final class GlassgramSpyStorage {
             deletedIds = new HashSet<>();
         }
         synchronized (LOCK) {
+            editIndex = new HashSet<>();
             File f = file();
             if (f.exists() && !f.delete()) {
                 try {
@@ -412,6 +528,7 @@ public final class GlassgramSpyStorage {
                 FileOutputStream out = new FileOutputStream(file(), false);
                 for (String value : lines) out.write((value + "\n").getBytes(StandardCharsets.UTF_8));
                 out.close();
+                editIndex = null;
                 return true;
             } catch (Exception e) {
                 FileLog.e(e);

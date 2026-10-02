@@ -14,8 +14,8 @@ import java.util.LinkedHashMap;
  * timer, or messages from chats with forwarding restricted. The text is sent again and the
  * media is uploaded again from the local files, downloading them first when needed.
  *
- * Copies from protected channels and groups: an album goes as an album, the original captions
- * of media are left out, and the copy is signed with the source name.
+ * Copies from protected channels and groups: an album goes as an album and the original
+ * captions of media are left out.
  */
 public final class GlassgramCopySender implements NotificationCenter.NotificationCenterDelegate {
 
@@ -77,7 +77,7 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
         return userFull != null && (userFull.noforwards_peer_enabled || userFull.noforwards_my_enabled);
     }
 
-    /** A copy from a protected chat (not self-destructing media): album rules and the signature apply. */
+    /** A copy from a protected chat (not self-destructing media): the album and caption rules apply. */
     private static boolean isProtectedCopy(MessageObject message) {
         return !isSelfDestructing(message);
     }
@@ -217,26 +217,8 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
         NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.fileLoadFailed);
     }
 
-    /** "— Channel name (@username)" for copies from protected channels and groups. */
-    private String signature(MessageObject message) {
-        long dialogId = message.getDialogId();
-        if (dialogId >= 0 || !isProtectedCopy(message)) {
-            return null;
-        }
-        TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
-        if (chat == null || TextUtils.isEmpty(chat.title)) {
-            return null;
-        }
-        String username = ChatObject.getPublicUsername(chat);
-        return "— " + chat.title + (TextUtils.isEmpty(username) ? "" : " (@" + username + ")");
-    }
-
     private void sendText(MessageObject message) {
         String text = message.messageOwner.message;
-        String signature = signature(message);
-        if (signature != null) {
-            text = TextUtils.isEmpty(text) ? signature : text + "\n\n" + signature;
-        }
         if (TextUtils.isEmpty(text)) {
             toast(R.string.GlassgramCopyUnsupported);
             return;
@@ -263,8 +245,8 @@ public final class GlassgramCopySender implements NotificationCenter.Notificatio
             info.path = files[i].getAbsolutePath();
             info.isVideo = message.isVideo() || message.isRoundVideo();
             if (protectedCopy) {
-                // The original captions stay behind; one signature goes on the first item
-                info.caption = i == 0 ? signature(message) : null;
+                // The original captions stay behind
+                info.caption = null;
                 info.entities = new ArrayList<>();
             } else {
                 info.caption = message.messageOwner.message;

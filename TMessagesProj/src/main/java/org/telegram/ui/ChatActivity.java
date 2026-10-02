@@ -157,6 +157,7 @@ import org.telegram.messenger.FactCheckController;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.FlagSecureReason;
 import org.telegram.messenger.HashtagSearchController;
 import org.telegram.messenger.ImageLoader;
@@ -45883,7 +45884,7 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_EDIT);
                     icons.add(R.drawable.msg_edit);
                 }
-                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED) {
+                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED && GlassgramSpyStorage.hasEditHistory(message)) {
                     items.add(LocaleController.getString(R.string.GlassgramEditHistory));
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
@@ -46235,7 +46236,7 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_EDIT);
                     icons.add(R.drawable.msg_edit);
                 }
-                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED) {
+                if (message != null && message.isEdited() && chatMode != MODE_SCHEDULED && GlassgramSpyStorage.hasEditHistory(message)) {
                     items.add(LocaleController.getString(R.string.GlassgramEditHistory));
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
