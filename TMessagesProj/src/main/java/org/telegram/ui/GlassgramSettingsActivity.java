@@ -4,9 +4,11 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.content.Intent;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.View;
+import android.widget.Toast;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -36,11 +38,17 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public static final int PAGE_APPEARANCE = 2;
     public static final int PAGE_CHATS = 3;
     public static final int PAGE_GHOST = 4;
+    public static final int PAGE_SPY = 5;
+    public static final int PAGE_CUSTOMIZATION = 6;
+    public static final int PAGE_FILTERS = 7;
 
     private static final int ID_GENERAL = 1;
     private static final int ID_APPEARANCE = 2;
     private static final int ID_CHATS = 3;
     private static final int ID_GHOST = 4;
+    private static final int ID_SPY = 5;
+    private static final int ID_CUSTOMIZATION = 6;
+    private static final int ID_FILTERS = 7;
 
     private static final int ID_GHOST_MODE = 40;
     private static final int ID_GHOST_READ = 41;
@@ -49,6 +57,31 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_GHOST_TYPING = 44;
     private static final int ID_GHOST_OFFLINE = 45;
     private static final int ID_GHOST_READ_ON_INTERACT = 46;
+
+    private static final int ID_SPY_DELETED = 50;
+    private static final int ID_SPY_EDITS = 51;
+    private static final int ID_SPY_BOTS = 52;
+    private static final int ID_SPY_READ_DATE = 53;
+    private static final int ID_SPY_LAST_SEEN = 54;
+    private static final int ID_SPY_ATTACHMENTS = 55;
+    private static final int ID_SPY_LIMIT = 56;
+    private static final int ID_SPY_EXPORT = 57;
+    private static final int ID_SPY_IMPORT = 58;
+    private static final int ID_SPY_CLEAR = 59;
+
+    private static final int ID_CUSTOM_TRANSLUCENT = 60;
+    private static final int ID_CUSTOM_TRASH = 61;
+    private static final int ID_CUSTOM_ADS = 62;
+    private static final int ID_CUSTOM_GHOST_STATUS = 63;
+
+    private static final int ID_FILTER_ENABLE = 70;
+    private static final int ID_FILTER_SHARED = 71;
+    private static final int ID_FILTER_BLOCKED = 72;
+    private static final int ID_FILTER_SHADOW = 73;
+    private static final int ID_FILTER_SHARED_LIST = 74;
+
+    private static final int REQUEST_SPY_EXPORT = 9001;
+    private static final int REQUEST_SPY_IMPORT = 9002;
 
     private static final int ID_NUMBER_ROUNDING = 10;
     private static final int ID_SECONDS = 11;
@@ -92,6 +125,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return getString(R.string.GlassgramChats);
             case PAGE_GHOST:
                 return getString(R.string.GlassgramGhostMode);
+            case PAGE_SPY:
+                return "Spy";
+            case PAGE_CUSTOMIZATION:
+                return "Customization";
+            case PAGE_FILTERS:
+                return "Message Filters";
             default:
                 return getString(R.string.GlassgramPreferences);
         }
@@ -152,12 +191,46 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_GHOST_READ_ON_INTERACT, getString(R.string.GlassgramGhostReadOnInteract)).setChecked(GlassgramConfig.ghostReadOnInteract));
                 items.add(UItem.asShadow(getString(R.string.GlassgramGhostReadOnInteractInfo)));
                 break;
+            case PAGE_SPY:
+                items.add(UItem.asHeader("Spy"));
+                items.add(UItem.asCheck(ID_SPY_DELETED, "Save Deleted Messages").setChecked(GlassgramConfig.spySaveDeletedMessages));
+                items.add(UItem.asCheck(ID_SPY_EDITS, "Save Edits History").setChecked(GlassgramConfig.spySaveEditsHistory));
+                items.add(UItem.asCheck(ID_SPY_BOTS, "Save in Bot Dialogs").setChecked(GlassgramConfig.spySaveInBotDialogs));
+                items.add(UItem.asCheck(ID_SPY_READ_DATE, "Save Read Date").setChecked(GlassgramConfig.spySaveReadDate));
+                items.add(UItem.asCheck(ID_SPY_LAST_SEEN, "Save Last Seen Date").setChecked(GlassgramConfig.spySaveLastSeenDate));
+                items.add(UItem.asCheck(ID_SPY_ATTACHMENTS, "Save Attachments").setChecked(GlassgramConfig.spySaveAttachments));
+                items.add(UItem.asButton(ID_SPY_LIMIT, "Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}[Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize))]));
+                items.add(UItem.asButton(ID_SPY_EXPORT, "Export Database"));
+                items.add(UItem.asButton(ID_SPY_IMPORT, "Import Database"));
+                items.add(UItem.asButton(ID_SPY_CLEAR, "Clear"));
+                items.add(UItem.asShadow("Local-only Spy storage: " + GlassgramSpyStorage.size() / 1024 + " KB"));
+                break;
+            case PAGE_CUSTOMIZATION:
+                items.add(UItem.asHeader("Customization"));
+                items.add(UItem.asCheck(ID_CUSTOM_TRANSLUCENT, "Translucent Deleted Messages").setChecked(GlassgramConfig.spyTranslucentDeleted));
+                items.add(UItem.asCheck(ID_CUSTOM_TRASH, "Deleted Mark with trash icon").setChecked(GlassgramConfig.spyDeletedTrashMark));
+                items.add(UItem.asCheck(ID_CUSTOM_ADS, "Disable Ads").setChecked(GlassgramConfig.spyDisableAds));
+                items.add(UItem.asCheck(ID_CUSTOM_GHOST_STATUS, "Display Ghost Mode Status").setChecked(GlassgramConfig.spyDisplayGhostStatus));
+                items.add(UItem.asShadow("Navigation and Pill Stack are kept compatible with the current Glassgram UI."));
+                break;
+            case PAGE_FILTERS:
+                items.add(UItem.asHeader("Message Filters"));
+                items.add(UItem.asCheck(ID_FILTER_ENABLE, "Enable Filters").setChecked(GlassgramConfig.spyEnableFilters));
+                items.add(UItem.asCheck(ID_FILTER_SHARED, "Enable Shared Filters in Chats").setChecked(GlassgramConfig.spyEnableSharedFilters));
+                items.add(UItem.asCheck(ID_FILTER_BLOCKED, "Hide from Blocked Users").setChecked(GlassgramConfig.spyHideBlockedUsers));
+                items.add(UItem.asButton(ID_FILTER_SHARED_LIST, "Shared Filters"));
+                items.add(UItem.asCheck(ID_FILTER_SHADOW, "Shadow Ban").setChecked(GlassgramConfig.spyShadowBan));
+                items.add(UItem.asShadow("Filters are local-only and do not change Telegram server-side block status."));
+                break;
             default:
                 items.add(UItem.asHeader(getString(R.string.GlassgramCategories)));
                 items.add(UItem.asButton(ID_GHOST, R.drawable.msg_secret, getString(R.string.GlassgramGhostMode), GlassgramConfig.ghostMode ? getString(R.string.GlassgramOn) : getString(R.string.GlassgramOff)));
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
+                items.add(UItem.asButton(ID_SPY, R.drawable.msg_secret, "Spy"));
+                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_palette, "Customization"));
+                items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_settings, "Message Filters"));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -177,6 +250,35 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_GHOST:
                 presentFragment(new GlassgramSettingsActivity(PAGE_GHOST));
+                return;
+            case ID_SPY:
+                presentFragment(new GlassgramSettingsActivity(PAGE_SPY));
+                return;
+            case ID_CUSTOMIZATION:
+                presentFragment(new GlassgramSettingsActivity(PAGE_CUSTOMIZATION));
+                return;
+            case ID_FILTERS:
+                presentFragment(new GlassgramSettingsActivity(PAGE_FILTERS));
+                return;
+            case ID_SPY_LIMIT:
+                showChoice("Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}, GlassgramConfig.spyMaxFolderSize, which -> {
+                    GlassgramConfig.spyMaxFolderSize = which;
+                    GlassgramConfig.putInt("spyMaxFolderSize", which);
+                });
+                return;
+            case ID_SPY_EXPORT:
+                startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").putExtra(Intent.EXTRA_TITLE, "glassgram_spy.jsonl"), REQUEST_SPY_EXPORT);
+                return;
+            case ID_SPY_IMPORT:
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE), REQUEST_SPY_IMPORT);
+                return;
+            case ID_SPY_CLEAR:
+                new AlertDialog.Builder(getParentActivity()).setTitle("Clear Spy database?")
+                        .setMessage("Only Glassgram Spy data will be deleted.")
+                        .setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                            GlassgramSpyStorage.clear();
+                            if (listView != null) listView.adapter.update(true);
+                        }).setNegativeButton(getString(R.string.Cancel), null).show();
                 return;
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
@@ -286,6 +388,48 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.unlimitedRecentStickers = !GlassgramConfig.unlimitedRecentStickers;
                 GlassgramConfig.putBoolean("unlimitedRecentStickers", value);
                 break;
+            case ID_SPY_DELETED:
+                value = GlassgramConfig.spySaveDeletedMessages = !GlassgramConfig.spySaveDeletedMessages;
+                GlassgramConfig.putBoolean("spySaveDeletedMessages", value); break;
+            case ID_SPY_EDITS:
+                value = GlassgramConfig.spySaveEditsHistory = !GlassgramConfig.spySaveEditsHistory;
+                GlassgramConfig.putBoolean("spySaveEditsHistory", value); break;
+            case ID_SPY_BOTS:
+                value = GlassgramConfig.spySaveInBotDialogs = !GlassgramConfig.spySaveInBotDialogs;
+                GlassgramConfig.putBoolean("spySaveInBotDialogs", value); break;
+            case ID_SPY_READ_DATE:
+                value = GlassgramConfig.spySaveReadDate = !GlassgramConfig.spySaveReadDate;
+                GlassgramConfig.putBoolean("spySaveReadDate", value); break;
+            case ID_SPY_LAST_SEEN:
+                value = GlassgramConfig.spySaveLastSeenDate = !GlassgramConfig.spySaveLastSeenDate;
+                GlassgramConfig.putBoolean("spySaveLastSeenDate", value); break;
+            case ID_SPY_ATTACHMENTS:
+                value = GlassgramConfig.spySaveAttachments = !GlassgramConfig.spySaveAttachments;
+                GlassgramConfig.putBoolean("spySaveAttachments", value); break;
+            case ID_CUSTOM_TRANSLUCENT:
+                value = GlassgramConfig.spyTranslucentDeleted = !GlassgramConfig.spyTranslucentDeleted;
+                GlassgramConfig.putBoolean("spyTranslucentDeleted", value); break;
+            case ID_CUSTOM_TRASH:
+                value = GlassgramConfig.spyDeletedTrashMark = !GlassgramConfig.spyDeletedTrashMark;
+                GlassgramConfig.putBoolean("spyDeletedTrashMark", value); break;
+            case ID_CUSTOM_ADS:
+                value = GlassgramConfig.spyDisableAds = !GlassgramConfig.spyDisableAds;
+                GlassgramConfig.putBoolean("spyDisableAds", value); break;
+            case ID_CUSTOM_GHOST_STATUS:
+                value = GlassgramConfig.spyDisplayGhostStatus = !GlassgramConfig.spyDisplayGhostStatus;
+                GlassgramConfig.putBoolean("spyDisplayGhostStatus", value); break;
+            case ID_FILTER_ENABLE:
+                value = GlassgramConfig.spyEnableFilters = !GlassgramConfig.spyEnableFilters;
+                GlassgramConfig.putBoolean("spyEnableFilters", value); break;
+            case ID_FILTER_SHARED:
+                value = GlassgramConfig.spyEnableSharedFilters = !GlassgramConfig.spyEnableSharedFilters;
+                GlassgramConfig.putBoolean("spyEnableSharedFilters", value); break;
+            case ID_FILTER_BLOCKED:
+                value = GlassgramConfig.spyHideBlockedUsers = !GlassgramConfig.spyHideBlockedUsers;
+                GlassgramConfig.putBoolean("spyHideBlockedUsers", value); break;
+            case ID_FILTER_SHADOW:
+                value = GlassgramConfig.spyShadowBan = !GlassgramConfig.spyShadowBan;
+                GlassgramConfig.putBoolean("spyShadowBan", value); break;
             case ID_ALWAYS_HD:
                 // Telegram's own default for the HD toggle in the photo viewer
                 value = org.telegram.messenger.SharedConfig.photoHighQualityDefault = !org.telegram.messenger.SharedConfig.photoHighQualityDefault;
@@ -372,6 +516,22 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         builder.show();
         editText.requestFocus();
         AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(editText), 200);
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (resultCode != android.app.Activity.RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        boolean ok = false;
+        if (requestCode == REQUEST_SPY_EXPORT) {
+            ok = GlassgramSpyStorage.exportToUri(data.getData());
+        } else if (requestCode == REQUEST_SPY_IMPORT) {
+            ok = GlassgramSpyStorage.importFromUri(data.getData());
+        }
+        Toast.makeText(getParentActivity(), ok ? "Spy database completed" : "Spy database operation failed", Toast.LENGTH_SHORT).show();
+        if (listView != null) listView.adapter.update(true);
     }
 
     @Override
