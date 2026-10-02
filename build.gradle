@@ -29,10 +29,29 @@ repositories {
 //   drop:  latin/optional/, maths/optional/  (~290 KB; \textbf/\textit/\mathds fall back)
 //          licences/                          (~20 KB; pure license text files)
 subprojects {
+    // AliuHook: Xposed-style method hooks for plugins. Declaring repositories here replaces
+    // the ones from settings.gradle, so those are repeated first.
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url 'https://maven.aliucord.com/releases'
+            content {
+                includeGroup 'com.aliucord'
+                includeGroup 'com.aliucord.lsplant'
+            }
+        }
+    }
+
     plugins.withId('com.android.application') {
         android {
             androidResources {
                 ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~:!optional:!licences:!*stmary*:!*eufb*'
+            }
+            packaging {
+                jniLibs {
+                    pickFirsts += ['**/libc++_shared.so']
+                }
             }
         }
     }

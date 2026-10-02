@@ -1250,6 +1250,8 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
     public final static int OPTION_GLASSGRAM_EDIT_HISTORY = 900;
+    public final static int OPTION_GLASSGRAM_PLUGIN_ITEM = 910;
+    private java.util.List<org.telegram.messenger.plugins.PluginsController.MenuItem> glassgramPluginMenuItems;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -33351,6 +33353,35 @@ public class ChatActivity extends BaseFragment implements
         MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
     }
 
+    /** What plugin menu items get to work with, as in the exteraGram SDK. */
+    public java.util.HashMap<String, Object> glassgramMenuContext(MessageObject message) {
+        java.util.HashMap<String, Object> context = new java.util.HashMap<>();
+        context.put("account", currentAccount);
+        context.put("context", getParentActivity());
+        context.put("fragment", this);
+        context.put("dialog_id", dialog_id);
+        if (currentUser != null) {
+            context.put("user", currentUser);
+            context.put("userId", currentUser.id);
+            context.put("userFull", getMessagesController().getUserFull(currentUser.id));
+        }
+        if (currentChat != null) {
+            context.put("chat", currentChat);
+            context.put("chatId", currentChat.id);
+            context.put("chatFull", chatInfo);
+        }
+        if (currentEncryptedChat != null) {
+            context.put("encryptedChat", currentEncryptedChat);
+        }
+        if (message != null) {
+            context.put("message", message);
+        }
+        if (selectedObjectGroup != null) {
+            context.put("groupedMessages", selectedObjectGroup);
+        }
+        return context;
+    }
+
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
             return;
@@ -33830,6 +33861,12 @@ public class ChatActivity extends BaseFragment implements
             case OPTION_GLASSGRAM_EDIT_HISTORY: {
                 if (selectedObject != null) {
                     presentFragment(new GlassgramEditHistoryActivity(selectedObject));
+                }
+                break;
+            }
+            default: {
+                if (option >= OPTION_GLASSGRAM_PLUGIN_ITEM && option < OPTION_GLASSGRAM_PLUGIN_ITEM + 80 && glassgramPluginMenuItems != null && option - OPTION_GLASSGRAM_PLUGIN_ITEM < glassgramPluginMenuItems.size()) {
+                    glassgramPluginMenuItems.get(option - OPTION_GLASSGRAM_PLUGIN_ITEM).click(glassgramMenuContext(selectedObject));
                 }
                 break;
             }
@@ -45892,6 +45929,14 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
                 }
+                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
+                for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {
+                    org.telegram.messenger.plugins.PluginsController.MenuItem pluginItem = glassgramPluginMenuItems.get(pi);
+                    items.add(pluginItem.text);
+                    options.add(OPTION_GLASSGRAM_PLUGIN_ITEM + pi);
+                    int pluginIcon = pluginItem.getIconResId();
+                    icons.add(pluginIcon != 0 ? pluginIcon : R.drawable.msg_bots);
+                }
                 if (ChatObject.isMonoForum(currentChat) && selectedObject.getGroupId() == 0 && selectedObjectGroup == null && message != null && message.messageOwner != null && message.messageOwner.suggested_post == null && message.messageOwner.action == null) {
                     items.add(LocaleController.getString(R.string.EditOfferAdd));
                     options.add(OPTION_SUGGESTION_ADD_OFFER);
@@ -46243,6 +46288,14 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.GlassgramEditHistory));
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
+                }
+                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
+                for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {
+                    org.telegram.messenger.plugins.PluginsController.MenuItem pluginItem = glassgramPluginMenuItems.get(pi);
+                    items.add(pluginItem.text);
+                    options.add(OPTION_GLASSGRAM_PLUGIN_ITEM + pi);
+                    int pluginIcon = pluginItem.getIconResId();
+                    icons.add(pluginIcon != 0 ? pluginIcon : R.drawable.msg_bots);
                 }
                 if (ChatObject.isMonoForum(currentChat) && selectedObject.getGroupId() == 0 && selectedObjectGroup == null && message != null && message.messageOwner != null && message.messageOwner.suggested_post == null && message.messageOwner.action == null) {
                     items.add(LocaleController.getString(R.string.EditOfferAdd));

@@ -58,4 +58,6 @@
 # Glassgram plugins: Python plugins reach app classes, fields and methods by name
 -keep class org.telegram.** { *; }
 -keep class com.chaquo.python.** { *; }
+-keep class de.robv.android.xposed.** { *; }
+-keep class com.aliucord.hook.** { *; }
 -dontwarn com.chaquo.python.**
