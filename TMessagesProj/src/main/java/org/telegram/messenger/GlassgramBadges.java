@@ -1,7 +1,6 @@
 package org.telegram.messenger;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
@@ -14,6 +13,7 @@ import androidx.core.content.ContextCompat;
 import org.json.JSONObject;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.CombinedDrawable;
 
@@ -45,14 +45,17 @@ public final class GlassgramBadges {
     public static final class Badge {
         public final String id;
         public final String icon;
-        public final int color;
         public final HashMap<String, String> texts;
 
-        Badge(String id, String icon, int color, HashMap<String, String> texts) {
+        Badge(String id, String icon, HashMap<String, String> texts) {
             this.id = id;
             this.icon = icon;
-            this.color = color;
             this.texts = texts;
+        }
+
+        /** The same badge with the description given to one peer, when it has its own. */
+        Badge withTexts(HashMap<String, String> peerTexts) {
+            return peerTexts == null || peerTexts.isEmpty() ? this : new Badge(id, icon, peerTexts);
         }
 
         /** The text shown when the badge is tapped, in the app language when the API has it. */
@@ -97,11 +100,12 @@ public final class GlassgramBadges {
             }
         }
 
-        /** The badge drawn at sizePx: the colored rosette with the white glyph on it. */
+        /** The badge drawn at sizePx in the theme's accent: the rosette with the glyph on it. */
         public Drawable createDrawable(Context context, int sizePx) {
             Drawable shape = ContextCompat.getDrawable(context, R.drawable.glassgram_badge_shape).mutate();
-            shape.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+            shape.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_addButton), PorterDuff.Mode.SRC_IN));
             Drawable glyph = ContextCompat.getDrawable(context, getIconResId()).mutate();
+            glyph.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_buttonText), PorterDuff.Mode.SRC_IN));
             CombinedDrawable drawable = new CombinedDrawable(shape, glyph);
             drawable.setCustomSize(sizePx, sizePx);
             drawable.setIconSize(sizePx, sizePx);
@@ -169,24 +173,8 @@ public final class GlassgramBadges {
                     if (b == null) {
                         continue;
                     }
-                    HashMap<String, String> texts = new HashMap<>();
-                    Object text = b.opt("text");
-                    if (text instanceof JSONObject) {
-                        JSONObject textJson = (JSONObject) text;
-                        for (Iterator<String> langs = textJson.keys(); langs.hasNext(); ) {
-                            String lang = langs.next();
-                            texts.put(lang.toLowerCase(Locale.ROOT), textJson.optString(lang));
-                        }
-                    } else if (text instanceof String) {
-                        texts.put("en", (String) text);
-                    }
-                    int color;
-                    try {
-                        color = Color.parseColor(b.optString("color", "#2AABEE"));
-                    } catch (IllegalArgumentException e) {
-                        color = 0xFF2AABEE;
-                    }
-                    badges.put(id, new Badge(id, b.optString("icon", "arrow"), color, texts));
+                    HashMap<String, String> texts = parseTexts(b.opt("text"));
+                    badges.put(id, new Badge(id, b.optString("icon", "arrow"), texts));
                 }
             }
             HashMap<Long, Badge> peers = new HashMap<>();
@@ -194,7 +182,7 @@ public final class GlassgramBadges {
             if (peersJson != null) {
                 for (Iterator<String> it = peersJson.keys(); it.hasNext(); ) {
                     String key = it.next();
-                    Badge badge = badges.get(peersJson.optString(key));
+                    Badge badge = resolve(badges, peersJson.opt(key));
                     Long dialogId = parseDialogId(key);
                     if (badge != null && dialogId != null) {
                         peers.put(dialogId, badge);
@@ -206,7 +194,7 @@ public final class GlassgramBadges {
             if (usernamesJson != null) {
                 for (Iterator<String> it = usernamesJson.keys(); it.hasNext(); ) {
                     String key = it.next();
-                    Badge badge = badges.get(usernamesJson.optString(key));
+                    Badge badge = resolve(badges, usernamesJson.opt(key));
                     if (badge != null) {
                         usernames.put(normalizeUsername(key), badge);
                     }
@@ -228,6 +216,33 @@ public final class GlassgramBadges {
             FileLog.e(e);
             return false;
         }
+    }
+
+    /** Texts per language from {"en": "...", "ru": "..."} or a plain string. */
+    private static HashMap<String, String> parseTexts(Object text) {
+        HashMap<String, String> texts = new HashMap<>();
+        if (text instanceof JSONObject) {
+            JSONObject textJson = (JSONObject) text;
+            for (Iterator<String> langs = textJson.keys(); langs.hasNext(); ) {
+                String lang = langs.next();
+                texts.put(lang.toLowerCase(Locale.ROOT), textJson.optString(lang));
+            }
+        } else if (text instanceof String && !TextUtils.isEmpty((String) text)) {
+            texts.put("en", (String) text);
+        }
+        return texts;
+    }
+
+    /** A peer's badge: "badge id", or {"badge": "badge id", "text": its own description}. */
+    private static Badge resolve(HashMap<String, Badge> badges, Object value) {
+        if (value instanceof String) {
+            return badges.get(value);
+        } else if (value instanceof JSONObject) {
+            JSONObject entry = (JSONObject) value;
+            Badge badge = badges.get(entry.optString("badge"));
+            return badge != null ? badge.withTexts(parseTexts(entry.opt("text"))) : null;
+        }
+        return null;
     }
 
     /** Telegram dialog id for an id written either the app way or the Bot API way (-100…). */

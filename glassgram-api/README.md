@@ -21,13 +21,15 @@ see it after their next refresh. To serve the list from your own server instead,
   "badges": {
     "glassgram": {
       "icon": "arrow",
-      "color": "#2AABEE",
       "text": { "en": "Official Glassgram source.", "ru": "Официальный источник Glassgram." }
     }
   },
   "peers": {
     "-1001234567890": "glassgram",
-    "123456789": "glassgram"
+    "123456789": {
+      "badge": "glassgram",
+      "text": { "en": "Glassgram tester.", "ru": "Тестировщик Glassgram." }
+    }
   },
   "usernames": {
     "glassgramdev": "glassgram"
@@ -38,11 +40,14 @@ see it after their next refresh. To serve the list from your own server instead,
 - `badges` — the badge kinds, by any id you like.
   - `icon` — the glyph on the badge: `arrow` (the Glassgram arrow), `check`, `star`, `heart`,
     `bolt`, `crown`, `code`, `shield`.
-  - `color` — the badge color, `#RRGGBB` or `#AARRGGBB`.
   - `text` — what tapping the badge shows, per language code; `en` is the fallback. A plain
     string works too.
-- `peers` — who gets which badge, by Telegram id. Users and bots use their id; channels and
+
+  Badges take the accent color of the user's theme.
+- `peers` — who gets which badge, by Telegram id. The value is a badge id, or
+  `{"badge": "<badge id>", "text": {...}}` to give that peer its own description instead of the
+  badge's. Users and bots use their id; channels and
   supergroups can be written the Bot API way (`-100…`) or as `-` and the channel id; basic groups
   as `-` and the chat id. Glassgram shows ids in profiles (Glassgram Preferences > General > Show ID).
-- `usernames` — the same by public username, without `@`. Handy, but a peer keeps the badge only
+- `usernames` — the same by public username, without `@`, in either form. Handy, but a peer keeps the badge only
   while it keeps the username; ids are safer.
