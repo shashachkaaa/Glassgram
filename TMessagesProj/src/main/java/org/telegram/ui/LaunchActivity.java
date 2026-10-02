@@ -7007,6 +7007,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onResume() {
         super.onResume();
         isResumed = true;
+        AndroidUtilities.runOnUIThread(() -> {
+            if (isResumed && !isFinishing()) {
+                org.telegram.messenger.GlassgramCrashReporter.showIfNeeded(this);
+            }
+        }, 1500);
         pipActivityHandler.onResume();
         if (onResumeStaticCallback != null) {
             onResumeStaticCallback.run();

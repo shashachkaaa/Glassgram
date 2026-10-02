@@ -11352,4 +11352,7 @@
     <string name="GlassgramIconOrange">Orange</string>
     <string name="GlassgramIconPink">Pink</string>
     <string name="GlassgramIconLight">Light</string>
+    <string name="GlassgramCrashTitle">Glassgram crashed</string>
+    <string name="GlassgramCrashText">The app closed because of an error last time. Copy the report and send it to the developer so it can be fixed.</string>
+    <string name="GlassgramCrashCopy">Copy report</string>
 </resources>

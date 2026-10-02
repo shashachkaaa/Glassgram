@@ -133,6 +133,11 @@ public class Switch extends FrameLayout {
 
     private LiquidToggleView toggleView;
 
+    private boolean isInActivityWindow() {
+        android.app.Activity activity = AndroidUtilities.findActivity(getContext());
+        return activity != null && activity.getWindow() != null && getRootView() == activity.getWindow().peekDecorView();
+    }
+
     private void onToggleRequested(boolean checked) {
         if (checked != isChecked) {
             performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
@@ -348,6 +353,14 @@ public class Switch extends FrameLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         attachedToWindow = true;
+        if (toggleView != null && !isInActivityWindow()) {
+            // The liquid toggle is a Compose view, and Compose crashes in Telegram's dialog
+            // windows (sheets such as a session's). There the drawn capsule is used instead.
+            // The toggle is not attached yet at this point, so removing it is safe.
+            removeView(toggleView);
+            toggleView = null;
+            requestLayout();
+        }
         updateToggleColors();
         // The glass thumb grows 1.5x while it moves, like the library's LiquidToggle,
         // and needs room around the switch's own bounds.

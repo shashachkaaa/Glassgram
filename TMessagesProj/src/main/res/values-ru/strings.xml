@@ -384,4 +384,7 @@
     <string name="GlassgramIconOrange">Оранжевая</string>
     <string name="GlassgramIconPink">Розовая</string>
     <string name="GlassgramIconLight">Светлая</string>
+    <string name="GlassgramCrashTitle">Glassgram вылетел</string>
+    <string name="GlassgramCrashText">В прошлый раз приложение закрылось из-за ошибки. Скопируйте отчёт и отправьте разработчику, чтобы её исправили.</string>
+    <string name="GlassgramCrashCopy">Скопировать отчёт</string>
 </resources>
