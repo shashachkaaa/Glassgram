@@ -694,4 +694,16 @@ public class ActionBarMenu extends LinearLayout {
     public boolean onTouchEvent(MotionEvent event) {
         return super.onTouchEvent(event);
     }
+
+    @Override
+    protected boolean drawChild(android.graphics.Canvas canvas, View child, long drawingTime) {
+        if (parentActionBar != null) {
+            canvas.save();
+            parentActionBar.glassTransformActionModeChild(canvas, this, child);
+            final boolean result = super.drawChild(canvas, child, drawingTime);
+            canvas.restore();
+            return result;
+        }
+        return super.drawChild(canvas, child, drawingTime);
+    }
 }

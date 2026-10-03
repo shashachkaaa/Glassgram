@@ -478,6 +478,29 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         canvas.translate(-r.left, -r.top);
     }
 
+    /**
+     * The selection bar's items sit on the glass pieces too (the counter on the pill, the
+     * actions on the menu): each one follows the piece under it. The canvas is the one
+     * menuView draws its children with.
+     */
+    boolean glassTransformActionModeChild(Canvas canvas, View menuView, View child) {
+        if (!glassMode || menuView != actionMode) {
+            return false;
+        }
+        final float cx = menuView.getX() + child.getX() + child.getWidth() / 2f;
+        final float cy = menuView.getY() + child.getY() + child.getHeight() / 2f;
+        for (int surface : new int[]{GLASS_BACK, GLASS_MENU, GLASS_PILL}) {
+            final LiquidPressEffect effect = glassPress[surface];
+            if (glassShown[surface] && effect != null && effect.isActive() && glassRect[surface].contains(cx, cy)) {
+                canvas.translate(-menuView.getX(), -menuView.getY());
+                glassTransform(canvas, surface);
+                canvas.translate(menuView.getX(), menuView.getY());
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void glassGlow(Canvas canvas, int surface) {
         final LiquidPressEffect effect = glassPress[surface];
         if (effect == null || !effect.isActive()) {
