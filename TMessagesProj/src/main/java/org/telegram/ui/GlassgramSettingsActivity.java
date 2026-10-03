@@ -521,6 +521,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (view instanceof TextCheckCell) {
             ((TextCheckCell) view).setChecked(value);
         }
+        if (view instanceof org.telegram.ui.Cells.NotificationsCheckCell) {
+            ((org.telegram.ui.Cells.NotificationsCheckCell) view).setChecked(value);
+        }
         if (view instanceof CheckBoxCell) {
             ((CheckBoxCell) view).setChecked(value, true);
         }

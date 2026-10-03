@@ -591,6 +591,10 @@ public class Switch extends FrameLayout {
         ViewParent parent = getParent();
         while (parent instanceof View) {
             final View parentView = (View) parent;
+            // Rows with a separate switch area (an expandable switch) toggle through that area
+            if (parentView instanceof org.telegram.ui.Cells.TextCheckCell2 && ((org.telegram.ui.Cells.TextCheckCell2) parentView).performCheckAreaClick()) {
+                return;
+            }
             if (parentView instanceof RecyclerListView) {
                 final RecyclerListView list = (RecyclerListView) parentView;
                 final int position = list.getChildAdapterPosition(child);
@@ -600,7 +604,13 @@ public class Switch extends FrameLayout {
                         return;
                     }
                     if (list.getOnItemClickListenerExtended() != null) {
-                        list.getOnItemClickListenerExtended().onItemClick(child, position, child.getWidth() / 2f, child.getHeight() / 2f);
+                        // At the switch: rows that open a page on a tap elsewhere toggle when the tap is on their switch
+                        float x = getWidth() / 2f, y = getHeight() / 2f;
+                        for (View v = this; v != child && v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+                            x += v.getLeft() + v.getTranslationX();
+                            y += v.getTop() + v.getTranslationY();
+                        }
+                        list.getOnItemClickListenerExtended().onItemClick(child, position, x, y);
                         return;
                     }
                 }

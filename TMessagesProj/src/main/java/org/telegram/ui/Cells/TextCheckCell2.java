@@ -84,6 +84,15 @@ public class TextCheckCell2 extends FrameLayout {
         checkBoxClickArea.setOnClickListener(v -> onCheckClick.run());
     }
 
+    /** Clicks the switch area of an expandable switch, if this row has one. */
+    public boolean performCheckAreaClick() {
+        if (checkBoxClickArea == null || collapseViewContainer == null || collapseViewContainer.getVisibility() != View.VISIBLE || !checkBoxClickArea.hasOnClickListeners()) {
+            return false;
+        }
+        checkBoxClickArea.performClick();
+        return true;
+    }
+
     public void hideCollapseArrow() {
         if (collapseViewContainer != null) {
             collapseViewContainer.setVisibility(View.GONE);
