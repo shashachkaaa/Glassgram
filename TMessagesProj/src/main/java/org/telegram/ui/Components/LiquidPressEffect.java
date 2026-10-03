@@ -63,7 +63,43 @@ public class LiquidPressEffect {
         animation.setSpring(new SpringForce().setDampingRatio(DAMPING).setStiffness(STIFFNESS));
         animation.setMinimumVisibleChange(threshold);
         animation.addUpdateListener((a, value, velocity) -> view.invalidate());
+        animation.addEndListener((a, canceled, value, velocity) -> restoreClipping());
         return animation;
+    }
+
+    // The swelling surface goes past its view; these ancestors stop clipping it meanwhile
+    private int unclipLevels;
+    private final java.util.ArrayList<android.view.ViewGroup> unclipped = new java.util.ArrayList<>();
+
+    /** Lets the surface swell past its view: the given number of ancestors stop clipping while it is pressed. */
+    public void setUnclipParents(int levels) {
+        unclipLevels = levels;
+    }
+
+    private void unclipParents() {
+        if (unclipLevels <= 0 || !unclipped.isEmpty()) {
+            return;
+        }
+        android.view.ViewParent parent = view.getParent();
+        for (int i = 0; i < unclipLevels && parent instanceof android.view.ViewGroup; i++) {
+            final android.view.ViewGroup group = (android.view.ViewGroup) parent;
+            if (group.getClipChildren()) {
+                group.setClipChildren(false);
+                unclipped.add(group);
+            }
+            parent = group.getParent();
+        }
+    }
+
+    private void restoreClipping() {
+        if (unclipped.isEmpty() || pressAnimation.isRunning() || offsetXAnimation.isRunning() || offsetYAnimation.isRunning() || isActive() && press.getValue() > 0.01f) {
+            return;
+        }
+        for (android.view.ViewGroup group : unclipped) {
+            group.setClipChildren(true);
+            group.invalidate();
+        }
+        unclipped.clear();
     }
 
     public float getPressProgress() {
@@ -89,6 +125,7 @@ public class LiquidPressEffect {
     public void onTouch(int action, float x, float y) {
         switch (action) {
             case MotionEvent.ACTION_DOWN:
+                unclipParents();
                 startX = touchX = x;
                 startY = touchY = y;
                 offsetXAnimation.cancel();

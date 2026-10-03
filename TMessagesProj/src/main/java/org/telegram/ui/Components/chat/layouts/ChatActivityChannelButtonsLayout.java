@@ -413,6 +413,9 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
 
     // The middle pill (Unmute, Join...) is Liquid Glass too: it stretches with its content
     private final org.telegram.ui.Components.LiquidPressEffect containerPress = new org.telegram.ui.Components.LiquidPressEffect(this);
+    {
+        containerPress.setUnclipParents(2);
+    }
     private final RectF containerGlassRect = new RectF();
     private boolean containerPressed;
 
