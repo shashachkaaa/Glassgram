@@ -14,7 +14,7 @@ import org.json.JSONObject;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.ColoredImageSpan;
+import org.telegram.ui.Components.GlassgramBadgeSpan;
 import org.telegram.ui.Components.CombinedDrawable;
 
 import java.io.ByteArrayOutputStream;
@@ -100,12 +100,13 @@ public final class GlassgramBadges {
             }
         }
 
-        /** The badge drawn at sizePx in the theme's accent: the rosette with the glyph on it. */
+        /** The badge drawn still at sizePx for bulletins, in the bulletin text color. */
         public Drawable createDrawable(Context context, int sizePx) {
             Drawable shape = ContextCompat.getDrawable(context, R.drawable.glassgram_badge_shape).mutate();
-            shape.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_addButton), PorterDuff.Mode.SRC_IN));
+            int color = Theme.getColor(Theme.key_undo_infoColor);
+            shape.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(color, 0.3f), PorterDuff.Mode.SRC_IN));
             Drawable glyph = ContextCompat.getDrawable(context, getIconResId()).mutate();
-            glyph.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_buttonText), PorterDuff.Mode.SRC_IN));
+            glyph.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
             CombinedDrawable drawable = new CombinedDrawable(shape, glyph);
             drawable.setCustomSize(sizePx, sizePx);
             drawable.setIconSize(sizePx, sizePx);
@@ -206,7 +207,7 @@ public final class GlassgramBadges {
                 AndroidUtilities.runOnUIThread(() -> {
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
                         if (UserConfig.getInstance(a).isClientActivated()) {
-                            NotificationCenter.getInstance(a).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
+                            NotificationCenter.getInstance(a).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_CHAT_NAME);
                         }
                     }
                 });
@@ -310,10 +311,8 @@ public final class GlassgramBadges {
             return name;
         }
         SpannableStringBuilder builder = new SpannableStringBuilder(name);
-        builder.append("  ");
-        ColoredImageSpan span = new ColoredImageSpan(badge.createDrawable(ApplicationLoader.applicationContext, AndroidUtilities.dp(sizeDp)), ColoredImageSpan.ALIGN_CENTER);
-        span.recolorDrawable = false;
-        span.setSize(AndroidUtilities.dp(sizeDp));
+        builder.append(" \u00A0");
+        GlassgramBadgeSpan span = new GlassgramBadgeSpan(badge.getIconResId(), AndroidUtilities.dp(sizeDp));
         builder.setSpan(span, builder.length() - 1, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return builder;
     }

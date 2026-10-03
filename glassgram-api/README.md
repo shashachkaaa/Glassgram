@@ -43,7 +43,8 @@ see it after their next refresh. To serve the list from your own server instead,
   - `text` — what tapping the badge shows, per language code; `en` is the fallback. A plain
     string works too.
 
-  Badges take the accent color of the user's theme.
+  Badges take the color of the name they follow (so they fit any theme) and sparkle like
+  exteraGram's.
 - `peers` — who gets which badge, by Telegram id. The value is a badge id, or
   `{"badge": "<badge id>", "text": {...}}` to give that peer its own description instead of the
   badge's. Users and bots use their id; channels and

@@ -11084,6 +11084,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (nameTextView[1] == null) {
             return;
         }
+        if (badge != null) {
+            // The names are set right after this; their sparkles need the views
+            AndroidUtilities.runOnUIThread(() -> {
+                for (int i = 0; i < nameTextView.length; i++) {
+                    if (nameTextView[i] != null) {
+                        org.telegram.ui.Components.GlassgramBadgeSpan.attach(nameTextView[i], nameTextView[i].getText());
+                    }
+                }
+            });
+        }
         if (badge == null || TextUtils.isEmpty(badge.getText())) {
             nameTextView[1].setOnClickListener(null);
             nameTextView[1].setClickable(false);
