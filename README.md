@@ -1,46 +1,71 @@
-## Telegram messenger for Android
+# Glassgram
 
-[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
-This repo contains the official source code for [Telegram App for Android](https://play.google.com/store/apps/details?id=org.telegram.messenger).
+**Glassgram** — неофициальный клиент Telegram для Android на основе [официального исходного кода Telegram](https://github.com/DrKLO/Telegram): режим призрака, сохранение удалённых и отредактированных сообщений, плагины в формате exteraGram и многое другое.
 
-## Creating your Telegram Application
+*Glassgram is an unofficial Telegram client for Android built on the official Telegram source code, with a ghost mode, saved deleted and edited messages, exteraGram-compatible Python plugins and more.*
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+📢 Канал: [@glassgramdev](https://t.me/glassgramdev) · 📦 Скачать: [Releases](https://github.com/shashachkaaa/Telegram/releases)
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+## Возможности
 
-### API, Protocol documentation
+Все настройки — в **Glassgram Preferences** (Настройки → Glassgram).
 
-Telegram API manuals: https://core.telegram.org/api
+### 👻 Режим призрака
+- Не отправлять отметки о прочтении сообщений и историй
+- Не показывать «в сети» и «печатает…»
+- Автоматически уходить в офлайн после отправки сообщения
+- По желанию — читать чат, когда вы в нём отвечаете
 
-MTproto protocol manuals: https://core.telegram.org/mtproto
+### 🕵️ Шпион
+- **Удалённые сообщения остаются в чате** — полупрозрачные, с отметкой корзины (цвет отметки настраивается). Ваши собственные удалённые сообщения пропадают как обычно, а в окне удаления есть пункт **«Сохранить у себя»**
+- **История правок**: у отредактированных сообщений появляется кнопка «История» со всеми прошлыми версиями, включая заменённые фото
+- Сохранение вложений, даты прочтения и последнего визита, ботов — по отдельным переключателям
+- Экспорт, импорт и очистка сохранённого, лимит размера папки
 
-### Compilation Guide
+### 🔓 Защищённый контент
+- **Самоуничтожающиеся медиа** можно сохранить в галерею и переслать — копией, без пометки «переслано»
+- **Каналы и группы с запретом пересылки**: сообщения пересылаются отдельной копией, альбомы — альбомом
+- Разрешены скриншоты там, где они запрещены
 
-**Note**: In order to support [reproducible builds](https://core.telegram.org/reproducible-builds), this repo contains dummy release.keystore,  google-services.json and filled variables inside BuildVars.java. Before publishing your own APKs please make sure to replace all these files with your own.
+### 🧩 Плагины
+- Python-плагины в формате **exteraGram** (SDK 1.4.5): хуки запросов, обновлений и исходящих сообщений, Xposed-хуки методов, страницы настроек, пункты меню, установка зависимостей из PyPI
+- Установка нажатием на файл `.plugin` в любом чате; список, настройки и журнал — в **Glassgram Preferences → Плагины**
+- Найти плагины: [@exteraPlugins](https://t.me/exteraPlugins)
 
-You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android SDK 36.
+### 🏷️ Значки
+- Значки у имён каналов, чатов, пользователей и ботов — в шапке чата, профиле и списке чатов, в цвет темы и с частицами. Список выдаётся через [glassgram-api](glassgram-api/README.md)
 
-1. Clone the Telegram source code with its submodules:
+### ✨ Остальное
+- Фильтры сообщений и скрытие заблокированных
+- Отключение рекламы, точное время с секундами, числа без округления, относительное «был в сети»
+- Скрытие номера телефона, показ ID (Telegram API или Bot API)
+- Ускорение загрузки и выгрузки файлов, HD-фото по умолчанию
+- Яндекс Карты, свой заголовок списка чатов, скрытие историй и кнопки «Написать»
+- Несколько вариантов иконки приложения
+
+> ⚠️ Часть функций (обход защиты контента, сохранение исчезающих медиа) нарушает правила Telegram API. Они выключены по умолчанию — включайте их на свой риск.
+
+## Установка
+
+Скачайте APK из [Releases](https://github.com/shashachkaaa/Telegram/releases): последняя версия — в релизе с номером версии, свежая сборка из `master` — в пре-релизе `latest`. Плагинам нужен Android 7.0 или новее, остальное работает с Android 5.0.
+
+## Сборка
+
+APK собирает GitHub Actions (`.github/workflows/build-apk.yml`) на каждый пуш в `master` и на каждый тег — тег создаёт релиз с APK. Локально:
+
+1. Клонируйте репозиторий с подмодулями:
    ```bash
-   git clone --recursive --shallow-submodules https://github.com/DrKLO/Telegram.git Telegram
+   git clone --recursive --shallow-submodules https://github.com/shashachkaaa/Telegram.git
    ```
-   In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
+2. Установите Android SDK 36, NDK 27.2.12479018, CMake 3.22.1 и **Python 3.11** (нужен Chaquopy для плагинов).
+3. Для своего `api_id` задайте переменные окружения `APP_ID` и `APP_HASH` ([my.telegram.org](https://my.telegram.org/apps)).
+4. Соберите:
    ```bash
-   git submodule init && git submodule update --init --recursive --depth=1
+   ./gradlew :TMessagesProj_App:assembleAfatRelease
    ```
-2. Copy your release.keystore into TMessagesProj/config
-3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
-4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.
-5. Open the project in the Studio (note that it should be opened, NOT imported).
-6. Fill out values in TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java – there’s a link for each of the variables showing where and which data to obtain.
-7. You are ready to compile Telegram.
 
-### Localization
+## Лицензия
 
-We moved all translations to https://translations.telegram.org/en/android/. Please use it.
+Glassgram основан на исходном коде [Telegram for Android](https://github.com/DrKLO/Telegram) и распространяется под той же лицензией — [GNU GPL v2](LICENSE). Glassgram не связан с Telegram FZ-LLC.
+
+Telegram API: https://core.telegram.org/api · MTProto: https://core.telegram.org/mtproto
