@@ -2040,6 +2040,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
         } else {
             itemsColor = color;
+            if (glassButtons) {
+                // The glass capsules follow the icons' color
+                invalidate();
+            }
             if (backButtonImageView != null) {
                 if (itemsColor != 0) {
                     Drawable drawable = backButtonImageView.getDrawable();

@@ -44,8 +44,13 @@ public class LiquidGlassButtonBackground extends Drawable {
         }
     }
 
-    private boolean lightIcons() {
-        return ColorUtils.calculateLuminance(iconColor | 0xFF000000) > 0.5f;
+    /**
+     * 0 for dark icons (frosted white glass), 1 for light ones (a light veil), in between while
+     * the icons change color, as they do when the profile header opens.
+     */
+    private float veilFactor() {
+        final float lum = (float) ColorUtils.calculateLuminance(iconColor | 0xFF000000);
+        return Math.max(0f, Math.min(1f, (lum - 0.25f) / 0.5f));
     }
 
     @Override
@@ -55,17 +60,18 @@ public class LiquidGlassButtonBackground extends Drawable {
             return;
         }
         final float r = Math.min(b.width(), b.height()) / 2f;
-        final boolean veil = lightIcons();
+        final float t = veilFactor();
+        final boolean veil = t >= 0.5f;
         rect.set(b);
 
-        final int fill;
-        if (veil) {
-            fill = ColorUtils.setAlphaComponent(0xFFFFFFFF, (int) (0x2E * alpha / 255f));
-        } else {
-            fill = ColorUtils.setAlphaComponent(surfaceColor, (int) (0xE0 * alpha / 255f));
+        final int frosted = ColorUtils.setAlphaComponent(surfaceColor, 0xE0);
+        final int light = ColorUtils.setAlphaComponent(0xFFFFFFFF, 0x2E);
+        final int blended = ColorUtils.blendARGB(frosted, light, t);
+        final int fill = ColorUtils.setAlphaComponent(blended, (int) (android.graphics.Color.alpha(blended) * alpha / 255f));
+        if (t < 1f) {
             final float shadow = AndroidUtilities.dpf2(10);
             shadowPaint.setColor(fill);
-            shadowPaint.setShadowLayer(shadow, 0, shadow / 5f, ColorUtils.setAlphaComponent(0xFF000000, (int) (0x18 * alpha / 255f)));
+            shadowPaint.setShadowLayer(shadow, 0, shadow / 5f, ColorUtils.setAlphaComponent(0xFF000000, (int) (0x18 * (1f - t) * alpha / 255f)));
             canvas.drawRoundRect(rect, r, r, shadowPaint);
         }
         paint.setColor(fill);
