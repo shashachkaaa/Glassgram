@@ -1871,6 +1871,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
 
         if (!isArchivedOnlyStoriesView() && !isSearchingStories()) {
             actionBar.addView(photoVideoOptionsItem, LayoutHelper.createFrame(48, 56, Gravity.RIGHT | Gravity.BOTTOM));
+            actionBar.addGlassButtonView(photoVideoOptionsItem);
 
             optionsSearchImageView = new RLottieImageView(context);
             optionsSearchImageView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -1880,6 +1881,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             optionsSearchImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.SRC_IN));
             optionsSearchImageView.setVisibility(GONE);
             actionBar.addView(optionsSearchImageView, LayoutHelper.createFrame(48, 56, Gravity.RIGHT | Gravity.BOTTOM));
+            actionBar.addGlassButtonView(optionsSearchImageView);
         }
         photoVideoOptionsItem.setOnClickListener(new OnClickListener() {
             @Override
@@ -2552,6 +2554,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             saveItem.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), .15f), Theme.RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE));
             saveItem.setPadding(dp(19), 0, dp(19), 0);
             actionBar.addView(saveItem, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 56, Gravity.RIGHT | Gravity.BOTTOM));
+            actionBar.addGlassButtonView(saveItem);
             saveItem.setOnClickListener(view -> {
                 if (saveItem.getAlpha() < 0.1f) return;
                 if (giftsContainer != null && giftsContainer.isReordering()) {

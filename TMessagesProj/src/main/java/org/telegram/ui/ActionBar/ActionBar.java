@@ -461,6 +461,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean glassButtons;
     private LiquidGlassButtonBackground glassButtonBack, glassButtonMenu;
 
+    // Buttons added to the bar directly instead of to its menu (shared media's options and save)
+    private final ArrayList<View> glassExtraButtons = new ArrayList<>();
+
+    /** A button placed in the bar by someone else; on glass bars it gets a glass capsule like the menu. */
+    public void addGlassButtonView(View view) {
+        if (!glassExtraButtons.contains(view)) {
+            glassExtraButtons.add(view);
+        }
+    }
+
     /** Puts the back button and the menu on glass capsules, for bars over a header or a list. */
     public void setGlassButtons() {
         glassButtons = true;
@@ -518,6 +528,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (child == menu) {
             // The search field lives in the menu but sits on the pill
             return glassMode && menu.searchFieldVisible() ? GLASS_PILL : GLASS_MENU;
+        }
+        if (glassButtons && glassExtraButtons.contains(child)) {
+            return GLASS_MENU;
         }
         // The pill carries the rest of the bar: the chat's avatar and name, or the title
         if (glassMode && !glassOnlyBack && child != actionMode) {
@@ -596,6 +609,17 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final float s = h / 2f * child.getScaleX();
             out.set(cx - s, cy - s, cx + s, cy + s);
             return s > 0;
+        }
+        if (child != menu && glassExtraButtons.contains(child)) {
+            if (child.getVisibility() != VISIBLE || child.getAlpha() <= 0f || child.getWidth() <= 0 || isActionModeShowed()) {
+                return false;
+            }
+            final float cx = child.getLeft() + child.getTranslationX() + child.getWidth() / 2f;
+            final float cy = child.getTop() + child.getTranslationY() + child.getHeight() / 2f;
+            final float w = Math.max(h, child.getWidth() - dp(8)) * child.getScaleX();
+            final float hh = h * child.getScaleY();
+            out.set(cx - w / 2f, cy - hh / 2f, cx + w / 2f, cy + hh / 2f);
+            return w > 0 && hh > 0;
         }
         if (child == menu) {
             if (menu.getVisibility() != VISIBLE || menu.searchFieldVisible() || isActionModeShowed()) {
@@ -679,7 +703,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (glassButtons && (surface == GLASS_BACK || surface == GLASS_MENU)) {
             final LiquidGlassButtonBackground glass = surface == GLASS_BACK ? glassButtonBack : glassButtonMenu;
             final boolean shown = !(drawBackButton && child == backButtonImageView) && glassButtonRect(child, glassRect[surface]);
-            glassShown[surface] = shown;
+            // A hidden extra button must not hide the menu's capsule drawn before it
+            if (shown || !glassExtraButtons.contains(child)) {
+                glassShown[surface] = shown;
+            }
             if (shown) {
                 final RectF r = glassRect[surface];
                 glassTransform(canvas, surface);
