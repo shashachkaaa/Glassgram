@@ -208,6 +208,30 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     private GlassPillContent glassPillContent;
+    private View glassPillFollower;
+    private boolean glassPillFollowerMoved;
+
+    /**
+     * A sibling view whose content sits on the glass pill (the stories collapsed into the chats
+     * list header): it is redrawn while the pill stretches and moves with it through
+     * {@link #glassTransformPillFor}.
+     */
+    public void setGlassPillFollower(View view) {
+        glassPillFollower = view;
+    }
+
+    /** Moves a sibling's drawing with the stretching pill; the canvas is the sibling's own. */
+    public boolean glassTransformPillFor(Canvas canvas, View view) {
+        final LiquidPressEffect effect = glassPress[GLASS_PILL];
+        if (!glassMode || effect == null || !effect.isActive() || !glassShown[GLASS_PILL]) {
+            return false;
+        }
+        final float dx = view.getX() - getX(), dy = view.getY() - getY();
+        canvas.translate(-dx, -dy);
+        glassTransform(canvas, GLASS_PILL);
+        canvas.translate(dx, dy);
+        return true;
+    }
 
     /** Sizes the glass pill to its content (a title and what follows it) instead of the whole bar. */
     public void setGlassPillContent(GlassPillContent content) {
@@ -2565,6 +2589,13 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         super.dispatchDraw(canvas);
         glassRestoreClip();
+        if (glassPillFollower != null) {
+            final boolean moved = glassPress[GLASS_PILL] != null && glassPress[GLASS_PILL].isActive();
+            if (moved || glassPillFollowerMoved) {
+                glassPillFollower.invalidate();
+            }
+            glassPillFollowerMoved = moved;
+        }
     }
 
     public void setForceSkipTouches(boolean forceSkipTouches) {

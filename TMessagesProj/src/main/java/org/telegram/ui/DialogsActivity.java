@@ -5404,6 +5404,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         };
         dialogStoriesCell.setActionBar(actionBar);
+        if (glassHeader) {
+            actionBar.setGlassPillFollower(dialogStoriesCell);
+        }
         dialogStoriesCell.setMenuItemsOffset(isArchive() ? dp(68) : dpf2(16.66f));
         dialogStoriesCell.allowGlobalUpdates = false;
         dialogStoriesCell.setVisibility(View.GONE);

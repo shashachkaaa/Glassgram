@@ -968,6 +968,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             subtitleOverlayContainer.setTranslationY(bottomY + dp(15 + FAKE_TOP_PADDING + 4.333f + 8));
         }
 
+        // Collapsed into a Liquid Glass header, the row stretches with the glass pill under it
+        final boolean followsPill = progress != 0 && actionBar != null;
+        if (followsPill) {
+            canvas.save();
+            actionBar.glassTransformPillFor(canvas, this);
+        }
         super.dispatchDraw(canvas);
         if (currentState >= 0 && currentState != COLLAPSED_STATE) {
             Collections.sort(viewsDrawInParent, comparator);
@@ -978,6 +984,10 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                 cell.draw(canvas);
                 canvas.restore();
             }
+        }
+
+        if (followsPill) {
+            canvas.restore();
         }
 
         if (needSaveLayer) {
