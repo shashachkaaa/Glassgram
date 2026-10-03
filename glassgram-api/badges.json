@@ -21,10 +21,24 @@
         "en": "Glassgram partner.",
         "ru": "Партнёр Glassgram."
       }
+    },
+    "family": {
+      "icon": "heart",
+      "text": {
+        "en": "Family of the Glassgram owner.",
+        "ru": "Семья владельца Glassgram."
+      }
     }
   },
   "peers": {
-    "7262597406": "developer"
+    "7262597406": "developer",
+    "6188761199": {
+      "badge": "family",
+      "text": {
+        "en": "The owner's golden brother.",
+        "ru": "Золотой брат владельца."
+      }
+    }
   },
   "usernames": {
     "glassgramdev": {
