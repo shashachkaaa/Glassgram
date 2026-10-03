@@ -12,6 +12,10 @@ on:
       - "glassgram-api/**"
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: "Тег релиза (например v1.0.0). Пусто — без релиза"
+        type: string
+        default: ""
       variant:
         description: "Что собирать"
         type: choice
@@ -145,11 +149,14 @@ jobs:
             --title "Glassgram (latest master build)" \
             --notes "Built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
 
+      # A pushed tag, or a manual run with release_tag (which creates the tag on this commit)
       - name: Attach APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          name: Glassgram ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Glassgram ${{ github.event.inputs.release_tag || github.ref_name }}
           body_path: .github/release-notes.md
           files: dist/*.apk
         env:
