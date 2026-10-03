@@ -6,6 +6,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 import android.text.Spanned;
 import android.text.style.ReplacementSpan;
 import android.view.View;
@@ -32,6 +33,7 @@ import java.util.WeakHashMap;
 public class GlassgramBadgeSpan extends ReplacementSpan {
 
     private static final int FPS = 30;
+    private static final float SIZE_TO_TEXT = 1.12f;
 
     private final int size;
     private final Drawable shape;
@@ -41,6 +43,7 @@ public class GlassgramBadgeSpan extends ReplacementSpan {
     private final Rect bounds = new Rect();
     private final Runnable invalidateHosts = this::invalidateHosts;
     private int lastColor;
+    private long lastProcess;
 
     public GlassgramBadgeSpan(int glyphResId, int sizePx) {
         size = sizePx;
@@ -61,6 +64,11 @@ public class GlassgramBadgeSpan extends ReplacementSpan {
         }
     }
 
+    /** The badge size for text drawn with paint: a little taller than the letters. */
+    private int sizeFor(Paint paint) {
+        return paint != null && paint.getTextSize() > 0 ? Math.round(paint.getTextSize() * SIZE_TO_TEXT) : size;
+    }
+
     @Override
     public int getSize(@NonNull Paint paint, CharSequence text, int start, int end, Paint.FontMetricsInt fm) {
         if (fm != null) {
@@ -70,37 +78,46 @@ public class GlassgramBadgeSpan extends ReplacementSpan {
             fm.top = paintFm.top;
             fm.bottom = paintFm.bottom;
         }
-        return size;
+        return sizeFor(paint);
     }
 
     @Override
     public void draw(@NonNull Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom, @NonNull Paint paint) {
         Paint.FontMetricsInt fm = paint.getFontMetricsInt();
+        int badgeSize = sizeFor(paint);
         int centerY = y + (fm.descent + fm.ascent) / 2;
-        int left = (int) x;
-        int topPx = centerY - size / 2;
-        draw(canvas, left, topPx, paint.getColor());
+        draw(canvas, (int) x, centerY - badgeSize / 2, badgeSize, paint.getColor());
     }
 
-    /** Draws the badge at left, top in color, the color of the name it follows. */
-    public void draw(Canvas canvas, int left, int top, int color) {
+    /** Draws the badge of badgeSize at left, top in color, the color of the name it follows. */
+    public void draw(Canvas canvas, int left, int top, int badgeSize, int color) {
         color |= 0xFF000000;
         if (color != lastColor) {
             lastColor = color;
             shape.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(color, 0.3f), PorterDuff.Mode.SRC_IN));
             glyph.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
         }
-        shape.setBounds(left, top, left + size, top + size);
+        shape.setBounds(left, top, left + badgeSize, top + badgeSize);
         shape.draw(canvas);
-        glyph.setBounds(left, top, left + size, top + size);
+        glyph.setBounds(left, top, left + badgeSize, top + badgeSize);
         glyph.draw(canvas);
 
-        // Sparkles around and over the badge
-        int spread = size / 3;
-        bounds.set(left - spread, top - spread, left + size + spread, top + size + spread);
+        // Sparkles around and over the badge, kept in the badge's own coordinates: the same
+        // name can be drawn by several views at once (the profile draws two), and they all
+        // must see the same sparkles
+        int spread = badgeSize / 3;
+        int area = badgeSize + spread * 2;
+        bounds.set(0, 0, area, area);
         particles.setBounds(bounds);
-        particles.process();
+        long now = SystemClock.uptimeMillis();
+        if (now - lastProcess >= 12) {
+            lastProcess = now;
+            particles.process();
+        }
+        canvas.save();
+        canvas.translate(left - spread, top - spread);
         particles.draw(canvas, color);
+        canvas.restore();
         if (!hosts.isEmpty()) {
             Choreographer60FpsContent.getInstance().addFrameCallbackOnce(invalidateHosts, FPS);
         }
