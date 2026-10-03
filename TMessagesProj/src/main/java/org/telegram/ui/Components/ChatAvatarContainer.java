@@ -425,8 +425,108 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         canvas.restore();
     }
 
+    // iOS-like status change: the old status slides up and fades out while the new one comes
+    // in from below. The old status is a snapshot taken before the subtitle changes.
+    private static final float SUBTITLE_SLIDE_DP = 10;
+    private android.graphics.Bitmap subtitleSnapshot, subtitleSlideBitmap;
+    private CharSequence subtitleSnapshotText;
+    private float subtitleSlideProgress = 1f;
+    private android.animation.ValueAnimator subtitleSlideAnimator;
+    private final android.graphics.Paint subtitleSlidePaint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+
+    private int subtitleSnapshotPad() {
+        return dp(6);
+    }
+
+    /** Remembers how the subtitle looks now, before an update may change it. */
+    private void snapshotSubtitle() {
+        subtitleSnapshotText = null;
+        final SimpleTextView v = subtitleTextView;
+        if (v == null || !isAttachedToWindow() || v.getVisibility() != VISIBLE || v.getAlpha() <= 0f
+                || v.getWidth() <= 0 || v.getHeight() <= 0 || TextUtils.isEmpty(v.getText())) {
+            return;
+        }
+        final int pad = subtitleSnapshotPad();
+        final int w = v.getWidth(), h = v.getHeight() + pad * 2;
+        try {
+            if (subtitleSnapshot == null || subtitleSnapshot.getWidth() != w || subtitleSnapshot.getHeight() != h) {
+                subtitleSnapshot = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            } else {
+                subtitleSnapshot.eraseColor(0);
+            }
+            final Canvas c = new Canvas(subtitleSnapshot);
+            c.translate(0, pad);
+            v.draw(c);
+            subtitleSnapshotText = v.getText().toString();
+        } catch (Throwable e) {
+            subtitleSnapshotText = null;
+        }
+    }
+
+    /** Slides from the snapshot to the new subtitle if the status really changed. */
+    private void slideSubtitle(CharSequence newSubtitle) {
+        if (subtitleSnapshotText == null || subtitleSnapshot == null) {
+            return;
+        }
+        final String newText = newSubtitle == null ? "" : newSubtitle.toString();
+        final boolean changed = !TextUtils.equals(subtitleSnapshotText, newText);
+        subtitleSnapshotText = null;
+        if (!changed || newText.isEmpty()) {
+            return;
+        }
+        // The snapshot becomes the outgoing status; the next snapshot gets its own bitmap
+        final android.graphics.Bitmap outgoing = subtitleSnapshot;
+        subtitleSnapshot = subtitleSlideBitmap;
+        subtitleSlideBitmap = outgoing;
+        if (subtitleSlideAnimator != null) {
+            subtitleSlideAnimator.cancel();
+        }
+        subtitleSlideProgress = 0f;
+        subtitleSlideAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        subtitleSlideAnimator.addUpdateListener(a -> {
+            subtitleSlideProgress = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        subtitleSlideAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (subtitleSlideAnimator == animation) {
+                    subtitleSlideProgress = 1f;
+                    subtitleSlideAnimator = null;
+                    invalidate();
+                }
+            }
+        });
+        subtitleSlideAnimator.setDuration(320);
+        subtitleSlideAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        subtitleSlideAnimator.start();
+        invalidate();
+    }
+
+    private boolean drawSubtitleSlide(Canvas canvas, View child, long drawingTime) {
+        final float p = subtitleSlideProgress;
+        final float d = dp(SUBTITLE_SLIDE_DP);
+        final float x = child.getLeft() + child.getTranslationX();
+        final float y = child.getTop() + child.getTranslationY();
+        if (subtitleSlideBitmap != null && !subtitleSlideBitmap.isRecycled()) {
+            subtitleSlidePaint.setAlpha((int) (255 * (1f - p) * child.getAlpha()));
+            canvas.drawBitmap(subtitleSlideBitmap, x, y - subtitleSnapshotPad() - d * p, subtitleSlidePaint);
+        }
+        canvas.save();
+        canvas.translate(0, d * (1f - p));
+        final int pad = subtitleSnapshotPad();
+        canvas.saveLayerAlpha(x, y - pad, x + child.getWidth(), y + child.getHeight() + pad, (int) (255 * p));
+        final boolean result = super.drawChild(canvas, child, drawingTime);
+        canvas.restore();
+        canvas.restore();
+        return result;
+    }
+
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
+        if (child == subtitleTextView && subtitleSlideProgress < 1f) {
+            return drawSubtitleSlide(canvas, child, drawingTime);
+        }
         if (child == avatarImageView) {
             final boolean hasTimer = timeItem != null && timeItem.getVisibility() == VISIBLE;
             final boolean hasCommunity = communityItem != null && communityItem.getVisibility() == VISIBLE;
@@ -1118,6 +1218,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
 
         subtitleIsThinkingBot = false;
+        if (lastSubtitle == null) {
+            snapshotSubtitle();
+        }
         CharSequence printString = MessagesController.getInstance(currentAccount).getPrintingString(parentFragment.getDialogId(), parentFragment.getThreadId(), false);
         if (printString == null && UserObject.isBotForum(user)) {
             //if (BotForumHelper.getInstance(currentAccount).isThinking(user.id, (int) parentFragment.getTopicId())) {
@@ -1286,6 +1389,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (lastSubtitle == null) {
             if (subtitleTextView != null) {
                 subtitleTextView.setText(newSubtitle);
+                slideSubtitle(newSubtitle);
                 if (overrideSubtitleColor == null) {
                     subtitleTextView.setTextColor(getThemedColor(lastSubtitleColorKey));
                     subtitleTextView.setTag(lastSubtitleColorKey);
