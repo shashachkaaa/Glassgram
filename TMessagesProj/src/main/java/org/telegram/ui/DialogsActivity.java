@@ -1665,7 +1665,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 dialogStoriesCell.setProgressToCollapse(1f);
                 containersAlpha = 1f - progressToDialogStoriesCell;
             } else {
-                dialogStoriesCell.setTranslationY(Math.max(scrollYOffset, -getMaxScrollYOffsetWithoutSearch()) + storiesYOffset + storiesOverscroll / 2f - dp(8));
+                // Under the glass header the expanded stories keep some air below the pill
+                dialogStoriesCell.setTranslationY(Math.max(scrollYOffset, -getMaxScrollYOffsetWithoutSearch()) + storiesYOffset + storiesOverscroll / 2f - dp(8) + (glassHeader ? dp(6) * (1f - p) : 0));
                 dialogStoriesCell.setProgressToCollapse(p, !rightSlidingDialogContainer.hasFragment());
                 if (!animateToHasStories) {
                     containersAlpha = 1f - progressToDialogStoriesCell;
@@ -3059,6 +3060,28 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     /** The chats list header is Liquid Glass (Glassgram Preferences). */
     private boolean glassHeader;
 
+    private float glassHeaderRestRowDelta = Float.NaN;
+
+    /** The collapsed stories row moves down when the list is pulled; the pill goes with it. */
+    private float glassHeaderContentOffsetY() {
+        if (dialogStoriesCell == null || dialogStoriesCell.getVisibility() != View.VISIBLE || actionBar == null) {
+            return 0;
+        }
+        final float visibility = dialogStoriesCell.getHeaderVisibility();
+        if (visibility <= 0) {
+            return 0;
+        }
+        final float barCenter = actionBar.getY() + (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2f;
+        final float delta = dialogStoriesCell.getHeaderRowCenterY() - barCenter;
+        if (storiesOverscroll == 0 && dialogStoriesCell.getCollapsedProgress() >= 1f) {
+            glassHeaderRestRowDelta = delta;
+        }
+        if (Float.isNaN(glassHeaderRestRowDelta)) {
+            return 0;
+        }
+        return Math.max(0, delta - glassHeaderRestRowDelta) * visibility;
+    }
+
     /** The right edge of the glass pill's content: the title row, or the stories collapsed into the header. */
     private float glassHeaderContentRight() {
         float right = 0;
@@ -3601,7 +3624,20 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     // Liquid Glass header like the chat's: a pill around the title and a capsule for the buttons
                     glassHeader = true;
                     actionBar.setupGlass(iBlur3FactoryLiquidGlass, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-                    actionBar.setGlassPillContent(this::glassHeaderContentRight);
+                    // The chats list keeps its large title (the badges follow its size) close to the pill's edge
+                    actionBar.setGlassTitleSize(!AndroidUtilities.isTablet() && context.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
+                    actionBar.setAdditionalTextLeft(-dp(8));
+                    actionBar.setGlassPillContent(new ActionBar.GlassPillContent() {
+                        @Override
+                        public float getContentRight() {
+                            return glassHeaderContentRight();
+                        }
+
+                        @Override
+                        public float getContentOffsetY() {
+                            return glassHeaderContentOffsetY();
+                        }
+                    });
                 }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
@@ -5403,6 +5439,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         dialogStoriesCell.setActionBar(actionBar);
         if (glassHeader) {
             actionBar.setGlassPillFollower(dialogStoriesCell);
+            // The collapsed stories row may leave its view when the list is pulled down
+            contentView.setClipChildren(false);
         }
         dialogStoriesCell.setMenuItemsOffset(isArchive() ? dp(68) : dpf2(16.66f));
         dialogStoriesCell.allowGlobalUpdates = false;

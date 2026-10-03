@@ -1192,6 +1192,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         return getX() + right;
     }
 
+    /** The vertical center of the collapsed header row, in the parent's coordinates. */
+    public float getHeaderRowCenterY() {
+        return getY() + telegramLogoView.getY() + telegramLogoView.getHeight() / 2f;
+    }
+
     /** How much the collapsed header row shows, 0 to 1. */
     public float getHeaderVisibility() {
         final float logo = telegramLogoView != null && telegramLogoView.getVisibility() == VISIBLE ? telegramLogoView.getAlpha() : 0;
