@@ -118,12 +118,25 @@ jobs:
             -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dorg.gradle.workers.max=4
 
+      # Releases: glassgram-v<version>.apk; other builds: glassgram-<variant>-<commit>.apk
       - name: Rename APK
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
         run: |
           mkdir -p dist
+          if [ -n "$RELEASE_TAG" ]; then
+            base="glassgram-v${RELEASE_TAG#v}"
+          else
+            base="glassgram-${{ steps.task.outputs.variant }}-${GITHUB_SHA::7}"
+          fi
+          count=$(find "${{ steps.task.outputs.out }}" -name '*.apk' | wc -l)
           find "${{ steps.task.outputs.out }}" -name '*.apk' | while read -r apk; do
             flavor_dir="$(basename "$(dirname "$apk")")"
-            cp "$apk" "dist/Telegram-${{ steps.task.outputs.variant }}-${flavor_dir}-${GITHUB_SHA::7}.apk"
+            if [ "$count" -gt 1 ]; then
+              cp "$apk" "dist/${base}-${flavor_dir}.apk"
+            else
+              cp "$apk" "dist/${base}.apk"
+            fi
           done
           ls -lh dist
 
