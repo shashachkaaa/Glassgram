@@ -4,7 +4,12 @@ on:
   push:
     branches: [ "master" ]
     tags: [ "*" ]
+    # The badges list is read by the app at runtime; editing it needs no new APK
+    paths-ignore:
+      - "glassgram-api/**"
   pull_request:
+    paths-ignore:
+      - "glassgram-api/**"
   workflow_dispatch:
     inputs:
       variant:
