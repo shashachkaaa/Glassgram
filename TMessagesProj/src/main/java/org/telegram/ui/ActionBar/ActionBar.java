@@ -208,6 +208,15 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     private GlassPillContent glassPillContent;
+    private float glassAlpha = 1f;
+
+    /** Fades all glass pieces of the bar, for screens that hide the bar's content (a search over it). */
+    public void setGlassAlpha(float alpha) {
+        if (glassAlpha != alpha) {
+            glassAlpha = alpha;
+            invalidate();
+        }
+    }
     private View glassPillFollower;
     private boolean glassPillFollowerMoved;
 
@@ -2560,15 +2569,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
 
             glassDrawable.setBounds(left, t, right, b);
-            drawGlass(canvas, glassDrawable, GLASS_PILL, p);
+            if (glassAlpha > 0) {
+                glassDrawable.setAlpha((int) (255 * glassAlpha));
+                drawGlass(canvas, glassDrawable, GLASS_PILL, p);
+            }
         }
-        if (glassDrawableBack != null && hasBackButton) {
+        if (glassDrawableBack != null && hasBackButton && glassAlpha > 0) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);
+            glassDrawableBack.setAlpha((int) (255 * glassAlpha));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
-        if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu) {
+        if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && glassAlpha > 0) {
             glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
-            glassDrawableMenu.setAlpha(hasForcedMenuWidth ? 255 : (int) (255 * animatorHasMenuItems.getFloatValue()));
+            glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * animatorHasMenuItems.getFloatValue())));
             drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
         }
 

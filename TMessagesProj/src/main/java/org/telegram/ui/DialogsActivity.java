@@ -3080,9 +3080,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 right = titlesAlpha + stories > 0 ? (right * titlesAlpha + storiesRight * stories) / (titlesAlpha + stories) : storiesRight;
             }
         }
-        if (searchAnimationProgress > 0) {
-            right = lerp(right, actionBar.getWidth(), searchAnimationProgress);
-        }
         return right;
     }
 
@@ -7820,6 +7817,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void setSearchAnimationProgress(float progress, boolean full) {
         searchAnimationProgress = progress;
+        if (glassHeader && actionBar != null) {
+            // The search field takes the header's place: the glass goes away with the title
+            actionBar.setGlassAlpha(1f - progress);
+        }
         if (whiteActionBar && actionBar != null) {
             int color1 = (folderId != 0 || communityId != 0) ? getThemedColor(Theme.key_actionBarDefaultArchivedIcon) : getThemedColor(Theme.key_actionBarDefaultIcon);
             actionBar.setItemsColor(ColorUtils.blendARGB(color1, getThemedColor(Theme.key_actionBarActionModeDefaultIcon), searchAnimationProgress), false);
