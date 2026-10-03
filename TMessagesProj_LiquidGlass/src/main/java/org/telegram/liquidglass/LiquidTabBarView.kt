@@ -87,6 +87,17 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
     }
 
+    /**
+     * The bar keeps the whole gesture once a finger is on it: it only claimed horizontal drags,
+     * so moving the finger down let the screen below take the touch and the drop let go.
+     */
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun onAttachedToWindow() {
         // Also used in Telegram's dialogs, whose windows have no lifecycle
         ComposeOwners.install(this)
