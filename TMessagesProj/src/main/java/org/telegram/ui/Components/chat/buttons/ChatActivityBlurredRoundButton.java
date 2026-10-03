@@ -55,10 +55,34 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         backgroundDrawable.setBounds(0, 0, w, h);
     }
 
+    // Swells, stretches towards the finger and lights up under it like the Liquid Glass
+    // catalog's LiquidButton, together with its icon
+    private final org.telegram.ui.Components.LiquidPressEffect liquidPress = new org.telegram.ui.Components.LiquidPressEffect(this);
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        liquidPress.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
     @Override
     public void draw(@NonNull Canvas canvas) {
+        final float m = dp(CLICK_ZONE_MARGIN);
+        final float w = getWidth() - m * 2, h = getHeight() - m * 2;
+        final boolean pressed = liquidPress.isActive() && w > 0 && h > 0;
+        if (pressed) {
+            canvas.save();
+            canvas.translate(m, m);
+            liquidPress.transform(canvas, w, h);
+            canvas.translate(-m, -m);
+        }
         backgroundDrawable.draw(canvas);
         super.draw(canvas);
+        if (pressed) {
+            canvas.translate(m, m);
+            liquidPress.drawGlow(canvas, w, h, Math.min(w, h) / 2f);
+            canvas.restore();
+        }
     }
 
     @Override

@@ -50,13 +50,11 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
             context, blurredBackgroundDrawableViewFactory, colorProvider, resourcesProvider
         );
         replyButton.button.setOnClickListener(v -> {});
-        ScaleStateListAnimator.apply(replyButton.button, .065f, 2f);
 
         forwardButton.button = ChatActivityBlurredRoundButton.create(
             context, blurredBackgroundDrawableViewFactory, colorProvider, resourcesProvider
         );
         forwardButton.button.setOnClickListener(v -> {});
-        ScaleStateListAnimator.apply(forwardButton.button, .065f, 2f);
 
         addTextView(replyButton, LocaleController.getString(R.string.Reply), R.drawable.input_reply, false);
         addTextView(forwardButton, LocaleController.getString(R.string.Forward), R.drawable.input_forward, true);

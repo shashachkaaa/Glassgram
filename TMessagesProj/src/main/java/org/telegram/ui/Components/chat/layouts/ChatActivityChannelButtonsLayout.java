@@ -135,7 +135,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 button.setContentDescription(getString(R.string.BroadcastGroupInfo));
             }
 
-            ScaleStateListAnimator.apply(button, .13f, 2f);
+            // Pressing stretches the glass button itself (LiquidPressEffect), no extra scale
             button.setVisibility(GONE);
             button.setOnClickListener(v -> {
                 if (onClickListeners[buttonId] != null) {
@@ -411,6 +411,28 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         void onButtonFullyVisible(View v, int buttonId, boolean firstTime);
     }
 
+    // The middle pill (Unmute, Join...) is Liquid Glass too: it stretches with its content
+    private final org.telegram.ui.Components.LiquidPressEffect containerPress = new org.telegram.ui.Components.LiquidPressEffect(this);
+    private final RectF containerGlassRect = new RectF();
+    private boolean containerPressed;
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        final boolean handled = super.dispatchTouchEvent(ev);
+        final int action = ev.getActionMasked();
+        if (action == android.view.MotionEvent.ACTION_DOWN) {
+            containerPressed = handled && containerDrawable != null && !containerGlassRect.isEmpty()
+                && containerGlassRect.contains(ev.getX(), ev.getY());
+        }
+        if (containerPressed) {
+            containerPress.onTouch(action, ev.getX() - containerGlassRect.left, ev.getY() - containerGlassRect.top);
+            if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+                containerPressed = false;
+            }
+        }
+        return handled;
+    }
+
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
         if (child == container && containerDrawable != null) {
@@ -421,6 +443,21 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
 
             tmpRect.round(AndroidUtilities.rectTmp2);
             containerDrawable.setBounds(AndroidUtilities.rectTmp2);
+            final int p = dp(6);
+            containerGlassRect.set(tmpRect.left + p, tmpRect.top + p, tmpRect.right - p, tmpRect.bottom - p);
+            if (containerPress.isActive()) {
+                final RectF r = containerGlassRect;
+                canvas.save();
+                canvas.translate(r.left, r.top);
+                containerPress.transform(canvas, r.width(), r.height());
+                canvas.translate(-r.left, -r.top);
+                containerDrawable.draw(canvas);
+                final boolean result = super.drawChild(canvas, child, drawingTime);
+                canvas.translate(r.left, r.top);
+                containerPress.drawGlow(canvas, r.width(), r.height(), Math.min(r.width(), r.height()) / 2f);
+                canvas.restore();
+                return result;
+            }
             containerDrawable.draw(canvas);
         }
 
