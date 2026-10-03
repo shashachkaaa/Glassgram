@@ -6700,7 +6700,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             topBubblesFadeView.setTranslationY(fadeViewT - searchOffset);
             final float s = lerp(dp(7), dp(50), Math.min(topPanelsVisibility, filtersTabVisibility));
             topBubblesFadeView.setPosition(s, Math.min(dp(40), topPanelsHeight + filtersTabHeight - s));
-            topBubblesFadeView.setAlpha(Math.max(filtersTabVisibility, topPanelsVisibility));
+            // Under a glass header the list shows above the folder tabs too: only the fade at the top of the screen stays
+            topBubblesFadeView.setAlpha(glassHeaderOverList() ? 0f : Math.max(filtersTabVisibility, topPanelsVisibility));
         }
     }
 
