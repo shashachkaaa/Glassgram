@@ -4,14 +4,17 @@ Glassgram shows a badge next to the names of the channels, chats, users and bots
 [`badges.json`](badges.json): in the chat header, in the profile and in the chat list.
 Tapping the name in the profile shows the badge's text.
 
-The app downloads the file from
+The app downloads the file every time Glassgram is opened or comes back to the screen, through
+
+    https://api.github.com/repos/shashachkaaa/Telegram/contents/glassgram-api/badges.json?ref=master
+
+(the GitHub API serves a fresh copy; GitHub may hold it for up to a minute), falling back to
 
     https://raw.githubusercontent.com/shashachkaaa/Telegram/master/glassgram-api/badges.json
 
-at start and then at most every 3 hours (when the app comes back to the screen), and keeps the
-last copy for offline starts. To hand out a badge, edit the file and push it to `master`; users
-see it after their next refresh. To serve the list from your own server instead, change
-`GlassgramBadges.API_URL` and return the same JSON there.
+(held up to 5 minutes), and keeps the last copy for offline starts. To hand out a badge, edit the
+file and push it to `master`; users see it the next time they open the app. To serve the list
+from your own server instead, change `GlassgramBadges.API_URL` and return the same JSON there.
 
 ## Format
 

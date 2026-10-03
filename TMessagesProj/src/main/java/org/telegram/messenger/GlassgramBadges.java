@@ -36,10 +36,16 @@ import java.util.Locale;
  */
 public final class GlassgramBadges {
 
-    /** The badges API. A static file in this repository; point it to your own server any time. */
-    public static final String API_URL = "https://raw.githubusercontent.com/shashachkaaa/Telegram/master/glassgram-api/badges.json";
+    /**
+     * The badges API: glassgram-api/badges.json of this repository, read through the GitHub API,
+     * which serves a fresh copy, with the raw file (cached by GitHub for up to 5 minutes) as the
+     * fallback. Point API_URL to your own server any time.
+     */
+    public static final String API_URL = "https://api.github.com/repos/shashachkaaa/Telegram/contents/glassgram-api/badges.json?ref=master";
+    public static final String FALLBACK_URL = "https://raw.githubusercontent.com/shashachkaaa/Telegram/master/glassgram-api/badges.json";
 
-    private static final long REFRESH_INTERVAL = 3 * 60 * 60 * 1000L;
+    /** Only keeps the start and the first resume from both loading; every later open reloads. */
+    private static final long REFRESH_INTERVAL = 15 * 1000L;
     private static final String CACHE_FILE = "glassgram_badges.json";
 
     public static final class Badge {
@@ -131,7 +137,7 @@ public final class GlassgramBadges {
                 loadedCache = true;
                 String cached = readFile(cacheFile());
                 if (cached != null) {
-                    apply(cached, false);
+                    apply(cached, true);
                 }
             }
             refresh(false);
@@ -148,10 +154,14 @@ public final class GlassgramBadges {
             lastFetch = now;
             Utilities.externalNetworkQueue.postRunnable(() -> {
                 String json = download(API_URL);
+                if (json == null) {
+                    json = download(FALLBACK_URL);
+                }
+                final String result = json;
                 Utilities.globalQueue.postRunnable(() -> {
                     fetching = false;
-                    if (json != null && apply(json, true)) {
-                        writeFile(cacheFile(), json);
+                    if (result != null && apply(result, true)) {
+                        writeFile(cacheFile(), result);
                     }
                 });
             });
@@ -325,6 +335,8 @@ public final class GlassgramBadges {
             connection.setReadTimeout(15000);
             connection.setUseCaches(false);
             connection.setRequestProperty("User-Agent", "Glassgram/" + BuildVars.BUILD_VERSION_STRING);
+            connection.setRequestProperty("Accept", "application/vnd.github.raw");
+            connection.setRequestProperty("Cache-Control", "no-cache");
             if (connection.getResponseCode() != 200) {
                 return null;
             }
