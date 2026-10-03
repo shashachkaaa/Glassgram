@@ -710,6 +710,21 @@ public class SimpleTextView extends View implements Drawable.Callback {
         return rightDrawable2Own;
     }
 
+    /**
+     * Where the drawn content ends, in this view's coordinates: the text, then the status
+     * after it (if withStatus) and the Glassgram badge row. Bounds are those of the last draw.
+     */
+    public float getContentRight(boolean withStatus) {
+        float right = getTextStartX() + textWidth;
+        if (withStatus && rightDrawable != null && !rightDrawableHidden && !rightDrawable.getBounds().isEmpty()) {
+            right = Math.max(right, rightDrawable.getBounds().right);
+        }
+        if (rightDrawable2 != null && !rightDrawableHidden && !rightDrawable2.getBounds().isEmpty()) {
+            right = Math.max(right, rightDrawable2.getBounds().right);
+        }
+        return right;
+    }
+
     public void setRightDrawableScale(float scale) {
         rightDrawableScale = scale;
     }

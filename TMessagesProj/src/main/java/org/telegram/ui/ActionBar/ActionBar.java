@@ -202,6 +202,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     private ChatAvatarContainer chatAvatarContainer;
 
+    /** Where the content of the glass pill ends, in this bar's coordinates. */
+    public interface GlassPillContent {
+        float getContentRight();
+    }
+
+    private GlassPillContent glassPillContent;
+
+    /** Sizes the glass pill to its content (a title and what follows it) instead of the whole bar. */
+    public void setGlassPillContent(GlassPillContent content) {
+        glassPillContent = content;
+        invalidate();
+    }
+
     public void setGlassOnlyBack() {
         glassOnlyBack = true;
     }
@@ -2511,6 +2524,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                     + p + dp(3);
                 chatAvatarContainer.setTranslationX(translationX);
                 chatAvatarContainer.setPivotX((chatAvatarContainer.getMeasuredWidth()) / 2f - translationX );
+            } else if (glassPillContent != null) {
+                // Wraps its content, and opens to the whole bar for search and selection
+                final int wanted = (int) Math.ceil(glassPillContent.getContentRight()) + dp(14) - leftDefault;
+                final int width = lerp(Math.min(widthDefault, Math.max(s + p * 2, wanted)), widthDefault, Math.max(searchFactor, actionModeFactor));
+                left = leftDefault;
+                right = left + width;
             } else {
                 left = leftDefault;
                 right = rightDefault;

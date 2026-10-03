@@ -115,6 +115,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TITLE_TEXT = 20;
     private static final int ID_HIDE_STORIES = 21;
     private static final int ID_HEADER_BADGE = 91;
+    private static final int ID_GLASS_HEADER = 92;
     private static final int ID_HIDE_FAB = 22;
 
     private static final int ID_HIDE_STICKER_TIME = 30;
@@ -194,6 +195,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_TITLE_TEXT, getString(R.string.GlassgramTitleText), GlassgramConfig.getTitle()));
                 items.add(UItem.asCheck(ID_HIDE_STORIES, getString(R.string.GlassgramHideStories)).setChecked(GlassgramConfig.hideStories));
                 items.add(UItem.asCheck(ID_HEADER_BADGE, getString(R.string.GlassgramHeaderBadge)).setChecked(GlassgramConfig.headerBadge));
+                items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
                 break;
@@ -431,6 +433,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.hideStories = !GlassgramConfig.hideStories;
                 GlassgramConfig.putBoolean("hideStories", value);
                 getNotificationCenter().postNotificationName(NotificationCenter.storiesUpdated);
+                break;
+            case ID_GLASS_HEADER:
+                value = GlassgramConfig.glassHeader = !GlassgramConfig.glassHeader;
+                GlassgramConfig.putBoolean("glassHeader", value);
                 break;
             case ID_HEADER_BADGE:
                 value = GlassgramConfig.headerBadge = !GlassgramConfig.headerBadge;

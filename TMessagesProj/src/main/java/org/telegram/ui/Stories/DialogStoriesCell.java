@@ -1161,6 +1161,34 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         return collapsedProgress;
     }
 
+    /**
+     * Where the collapsed header row (the mini avatars, the title, its status and badge)
+     * ends, in the parent's coordinates; for the glass pill around it.
+     */
+    public float getHeaderContentRight() {
+        float right = 0;
+        if (telegramLogoView != null && telegramLogoView.getAlpha() > 0) {
+            right = telegramLogoView.getX() + telegramLogoView.getWidth();
+            if (statusDrawable != null && statusDrawable.getDrawable() != null) {
+                right = emojiStatusView.getX() + emojiStatusView.getWidth() / 2f + dp(13);
+            }
+            if (glassgramBadge != null && glassgramBadgeView.getVisibility() == VISIBLE) {
+                right = glassgramBadgeView.getX() + glassgramBadgeView.getWidth() / 2f + dp(12);
+            }
+        }
+        if (titleView != null && titleView.getAlpha() > 0) {
+            right = Math.max(right, titleView.getX() + titleView.getDrawable().getCurrentWidth());
+        }
+        return getX() + right;
+    }
+
+    /** How much the collapsed header row shows, 0 to 1. */
+    public float getHeaderVisibility() {
+        final float logo = telegramLogoView != null && telegramLogoView.getVisibility() == VISIBLE ? telegramLogoView.getAlpha() : 0;
+        final float title = titleView != null && titleView.getVisibility() == VISIBLE ? titleView.getAlpha() : 0;
+        return Math.max(logo, title) * getAlpha();
+    }
+
     public void scrollToFirstCell() {
         layoutManager.scrollToPositionWithOffset(0, 0);
     }

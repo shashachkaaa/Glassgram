@@ -884,6 +884,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         private Rect blurBounds = new Rect();
 
+        private org.telegram.messenger.utils.GradientProtectionDrawable glassHeaderFade;
+
+        /** Under the status bar the list fades out instead of being cut. */
+        private void drawGlassHeaderFade(Canvas canvas) {
+            if (glassHeaderFade == null) {
+                glassHeaderFade = new org.telegram.messenger.utils.GradientProtectionDrawable(androidx.core.view.WindowInsetsCompat.Side.TOP);
+            }
+            final int top = (int) -getY();
+            final int status = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
+            glassHeaderFade.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            glassHeaderFade.setInsets(0, top + status, 0, 0);
+            glassHeaderFade.setBounds(0, 0, getMeasuredWidth(), top + status + dp(20));
+            glassHeaderFade.draw(canvas);
+        }
+
         @Override
         protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
             if (child == blurredView) {
@@ -898,7 +913,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 final boolean doNotClip = child == topPanelLayout || child == filterTabsView;
                 if (!doNotClip) {
-                    canvas.clipRect(0, -getY() + getActionBarTop() + getActionBarFullHeight(), getMeasuredWidth(), getMeasuredHeight());
+                    if (glassHeaderOverList()) {
+                        // The list scrolls under the glass header, up to the status bar
+                        canvas.clipRect(0, -getY() + (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
+                    } else {
+                        canvas.clipRect(0, -getY() + getActionBarTop() + getActionBarFullHeight(), getMeasuredWidth(), getMeasuredHeight());
+                    }
                 }
                 if (slideFragmentProgress != 1f) {
                     if (slideFragmentLite) {
@@ -911,6 +931,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
+                if (child == viewPages[0] && glassHeaderOverList()) {
+                    drawGlassHeaderFade(canvas);
+                }
             } else if (child == actionBar && slideFragmentProgress != 1f) {
                 canvas.save();
                 if (slideFragmentLite) {
@@ -1037,7 +1060,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     actionBarSearchPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
                     blurBounds.set(0, Math.max(0, top), getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress));
                     drawBlurRect(canvas, 0, blurBounds, actionBarSearchPaint, true);
-                } else {
+                } else if (!glassHeaderOverList()) {
                     blurBounds.set(0, Math.max(0, top), getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress));
                     drawBlurRect(canvas, 0, blurBounds, actionBarDefaultPaint, true);
                 }
@@ -1693,6 +1716,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.getAdditionalSubTitleOverlayContainer().setAlpha(titleAlpha);
             actionBar.getAdditionalSubTitleOverlayContainer().setVisibility(titleAlpha > 0 ? View.VISIBLE : View.INVISIBLE);
         }
+    }
+
+    /** The glass header is on and the list shows under it (not while searching, selecting or with a chat opened at the side). */
+    private boolean glassHeaderOverList() {
+        return glassHeader && progressToActionMode == 0 && searchAnimationProgress == 0
+            && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment());
     }
 
     public static float viewOffset = 0.0f;
@@ -3027,6 +3056,36 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
     }
 
+    /** The chats list header is Liquid Glass (Glassgram Preferences). */
+    private boolean glassHeader;
+
+    /** The right edge of the glass pill's content: the title row, or the stories collapsed into the header. */
+    private float glassHeaderContentRight() {
+        float right = 0;
+        final FrameLayout titles = actionBar.getTitlesContainer();
+        final SimpleTextView title = actionBar.getTitleTextView();
+        final float titlesAlpha = titles != null ? titles.getAlpha() : 1f;
+        if (title != null) {
+            final boolean withStatus = statusDrawable != null && statusDrawable.getDrawable() != null;
+            float raw = title.getX() + title.getContentRight(withStatus);
+            if (titles != null && title.getParent() == titles) {
+                raw = titles.getX() + titles.getPivotX() + (raw - titles.getPivotX()) * titles.getScaleX();
+            }
+            right = raw;
+        }
+        if (dialogStoriesCell != null && dialogStoriesCell.getVisibility() == View.VISIBLE) {
+            final float stories = dialogStoriesCell.getHeaderVisibility();
+            if (stories > 0) {
+                final float storiesRight = dialogStoriesCell.getHeaderContentRight() - actionBar.getX();
+                right = titlesAlpha + stories > 0 ? (right * titlesAlpha + storiesRight * stories) / (titlesAlpha + stories) : storiesRight;
+            }
+        }
+        if (searchAnimationProgress > 0) {
+            right = lerp(right, actionBar.getWidth(), searchAnimationProgress);
+        }
+        return right;
+    }
+
     /** Titles longer than this leave no room for the badge next to the status and the menu. */
     public static final int HEADER_BADGE_MAX_TITLE = 16;
 
@@ -3541,6 +3600,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 statusDrawable.center = true;
                 // The app's name as text: the stock title is Telegram's wordmark image
                 actionBar.setTitle(org.telegram.messenger.GlassgramConfig.getTitle(), statusDrawable);
+                if (org.telegram.messenger.GlassgramConfig.glassHeader && initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect) {
+                    // Liquid Glass header like the chat's: a pill around the title and a capsule for the buttons
+                    glassHeader = true;
+                    actionBar.setupGlass(iBlur3FactoryLiquidGlass, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
+                    actionBar.setGlassPillContent(this::glassHeaderContentRight);
+                }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
