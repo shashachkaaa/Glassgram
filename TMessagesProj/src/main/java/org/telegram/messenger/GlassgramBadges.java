@@ -44,8 +44,15 @@ public final class GlassgramBadges {
     public static final String API_URL = "https://api.github.com/repos/shashachkaaa/Glassgram/contents/glassgram-api/badges.json?ref=master";
     public static final String FALLBACK_URL = "https://raw.githubusercontent.com/shashachkaaa/Glassgram/master/glassgram-api/badges.json";
 
-    /** Only keeps the start and the first resume from both loading; every later open reloads. */
-    private static final long REFRESH_INTERVAL = 15 * 1000L;
+    /**
+     * Opens closer than this share one load: the GitHub API allows 60 requests an hour without
+     * a token, and going over it made the app fall back to the cached raw file.
+     */
+    private static final long REFRESH_INTERVAL = 60 * 1000L;
+
+    /** How old the raw file can be: after a fresh API answer, raw answers younger than this are older data. */
+    private static final long FALLBACK_MAX_AGE = 6 * 60 * 1000L;
+    private static long lastApiSuccess;
     private static final String CACHE_FILE = "glassgram_badges.json";
 
     public static final class Badge {
@@ -154,7 +161,10 @@ public final class GlassgramBadges {
             lastFetch = now;
             Utilities.externalNetworkQueue.postRunnable(() -> {
                 String json = download(API_URL);
-                if (json == null) {
+                if (json != null) {
+                    lastApiSuccess = System.currentTimeMillis();
+                } else if (System.currentTimeMillis() - lastApiSuccess > FALLBACK_MAX_AGE) {
+                    // The raw file may be up to 5 minutes old: never let it replace a fresher API answer
                     json = download(FALLBACK_URL);
                 }
                 final String result = json;
