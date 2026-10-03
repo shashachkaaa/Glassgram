@@ -333,13 +333,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         telegramLogoView = new ImageView(context);
-        telegramLogoView.setContentDescription(getString(R.string.AppName));
-        telegramLogoView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        telegramLogoView.setImageResource(R.drawable.telegram_logo_2);
+        telegramLogoView.setScaleType(ImageView.ScaleType.FIT_START);
+        updateLogoTitle();
         telegramLogoView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
         telegramLogoView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         telegramLogoView.setFocusableInTouchMode(true);
-        addView(telegramLogoView, LayoutHelper.createFrame(90, 22));
+        addView(telegramLogoView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 22));
 
         statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
         statusDrawable.center = true;
@@ -608,6 +607,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         boolean hidden = type == TYPE_ARCHIVE;
         totalCount = Math.max(1, Math.max(storiesController.getTotalStoriesCount(hidden), size));
 
+        updateLogoTitle();
         currentTitle = null;
         if (storiesController.hasOnlySelfStories()) {
             if (storiesController.hasUploadingStories(UserConfig.getInstance(currentAccount).getClientUserId())) {
@@ -1268,6 +1268,72 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
     }
 
     EllipsizeSpanAnimator ellipsizeSpanAnimator = new EllipsizeSpanAnimator(this);
+
+    private String logoTitle;
+
+    /**
+     * The chats list title shown while the stories are collapsed into the header: Telegram
+     * draws its "Telegram" logo there, Glassgram shows the same title as the action bar.
+     */
+    private void updateLogoTitle() {
+        final String title = org.telegram.messenger.GlassgramConfig.getTitle();
+        if (telegramLogoView == null || title.equals(logoTitle)) {
+            return;
+        }
+        logoTitle = title;
+        telegramLogoView.setContentDescription(title);
+        telegramLogoView.setImageDrawable(new LogoTitleDrawable(title));
+        telegramLogoView.requestLayout();
+    }
+
+    /** The title as text in white; the view's color filter paints it in the logo color. */
+    private static class LogoTitleDrawable extends Drawable {
+
+        private final android.text.TextPaint paint = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final String text;
+        private final int width;
+
+        LogoTitleDrawable(String text) {
+            this.text = text;
+            paint.setTypeface(AndroidUtilities.bold());
+            paint.setTextSize(dp(20));
+            paint.setColor(0xFFFFFFFF);
+            width = (int) Math.ceil(paint.measureText(text));
+        }
+
+        @Override
+        public int getIntrinsicWidth() {
+            return width;
+        }
+
+        @Override
+        public int getIntrinsicHeight() {
+            return dp(22);
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas) {
+            final android.graphics.Rect b = getBounds();
+            final Paint.FontMetrics fm = paint.getFontMetrics();
+            final float baseline = b.exactCenterY() - (fm.ascent + fm.descent) / 2f;
+            canvas.drawText(text, b.left, baseline, paint);
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            paint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter colorFilter) {
+            paint.setColorFilter(colorFilter);
+        }
+
+        @Override
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
+        }
+    }
 
     public void setTitleOverlayText(String titleOverlayText, int textId) {
         final CharSequence subtitleToSet;
