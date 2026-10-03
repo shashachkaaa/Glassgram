@@ -41,8 +41,8 @@ public final class GlassgramBadges {
      * which serves a fresh copy, with the raw file (cached by GitHub for up to 5 minutes) as the
      * fallback. Point API_URL to your own server any time.
      */
-    public static final String API_URL = "https://api.github.com/repos/shashachkaaa/Telegram/contents/glassgram-api/badges.json?ref=master";
-    public static final String FALLBACK_URL = "https://raw.githubusercontent.com/shashachkaaa/Telegram/master/glassgram-api/badges.json";
+    public static final String API_URL = "https://api.github.com/repos/shashachkaaa/Glassgram/contents/glassgram-api/badges.json?ref=master";
+    public static final String FALLBACK_URL = "https://raw.githubusercontent.com/shashachkaaa/Glassgram/master/glassgram-api/badges.json";
 
     /** Only keeps the start and the first resume from both loading; every later open reloads. */
     private static final long REFRESH_INTERVAL = 15 * 1000L;
@@ -331,6 +331,27 @@ public final class GlassgramBadges {
         org.telegram.ui.Components.GlassgramBadgeDrawable drawable = new org.telegram.ui.Components.GlassgramBadgeDrawable(badge.getIconResId(), AndroidUtilities.dp(20));
         shownBadges.put(view, new Object[]{badge, drawable});
         view.setGlassgramBadge(drawable);
+    }
+
+    /** Shows what the badge means: its whole description, however many lines it takes. */
+    public static void showDescription(org.telegram.ui.ActionBar.BaseFragment fragment, Badge badge) {
+        if (fragment == null || badge == null || TextUtils.isEmpty(badge.getText()) || fragment.getContext() == null) {
+            return;
+        }
+        android.content.Context context = fragment.getContext();
+        String text = badge.getText();
+        org.telegram.ui.Components.Bulletin.LottieLayout layout = new org.telegram.ui.Components.Bulletin.LottieLayout(context, fragment.getResourceProvider());
+        layout.imageView.setImageDrawable(badge.createDrawable(context, AndroidUtilities.dp(28)));
+        layout.textView.setSingleLine(false);
+        layout.textView.setMaxLines(Integer.MAX_VALUE);
+        layout.textView.setEllipsize(null);
+        layout.textView.setText(text);
+        org.telegram.ui.Components.Bulletin.make(fragment, layout, text.length() > 80 ? org.telegram.ui.Components.Bulletin.DURATION_PROLONG : org.telegram.ui.Components.Bulletin.DURATION_LONG).show();
+    }
+
+    /** The current account's own badge for the chats list header, unless turned off. */
+    public static Badge getHeaderBadge(TLRPC.User self) {
+        return GlassgramConfig.headerBadge && self != null ? get(self) : null;
     }
 
     /** The name followed by the peer's badge, when it has one. */

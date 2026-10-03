@@ -11093,18 +11093,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             nameTextView[1].setClickable(false);
             return;
         }
-        nameTextView[1].setOnClickListener(v -> {
-            Drawable icon = badge.createDrawable(getContext(), dp(28));
-            // The whole description, however many lines it takes
-            String text = badge.getText();
-            Bulletin.LottieLayout layout = new Bulletin.LottieLayout(getContext(), resourcesProvider);
-            layout.imageView.setImageDrawable(icon);
-            layout.textView.setSingleLine(false);
-            layout.textView.setMaxLines(Integer.MAX_VALUE);
-            layout.textView.setEllipsize(null);
-            layout.textView.setText(text);
-            Bulletin.make(this, layout, text.length() > 80 ? Bulletin.DURATION_PROLONG : Bulletin.DURATION_LONG).show();
-        });
+        nameTextView[1].setOnClickListener(v -> org.telegram.messenger.GlassgramBadges.showDescription(this, badge));
     }
 
     private Drawable getScamDrawable(int type) {

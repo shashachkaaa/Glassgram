@@ -286,6 +286,7 @@
     <string name="GlassgramTitleText">Текст заголовка</string>
     <string name="GlassgramTitleTextInfo">Текст вверху списка чатов. Оставьте пустым, чтобы показывать название приложения.</string>
     <string name="GlassgramHideStories">Скрыть истории</string>
+    <string name="GlassgramHeaderBadge">Мой значок в шапке</string>
     <string name="GlassgramHideFloatingButton">Скрыть плавающую кнопку</string>
     <string name="GlassgramChatListInfo">Изменения появятся, когда вы вернётесь к списку чатов.</string>
     <string name="GlassgramStickers">Стикеры и эмодзи</string>

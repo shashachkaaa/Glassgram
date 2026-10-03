@@ -160,6 +160,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
     ActionBarAnimatedSubtitleOverlayContainer subtitleOverlayContainer;
     ImageView telegramLogoView;
     ImageView emojiStatusView;
+    /** The account's own Glassgram badge after the title and its status. */
+    ImageView glassgramBadgeView;
+    private org.telegram.messenger.GlassgramBadges.Badge glassgramBadge;
     AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable statusDrawable;
     boolean drawCircleForce;
     ArrayList<Runnable> afterNextLayout = new ArrayList<>();
@@ -336,6 +339,10 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         telegramLogoView.setScaleType(ImageView.ScaleType.FIT_START);
         updateLogoTitle();
         telegramLogoView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
+        if (glassgramBadgeView != null && glassgramBadgeView.getDrawable() instanceof org.telegram.ui.Components.GlassgramBadgeDrawable) {
+            ((org.telegram.ui.Components.GlassgramBadgeDrawable) glassgramBadgeView.getDrawable()).setColor(getTextLogoColor());
+            glassgramBadgeView.invalidate();
+        }
         telegramLogoView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         telegramLogoView.setFocusableInTouchMode(true);
         addView(telegramLogoView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 22));
@@ -348,6 +355,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         emojiStatusView.setScaleType(ImageView.ScaleType.CENTER);
         emojiStatusView.setImageDrawable(statusDrawable);
         addView(emojiStatusView, LayoutHelper.createFrame(40, 40));
+
+        glassgramBadgeView = new ImageView(context);
+        glassgramBadgeView.setScaleType(ImageView.ScaleType.CENTER);
+        glassgramBadgeView.setVisibility(GONE);
+        addView(glassgramBadgeView, LayoutHelper.createFrame(40, 40));
 
         subtitleOverlayContainer = new ActionBarAnimatedSubtitleOverlayContainer(context, null, ellipsizeSpanAnimator) {
             @Override
@@ -947,6 +959,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
             emojiStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
+            // After the status when there is one, else right after the title
+            final float titleRight = titleView.getTranslationX() + dp(1) + telegramLogoView.getMeasuredWidth();
+            glassgramBadgeView.setTranslationX(titleRight + (statusDrawable.getDrawable() != null ? dpf2(24.67f) : -dpf2(3)));
+            glassgramBadgeView.setTranslationY(emojiStatusView.getTranslationY());
+
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
             subtitleOverlayContainer.setTranslationY(bottomY + dp(15 + FAKE_TOP_PADDING + 4.333f + 8));
         }
@@ -1157,6 +1174,10 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             subtitleOverlayContainer.updateColors();
         }
         telegramLogoView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
+        if (glassgramBadgeView != null && glassgramBadgeView.getDrawable() instanceof org.telegram.ui.Components.GlassgramBadgeDrawable) {
+            ((org.telegram.ui.Components.GlassgramBadgeDrawable) glassgramBadgeView.getDrawable()).setColor(getTextLogoColor());
+            glassgramBadgeView.invalidate();
+        }
         AndroidUtilities.forEachViews(recyclerListView, view -> {
             StoryCell cell = (StoryCell) view;
             cell.invalidate();
@@ -2254,6 +2275,36 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         }
         statusDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
         emojiStatusView.invalidate();
+        updateGlassgramBadge(user);
+    }
+
+    private void updateGlassgramBadge(TLRPC.User user) {
+        org.telegram.messenger.GlassgramBadges.Badge badge = org.telegram.messenger.GlassgramBadges.getHeaderBadge(user);
+        if (org.telegram.messenger.GlassgramConfig.getTitle().length() > org.telegram.ui.DialogsActivity.HEADER_BADGE_MAX_TITLE) {
+            badge = null;
+        }
+        if (badge != glassgramBadge) {
+            glassgramBadge = badge;
+            if (badge == null) {
+                glassgramBadgeView.setImageDrawable(null);
+                glassgramBadgeView.setOnClickListener(null);
+                glassgramBadgeView.setClickable(false);
+            } else {
+                org.telegram.ui.Components.GlassgramBadgeDrawable drawable = new org.telegram.ui.Components.GlassgramBadgeDrawable(badge.getIconResId(), Math.round(dp(20) * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT));
+                glassgramBadgeView.setImageDrawable(drawable);
+                if (TextUtils.isEmpty(badge.getText())) {
+                    glassgramBadgeView.setOnClickListener(null);
+                    glassgramBadgeView.setClickable(false);
+                } else {
+                    final org.telegram.messenger.GlassgramBadges.Badge clicked = badge;
+                    glassgramBadgeView.setOnClickListener(v -> org.telegram.messenger.GlassgramBadges.showDescription(fragment, clicked));
+                }
+            }
+        }
+        if (glassgramBadgeView.getDrawable() instanceof org.telegram.ui.Components.GlassgramBadgeDrawable) {
+            ((org.telegram.ui.Components.GlassgramBadgeDrawable) glassgramBadgeView.getDrawable()).setColor(getTextLogoColor());
+        }
+        checkUi_titleVisibility();
     }
 
     private int getThemedColor(int key) {
@@ -2289,6 +2340,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         if (emojiStatusView != null) {
             emojiStatusView.setAlpha(logoAlpha);
             emojiStatusView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+        }
+        if (glassgramBadgeView != null) {
+            final boolean hasBadge = glassgramBadge != null;
+            glassgramBadgeView.setAlpha(logoAlpha);
+            glassgramBadgeView.setVisibility(hasBadge && logoAlpha > 0 ? VISIBLE : GONE);
         }
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.setAlpha(progress);

@@ -42,6 +42,7 @@ public class GlassgramConfig {
     // Appearance
     public static String titleText = "";
     public static boolean hideStories;
+    public static boolean headerBadge = true;
     public static boolean hideFloatingButton;
 
     // Chats
@@ -109,6 +110,7 @@ public class GlassgramConfig {
         ghostAutoOffline = p.getBoolean("ghostAutoOffline", true);
         ghostReadOnInteract = p.getBoolean("ghostReadOnInteract", true);
         hideStories = p.getBoolean("hideStories", false);
+        headerBadge = p.getBoolean("headerBadge", true);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);
         disableGreetingSticker = p.getBoolean("disableGreetingSticker", false);

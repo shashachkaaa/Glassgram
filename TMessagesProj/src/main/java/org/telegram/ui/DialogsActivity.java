@@ -3003,6 +3003,33 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private Drawable premiumStar;
 
+    /**
+     * The account's own Glassgram badge after the title and its status. A long custom title
+     * keeps its room: the badge goes first.
+     */
+    private void updateHeaderBadge(TLRPC.User user) {
+        SimpleTextView title = actionBar.getTitleTextView();
+        if (title == null) {
+            return;
+        }
+        org.telegram.messenger.GlassgramBadges.Badge badge = org.telegram.messenger.GlassgramBadges.getHeaderBadge(user);
+        if (org.telegram.messenger.GlassgramConfig.getTitle().length() > HEADER_BADGE_MAX_TITLE) {
+            badge = null;
+        }
+        org.telegram.messenger.GlassgramBadges.applyTo(title, badge);
+        final org.telegram.messenger.GlassgramBadges.Badge clicked = badge;
+        title.setRightDrawable2OnClick(badge == null || TextUtils.isEmpty(badge.getText()) ? null : v -> {
+            if (dialogStoriesCellVisible && dialogStoriesCell != null && !dialogStoriesCell.isExpanded()) {
+                scrollToTop(true, true);
+                return;
+            }
+            org.telegram.messenger.GlassgramBadges.showDescription(this, clicked);
+        });
+    }
+
+    /** Titles longer than this leave no room for the badge next to the status and the menu. */
+    public static final int HEADER_BADGE_MAX_TITLE = 16;
+
     public void updateStatus(TLRPC.User user, boolean animated) {
         if (dialogStoriesCell != null) {
             dialogStoriesCell.updateStatus(user, animated);
@@ -3057,6 +3084,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.setRightDrawableOnClick(null);
         }
         statusDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        updateHeaderBadge(user);
         if (animatedStatusView != null) {
             animatedStatusView.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
         }

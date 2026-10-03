@@ -11258,6 +11258,7 @@
     <string name="GlassgramTitleText">Title Text</string>
     <string name="GlassgramTitleTextInfo">Text shown at the top of the chat list. Leave empty for the app\'s name.</string>
     <string name="GlassgramHideStories">Hide Stories</string>
+    <string name="GlassgramHeaderBadge">My Badge in the Header</string>
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
     <string name="GlassgramStickers">Stickers and Emoji</string>

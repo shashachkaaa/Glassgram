@@ -1356,8 +1356,40 @@ public class SimpleTextView extends View implements Drawable.Callback {
         rightDrawableOnClickListener = onClickListener;
     }
 
+    private OnClickListener rightDrawable2OnClickListener;
+    private boolean maybeClick2;
+
+    /** Click on what is drawn after the status (the Glassgram badge). */
+    public void setRightDrawable2OnClick(OnClickListener onClickListener) {
+        rightDrawable2OnClickListener = onClickListener;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (rightDrawable2OnClickListener != null && rightDrawable2 != null) {
+            final Rect b = rightDrawable2.getBounds();
+            final int action = event.getAction();
+            if (action == MotionEvent.ACTION_DOWN && !b.isEmpty() && event.getX() >= b.left - dp(6) && event.getX() <= b.right + dp(6) && event.getY() >= b.top - dp(10) && event.getY() <= b.bottom + dp(10)) {
+                maybeClick2 = true;
+                touchDownX = event.getX();
+                touchDownY = event.getY();
+                getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+            } else if (action == MotionEvent.ACTION_MOVE && maybeClick2) {
+                if (Math.abs(event.getX() - touchDownX) >= AndroidUtilities.touchSlop || Math.abs(event.getY() - touchDownY) >= AndroidUtilities.touchSlop) {
+                    maybeClick2 = false;
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return true;
+            } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && maybeClick2) {
+                maybeClick2 = false;
+                getParent().requestDisallowInterceptTouchEvent(false);
+                if (action == MotionEvent.ACTION_UP) {
+                    rightDrawable2OnClickListener.onClick(this);
+                }
+                return true;
+            }
+        }
         if (rightDrawableOnClickListener != null && rightDrawable != null) {
             AndroidUtilities.rectTmp.set(rightDrawableX - dp(16), rightDrawableY - dp(16), rightDrawableX + dp(16), rightDrawableY + dp(16));
             if (event.getAction() == MotionEvent.ACTION_DOWN && AndroidUtilities.rectTmp.contains((int) event.getX(), (int) event.getY())) {
