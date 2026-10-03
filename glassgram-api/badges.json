@@ -56,6 +56,20 @@
         "ru": "Любимая девушка владельца Glassgram. Главная муза проекта ❤️",
         "en": "The beloved girlfriend of Glassgram's owner and the project's muse ❤️"
       }
+    },
+    "8913562687": {
+      "badge": "glassgram",
+      "text": {
+        "en": "The official Glassgram bot.",
+        "ru": "Официальный бот Glassgram."
+      }
+    },
+    "-1004295995842": {
+      "badge": "glassgram",
+      "text": {
+        "en": "The official Glassgram releases channel: new versions and APKs.",
+        "ru": "Официальный канал релизов Glassgram: новые версии и APK."
+      }
     }
   },
   "usernames": {
@@ -64,6 +78,20 @@
       "text": {
         "en": "The official Glassgram channel: updates, builds and plugins.",
         "ru": "Официальный канал Glassgram: обновления, сборки и плагины."
+      }
+    },
+    "glassgrambot": {
+      "badge": "glassgram",
+      "text": {
+        "en": "The official Glassgram bot.",
+        "ru": "Официальный бот Glassgram."
+      }
+    },
+    "glassgramreleases": {
+      "badge": "glassgram",
+      "text": {
+        "en": "The official Glassgram releases channel: new versions and APKs.",
+        "ru": "Официальный канал релизов Glassgram: новые версии и APK."
       }
     }
   }
