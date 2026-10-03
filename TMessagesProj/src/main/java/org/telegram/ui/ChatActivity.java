@@ -19471,20 +19471,20 @@ public class ChatActivity extends BaseFragment implements
                     if (currentChat.linked_monoforum_id != 0) {
                         TLRPC.Chat chat = getMessagesController().getChat(currentChat.linked_monoforum_id);
                         if (chat == null) chat = currentChat;
-                        avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat, 16), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
+                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
                     } else {
-                        avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat, 16), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
+                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
                     }
                 } else if (threadMessageId > 0) {
                     final TLRPC.User user = getMessagesController().getUser(threadMessageId);
-                    avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))), user, 16), user.scam, user.fake, user.verified, user.premium, user.emoji_status, animated);
+                    avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))), user.scam, user.fake, user.verified, user.premium, user.emoji_status, animated);
                 } else {
                     TLRPC.Chat chat = getMessagesController().getChat(-threadMessageId);
                     if (chat == null) chat = currentChat;
-                    avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat, 16), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
+                    avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verified, false, chat.emoji_status, animated);
                 }
             } else {
-                avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat, 16), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
             }
         } else if (chatMode == MODE_WELCOME_MESSAGES) {
             avatarContainer.setTitle(getString(R.string.WelcomeMessage));
@@ -19518,9 +19518,9 @@ public class ChatActivity extends BaseFragment implements
             } else if (UserObject.isUserSelf(user)) {
                 avatarContainer.setTitle(LocaleController.getString(R.string.MyNotes));
             } else if (user != null) {
-                avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))), user, 16));
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(user))));
             } else if (chat != null) {
-                avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat, 16));
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)));
             } else {
                 avatarContainer.setTitle("");
             }
@@ -19549,23 +19549,44 @@ public class ChatActivity extends BaseFragment implements
         } else if (chatMode == MODE_PINNED) {
             avatarContainer.setTitle(LocaleController.formatPluralString("PinnedMessagesCount", getPinnedMessagesCount()));
         } else if (currentChat != null) {
-            avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat, 16), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
+            avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verified, false, currentChat.emoji_status, animated);
         } else if (currentUser != null) {
             if (currentUser.self) {
                 avatarContainer.setTitle(LocaleController.getString(R.string.SavedMessages));
             } else if (!MessagesController.isSupportUser(currentUser) && getContactsController().contactsDict.get(currentUser.id) == null && (getContactsController().contactsDict.size() != 0 || !getContactsController().isLoadingContacts())) {
                 if (!TextUtils.isEmpty(currentUser.phone)) {
-                    avatarContainer.setTitle(GlassgramBadges.withBadge(PhoneFormat.getInstance().format("+" + currentUser.phone), currentUser, 16), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), currentUser.emoji_status, animated);
+                    avatarContainer.setTitle(PhoneFormat.getInstance().format("+" + currentUser.phone), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), currentUser.emoji_status, animated);
                 } else {
-                    avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser, 16), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), currentUser.emoji_status, animated);
+                    avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), currentUser.emoji_status, animated);
                 }
             } else {
-                avatarContainer.setTitle(GlassgramBadges.withBadge(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser, 16), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), !MessagesController.isSupportUser(currentUser) ? currentUser.emoji_status : null, animated);
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), !MessagesController.isSupportUser(currentUser) ? currentUser.emoji_status : null, animated);
             }
         }
         setParentActivityTitle(avatarContainer.getTitleTextView().getText());
-        org.telegram.ui.Components.GlassgramBadgeSpan.attach(avatarContainer.getTitleTextView(), avatarContainer.getTitleTextView().getText());
+        GlassgramBadges.applyTo(avatarContainer.getTitleTextView(), GlassgramBadges.get(glassgramTitlePeer()));
         updateTitleIcons();
+    }
+
+    /** The user or chat whose name the header shows, for its Glassgram badge; null for other titles. */
+    private TLObject glassgramTitlePeer() {
+        if (chatMode == MODE_SAVED) {
+            TLRPC.User user = threadMessageId > 0 ? getMessagesController().getUser(threadMessageId) : null;
+            if (user != null) {
+                return UserObject.isReplyUser(user) || UserObject.isAnonymous(user) || UserObject.isUserSelf(user) ? null : user;
+            }
+            return threadMessageId < 0 ? getMessagesController().getChat(-threadMessageId) : null;
+        }
+        if (chatMode != 0 || isThreadChat() && !UserObject.isBotForum(currentUser)) {
+            return null;
+        }
+        if (currentChat != null) {
+            return currentChat;
+        }
+        if (currentUser != null && !currentUser.self && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) {
+            return currentUser;
+        }
+        return null;
     }
 
     public void updateTopicTitleIcon() {

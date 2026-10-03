@@ -545,6 +545,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean drawNameLock;
     private int nameMuteLeft;
     private int nameMutedIconLeft;
+    private org.telegram.messenger.GlassgramBadges.Badge glassgramBadge;
+    private boolean glassgramBadgeAfterStatus;
+    private org.telegram.ui.Components.GlassgramBadgeDrawable glassgramBadgeDrawable;
+    private org.telegram.messenger.GlassgramBadges.Badge glassgramBadgeDrawableFor;
     private int nameLockLeft;
     private int nameLockTop;
 
@@ -2325,6 +2329,13 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         nameAdditionalsForChannelSubscriber = 0;
+        glassgramBadge = isDialogCell && !isSavedDialog ? org.telegram.messenger.GlassgramBadges.get(currentAccount, currentDialogId) : null;
+        // With a status the badge goes after it; otherwise it follows the name inside the text
+        glassgramBadgeAfterStatus = glassgramBadge != null && drawPremium && emojiStatus.getDrawable() != null && !LocaleController.isRTL;
+        if (glassgramBadgeAfterStatus) {
+            nameWidth -= dp(24);
+            nameAdditionalsForChannelSubscriber += dp(24);
+        }
         final boolean reserveMuteSlot = (dialogMuted || isHiddenInCommunity || drawUnmute || dialogMutedProgress > 0) && !drawVerified && drawScam == 0;
         if (drawPremium && emojiStatus.getDrawable() != null) {
             int w = dp(6 + 24 + 6);
@@ -2386,8 +2397,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameString = ((String) nameString).replace('\n', ' ');
             }
             CharSequence nameStringFinal = nameString;
-            final org.telegram.messenger.GlassgramBadges.Badge glassgramBadge = isDialogCell && !isSavedDialog ? org.telegram.messenger.GlassgramBadges.get(currentAccount, currentDialogId) : null;
-            if (glassgramBadge != null) {
+            final org.telegram.messenger.GlassgramBadges.Badge textBadge = glassgramBadgeAfterStatus ? null : glassgramBadge;
+            if (textBadge != null) {
                 // Room for the badge appended after the name is cut to fit
                 ellipsizeWidth = Math.max(0, ellipsizeWidth - dp(20));
             }
@@ -2403,8 +2414,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.dialogs_namePaint[paintIndex], ellipsizeWidth, TextUtils.TruncateAt.END);
             }
             nameStringFinal = Emoji.replaceEmoji(nameStringFinal, Theme.dialogs_namePaint[paintIndex].getFontMetricsInt(), false);
-            if (glassgramBadge != null) {
-                nameStringFinal = org.telegram.messenger.GlassgramBadges.withBadge(nameStringFinal, glassgramBadge, 16);
+            if (textBadge != null) {
+                nameStringFinal = org.telegram.messenger.GlassgramBadges.withBadge(nameStringFinal, textBadge, 16);
                 ellipsizeWidth += dp(20);
             }
             if (message != null && message.hasHighlightedWords()) {
@@ -2418,7 +2429,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             } else {
                 nameLayout = new StaticLayout(nameStringFinal, Theme.dialogs_namePaint[paintIndex], Math.max(ellipsizeWidth, nameWidth), Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
             }
-            if (glassgramBadge != null) {
+            if (textBadge != null) {
                 org.telegram.ui.Components.GlassgramBadgeSpan.attach(this, nameStringFinal);
             }
             nameLayoutTranslateX = nameLayoutEllipsizeByGradient && nameLayout.isRtlCharAt(0) ? -dp(36) : 0;
@@ -2899,7 +2910,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 if ((dialogMuted || true) || drawUnmute || drawVerified || drawPremium || drawScam != 0) {
                     nameMuteLeft = (int) (nameLeft + left + dp(6));
                     if (drawPremium) {
-                        nameMutedIconLeft = nameMuteLeft + dp(24 + 6);
+                        nameMutedIconLeft = nameMuteLeft + dp(24 + 6) + (glassgramBadgeAfterStatus ? dp(24) : 0);
                     }
                 }
             }
@@ -4485,6 +4496,17 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 int y = dp(useForceThreeLines || SharedConfig.useThreeLinesLayout ? 12.5f : 15.5f);
                 if ((!(useForceThreeLines || SharedConfig.useThreeLinesLayout) || isForumCell()) && hasTags()) {
                     y -= dp(9);
+                }
+                if (glassgramBadgeAfterStatus && glassgramBadge != null) {
+                    if (glassgramBadgeDrawable == null || glassgramBadgeDrawableFor != glassgramBadge) {
+                        glassgramBadgeDrawableFor = glassgramBadge;
+                        glassgramBadgeDrawable = new org.telegram.ui.Components.GlassgramBadgeDrawable(glassgramBadge.getIconResId(), dp(18));
+                        glassgramBadgeDrawable.setOnFrame(this::invalidate);
+                    }
+                    int badgeSize = Math.round(Theme.dialogs_namePaint[paintIndex].getTextSize() * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT);
+                    int badgeLeft = nameMuteLeft + dp(23);
+                    int badgeTop = y - dp(4) + dp(11) - badgeSize / 2;
+                    glassgramBadgeDrawable.draw(canvas, badgeLeft, badgeTop, badgeSize, Theme.dialogs_namePaint[paintIndex].getColor());
                 }
                 if (emojiStatus != null) {
                     emojiStatusView.setTranslationX(gtx + nameMuteLeft - dp(2));

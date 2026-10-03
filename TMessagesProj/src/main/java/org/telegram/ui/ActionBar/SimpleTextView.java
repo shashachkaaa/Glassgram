@@ -66,6 +66,8 @@ public class SimpleTextView extends View implements Drawable.Callback {
     private Drawable leftDrawable;
     private Drawable rightDrawable;
     private Drawable rightDrawable2;
+    private Drawable rightDrawable2Own;
+    private org.telegram.ui.Components.GlassgramBadgeDrawable glassgramBadge;
     private Drawable replacedDrawable;
     private String replacedText;
     private int replacingDrawableTextIndex;
@@ -665,6 +667,16 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     public boolean setRightDrawable2(Drawable drawable) {
+        if (rightDrawable2Own == drawable) {
+            return false;
+        }
+        rightDrawable2Own = drawable;
+        return applyRightDrawable2();
+    }
+
+    /** What is drawn after the status: the Glassgram badge, then the caller's drawable. */
+    private boolean applyRightDrawable2() {
+        Drawable drawable = glassgramBadge == null ? rightDrawable2Own : new org.telegram.ui.Components.GlassgramBadgeDrawable.Row(glassgramBadge, rightDrawable2Own, AndroidUtilities.dp(4));
         if (rightDrawable2 == drawable) {
             return false;
         }
@@ -681,8 +693,21 @@ public class SimpleTextView extends View implements Drawable.Callback {
         return true;
     }
 
+    /** Shows a Glassgram badge after the name's status (and before the verified or muted icon). */
+    public void setGlassgramBadge(org.telegram.ui.Components.GlassgramBadgeDrawable badge) {
+        if (glassgramBadge == badge) {
+            return;
+        }
+        glassgramBadge = badge;
+        if (badge != null) {
+            badge.setSize(Math.round(textPaint.getTextSize() * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT));
+            badge.setColor(textPaint.getColor());
+        }
+        applyRightDrawable2();
+    }
+
     public Drawable getRightDrawable2() {
-        return rightDrawable2;
+        return rightDrawable2Own;
     }
 
     public void setRightDrawableScale(float scale) {
@@ -844,6 +869,9 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (glassgramBadge != null) {
+            glassgramBadge.setColor(textPaint.getColor());
+        }
         super.onDraw(canvas);
         int textOffsetX = 0;
         layoutX = 0;

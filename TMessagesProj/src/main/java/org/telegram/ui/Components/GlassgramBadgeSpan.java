@@ -2,54 +2,32 @@ package org.telegram.ui.Components;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
-import android.graphics.Rect;
-import android.graphics.drawable.Drawable;
-import android.os.SystemClock;
 import android.text.Spanned;
 import android.text.style.ReplacementSpan;
 import android.view.View;
 
 import androidx.annotation.NonNull;
-import androidx.core.content.ContextCompat;
-
-import org.telegram.messenger.ApplicationLoader;
-import org.telegram.messenger.R;
-import org.telegram.messenger.utils.Choreographer60FpsContent;
-import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Stars.StarsReactionsSheet;
 
 import java.util.ArrayList;
 import java.util.WeakHashMap;
 
 /**
- * A Glassgram badge inside a name: a rosette in the color of the text around it, the glyph on
- * it, and sparkles twinkling over it, like exteraGram's badges.
+ * A Glassgram badge inside text (the chat list names), sized from the text and drawn in its
+ * color; see {@link GlassgramBadgeDrawable}.
  *
  * Views showing the text register with {@link #attach} so the sparkles keep moving; without a
  * host the badge is drawn still.
  */
 public class GlassgramBadgeSpan extends ReplacementSpan {
 
-    private static final int FPS = 30;
-    private static final float SIZE_TO_TEXT = 1.12f;
-
-    private final int size;
-    private final Drawable shape;
-    private final Drawable glyph;
-    private final StarsReactionsSheet.Particles particles;
+    private final GlassgramBadgeDrawable badge;
+    private final int fallbackSize;
     private final WeakHashMap<View, Boolean> hosts = new WeakHashMap<>();
-    private final Rect bounds = new Rect();
-    private final Runnable invalidateHosts = this::invalidateHosts;
-    private int lastColor;
-    private long lastProcess;
 
     public GlassgramBadgeSpan(int glyphResId, int sizePx) {
-        size = sizePx;
-        shape = ContextCompat.getDrawable(ApplicationLoader.applicationContext, R.drawable.glassgram_badge_shape).mutate();
-        glyph = ContextCompat.getDrawable(ApplicationLoader.applicationContext, glyphResId).mutate();
-        particles = new StarsReactionsSheet.Particles(StarsReactionsSheet.Particles.TYPE_RADIAL, 8);
+        fallbackSize = sizePx;
+        badge = new GlassgramBadgeDrawable(glyphResId, sizePx);
+        badge.onFrame = this::invalidateHosts;
     }
 
     /** Lets the views drawing text with badges animate their sparkles. */
@@ -64,9 +42,8 @@ public class GlassgramBadgeSpan extends ReplacementSpan {
         }
     }
 
-    /** The badge size for text drawn with paint: a little taller than the letters. */
     private int sizeFor(Paint paint) {
-        return paint != null && paint.getTextSize() > 0 ? Math.round(paint.getTextSize() * SIZE_TO_TEXT) : size;
+        return paint != null && paint.getTextSize() > 0 ? Math.round(paint.getTextSize() * GlassgramBadgeDrawable.SIZE_TO_TEXT) : fallbackSize;
     }
 
     @Override
@@ -86,44 +63,13 @@ public class GlassgramBadgeSpan extends ReplacementSpan {
         Paint.FontMetricsInt fm = paint.getFontMetricsInt();
         int badgeSize = sizeFor(paint);
         int centerY = y + (fm.descent + fm.ascent) / 2;
-        draw(canvas, (int) x, centerY - badgeSize / 2, badgeSize, paint.getColor());
-    }
-
-    /** Draws the badge of badgeSize at left, top in color, the color of the name it follows. */
-    public void draw(Canvas canvas, int left, int top, int badgeSize, int color) {
-        color |= 0xFF000000;
-        if (color != lastColor) {
-            lastColor = color;
-            shape.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(color, 0.3f), PorterDuff.Mode.SRC_IN));
-            glyph.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
-        }
-        shape.setBounds(left, top, left + badgeSize, top + badgeSize);
-        shape.draw(canvas);
-        glyph.setBounds(left, top, left + badgeSize, top + badgeSize);
-        glyph.draw(canvas);
-
-        // Sparkles around and over the badge, kept in the badge's own coordinates: the same
-        // name can be drawn by several views at once (the profile draws two), and they all
-        // must see the same sparkles
-        int spread = badgeSize / 3;
-        int area = badgeSize + spread * 2;
-        bounds.set(0, 0, area, area);
-        particles.setBounds(bounds);
-        long now = SystemClock.uptimeMillis();
-        if (now - lastProcess >= 12) {
-            lastProcess = now;
-            particles.process();
-        }
-        canvas.save();
-        canvas.translate(left - spread, top - spread);
-        particles.draw(canvas, color);
-        canvas.restore();
-        if (!hosts.isEmpty()) {
-            Choreographer60FpsContent.getInstance().addFrameCallbackOnce(invalidateHosts, FPS);
-        }
+        badge.draw(canvas, (int) x, centerY - badgeSize / 2, badgeSize, paint.getColor());
     }
 
     private void invalidateHosts() {
+        if (hosts.isEmpty()) {
+            return;
+        }
         ArrayList<View> views = new ArrayList<>(hosts.keySet());
         for (View view : views) {
             if (view != null && view.isAttachedToWindow()) {

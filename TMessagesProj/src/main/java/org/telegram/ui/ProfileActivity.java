@@ -11084,15 +11084,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (nameTextView[1] == null) {
             return;
         }
-        if (badge != null) {
-            // The names are set right after this; their sparkles need the views
-            AndroidUtilities.runOnUIThread(() -> {
-                for (int i = 0; i < nameTextView.length; i++) {
-                    if (nameTextView[i] != null) {
-                        org.telegram.ui.Components.GlassgramBadgeSpan.attach(nameTextView[i], nameTextView[i].getText());
-                    }
-                }
-            });
+        for (int i = 0; i < nameTextView.length; i++) {
+            org.telegram.messenger.GlassgramBadges.applyTo(nameTextView[i], badge);
         }
         if (badge == null || TextUtils.isEmpty(badge.getText())) {
             nameTextView[1].setOnClickListener(null);
@@ -11452,7 +11445,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 newString = Emoji.replaceEmoji(newString, nameTextView[1].getPaint().getFontMetricsInt(), false);
             } catch (Exception ignore) {
             }
-            newString = org.telegram.messenger.GlassgramBadges.withBadge(newString, user, 20);
             setGlassgramBadgeClick(org.telegram.messenger.GlassgramBadges.get(user));
             if (copyFromChatActivity) {
                 ChatActivity chatActivity = (ChatActivity) prevFragment;
@@ -11811,7 +11803,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         title = Emoji.replaceEmoji(title, nameTextView[a].getPaint().getFontMetricsInt(), false);
                     } catch (Exception ignore) {
                     }
-                    title = org.telegram.messenger.GlassgramBadges.withBadge(title, chat, 20);
                     setGlassgramBadgeClick(org.telegram.messenger.GlassgramBadges.get(chat));
                     if (nameTextView[a].setText(title)) {
                         changed = true;

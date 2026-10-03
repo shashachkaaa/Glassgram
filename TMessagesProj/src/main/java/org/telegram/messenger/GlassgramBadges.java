@@ -311,6 +311,28 @@ public final class GlassgramBadges {
         return byUsername.get(normalizeUsername(username));
     }
 
+    private static final java.util.WeakHashMap<org.telegram.ui.ActionBar.SimpleTextView, Object[]> shownBadges = new java.util.WeakHashMap<>();
+
+    /** Shows the badge (or none) after the status of the name in view, reusing the drawable while the badge stays. */
+    public static void applyTo(org.telegram.ui.ActionBar.SimpleTextView view, Badge badge) {
+        if (view == null) {
+            return;
+        }
+        Object[] shown = shownBadges.get(view);
+        if (badge == null) {
+            shownBadges.remove(view);
+            view.setGlassgramBadge(null);
+            return;
+        }
+        if (shown != null && shown[0] == badge) {
+            view.setGlassgramBadge((org.telegram.ui.Components.GlassgramBadgeDrawable) shown[1]);
+            return;
+        }
+        org.telegram.ui.Components.GlassgramBadgeDrawable drawable = new org.telegram.ui.Components.GlassgramBadgeDrawable(badge.getIconResId(), AndroidUtilities.dp(20));
+        shownBadges.put(view, new Object[]{badge, drawable});
+        view.setGlassgramBadge(drawable);
+    }
+
     /** The name followed by the peer's badge, when it has one. */
     public static CharSequence withBadge(CharSequence name, TLObject peer, int sizeDp) {
         return withBadge(name, get(peer), sizeDp);
