@@ -65,6 +65,11 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         return super.dispatchTouchEvent(ev);
     }
 
+    /** Press effect for a touch handled by a clickable parent (the page-down button), at x, y of this button. */
+    public void onParentTouch(int action, float x, float y) {
+        liquidPress.onTouch(action, x, y);
+    }
+
     @Override
     public void draw(@NonNull Canvas canvas) {
         final float m = dp(CLICK_ZONE_MARGIN);

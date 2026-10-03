@@ -61,6 +61,15 @@ public class ChatActivityBlurredRoundPageDownButton extends FrameLayout {
 
 
 
+    // This view takes the clicks; the glass button inside stretches under the finger
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        if (buttonView != null && isEnabled() && isClickable()) {
+            buttonView.onParentTouch(ev.getActionMasked(), ev.getX() - buttonView.getLeft(), ev.getY() - buttonView.getTop());
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
     public void showLoading(boolean loading, boolean animated) {
         buttonView.showLoading(loading, animated);
     }
@@ -96,7 +105,6 @@ public class ChatActivityBlurredRoundPageDownButton extends FrameLayout {
     ) {
         ChatActivityBlurredRoundPageDownButton button = new ChatActivityBlurredRoundPageDownButton(context, resourcesProvider);
         button.addButtonView(ChatActivityBlurredRoundButton.create(context, factory, colorProvider, resourcesProvider, res, iconSize), size);
-        ScaleStateListAnimator.apply(button, .13f, 2f);
 
         return button;
     }
