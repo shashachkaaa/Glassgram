@@ -2468,6 +2468,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updateStoriesViewBounds(false);
             }
         };
+        // Calls live in the actions row under the name; Telegram hides them in the bar, but some
+        // of its animations bring them back there (a long glass capsule): keep them hidden
+        actionBar.getViewTreeObserver().addOnPreDrawListener(() -> {
+            if (actionsView != null) {
+                if (callItem != null && callItem.getVisibility() == View.VISIBLE) {
+                    callItem.setVisibility(View.GONE);
+                }
+                if (videoCallItem != null && videoCallItem.getVisibility() == View.VISIBLE) {
+                    videoCallItem.setVisibility(View.GONE);
+                }
+            }
+            return true;
+        });
         actionBar.setForceSkipTouches(true);
         actionBar.setBackgroundColor(Color.TRANSPARENT);
         actionBar.setItemsBackgroundColor(peerColor != null ? 0x20ffffff : getThemedColor(Theme.key_avatar_actionBarSelectorBlue), false);
