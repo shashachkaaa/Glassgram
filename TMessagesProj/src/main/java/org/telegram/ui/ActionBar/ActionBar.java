@@ -28,6 +28,7 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.VectorDrawable;
@@ -65,6 +66,8 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EllipsizeSpanAnimator;
 import org.telegram.ui.Components.FireworksEffect;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidGlassButtonBackground;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.SnowflakesEffect;
@@ -386,8 +389,196 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return clipContent && (child == titleTextView[0] || child == titleTextView[1] || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == titlesContainer);
     }
 
+    // Liquid Glass of the bar's buttons: the pill of the chat title, the back button and the menu.
+    // Each piece swells, leans towards the finger and lights up under it like the
+    // Kyant0/AndroidLiquidGlass catalog's LiquidButton, together with what it carries.
+    private static final int GLASS_NONE = 0, GLASS_PILL = 1, GLASS_BACK = 2, GLASS_MENU = 3;
+    private final LiquidPressEffect[] glassPress = new LiquidPressEffect[4];
+    private final RectF[] glassRect = {new RectF(), new RectF(), new RectF(), new RectF()};
+    private final boolean[] glassShown = new boolean[4];
+    private int glassPressed = GLASS_NONE;
+
+    // Glass buttons of screens without a glass backdrop (profile, settings)
+    private boolean glassButtons;
+    private LiquidGlassButtonBackground glassButtonBack, glassButtonMenu;
+
+    /** Puts the back button and the menu on glass capsules, for bars over a header or a list. */
+    public void setGlassButtons() {
+        glassButtons = true;
+        glassButtonBack = new LiquidGlassButtonBackground();
+        glassButtonMenu = new LiquidGlassButtonBackground();
+        invalidate();
+    }
+
+    private LiquidPressEffect glassPress(int surface) {
+        if (glassPress[surface] == null) {
+            glassPress[surface] = new LiquidPressEffect(this);
+        }
+        return glassPress[surface];
+    }
+
+    private int glassSurfaceOf(View child) {
+        if (!glassMode && !glassButtons) {
+            return GLASS_NONE;
+        }
+        if (child == backButtonImageView) {
+            return GLASS_BACK;
+        }
+        if (child == menu) {
+            return GLASS_MENU;
+        }
+        if (glassMode && chatAvatarContainer != null && child == chatAvatarContainer) {
+            return GLASS_PILL;
+        }
+        return GLASS_NONE;
+    }
+
+    private void glassTransform(Canvas canvas, int surface) {
+        final LiquidPressEffect effect = glassPress[surface];
+        if (effect == null || !effect.isActive()) {
+            return;
+        }
+        final RectF r = glassRect[surface];
+        canvas.translate(r.left, r.top);
+        effect.transform(canvas, r.width(), r.height());
+        canvas.translate(-r.left, -r.top);
+    }
+
+    private void glassGlow(Canvas canvas, int surface) {
+        final LiquidPressEffect effect = glassPress[surface];
+        if (effect == null || !effect.isActive()) {
+            return;
+        }
+        final RectF r = glassRect[surface];
+        canvas.save();
+        canvas.translate(r.left, r.top);
+        effect.drawGlow(canvas, r.width(), r.height(), Math.min(r.width(), r.height()) / 2f);
+        canvas.restore();
+    }
+
+    /** Draws a glass piece of the bar with its press effect; padding is the drawable's inset around the glass. */
+    private void drawGlass(Canvas canvas, Drawable drawable, int surface, int padding) {
+        final Rect b = drawable.getBounds();
+        glassRect[surface].set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
+        glassShown[surface] = true;
+        canvas.save();
+        glassTransform(canvas, surface);
+        drawable.draw(canvas);
+        glassGlow(canvas, surface);
+        canvas.restore();
+    }
+
+    /** The glass capsule under the back button or the menu items, or false if there is nothing to put it under. */
+    private boolean glassButtonRect(View child, RectF out) {
+        final float h = dp(40);
+        if (child == backButtonImageView) {
+            if (child.getVisibility() != VISIBLE || child.getAlpha() <= 0f) {
+                return false;
+            }
+            final float cx = child.getLeft() + child.getTranslationX() + child.getWidth() / 2f;
+            final float cy = child.getTop() + child.getTranslationY() + child.getHeight() / 2f;
+            final float s = h / 2f * child.getScaleX();
+            out.set(cx - s, cy - s, cx + s, cy + s);
+            return s > 0;
+        }
+        if (child == menu) {
+            if (menu.getVisibility() != VISIBLE || menu.searchFieldVisible() || isActionModeShowed()) {
+                return false;
+            }
+            float left = Float.MAX_VALUE, right = -Float.MAX_VALUE;
+            for (int i = 0; i < menu.getChildCount(); i++) {
+                final View item = menu.getChildAt(i);
+                if (item.getVisibility() != VISIBLE || item.getAlpha() <= 0f || item.getWidth() <= 0) {
+                    continue;
+                }
+                final float l = menu.getX() + item.getX() + item.getWidth() * (1f - item.getScaleX()) / 2f;
+                left = Math.min(left, l);
+                right = Math.max(right, l + item.getWidth() * item.getScaleX());
+            }
+            if (left >= right) {
+                return false;
+            }
+            final float inset = Math.min(dp(4), Math.max(0, (right - left - h) / 2f));
+            left += inset;
+            right -= inset;
+            final float cy = menu.getY() + menu.getHeight() / 2f;
+            out.set(left, cy - h / 2f, right, cy + h / 2f);
+            return true;
+        }
+        return false;
+    }
+
+    private float glassButtonAlpha(View child) {
+        float alpha = child.getAlpha();
+        if (child == menu) {
+            float items = 0f;
+            for (int i = 0; i < menu.getChildCount(); i++) {
+                final View item = menu.getChildAt(i);
+                if (item.getVisibility() == VISIBLE) {
+                    items = Math.max(items, item.getAlpha());
+                }
+            }
+            alpha *= items;
+        }
+        return alpha;
+    }
+
+    private void glassTouch(MotionEvent ev, boolean handled) {
+        if (!glassMode && !glassButtons) {
+            return;
+        }
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassPressed = GLASS_NONE;
+            if (!handled) {
+                return;
+            }
+            for (int surface : new int[]{GLASS_BACK, GLASS_MENU, GLASS_PILL}) {
+                if (glassShown[surface] && glassRect[surface].contains(ev.getX(), ev.getY())) {
+                    glassPressed = surface;
+                    break;
+                }
+            }
+        }
+        if (glassPressed == GLASS_NONE) {
+            return;
+        }
+        final RectF r = glassRect[glassPressed];
+        glassPress(glassPressed).onTouch(action, ev.getX() - r.left, ev.getY() - r.top);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            glassPressed = GLASS_NONE;
+        }
+    }
+
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        final int surface = glassSurfaceOf(child);
+        if (surface == GLASS_NONE) {
+            return drawChildContent(canvas, child, drawingTime);
+        }
+        canvas.save();
+        if (glassButtons && (surface == GLASS_BACK || surface == GLASS_MENU)) {
+            final LiquidGlassButtonBackground glass = surface == GLASS_BACK ? glassButtonBack : glassButtonMenu;
+            final boolean shown = !(drawBackButton && child == backButtonImageView) && glassButtonRect(child, glassRect[surface]);
+            glassShown[surface] = shown;
+            if (shown) {
+                final RectF r = glassRect[surface];
+                glassTransform(canvas, surface);
+                glass.setColors(itemsColor, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+                glass.setAlpha((int) (255 * glassButtonAlpha(child)));
+                glass.setBounds((int) r.left, (int) r.top, (int) r.right, (int) r.bottom);
+                glass.draw(canvas);
+                glassGlow(canvas, surface);
+            }
+        } else {
+            glassTransform(canvas, surface);
+        }
+        final boolean result = drawChildContent(canvas, child, drawingTime);
+        canvas.restore();
+        return result;
+    }
+
+    private boolean drawChildContent(Canvas canvas, View child, long drawingTime) {
         if (parentFragment != null && parentFragment.getParentLayout() != null && parentFragment.getParentLayout().isActionBarInCrossfade()) {
             return false;
         }
@@ -1884,7 +2075,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
         }
 
-        return super.dispatchTouchEvent(ev);
+        final boolean handled = super.dispatchTouchEvent(ev);
+        glassTouch(ev, handled);
+        return handled;
     }
 
     public static View findChildUnder(ViewGroup parent, float x, float y, View exclude) {
@@ -2228,6 +2421,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int menuWidth = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
 
         final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
+        if (glassMode || glassButtons) {
+            glassShown[GLASS_PILL] = glassShown[GLASS_BACK] = glassShown[GLASS_MENU] = false;
+        }
 
         final int t = getHeight() - (getCurrentActionBarHeight() + s) / 2 - p;
         final int b = t + s + p * 2;
@@ -2257,16 +2453,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
 
             glassDrawable.setBounds(left, t, right, b);
-            glassDrawable.draw(canvas);
+            drawGlass(canvas, glassDrawable, GLASS_PILL, p);
         }
         if (glassDrawableBack != null && hasBackButton) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);
-            glassDrawableBack.draw(canvas);
+            drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
         if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu) {
             glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
             glassDrawableMenu.setAlpha(hasForcedMenuWidth ? 255 : (int) (255 * animatorHasMenuItems.getFloatValue()));
-            glassDrawableMenu.draw(canvas);
+            drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
         }
 
         if (blurredBackground && actionBarColor != Color.TRANSPARENT) {

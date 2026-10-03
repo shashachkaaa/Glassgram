@@ -2477,6 +2477,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         actionBar.setAddToContainer(false);
         actionBar.setClipContent(true);
         actionBar.setOccupyStatusBar(hasMainTabs || !AndroidUtilities.isTablet() && !inBubbleMode);
+        actionBar.setGlassButtons();
 
         if (hasMainTabs) {
             actionBar.setBackButtonDrawable(new BackDrawable(false));

@@ -70,14 +70,27 @@ public class LiquidPressEffect {
         return press.getValue();
     }
 
+    /** Whether the surface is pressed or still springing back, so it has to be drawn transformed. */
+    public boolean isActive() {
+        return press.getValue() != 0f || offsetX.getValue() != 0f || offsetY.getValue() != 0f;
+    }
+
     public void onTouchEvent(MotionEvent event) {
         if (!view.isEnabled() || !view.isClickable()) {
             return;
         }
-        switch (event.getActionMasked()) {
+        onTouch(event.getActionMasked(), event.getX(), event.getY());
+    }
+
+    /**
+     * Feeds a touch at x, y of a surface that is only a part of the view (the glass pieces of
+     * the action bar); the view's own clickable state does not matter.
+     */
+    public void onTouch(int action, float x, float y) {
+        switch (action) {
             case MotionEvent.ACTION_DOWN:
-                startX = touchX = event.getX();
-                startY = touchY = event.getY();
+                startX = touchX = x;
+                startY = touchY = y;
                 offsetXAnimation.cancel();
                 offsetYAnimation.cancel();
                 offsetX.setValue(0);
@@ -85,8 +98,8 @@ public class LiquidPressEffect {
                 pressAnimation.animateToFinalPosition(1f);
                 break;
             case MotionEvent.ACTION_MOVE:
-                touchX = event.getX();
-                touchY = event.getY();
+                touchX = x;
+                touchY = y;
                 offsetXAnimation.cancel();
                 offsetYAnimation.cancel();
                 offsetX.setValue(touchX - startX);

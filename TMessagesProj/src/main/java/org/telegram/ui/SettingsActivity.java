@@ -306,6 +306,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         actionBar.setOccupyStatusBar(true);
         actionBar.setBackgroundColor(Color.TRANSPARENT);
         actionBar.setBackground(null);
+        actionBar.setGlassButtons();
 
         final ActionBarMenu menu = actionBar.createMenu();
         searchItem = menu.addItem(0, R.drawable.outline_header_search, resourceProvider).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
