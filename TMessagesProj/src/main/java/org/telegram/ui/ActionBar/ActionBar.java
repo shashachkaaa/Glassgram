@@ -410,6 +410,38 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         invalidate();
     }
 
+    /** Whether the bar's buttons are Liquid Glass: they open their menus on a tap, not on a hold or a drag. */
+    public boolean hasLiquidGlassButtons() {
+        return glassMode || glassButtons;
+    }
+
+    // While a glass piece swells and stretches it goes past the bar, so the parent must not clip the bar
+    private ViewGroup glassUnclippedParent;
+
+    private void glassUnclip() {
+        if (glassUnclippedParent == null && getParent() instanceof ViewGroup) {
+            final ViewGroup parent = (ViewGroup) getParent();
+            if (parent.getClipChildren()) {
+                parent.setClipChildren(false);
+                glassUnclippedParent = parent;
+            }
+        }
+    }
+
+    private void glassRestoreClip() {
+        if (glassUnclippedParent == null || glassPressed != GLASS_NONE) {
+            return;
+        }
+        for (LiquidPressEffect effect : glassPress) {
+            if (effect != null && effect.isActive()) {
+                return;
+            }
+        }
+        glassUnclippedParent.setClipChildren(true);
+        glassUnclippedParent.invalidate();
+        glassUnclippedParent = null;
+    }
+
     private LiquidPressEffect glassPress(int surface) {
         if (glassPress[surface] == null) {
             glassPress[surface] = new LiquidPressEffect(this);
@@ -427,7 +459,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (child == menu) {
             return GLASS_MENU;
         }
-        if (glassMode && chatAvatarContainer != null && child == chatAvatarContainer) {
+        // The pill carries the rest of the bar: the chat's avatar and name, or the title
+        if (glassMode && !glassOnlyBack && child != actionMode) {
             return GLASS_PILL;
         }
         return GLASS_NONE;
@@ -544,6 +577,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
         final RectF r = glassRect[glassPressed];
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassUnclip();
+        }
         glassPress(glassPressed).onTouch(action, ev.getX() - r.left, ev.getY() - r.top);
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             glassPressed = GLASS_NONE;
@@ -2481,6 +2517,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
 
         super.dispatchDraw(canvas);
+        glassRestoreClip();
     }
 
     public void setForceSkipTouches(boolean forceSkipTouches) {

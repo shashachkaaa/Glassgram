@@ -300,10 +300,18 @@ public class ActionBarMenuItem extends FrameLayout {
         super.draw(canvas);
     }
 
+    /**
+     * On a Liquid Glass bar holding or dragging the button stretches it like the library's
+     * LiquidButton, so its menu opens on a tap only.
+     */
+    private boolean isLiquidGlass() {
+        return parentMenu != null && parentMenu.parentActionBar != null && parentMenu.parentActionBar.hasLiquidGlassButtons();
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-            if (longClickEnabled && hasSubMenu() && (popupWindow == null || !popupWindow.isShowing())) {
+            if (longClickEnabled && !isLiquidGlass() && hasSubMenu() && (popupWindow == null || !popupWindow.isShowing())) {
                 showMenuRunnable = () -> {
                     if (getParent() != null) {
                         getParent().requestDisallowInterceptTouchEvent(true);
@@ -313,7 +321,7 @@ public class ActionBarMenuItem extends FrameLayout {
                 AndroidUtilities.runOnUIThread(showMenuRunnable, 200);
             }
         } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-            if (showSubmenuByMove && hasSubMenu() && (popupWindow == null || !popupWindow.isShowing())) {
+            if (showSubmenuByMove && !isLiquidGlass() && hasSubMenu() && (popupWindow == null || !popupWindow.isShowing())) {
                 if (event.getY() > getHeight()) {
                     if (getParent() != null) {
                         getParent().requestDisallowInterceptTouchEvent(true);

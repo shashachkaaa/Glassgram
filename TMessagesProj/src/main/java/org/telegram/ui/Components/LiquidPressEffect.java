@@ -135,8 +135,9 @@ public class LiquidPressEffect {
         final float maxDragScale = AndroidUtilities.dpf2(4) / height;
         final float maxDimension = Math.max(width, height);
         final double angle = Math.atan2(oy, ox);
-        final float scaleX = scale + maxDragScale * Math.abs((float) Math.cos(angle) * ox / maxDimension) * Math.min(width / height, 1f);
-        final float scaleY = scale + maxDragScale * Math.abs((float) Math.sin(angle) * oy / maxDimension) * Math.min(height / width, 1f);
+        // The stretch grows with the drag up to one size of the surface, then holds
+        final float scaleX = scale + maxDragScale * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension)) * Math.min(width / height, 1f);
+        final float scaleY = scale + maxDragScale * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension)) * Math.min(height / width, 1f);
 
         canvas.translate(tx, ty);
         canvas.scale(scaleX, scaleY, width / 2f, height / 2f);
