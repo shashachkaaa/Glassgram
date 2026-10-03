@@ -28,10 +28,17 @@
         "en": "Family of the Glassgram owner.",
         "ru": "Семья владельца Glassgram."
       }
+    },
+    "owner": {
+      "icon": "crown",
+      "text": {
+        "en": "Owner and developer of Glassgram.",
+        "ru": "Владелец и по совместительству разработчик проекта Glassgram."
+      }
     }
   },
   "peers": {
-    "7262597406": "developer",
+    "7262597406": "owner",
     "6188761199": {
       "badge": "family",
       "text": {
