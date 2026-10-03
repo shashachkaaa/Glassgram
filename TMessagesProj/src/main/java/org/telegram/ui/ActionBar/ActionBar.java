@@ -457,7 +457,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return GLASS_BACK;
         }
         if (child == menu) {
-            return GLASS_MENU;
+            // The search field lives in the menu but sits on the pill
+            return glassMode && menu.searchFieldVisible() ? GLASS_PILL : GLASS_MENU;
         }
         // The pill carries the rest of the bar: the chat's avatar and name, or the title
         if (glassMode && !glassOnlyBack && child != actionMode) {
