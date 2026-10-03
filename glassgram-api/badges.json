@@ -40,10 +40,10 @@
   "peers": {
     "7262597406": "owner",
     "6188761199": {
-      "badge": "family",
+      "badge": "developer",
       "text": {
-        "en": "The owner's golden brother.",
-        "ru": "Золотой брат владельца."
+        "en": "The owner's golden brother and one of the developers of @glassGramBot.",
+        "ru": "Золотой брат владельца и один из кодеров @glassGramBot."
       }
     },
     "6782032428": {
