@@ -162,19 +162,24 @@ public class LiquidPressEffect {
         if (progress == 0f && ox == 0f && oy == 0f) {
             return;
         }
-        final float scale = AndroidUtilities.lerp(1f, 1f + AndroidUtilities.dpf2(4) / height, progress);
+        // The catalog swells its small buttons by 4dp of their height in both directions; a wide
+        // button would grow by tens of dp sideways that way, so each side gets its own 4dp
+        final float swell = AndroidUtilities.dpf2(4) * progress;
+        final float scaleBaseX = 1f + swell / width;
+        final float scaleBaseY = 1f + swell / height;
 
         final float maxOffset = Math.min(width, height);
         final float initialDerivative = 0.05f;
         final float tx = maxOffset * (float) Math.tanh(initialDerivative * ox / maxOffset);
         final float ty = maxOffset * (float) Math.tanh(initialDerivative * oy / maxOffset);
 
-        final float maxDragScale = AndroidUtilities.dpf2(4) / height;
+        // The drag stretch too is 4dp at most along each side, whatever the surface's size
+        final float maxStretch = AndroidUtilities.dpf2(4);
         final float maxDimension = Math.max(width, height);
         final double angle = Math.atan2(oy, ox);
         // The stretch grows with the drag up to one size of the surface, then holds
-        final float scaleX = scale + maxDragScale * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension)) * Math.min(width / height, 1f);
-        final float scaleY = scale + maxDragScale * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension)) * Math.min(height / width, 1f);
+        final float scaleX = scaleBaseX + maxStretch / width * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension));
+        final float scaleY = scaleBaseY + maxStretch / height * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension));
 
         canvas.translate(tx, ty);
         canvas.scale(scaleX, scaleY, width / 2f, height / 2f);

@@ -110,6 +110,8 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
 
         // Filled buttons press like the library's LiquidButton; plain ones keep Telegram's bounce.
         liquidPress = new LiquidPressEffect(this);
+        // Sheets lay the button out edge to edge with their padding: let its swell show
+        liquidPress.setUnclipParents(2);
         if (!filled) {
             ScaleStateListAnimator.apply(this, .02f, 1.2f);
         }
