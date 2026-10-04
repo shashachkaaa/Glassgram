@@ -231,6 +231,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
     private View glassPillFollower;
+    private boolean glassActionModeMoved;
     private boolean glassPillFollowerMoved;
 
     /**
@@ -2643,6 +2644,18 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         super.dispatchDraw(canvas);
         glassRestoreClip();
+        if (glassMode && actionMode != null) {
+            // The selection bar moves its items itself (drawChild), so its own drawing has to be redone
+            // on every frame of a stretch, plus one more to put them back
+            boolean moved = false;
+            for (LiquidPressEffect effect : glassPress) {
+                moved |= effect != null && effect.isActive();
+            }
+            if (moved || glassActionModeMoved) {
+                actionMode.invalidate();
+            }
+            glassActionModeMoved = moved;
+        }
         if (glassPillFollower != null) {
             final boolean moved = glassPress[GLASS_PILL] != null && glassPress[GLASS_PILL].isActive();
             if (moved || glassPillFollowerMoved) {
