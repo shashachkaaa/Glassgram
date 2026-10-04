@@ -81,6 +81,11 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         final float w = getWidth() - m * 2, h = getHeight() - m * 2;
         final boolean pressed = liquidPress.isActive() && w > 0 && h > 0;
         if (!pressed) {
+            // Back in place after a press (the bounds are left moved until the next frame)
+            final android.graphics.Rect b = backgroundDrawable.getBounds();
+            if (b.left != 0 || b.top != 0 || b.right != getWidth() || b.bottom != getHeight()) {
+                backgroundDrawable.setBounds(0, 0, getWidth(), getHeight());
+            }
             backgroundDrawable.draw(canvas);
             super.draw(canvas);
             return;
@@ -89,8 +94,8 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         // through the canvas
         liquidPress.mapRect(m, m, m + w, m + h, movedRect);
         backgroundDrawable.setBounds(Math.round(movedRect.left - m), Math.round(movedRect.top - m), Math.round(movedRect.right + m), Math.round(movedRect.bottom + m));
+        // Not put back until the next frame: the glass is a RenderNode drawn later
         backgroundDrawable.draw(canvas);
-        backgroundDrawable.setBounds(0, 0, getWidth(), getHeight());
         canvas.save();
         canvas.translate(m, m);
         liquidPress.transform(canvas, w, h);

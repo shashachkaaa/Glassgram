@@ -605,12 +605,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         // The glass goes where the press moved it and blurs what is there, instead of stretching
         // the picture it took in place
         effect.mapRect(r.left, r.top, r.right, r.bottom, glassMovedRect);
-        final int l = b.left, t = b.top, rr = b.right, bb = b.bottom;
+        // The bounds stay moved until the next frame sets them again: the glass is a RenderNode
+        // drawn later, and putting the bounds back now would resize it under the drawn frame
         drawable.setBounds(
             Math.round(glassMovedRect.left) - padding, Math.round(glassMovedRect.top) - padding,
             Math.round(glassMovedRect.right) + padding, Math.round(glassMovedRect.bottom) + padding);
         drawable.draw(canvas);
-        drawable.setBounds(l, t, rr, bb);
         canvas.save();
         canvas.translate(glassMovedRect.left, glassMovedRect.top);
         effect.drawGlow(canvas, glassMovedRect.width(), glassMovedRect.height(), Math.min(glassMovedRect.width(), glassMovedRect.height()) / 2f);

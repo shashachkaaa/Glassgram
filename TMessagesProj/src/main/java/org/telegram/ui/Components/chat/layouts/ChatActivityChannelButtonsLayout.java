@@ -455,8 +455,8 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 containerPress.mapRect(r.left, r.top, r.right, r.bottom, containerMovedRect);
                 containerDrawable.setBounds(Math.round(containerMovedRect.left) - p, Math.round(containerMovedRect.top) - p,
                     Math.round(containerMovedRect.right) + p, Math.round(containerMovedRect.bottom) + p);
+                // Not put back until the next frame: the glass is a RenderNode drawn later
                 containerDrawable.draw(canvas);
-                containerDrawable.setBounds(AndroidUtilities.rectTmp2);
                 canvas.save();
                 canvas.translate(r.left, r.top);
                 containerPress.transform(canvas, r.width(), r.height());
