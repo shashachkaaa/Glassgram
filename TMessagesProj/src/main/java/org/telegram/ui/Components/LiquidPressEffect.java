@@ -152,15 +152,18 @@ public class LiquidPressEffect {
         }
     }
 
-    /** Applies the catalog's LiquidButton layerBlock: swell by 4dp and stretch towards the drag. */
-    public void transform(Canvas canvas, float width, float height) {
+    // The current press transform: translation and scale about the surface's center
+    private float curTx, curTy, curScaleX = 1f, curScaleY = 1f;
+
+    /** Works out the press transform for a surface of this size; false when there is none. */
+    private boolean compute(float width, float height) {
         if (width <= 0 || height <= 0) {
-            return;
+            return false;
         }
         final float progress = press.getValue();
         final float ox = offsetX.getValue(), oy = offsetY.getValue();
         if (progress == 0f && ox == 0f && oy == 0f) {
-            return;
+            return false;
         }
         // The catalog swells its small buttons by 4dp of their height in both directions; a wide
         // button would grow by tens of dp sideways that way, so each side gets its own 4dp
@@ -170,19 +173,42 @@ public class LiquidPressEffect {
 
         final float maxOffset = Math.min(width, height);
         final float initialDerivative = 0.05f;
-        final float tx = maxOffset * (float) Math.tanh(initialDerivative * ox / maxOffset);
-        final float ty = maxOffset * (float) Math.tanh(initialDerivative * oy / maxOffset);
+        curTx = maxOffset * (float) Math.tanh(initialDerivative * ox / maxOffset);
+        curTy = maxOffset * (float) Math.tanh(initialDerivative * oy / maxOffset);
 
         // The drag stretch too is 4dp at most along each side, whatever the surface's size
         final float maxStretch = AndroidUtilities.dpf2(4);
         final float maxDimension = Math.max(width, height);
         final double angle = Math.atan2(oy, ox);
         // The stretch grows with the drag up to one size of the surface, then holds
-        final float scaleX = scaleBaseX + maxStretch / width * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension));
-        final float scaleY = scaleBaseY + maxStretch / height * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension));
+        curScaleX = scaleBaseX + maxStretch / width * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension));
+        curScaleY = scaleBaseY + maxStretch / height * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension));
+        return true;
+    }
 
-        canvas.translate(tx, ty);
-        canvas.scale(scaleX, scaleY, width / 2f, height / 2f);
+    /** Applies the catalog's LiquidButton layerBlock: swell by 4dp and stretch towards the drag. */
+    public void transform(Canvas canvas, float width, float height) {
+        if (!compute(width, height)) {
+            return;
+        }
+        canvas.translate(curTx, curTy);
+        canvas.scale(curScaleX, curScaleY, width / 2f, height / 2f);
+    }
+
+    /**
+     * Where the surface (left, top, right, bottom, in its parent) is with the press transform
+     * applied. Glass is drawn at that place rather than through {@link #transform}, so it blurs
+     * what is under it now instead of stretching the picture taken where it was.
+     */
+    public void mapRect(float left, float top, float right, float bottom, android.graphics.RectF out) {
+        out.set(left, top, right, bottom);
+        final float width = right - left, height = bottom - top;
+        if (!compute(width, height)) {
+            return;
+        }
+        final float cx = (left + right) / 2f + curTx, cy = (top + bottom) / 2f + curTy;
+        final float hw = width * curScaleX / 2f, hh = height * curScaleY / 2f;
+        out.set(cx - hw, cy - hh, cx + hw, cy + hh);
     }
 
     /** The catalog's InteractiveHighlight: a faint wash and a light spot under the finger. */

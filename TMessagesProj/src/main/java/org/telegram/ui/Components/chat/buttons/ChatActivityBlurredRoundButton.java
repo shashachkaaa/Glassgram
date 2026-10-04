@@ -58,6 +58,7 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
     // Swells, stretches towards the finger and lights up under it like the Liquid Glass
     // catalog's LiquidButton, together with its icon
     private final org.telegram.ui.Components.LiquidPressEffect liquidPress = new org.telegram.ui.Components.LiquidPressEffect(this);
+    private final android.graphics.RectF movedRect = new android.graphics.RectF();
     {
         // Button, its wrapper (page-down), the buttons layout and the screen
         liquidPress.setUnclipParents(3);
@@ -79,19 +80,27 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         final float m = dp(CLICK_ZONE_MARGIN);
         final float w = getWidth() - m * 2, h = getHeight() - m * 2;
         final boolean pressed = liquidPress.isActive() && w > 0 && h > 0;
-        if (pressed) {
-            canvas.save();
-            canvas.translate(m, m);
-            liquidPress.transform(canvas, w, h);
-            canvas.translate(-m, -m);
+        if (!pressed) {
+            backgroundDrawable.draw(canvas);
+            super.draw(canvas);
+            return;
         }
+        // The glass goes where the press moved it and blurs what is there now; the icon follows
+        // through the canvas
+        liquidPress.mapRect(m, m, m + w, m + h, movedRect);
+        backgroundDrawable.setBounds(Math.round(movedRect.left - m), Math.round(movedRect.top - m), Math.round(movedRect.right + m), Math.round(movedRect.bottom + m));
         backgroundDrawable.draw(canvas);
+        backgroundDrawable.setBounds(0, 0, getWidth(), getHeight());
+        canvas.save();
+        canvas.translate(m, m);
+        liquidPress.transform(canvas, w, h);
+        canvas.translate(-m, -m);
         super.draw(canvas);
-        if (pressed) {
-            canvas.translate(m, m);
-            liquidPress.drawGlow(canvas, w, h, Math.min(w, h) / 2f);
-            canvas.restore();
-        }
+        canvas.restore();
+        canvas.save();
+        canvas.translate(movedRect.left, movedRect.top);
+        liquidPress.drawGlow(canvas, movedRect.width(), movedRect.height(), Math.min(movedRect.width(), movedRect.height()) / 2f);
+        canvas.restore();
     }
 
     @Override

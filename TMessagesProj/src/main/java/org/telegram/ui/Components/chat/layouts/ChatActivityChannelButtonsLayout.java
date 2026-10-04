@@ -417,6 +417,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         containerPress.setUnclipParents(2);
     }
     private final RectF containerGlassRect = new RectF();
+    private final RectF containerMovedRect = new RectF();
     private boolean containerPressed;
 
     @Override
@@ -450,14 +451,21 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
             containerGlassRect.set(tmpRect.left + p, tmpRect.top + p, tmpRect.right - p, tmpRect.bottom - p);
             if (containerPress.isActive()) {
                 final RectF r = containerGlassRect;
+                // The glass goes where the press moved it and blurs what is there now
+                containerPress.mapRect(r.left, r.top, r.right, r.bottom, containerMovedRect);
+                containerDrawable.setBounds(Math.round(containerMovedRect.left) - p, Math.round(containerMovedRect.top) - p,
+                    Math.round(containerMovedRect.right) + p, Math.round(containerMovedRect.bottom) + p);
+                containerDrawable.draw(canvas);
+                containerDrawable.setBounds(AndroidUtilities.rectTmp2);
                 canvas.save();
                 canvas.translate(r.left, r.top);
                 containerPress.transform(canvas, r.width(), r.height());
                 canvas.translate(-r.left, -r.top);
-                containerDrawable.draw(canvas);
                 final boolean result = super.drawChild(canvas, child, drawingTime);
-                canvas.translate(r.left, r.top);
-                containerPress.drawGlow(canvas, r.width(), r.height(), Math.min(r.width(), r.height()) / 2f);
+                canvas.restore();
+                canvas.save();
+                canvas.translate(containerMovedRect.left, containerMovedRect.top);
+                containerPress.drawGlow(canvas, containerMovedRect.width(), containerMovedRect.height(), Math.min(containerMovedRect.width(), containerMovedRect.height()) / 2f);
                 canvas.restore();
                 return result;
             }

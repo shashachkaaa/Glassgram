@@ -590,14 +590,30 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     /** Draws a glass piece of the bar with its press effect; padding is the drawable's inset around the glass. */
+    private final RectF glassMovedRect = new RectF();
+
     private void drawGlass(Canvas canvas, Drawable drawable, int surface, int padding) {
         final Rect b = drawable.getBounds();
-        glassRect[surface].set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
+        final RectF r = glassRect[surface];
+        r.set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
         glassShown[surface] = true;
-        canvas.save();
-        glassTransform(canvas, surface);
+        final LiquidPressEffect effect = glassPress[surface];
+        if (effect == null || !effect.isActive()) {
+            drawable.draw(canvas);
+            return;
+        }
+        // The glass goes where the press moved it and blurs what is there, instead of stretching
+        // the picture it took in place
+        effect.mapRect(r.left, r.top, r.right, r.bottom, glassMovedRect);
+        final int l = b.left, t = b.top, rr = b.right, bb = b.bottom;
+        drawable.setBounds(
+            Math.round(glassMovedRect.left) - padding, Math.round(glassMovedRect.top) - padding,
+            Math.round(glassMovedRect.right) + padding, Math.round(glassMovedRect.bottom) + padding);
         drawable.draw(canvas);
-        glassGlow(canvas, surface);
+        drawable.setBounds(l, t, rr, bb);
+        canvas.save();
+        canvas.translate(glassMovedRect.left, glassMovedRect.top);
+        effect.drawGlow(canvas, glassMovedRect.width(), glassMovedRect.height(), Math.min(glassMovedRect.width(), glassMovedRect.height()) / 2f);
         canvas.restore();
     }
 
