@@ -35,6 +35,14 @@
         "en": "Owner and developer of Glassgram.",
         "ru": "Владелец и по совместительству разработчик проекта Glassgram."
       }
+    },
+    "supporter": {
+      "icon": "star",
+      "donate_bot": "glassGramBot",
+      "text": {
+        "en": "Supported Glassgram development.",
+        "ru": "Поддержал разработку Glassgram."
+      }
     }
   },
   "peers": {

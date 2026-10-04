@@ -45,6 +45,9 @@ from your own server instead, change `GlassgramBadges.API_URL` and return the sa
     `bolt`, `crown`, `code`, `shield`.
   - `text` — what tapping the badge shows, per language code; `en` is the fallback. A plain
     string works too.
+  - `donate_bot` — optional, for supporters' badges: the bot that takes donations (without `@`).
+    Tapping such a badge opens a "Support Development" sheet with how to donate through that bot
+    and a button that opens it, instead of the text.
 
   Badges take the color of the name they follow (so they fit any theme) and sparkle like
   exteraGram's.

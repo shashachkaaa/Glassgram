@@ -59,16 +59,19 @@ public final class GlassgramBadges {
         public final String id;
         public final String icon;
         public final HashMap<String, String> texts;
+        /** For supporters' badges: the bot that takes donations; tapping the badge explains how to get one. */
+        public final String donateBot;
 
-        Badge(String id, String icon, HashMap<String, String> texts) {
+        Badge(String id, String icon, HashMap<String, String> texts, String donateBot) {
             this.id = id;
             this.icon = icon;
             this.texts = texts;
+            this.donateBot = donateBot;
         }
 
         /** The same badge with the description given to one peer, when it has its own. */
         Badge withTexts(HashMap<String, String> peerTexts) {
-            return peerTexts == null || peerTexts.isEmpty() ? this : new Badge(id, icon, peerTexts);
+            return peerTexts == null || peerTexts.isEmpty() ? this : new Badge(id, icon, peerTexts, donateBot);
         }
 
         /** The text shown when the badge is tapped, in the app language when the API has it. */
@@ -195,7 +198,11 @@ public final class GlassgramBadges {
                         continue;
                     }
                     HashMap<String, String> texts = parseTexts(b.opt("text"));
-                    badges.put(id, new Badge(id, b.optString("icon", "arrow"), texts));
+                    String donateBot = b.optString("donate_bot", "").trim();
+                    if (donateBot.startsWith("@")) {
+                        donateBot = donateBot.substring(1);
+                    }
+                    badges.put(id, new Badge(id, b.optString("icon", "arrow"), texts, donateBot.isEmpty() ? null : donateBot));
                 }
             }
             HashMap<Long, Badge> peers = new HashMap<>();
@@ -345,6 +352,11 @@ public final class GlassgramBadges {
 
     /** Shows what the badge means: its whole description, however many lines it takes. */
     public static void showDescription(org.telegram.ui.ActionBar.BaseFragment fragment, Badge badge) {
+        if (fragment != null && badge != null && badge.donateBot != null) {
+            // A supporter's badge tells how to support the project and get one too
+            org.telegram.ui.GlassgramDonateSheet.show(fragment, badge);
+            return;
+        }
         if (fragment == null || badge == null || TextUtils.isEmpty(badge.getText()) || fragment.getContext() == null) {
             return;
         }

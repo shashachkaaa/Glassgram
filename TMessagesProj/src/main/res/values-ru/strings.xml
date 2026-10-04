@@ -288,6 +288,15 @@
     <string name="GlassgramHideStories">Скрыть истории</string>
     <string name="GlassgramHeaderBadge">Мой значок в шапке</string>
     <string name="GlassgramGlassHeader">Стеклянная шапка списка чатов</string>
+    <string name="GlassgramDonateTitle">Поддержать разработку</string>
+    <string name="GlassgramDonateSubtitle">Поддерживая Glassgram, вы помогаете ему развиваться и получаете значок поддержавшего рядом с именем, который видят все пользователи Glassgram.</string>
+    <string name="GlassgramDonateStep1">Откройте бота</string>
+    <string name="GlassgramDonateStep1Text">Перейдите в @%1$s и отправьте /donate.</string>
+    <string name="GlassgramDonateStep2">Оплатите звёздами Telegram</string>
+    <string name="GlassgramDonateStep2Text">Выберите любую сумму и оплатите прямо в Telegram, без ввода данных карты.</string>
+    <string name="GlassgramDonateStep3">Получите значок</string>
+    <string name="GlassgramDonateStep3Text">Бот выдаст значок автоматически, в Glassgram он появится через пару минут.</string>
+    <string name="GlassgramDonateOpenBot">Открыть @%1$s</string>
     <string name="GlassgramHideFloatingButton">Скрыть плавающую кнопку</string>
     <string name="GlassgramChatListInfo">Изменения появятся, когда вы вернётесь к списку чатов.</string>
     <string name="GlassgramStickers">Стикеры и эмодзи</string>

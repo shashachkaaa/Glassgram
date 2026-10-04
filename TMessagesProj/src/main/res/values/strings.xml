@@ -11260,6 +11260,15 @@
     <string name="GlassgramHideStories">Hide Stories</string>
     <string name="GlassgramHeaderBadge">My Badge in the Header</string>
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
+    <string name="GlassgramDonateTitle">Support Development</string>
+    <string name="GlassgramDonateSubtitle">By supporting Glassgram you help it grow and get a supporter badge next to your name, visible to everyone using Glassgram.</string>
+    <string name="GlassgramDonateStep1">Open the bot</string>
+    <string name="GlassgramDonateStep1Text">Go to @%1$s and send /donate.</string>
+    <string name="GlassgramDonateStep2">Pay with Telegram Stars</string>
+    <string name="GlassgramDonateStep2Text">Choose any amount and pay right in Telegram, no card details needed.</string>
+    <string name="GlassgramDonateStep3">Get your badge</string>
+    <string name="GlassgramDonateStep3Text">The bot gives you the badge automatically; it shows up in Glassgram within a couple of minutes.</string>
+    <string name="GlassgramDonateOpenBot">Open @%1$s</string>
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
     <string name="GlassgramStickers">Stickers and Emoji</string>
