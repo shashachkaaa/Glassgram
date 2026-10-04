@@ -73,7 +73,14 @@ private suspend inline fun AwaitPointerEventScope.drag(
     while (true) {
         val change = awaitDragOrUp(pointer) ?: return null
         if (change.isConsumed) {
-            return null
+            // A sideways move taken by the other gesture of the same control (the drop's drag
+            // and its highlight both claim it) is still this gesture: only a move taken by
+            // someone else, like a list scrolling, cancels it
+            val moved = change.position - startPosition
+            val sideways = claimThreshold != Float.MAX_VALUE && abs(moved.x) > abs(moved.y)
+            if (!sideways) {
+                return null
+            }
         }
         if (change.changedToUpIgnoreConsumed()) {
             return change
