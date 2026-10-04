@@ -533,8 +533,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (glassButtons && glassExtraButtons.contains(child)) {
             return GLASS_MENU;
         }
-        // The pill carries the rest of the bar: the chat's avatar and name, or the title
-        if (glassMode && !glassOnlyBack && child != actionMode) {
+        // The pill carries the rest of the bar: the chat's avatar and name, or the title. With the
+        // selection bar on top they are hidden under it and must stay put, or they peek out
+        if (glassMode && !glassOnlyBack && child != actionMode && !isActionModeShowed()) {
             return GLASS_PILL;
         }
         return GLASS_NONE;
