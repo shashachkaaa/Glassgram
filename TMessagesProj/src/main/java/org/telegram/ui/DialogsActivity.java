@@ -14420,6 +14420,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (parentLayout == null || actionBar == null /*|| !actionBar.getCastShadows()*/) {
             return;
         }
+        if (glassHeaderOverList()) {
+            // The glass header has no edge: the list goes under it
+            return;
+        }
 
         final float headerShadowAlphaBase = Math.max(animatorShadowVisible.getFloatValue(), getRightSlidingProgress()) * (1f - searchAnimationProgress) * (1f - searchAnimationProgress);
         if (headerShadowAlphaBase == 0) {
