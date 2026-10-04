@@ -309,6 +309,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (actionMode != null) {
             actionMode.setTranslationX(-dp(10));
             actionMode.setGlassMode(true);
+            actionMode.setClipChildren(false);
+            actionMode.setClipToPadding(false);
         }
         if (backButtonImageView != null) {
             backButtonImageView.setTranslationX(dp(2));
@@ -1110,6 +1112,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
         };
         actionMode.setTranslationX(glassMode ? -dp(10) : 0);
+        if (glassMode) {
+            // Its items stretch with the glass under them, past the selection bar's edges
+            actionMode.setClipChildren(false);
+            actionMode.setClipToPadding(false);
+        }
         actionMode.setGlassMode(glassMode);
         actionMode.isActionMode = true;
         actionMode.setClickable(true);
