@@ -690,6 +690,8 @@ public class SimpleTextView extends View implements Drawable.Callback {
         if (!recreateLayoutMaybe()) {
             invalidate();
         }
+        // The view's width includes what follows the text: a badge added after layout would be cut off
+        requestLayout();
         return true;
     }
 
