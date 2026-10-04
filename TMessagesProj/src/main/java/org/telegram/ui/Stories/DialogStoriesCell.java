@@ -694,7 +694,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
     protected void dispatchDraw(Canvas canvas) {
         canvas.save();
         if (clipTop > 0) {
-            canvas.clipRect(0, clipTop, getMeasuredWidth(), getMeasuredHeight());
+            // Only the top is cut (under the status bar): the header row may be pulled below the
+            // view with a stretching glass pill
+            canvas.clipRect(0, clipTop, getMeasuredWidth(), getMeasuredHeight() * 3);
         }
         float maxY = getMeasuredHeight() - ActionBar.getCurrentActionBarHeight() - dp(4);
         float bottomY = AndroidUtilities.lerp(0, maxY, collapsedProgress1);
@@ -935,9 +937,10 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         if (needSaveLayer) {
             final float clipWidth = getWidth() - clipRightPadding;
             final float layerWidth = getWidth(); // - clipRightPadding;
-            canvas.saveLayer(0, 0, layerWidth, getHeight(), null);
+            // The layer and the clip reach below the view: the header row may be pulled down
+            canvas.saveLayer(0, 0, layerWidth, getHeight() * 3, null);
             canvas.save();
-            canvas.clipRect(0, 0, clipWidth, getHeight());
+            canvas.clipRect(0, -getHeight(), clipWidth, getHeight() * 3);
         }
 
         if (progress != 0) {
