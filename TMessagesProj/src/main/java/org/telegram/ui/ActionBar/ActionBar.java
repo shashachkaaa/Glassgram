@@ -1095,14 +1095,17 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             @Override
             public void setBackgroundColor(int color) {
                 actionModeColor = color;
-                if (!blurredBackground) {
+                // On glass the selection bar sits on the glass pieces and has no background of its own
+                if (!blurredBackground && !glassMode) {
                     super.setBackgroundColor(actionModeColor);
                 }
             }
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
-                if (blurredBackground && drawBlur && actionModeColor != 0) {
+                // The old bar's scrim would cover the glass drawn under the selection bar, which then
+                // only showed where a press stretched it past the scrim's edge
+                if (blurredBackground && drawBlur && actionModeColor != 0 && !glassMode) {
                     rectTmp.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
                     blurScrimPaint.setColor(actionModeColor);
                     contentView.drawBlurRect(canvas, 0, rectTmp, blurScrimPaint, true);
