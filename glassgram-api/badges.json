@@ -43,11 +43,19 @@
         "en": "Supported Glassgram development.",
         "ru": "Поддержал разработку Glassgram."
       }
+    },
+    "critic": {
+      "icon": "bolt",
+      "text": {
+        "en": "Armchair critic.",
+        "ru": "Диванный критик."
+      }
     }
   },
   "peers": {
     "7262597406": "owner",
     "7091172883": "supporter",
+    "8037199101": "critic",
     "6188761199": {
       "badge": "developer",
       "text": {
