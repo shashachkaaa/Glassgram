@@ -436,6 +436,8 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     private static final float SUBTITLE_SLIDE_DP = 10;
     private android.graphics.Bitmap subtitleSnapshot, subtitleSlideBitmap;
     private CharSequence subtitleSnapshotText;
+    // Where the snapshot and the outgoing status were: in the iOS-like header the new status is centered elsewhere
+    private float subtitleSnapshotLeft, subtitleSlideLeft;
     private float subtitleSlideProgress = 1f;
     private android.animation.ValueAnimator subtitleSlideAnimator;
     private final android.graphics.Paint subtitleSlidePaint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
@@ -464,6 +466,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             c.translate(0, pad);
             v.draw(c);
             subtitleSnapshotText = v.getText().toString();
+            subtitleSnapshotLeft = v.getLeft() + v.getTranslationX();
         } catch (Throwable e) {
             subtitleSnapshotText = null;
         }
@@ -484,6 +487,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         final android.graphics.Bitmap outgoing = subtitleSnapshot;
         subtitleSnapshot = subtitleSlideBitmap;
         subtitleSlideBitmap = outgoing;
+        subtitleSlideLeft = subtitleSnapshotLeft;
         if (subtitleSlideAnimator != null) {
             subtitleSlideAnimator.cancel();
         }
@@ -516,7 +520,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         final float y = child.getTop() + child.getTranslationY();
         if (subtitleSlideBitmap != null && !subtitleSlideBitmap.isRecycled()) {
             subtitleSlidePaint.setAlpha((int) (255 * (1f - p) * child.getAlpha()));
-            canvas.drawBitmap(subtitleSlideBitmap, x, y - subtitleSnapshotPad() - d * p, subtitleSlidePaint);
+            canvas.drawBitmap(subtitleSlideBitmap, iosHeader ? subtitleSlideLeft : x, y - subtitleSnapshotPad() - d * p, subtitleSlidePaint);
         }
         canvas.save();
         canvas.translate(0, d * (1f - p));
@@ -1846,6 +1850,10 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     private void checkActionBar(boolean animated) {
         if (actionBar != null) {
             actionBar.checkAvatarContainerWidth(animated);
+        }
+        if (iosHeader) {
+            // The name and the status are centered on each other in onLayout: a new text needs a new place
+            requestLayout();
         }
     }
 
