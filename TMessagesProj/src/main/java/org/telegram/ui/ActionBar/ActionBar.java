@@ -540,6 +540,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     // The capsules are glass made of what is under the bar: the header, the photo, the list
     private ViewBehindBackdrop glassButtonBackdrop;
+    private final RectF glassButtonMovedRect = new RectF();
     private android.view.ViewTreeObserver glassButtonBackdropTree;
     private final android.view.ViewTreeObserver.OnPreDrawListener glassButtonBackdropWatcher = () -> {
         // The bar is not redrawn when only what is under it changes, and its glass would show the old picture
@@ -818,14 +819,28 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
             if (shown) {
                 final RectF r = glassRect[surface];
-                glassTransform(canvas, surface);
+                final LiquidPressEffect effect = glassPress[surface];
+                final boolean pressed = effect != null && effect.isActive();
+                // Pressed, the glass goes where the press moved it and is made of what is under it
+                // there, instead of the canvas stretching the picture it took in place
+                final RectF g = pressed ? glassButtonMovedRect : r;
+                if (pressed) {
+                    effect.mapRect(r.left, r.top, r.right, r.bottom, glassButtonMovedRect);
+                }
                 glass.setColors(itemsColor, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
                 glass.setAlpha((int) (255 * glassButtonAlpha(child)));
-                glass.setBounds((int) r.left, (int) r.top, (int) r.right, (int) r.bottom);
-                glassButtonBackdrop.setArea(r);
+                glass.setBounds(Math.round(g.left), Math.round(g.top), Math.round(g.right), Math.round(g.bottom));
+                glassButtonBackdrop.setArea(g);
                 glass.setBackdrop(!glassButtonBackdrop.isDrawing() && glassButtonBackdrop.isAvailable() ? glassButtonBackdrop : null);
                 glass.draw(canvas);
-                glassGlow(canvas, surface);
+                if (pressed) {
+                    canvas.save();
+                    canvas.translate(g.left, g.top);
+                    effect.drawGlow(canvas, g.width(), g.height(), Math.min(g.width(), g.height()) / 2f);
+                    canvas.restore();
+                }
+                // The icon follows the glass through the canvas
+                glassTransform(canvas, surface);
             }
         } else {
             glassTransform(canvas, surface);
