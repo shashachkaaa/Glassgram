@@ -900,8 +900,8 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         // The iOS-like header centers the title and the status on each other; the pill wraps them
         int titleLeft = l, subtitleLeft = l;
         if (iosHeader) {
-            final float titleWidth = titleTextView.getExactWidthIncludeDrawables();
-            final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? subtitleTextView.getExactWidthIncludeDrawables() : 0;
+            final float titleWidth = titleTextView.getExactWidth();
+            final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? subtitleTextView.getExactWidth() : 0;
             final float contentWidth = Math.max(titleWidth, subtitleWidth);
             titleLeft = l + (int) ((contentWidth - titleWidth) / 2f);
             subtitleLeft = l + (int) ((contentWidth - subtitleWidth) / 2f);
@@ -1855,6 +1855,18 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     public int getVisualWidth() {
         float width = 0;
+
+        if (iosHeader) {
+            // getExactWidth has the badges and the emoji status already; IncludeDrawables counts them twice,
+            // and the name centered in a pill that wide stood to its left
+            if (titleTextView != null) {
+                width = Math.max(width, titleTextView.getExactWidth());
+            }
+            if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
+                width = Math.max(width, subtitleTextView.getExactWidth());
+            }
+            return (int) (width + dp(34));
+        }
 
         if (titleTextView != null) {
             width = Math.max(width, titleTextView.getExactWidthIncludeDrawables());
