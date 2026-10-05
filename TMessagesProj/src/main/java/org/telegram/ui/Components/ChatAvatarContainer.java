@@ -66,6 +66,7 @@ import org.telegram.ui.Stories.StoriesUtilities;
 import org.telegram.ui.TopicsFragment;
 import org.telegram.ui.community.CommunityArrowDrawable;
 
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import me.vkryl.android.animator.BoolAnimator;
@@ -790,7 +791,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         avatarImageView.measure(MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY));
         titleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(24 + 8), MeasureSpec.AT_MOST));
         if (subtitleTextView != null) {
-            subtitleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.AT_MOST));
+            // In the iOS-like header the pill keeps its width: a longer status is cut inside it
+            final int subtitleWidth = iosHeader ? Math.min(availableWidth, (int) Math.ceil(iosContentWidth())) : availableWidth;
+            subtitleTextView.measure(MeasureSpec.makeMeasureSpec(subtitleWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.AT_MOST));
         } else if (animatedSubtitleTextView != null) {
             animatedSubtitleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.AT_MOST));
         }
@@ -888,6 +891,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             return;
         }
         iosHeader = value;
+        iosStatusBudget = -1;
         if (!avatarImageIsHidden) {
             avatarImageView.setVisibility(VISIBLE);
         }
@@ -896,6 +900,55 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     public boolean isIosHeader() {
         return iosHeader;
+    }
+
+    /*
+     * The pill keeps one width while the chat is open: a new status (online, last seen, typing...)
+     * resized it every time. The room for the status is measured once, for the longest statuses the
+     * chat can show; only a new name (or its badges) changes the width.
+     */
+    private float iosStatusBudget = -1;
+
+    private float iosStatusBudget() {
+        if (iosStatusBudget >= 0) {
+            return iosStatusBudget;
+        }
+        if (subtitleTextView == null) {
+            return 0;
+        }
+        final TextPaint paint = subtitleTextView.getPaint();
+        final ArrayList<String> statuses = new ArrayList<>();
+        statuses.add(getString(R.string.WaitingForNetwork));
+        statuses.add(getString(R.string.Connecting));
+        statuses.add(getString(R.string.Updating));
+        final TLRPC.Chat chat = parentFragment != null ? parentFragment.getCurrentChat() : null;
+        if (chat != null) {
+            statuses.add(String.format("%s, %s", LocaleController.formatPluralString("Members", 99999), LocaleController.formatPluralString("OnlineCount", 9999)));
+            statuses.add(LocaleController.formatPluralString("Subscribers", 999999));
+        } else {
+            statuses.add(getString(R.string.Online));
+            statuses.add(getString(R.string.Lately));
+            statuses.add(getString(R.string.WithinAWeek));
+            statuses.add(getString(R.string.WithinAMonth));
+            statuses.add(LocaleController.formatString(R.string.LastSeenFormatted, LocaleController.formatString(R.string.YesterdayAtFormatted, "23:59")));
+        }
+        float width = 0;
+        for (int i = 0; i < statuses.size(); i++) {
+            width = Math.max(width, paint.measureText(statuses.get(i)));
+        }
+        // Actions come with the typing animation before them
+        final int[] actions = {R.string.Typing, R.string.RecordingAudio, R.string.RecordingRound, R.string.SendingPhoto, R.string.SendingVideoStatus, R.string.SendingFile};
+        for (int action : actions) {
+            width = Math.max(width, paint.measureText(getString(action)) + dp(24));
+        }
+        // And whatever the chat shows now
+        width = Math.max(width, subtitleTextView.getExactWidth());
+        return iosStatusBudget = width;
+    }
+
+    /** The width of the pill's content in the iOS-like header: the name, the room for the status and the minimum. */
+    private float iosContentWidth() {
+        return Math.max(Math.max(titleTextView.getExactWidth(), iosStatusBudget()), dp(IOS_HEADER_MIN_WIDTH_DP - IOS_HEADER_PADDING_DP));
     }
 
     private boolean glassMode;
@@ -920,11 +973,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         // The iOS-like header centers the title and the status on each other; the pill wraps them
         int titleLeft = l, subtitleLeft = l;
         if (iosHeader) {
+            final float contentWidth = iosContentWidth();
             final float titleWidth = titleTextView.getExactWidth();
-            final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? subtitleTextView.getExactWidth() : 0;
-            final float contentWidth = Math.max(Math.max(titleWidth, subtitleWidth), dp(IOS_HEADER_MIN_WIDTH_DP - IOS_HEADER_PADDING_DP));
-            titleLeft = l + (int) ((contentWidth - titleWidth) / 2f);
-            subtitleLeft = l + (int) ((contentWidth - subtitleWidth) / 2f);
+            // A status longer than the pill is cut to it, from the pill's start
+            final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? Math.min(subtitleTextView.getExactWidth(), contentWidth) : 0;
+            titleLeft = l + (int) Math.max(0, (contentWidth - titleWidth) / 2f);
+            subtitleLeft = l + (int) Math.max(0, (contentWidth - subtitleWidth) / 2f);
         }
         SimpleTextView titleTextLargerCopyView = this.titleTextLargerCopyView.get();
         if (getSubtitleTextView().getVisibility() != GONE) {
@@ -1881,15 +1935,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         float width = 0;
 
         if (iosHeader) {
-            // getExactWidth has the badges and the emoji status already; IncludeDrawables counts them twice,
-            // and the name centered in a pill that wide stood to its left
-            if (titleTextView != null) {
-                width = Math.max(width, titleTextView.getExactWidth());
-            }
-            if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
-                width = Math.max(width, subtitleTextView.getExactWidth());
-            }
-            return (int) Math.max(width + dp(IOS_HEADER_PADDING_DP), dp(IOS_HEADER_MIN_WIDTH_DP));
+            // One width for the whole visit (see iosStatusBudget); getExactWidth counts the badges and the
+            // emoji status once, IncludeDrawables twice
+            return (int) (iosContentWidth() + dp(IOS_HEADER_PADDING_DP));
         }
 
         if (titleTextView != null) {
