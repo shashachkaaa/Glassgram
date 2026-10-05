@@ -878,6 +878,10 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     // The iOS-like chat header: the avatar is at the end of the bar on its own glass, and the title
     // and the status are centered in the pill
     private boolean iosHeader;
+    // The pill is never narrower than this, or a short name with "online" shrank it to a stub;
+    // 34dp of it are the pill's own padding around the text
+    private static final int IOS_HEADER_MIN_WIDTH_DP = 184;
+    private static final int IOS_HEADER_PADDING_DP = 34;
 
     public void setIosHeader(boolean value) {
         if (iosHeader == value) {
@@ -918,7 +922,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (iosHeader) {
             final float titleWidth = titleTextView.getExactWidth();
             final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? subtitleTextView.getExactWidth() : 0;
-            final float contentWidth = Math.max(titleWidth, subtitleWidth);
+            final float contentWidth = Math.max(Math.max(titleWidth, subtitleWidth), dp(IOS_HEADER_MIN_WIDTH_DP - IOS_HEADER_PADDING_DP));
             titleLeft = l + (int) ((contentWidth - titleWidth) / 2f);
             subtitleLeft = l + (int) ((contentWidth - subtitleWidth) / 2f);
         }
@@ -1885,7 +1889,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
                 width = Math.max(width, subtitleTextView.getExactWidth());
             }
-            return (int) (width + dp(34));
+            return (int) Math.max(width + dp(IOS_HEADER_PADDING_DP), dp(IOS_HEADER_MIN_WIDTH_DP));
         }
 
         if (titleTextView != null) {
