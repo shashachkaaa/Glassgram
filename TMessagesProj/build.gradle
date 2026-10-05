@@ -163,6 +163,7 @@ android {
         }
         buildConfigField "int", "TG_APP_ID", tgAppId
         buildConfigField "String", "TG_APP_HASH", "\"" + tgAppHash + "\""
+        buildConfigField "String", "GLASSGRAM_VERSION", "\"" + GLASSGRAM_VERSION_NAME + "\""
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 

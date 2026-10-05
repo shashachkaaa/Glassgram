@@ -11260,6 +11260,12 @@
     <string name="GlassgramHideStories">Hide Stories</string>
     <string name="GlassgramHeaderBadge">My Badge in the Header</string>
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
+    <string name="GlassgramUpdateTitle">Glassgram update</string>
+    <string name="GlassgramUpdateText">Glassgram %1$s is out. You have %2$s.</string>
+    <string name="GlassgramUpdateDownload">Download</string>
+    <string name="GlassgramUpdateLater">Remind me later</string>
+    <string name="GlassgramUpdateDownloading">Downloading Glassgram %1$s…</string>
+    <string name="GlassgramUpdateFailed">Could not download the update. Try again later.</string>
     <string name="GlassgramDonateTitle">Support Development</string>
     <string name="GlassgramDonateSubtitle">By supporting Glassgram you help it grow and get a supporter badge next to your name, visible to everyone using Glassgram.</string>
     <string name="GlassgramDonateStep1">Open the bot</string>

@@ -25,6 +25,8 @@ public class BuildVars {
     public static boolean CHECK_UPDATES = true;
     public static boolean NO_SCOPED_STORAGE = Build.VERSION.SDK_INT <= 29;
     public static String BUILD_VERSION_STRING = BuildConfig.BUILD_VERSION_STRING;
+    /** Glassgram's own version (BUILD_VERSION_STRING is Telegram's), for the update check. */
+    public static String GLASSGRAM_VERSION = BuildConfig.GLASSGRAM_VERSION;
 
     // Injected at build time from the APP_ID / APP_HASH secrets, see TMessagesProj/build.gradle
     public static int APP_ID = BuildConfig.TG_APP_ID;

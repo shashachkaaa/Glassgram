@@ -133,9 +133,15 @@ jobs:
           # Telegram API credentials of this fork, from the repository secrets
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
         run: |
           chmod +x gradlew
-          ./gradlew ${{ steps.task.outputs.task }} \
+          # A release knows its own version from its tag, which the app's update check compares
+          VERSION_ARG=""
+          if [ -n "$RELEASE_TAG" ]; then
+            VERSION_ARG="-PGLASSGRAM_VERSION_NAME=${RELEASE_TAG#v}"
+          fi
+          ./gradlew ${{ steps.task.outputs.task }} $VERSION_ARG \
             --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dorg.gradle.workers.max=4

@@ -7016,6 +7016,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         AndroidUtilities.runOnUIThread(() -> {
             if (isResumed && !isFinishing()) {
                 org.telegram.messenger.GlassgramCrashReporter.showIfNeeded(this);
+                // Like the badges, every open looks for a new release with an APK
+                org.telegram.messenger.GlassgramUpdates.checkOnOpen(this);
             }
         }, 1500);
         pipActivityHandler.onResume();
