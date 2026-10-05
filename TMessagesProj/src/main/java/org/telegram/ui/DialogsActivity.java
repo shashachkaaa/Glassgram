@@ -1056,7 +1056,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
             } else if (!inPreviewMode) {
-                if (progressToActionMode > 0) {
+                if (progressToActionMode > 0 && !glassHeaderOverList()) {
                     actionBarSearchPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
                     blurBounds.set(0, Math.max(0, top), getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress));
                     drawBlurRect(canvas, 0, blurBounds, actionBarSearchPaint, true);
@@ -1719,9 +1719,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
-    /** The glass header is on and the list shows under it (not while searching, selecting or with a chat opened at the side). */
+    /** The glass header is on and the list shows under it (not while searching or with a chat opened at the side). */
     private boolean glassHeaderOverList() {
-        return glassHeader && progressToActionMode == 0 && searchAnimationProgress == 0
+        // Selecting chats keeps the list under the glass too: the old bar's white blurred band,
+        // its shadow and the cut of the list showed behind the clear glass pieces
+        return glassHeader && searchAnimationProgress == 0
             && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment());
     }
 
