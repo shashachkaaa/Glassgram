@@ -42535,6 +42535,12 @@ public class ChatActivity extends BaseFragment implements
         }
         if (actionBar != null) {
             actionBar.createMenu().setVisibility(inMenuMode ? View.GONE : View.VISIBLE);
+            if (!value && iosHeaderAvatar == null) {
+                // Opened in full from a preview, or presented: the header with the avatar at the end
+                setupIosHeader();
+            }
+            // Made visible above, the menu stays hidden behind the avatar
+            actionBar.updateGlassEndMenu();
         }
     }
 

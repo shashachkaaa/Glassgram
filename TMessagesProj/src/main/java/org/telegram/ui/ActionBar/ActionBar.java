@@ -479,7 +479,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     // circle; the menu comes back only for search, its items live in the profile's menu
     private View glassEndView;
 
-    /** Puts the view (40dp) on a glass circle at the end of the bar and hides the menu outside search; null brings the menu back. */
+    /** Puts the view (42dp) on a glass circle at the end of the bar and hides the menu outside search; null brings the menu back. */
     public void setGlassEndView(View view) {
         if (glassEndView == view) {
             return;
@@ -489,7 +489,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         glassEndView = view;
         if (view != null) {
-            final int size = dp(40);
+            // Nearly the whole circle, as on iOS: a 2dp rim of glass around it
+            final int size = dp(42);
             final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size, Gravity.RIGHT | Gravity.BOTTOM);
             // Centered in the menu's glass circle: 6dp + 46dp / 2 from the end, mid-height of the bar
             lp.rightMargin = dp(6 + 23) - size / 2;
@@ -504,7 +505,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return glassEndView;
     }
 
-    private void updateGlassEndMenu() {
+    /** Shows or hides the menu for the end view; call it after making the menu visible. */
+    public void updateGlassEndMenu() {
         if (menu != null && menu.getVisibility() != GONE) {
             // Invisible, not gone: it keeps its place, and search opens in it as before
             menu.setVisibility(glassEndView != null && !isSearchFieldVisible ? INVISIBLE : VISIBLE);
@@ -1549,6 +1551,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (menu != null) {
             menu.setVisibility(VISIBLE);
+            // Back from selection the menu stays hidden behind the end view
+            updateGlassEndMenu();
         }
         if (backButtonImageView != null) {
             Drawable drawable = backButtonImageView.getDrawable();
@@ -2760,6 +2764,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
             glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * Math.max(endFactor, animatorHasMenuItems.getFloatValue()))));
             drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
+            if (glassEndView != null) {
+                // Exactly in the middle of the circle drawn: placing it by margins rounded differently
+                // and left it a pixel or two off, with a thicker rim on one side
+                final RectF r = glassRect[GLASS_MENU];
+                final float tx = r.centerX() - (glassEndView.getLeft() + glassEndView.getWidth() / 2f);
+                final float ty = r.centerY() - (glassEndView.getTop() + glassEndView.getHeight() / 2f);
+                if (glassEndView.getTranslationX() != tx) {
+                    glassEndView.setTranslationX(tx);
+                }
+                if (glassEndView.getTranslationY() != ty) {
+                    glassEndView.setTranslationY(ty);
+                }
+            }
         }
 
         if (blurredBackground && actionBarColor != Color.TRANSPARENT) {
