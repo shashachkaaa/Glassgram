@@ -1731,6 +1731,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public StaticLayout timeLayout;
     // Glassgram Spy: the message was deleted on the server but is kept in the chat.
     private boolean spyDeleted;
+    /*
+     * Translucent text (deleted messages kept by the spy) is drawn through a layer clipped to the part
+     * of the cell on screen when it was drawn. Scrolling only moves the cell, so the layer kept the old
+     * part and the text stayed cut or empty until scrolling stopped: such a cell redraws as it moves.
+     */
+    private boolean textLayerClipped;
     // Draws the message as deleted regardless of Spy storage, for previews.
     public boolean glassgramForceDeleted;
     public int timeWidth;
@@ -5843,7 +5849,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         this.blurredViewBottomOffset = blurredViewBottomOffset;
         this.childPosition2 = position2;
 
-        if ((!botButtons.isEmpty() || channelRecommendationsCell != null && currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) && viewTop != visibleTop) {
+        if ((!botButtons.isEmpty() || channelRecommendationsCell != null && currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL || textLayerClipped) && viewTop != visibleTop) {
             invalidate();
         }
         viewTop = visibleTop;
@@ -16907,12 +16913,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         if (caption) {
                             rect.set(getCurrentBackgroundLeft() - dp(10), top, currentBackgroundDrawable.getBounds().right + dp(10), bottom);
                         } else {
+                            boolean clipped = false;
                             if (getY() < 0) {
                                 top = (int) -getY();
+                                clipped = true;
                             }
                             if (getY() + getMeasuredHeight() > parentHeight) {
                                 bottom = (int) (parentHeight - getY());
+                                clipped = true;
                             }
+                            textLayerClipped = clipped;
                             rect.set(getCurrentBackgroundLeft(), top, currentBackgroundDrawable.getBounds().right, bottom);
                         }
                     } else {
