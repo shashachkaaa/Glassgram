@@ -395,14 +395,26 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     };
 
     private boolean pressed;
+    private float pressX, pressY;
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (ev.getAction() == MotionEvent.ACTION_DOWN && canSearch()) {
             pressed = true;
+            pressX = ev.getX();
+            pressY = ev.getY();
             bounce.setPressed(true);
             AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
             AndroidUtilities.runOnUIThread(this.onLongClick, ViewConfiguration.getLongPressTimeout());
             return true;
+        } else if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+            // Pulling the header (the glass stretches after the finger) is neither a hold, which opens
+            // the search, nor a tap, which opens the profile
+            final int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+            if (pressed && (Math.abs(ev.getX() - pressX) > slop || Math.abs(ev.getY() - pressY) > slop)) {
+                pressed = false;
+                bounce.setPressed(false);
+                AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
+            }
         } else if (ev.getAction() == MotionEvent.ACTION_UP || ev.getAction() == MotionEvent.ACTION_CANCEL) {
             if (pressed) {
                 bounce.setPressed(false);
