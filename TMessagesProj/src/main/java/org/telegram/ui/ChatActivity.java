@@ -4749,6 +4749,9 @@ public class ChatActivity extends BaseFragment implements
                 }
                 invalidateClipRectForBackgroundAndChatList();
                 isSkeletonVisible();
+                // New or removed messages lay the list out without scrolling it: the glass over the
+                // list keeps its old picture of the messages (cells since reused or moved) otherwise
+                invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
             }
 
             private void setGroupTranslationX(ChatMessageCell view, float dx) {
@@ -6471,6 +6474,8 @@ public class ChatActivity extends BaseFragment implements
                 @Override
                 protected void onAllAnimationsDone() {
                     super.onAllAnimationsDone();
+                    // Where the messages ended up, for the glass over them
+                    invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
                     if (finishRunnable != null) {
                         AndroidUtilities.cancelRunOnUIThread(finishRunnable);
                         finishRunnable = null;
@@ -17738,6 +17743,10 @@ public class ChatActivity extends BaseFragment implements
             if (invalidateMessagesVisiblePart || (chatListItemAnimator != null && chatListItemAnimator.isRunning())) {
                 invalidateMessagesVisiblePart = false;
                 updateMessagesVisiblePart(false);
+            }
+            if (chatListItemAnimator != null && chatListItemAnimator.isRunning()) {
+                // Messages sliding in or out move without scrolling: the glass follows them every frame
+                invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
             }
             updateTextureViewPosition(false, false);
             updatePagedownButtonsPosition();
