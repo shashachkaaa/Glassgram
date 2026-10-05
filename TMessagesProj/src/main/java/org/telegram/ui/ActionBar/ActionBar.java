@@ -475,6 +475,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    // The selection bar's close button on a bar without a back button (the chats list): it sits on
+    // the back button's glass circle, and the pill with the counter starts after it, as in a chat
+    private View glassActionModeCloseView;
+
+    /**
+     * Gives the selection bar's close button, a view inside the action mode, the back button's glass
+     * circle. The view has to be placed over the circle: its center dp(29) from the bar's left.
+     */
+    public void setGlassActionModeCloseView(View view) {
+        glassActionModeCloseView = view;
+        invalidate();
+    }
+
     /** Puts the back button and the menu on glass capsules, for bars over a header or a list. */
     public void setGlassButtons() {
         glassButtons = true;
@@ -2638,6 +2651,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int menuWidth = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
 
         final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
+        // The selection bar's own close button gets the back button's glass circle where the bar has none
+        final float closeFactor = glassMode && !hasBackButton && glassActionModeCloseView != null
+            && glassActionModeCloseView.getVisibility() == View.VISIBLE ? actionModeFactor : 0f;
         if (glassMode || glassButtons) {
             glassShown[GLASS_PILL] = glassShown[GLASS_BACK] = glassShown[GLASS_MENU] = false;
         }
@@ -2649,7 +2665,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
             final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
 
-            final int leftDefault = lerp(hasBackButton ? s + p : 0, s + p, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
+            final int leftDefault = lerp(hasBackButton ? s + p : (int) ((s + p) * closeFactor), s + p, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
             final int rightDefault = getWidth() - rightOffset;
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
@@ -2682,9 +2698,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 drawGlass(canvas, glassDrawable, GLASS_PILL, p);
             }
         }
-        if (glassDrawableBack != null && hasBackButton && glassAlpha > 0) {
+        if (glassDrawableBack != null && (hasBackButton || closeFactor > 0) && glassAlpha > 0) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);
-            glassDrawableBack.setAlpha((int) (255 * glassAlpha));
+            glassDrawableBack.setAlpha((int) (255 * glassAlpha * (hasBackButton ? 1f : closeFactor)));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
         if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && glassAlpha > 0) {

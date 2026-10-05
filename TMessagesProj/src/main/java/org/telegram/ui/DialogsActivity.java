@@ -6852,6 +6852,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionModeCloseView.setOnClickListener(v -> hideActionMode(true));
             actionMode.addView(actionModeCloseView, LayoutHelper.createLinear(54, 54, Gravity.CENTER_VERTICAL));
             actionModeViews.add(actionModeCloseView);
+            if (glassHeader) {
+                // On its own glass circle like the chat's back button, not at the pill's edge: the
+                // circle's center is 29dp from the left, the selection bar is moved 10dp left
+                actionModeCloseView.setTranslationX(dp(29 + 10 - 27));
+                actionBar.setGlassActionModeCloseView(actionModeCloseView);
+            }
         }
 
         selectedDialogsCountTextView = new NumberTextView(actionMode.getContext());
