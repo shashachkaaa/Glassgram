@@ -2084,6 +2084,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         scrimBlur3Factory.setLinkedViewsRef(new ReferenceList<>());
+        scrimBlur3Factory.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
     }
 
     @Override

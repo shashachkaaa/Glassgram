@@ -380,6 +380,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
 
             glassBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(navbarContentSourceWallpaper);
             glassBackgroundDrawableFactory.setGlassEngine(glassEngine);
+            glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
         }
 
         currentChat = chat;

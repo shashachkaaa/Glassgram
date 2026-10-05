@@ -3,6 +3,7 @@ package org.telegram.ui.Components;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -14,7 +15,9 @@ import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.liquidglass.BackdropGlass;
+import org.telegram.liquidglass.GlassLayer;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 
 /**
  * Glass capsule under the action bar buttons of screens without a glass backdrop (profile,
@@ -23,6 +26,10 @@ import org.telegram.messenger.AndroidUtilities;
  * <p>
  * Over light icons (a colored header or a photo) the glass is a light veil; over dark icons
  * (a plain light header) it is the frosted white of iOS buttons.
+ * <p>
+ * Given a {@link #setBackdrop backdrop} (what is under the button), it is real glass: that
+ * backdrop blurred and refracted at the edges by the library's lens, under the tint. Without
+ * one, or where the lens is not there, the capsule is only the tint and the highlight.
  */
 public class LiquidGlassButtonBackground extends Drawable {
 
@@ -34,6 +41,15 @@ public class LiquidGlassButtonBackground extends Drawable {
     private int iconColor = 0xFFFFFFFF;
     private int surfaceColor = 0xFFFFFFFF;
     private int alpha = 255;
+
+    private GlassLayer.Backdrop backdrop;
+    private Object glassLayer;
+    private final Path clip = new Path();
+
+    /** What is under the button, with (0, 0) at its top-left corner; null for a flat capsule. */
+    public void setBackdrop(GlassLayer.Backdrop backdrop) {
+        this.backdrop = backdrop;
+    }
 
     /** Picks the glass for icons of iconColor over a screen of surfaceColor. */
     public void setColors(int iconColor, int surfaceColor) {
@@ -64,6 +80,10 @@ public class LiquidGlassButtonBackground extends Drawable {
         final boolean veil = t >= 0.5f;
         rect.set(b);
 
+        if (drawLiquidGlass(canvas, b, r, t, veil)) {
+            return;
+        }
+
         final int frosted = ColorUtils.setAlphaComponent(surfaceColor, 0xE0);
         final int light = ColorUtils.setAlphaComponent(0xFFFFFFFF, 0x2E);
         final int blended = ColorUtils.blendARGB(frosted, light, t);
@@ -90,6 +110,51 @@ public class LiquidGlassButtonBackground extends Drawable {
             g.drawHighlight(canvas, (veil ? 0.8f : 1f) * alpha / 255f, 1f, true);
             canvas.restore();
         }
+    }
+
+    private boolean drawLiquidGlass(Canvas canvas, Rect b, float r, float t, boolean veil) {
+        if (backdrop == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || !LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) || !canvas.isHardwareAccelerated()) {
+            return false;
+        }
+        if (glassLayer == null) {
+            glassLayer = new GlassLayer();
+        }
+        final boolean dark = ColorUtils.calculateLuminance(surfaceColor | 0xFF000000) < 0.5f;
+        // As light a tint as the other glass, or it hides what the lens bends
+        final int frosted = ColorUtils.setAlphaComponent(surfaceColor, (int) (255 * BackdropGlass.tintAlpha(dark)));
+        final int light = ColorUtils.setAlphaComponent(0xFFFFFFFF, 0x2E);
+        final int tint = ColorUtils.blendARGB(frosted, light, t);
+
+        if (t < 1f) {
+            // The shadow around the capsule only, so it does not darken the glass
+            final float shadow = AndroidUtilities.dpf2(10);
+            shadowPaint.setColor(0xFF000000);
+            shadowPaint.setShadowLayer(shadow, 0, shadow / 5f, ColorUtils.setAlphaComponent(0xFF000000, (int) (0x18 * (1f - t) * alpha / 255f)));
+            clip.rewind();
+            clip.addRoundRect(rect, r, r, Path.Direction.CW);
+            canvas.save();
+            canvas.clipOutPath(clip);
+            canvas.drawRoundRect(rect, r, r, shadowPaint);
+            canvas.restore();
+        }
+
+        final float density = AndroidUtilities.density;
+        final int width = b.width(), height = b.height();
+        // The same lens as the bars' glass: a narrow band with dispersion. Over a photo the veil
+        // stays clear, on a plain header it is frosted
+        final float lensHeight = Math.max(1, Math.min(AndroidUtilities.dp(12), Math.min(width, height) / 4));
+        final float blur = (veil ? 2f : BackdropGlass.BlurRadius) * density;
+        final int restore = alpha != 255
+            ? canvas.saveLayerAlpha(b.left, b.top, b.right, b.bottom, alpha)
+            : canvas.save();
+        canvas.translate(b.left, b.top);
+        ((GlassLayer) glassLayer).draw(canvas, width, height, r, density,
+            dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
+            blur, lensHeight, AndroidUtilities.dpf2(24), false, true, dark,
+            backdrop, tint, veil ? 0.8f : 1f, 1f);
+        canvas.restoreToCount(restore);
+        return true;
     }
 
     @Override

@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawableRenderNode;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawableSource;
 import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
@@ -98,6 +99,9 @@ public class BlurredBackgroundDrawableViewFactory {
         if (isLiquidGlassEffectAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (drawable instanceof BlurredBackgroundDrawableRenderNode) {
                 ((BlurredBackgroundDrawableRenderNode) drawable).setLiquidGlassEffectAllowed();
+            } else if (drawable instanceof BlurredBackgroundDrawableSource) {
+                // A screenshot or the wallpaper behind the glass: refracted by the same lens
+                ((BlurredBackgroundDrawableSource) drawable).setLiquidGlassEffectAllowed();
             }
         }
 

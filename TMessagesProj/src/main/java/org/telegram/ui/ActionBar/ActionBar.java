@@ -67,6 +67,7 @@ import org.telegram.ui.Components.EllipsizeSpanAnimator;
 import org.telegram.ui.Components.FireworksEffect;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LiquidGlassButtonBackground;
+import org.telegram.ui.Components.ViewBehindBackdrop;
 import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
@@ -479,7 +480,33 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         glassButtons = true;
         glassButtonBack = new LiquidGlassButtonBackground();
         glassButtonMenu = new LiquidGlassButtonBackground();
+        glassButtonBackdrop = new ViewBehindBackdrop(this);
+        if (isAttachedToWindow()) {
+            watchGlassButtonBackdrop(true);
+        }
         invalidate();
+    }
+
+    // The capsules are glass made of what is under the bar: the header, the photo, the list
+    private ViewBehindBackdrop glassButtonBackdrop;
+    private android.view.ViewTreeObserver glassButtonBackdropTree;
+    private final android.view.ViewTreeObserver.OnPreDrawListener glassButtonBackdropWatcher = () -> {
+        // The bar is not redrawn when only what is under it changes, and its glass would show the old picture
+        if (glassButtonBackdrop != null && (glassShown[GLASS_BACK] || glassShown[GLASS_MENU]) && glassButtonBackdrop.isStale()) {
+            invalidate();
+        }
+        return true;
+    };
+
+    private void watchGlassButtonBackdrop(boolean watch) {
+        if (glassButtonBackdropTree != null && glassButtonBackdropTree.isAlive()) {
+            glassButtonBackdropTree.removeOnPreDrawListener(glassButtonBackdropWatcher);
+        }
+        glassButtonBackdropTree = null;
+        if (watch && glassButtonBackdrop != null) {
+            glassButtonBackdropTree = getViewTreeObserver();
+            glassButtonBackdropTree.addOnPreDrawListener(glassButtonBackdropWatcher);
+        }
     }
 
     /** Whether the bar's buttons are Liquid Glass: they open their menus on a tap, not on a hold or a drag. */
@@ -741,6 +768,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 glass.setColors(itemsColor, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
                 glass.setAlpha((int) (255 * glassButtonAlpha(child)));
                 glass.setBounds((int) r.left, (int) r.top, (int) r.right, (int) r.bottom);
+                glassButtonBackdrop.setArea(r);
+                glass.setBackdrop(!glassButtonBackdrop.isDrawing() && glassButtonBackdrop.isAvailable() ? glassButtonBackdrop : null);
                 glass.draw(canvas);
                 glassGlow(canvas, surface);
             }
@@ -2385,6 +2414,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (lastRightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) {
             ((AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) lastRightDrawable).setParentView(titleTextView[0]);
         }
+        watchGlassButtonBackdrop(true);
     }
 
     @Override
@@ -2406,6 +2436,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (lastRightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) {
             ((AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) lastRightDrawable).setParentView(null);
         }
+        watchGlassButtonBackdrop(false);
     }
 
     private void updateAttachState() {

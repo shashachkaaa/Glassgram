@@ -35,6 +35,7 @@ import androidx.core.util.Consumer;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLoader;
@@ -405,6 +406,7 @@ public class AvatarPreviewer {
             this.resourcesProvider = resourcesProvider;
 
             iBlur3Factory.setSourceRootView(new ViewPositionWatcher(this), this);
+            iBlur3Factory.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
 
             blurView = new View(context);
             blurView.setOnClickListener(v -> setShowing(false));
