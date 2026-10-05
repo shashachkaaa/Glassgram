@@ -598,13 +598,21 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         r.set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
         glassShown[surface] = true;
         final LiquidPressEffect effect = glassPress[surface];
+        final BlurredBackgroundDrawable glass = drawable instanceof BlurredBackgroundDrawable ? (BlurredBackgroundDrawable) drawable : null;
         if (effect == null || !effect.isActive()) {
+            if (glass != null) {
+                glass.setRadiusScale(1f);
+            }
             drawable.draw(canvas);
             return;
         }
         // The glass goes where the press moved it and blurs what is there, instead of stretching
         // the picture it took in place
         effect.mapRect(r.left, r.top, r.right, r.bottom, glassMovedRect);
+        // Its corners grow with it, or the round pieces turn square as they stretch
+        if (glass != null) {
+            glass.setRadiusScale(LiquidPressEffect.radiusScale(r.width(), r.height(), glassMovedRect));
+        }
         // The bounds stay moved until the next frame sets them again: the glass is a RenderNode
         // drawn later, and putting the bounds back now would resize it under the drawn frame
         drawable.setBounds(

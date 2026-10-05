@@ -453,6 +453,8 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 final RectF r = containerGlassRect;
                 // The glass goes where the press moved it and blurs what is there now
                 containerPress.mapRect(r.left, r.top, r.right, r.bottom, containerMovedRect);
+                // Its corners grow with it, or the pill turns square as it stretches
+                containerDrawable.setRadiusScale(org.telegram.ui.Components.LiquidPressEffect.radiusScale(r.width(), r.height(), containerMovedRect));
                 containerDrawable.setBounds(Math.round(containerMovedRect.left) - p, Math.round(containerMovedRect.top) - p,
                     Math.round(containerMovedRect.right) + p, Math.round(containerMovedRect.bottom) + p);
                 // Not put back until the next frame: the glass is a RenderNode drawn later
@@ -469,6 +471,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 canvas.restore();
                 return result;
             }
+            containerDrawable.setRadiusScale(1f);
             containerDrawable.draw(canvas);
         }
 

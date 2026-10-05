@@ -86,6 +86,7 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
             if (b.left != 0 || b.top != 0 || b.right != getWidth() || b.bottom != getHeight()) {
                 backgroundDrawable.setBounds(0, 0, getWidth(), getHeight());
             }
+            backgroundDrawable.setRadiusScale(1f);
             backgroundDrawable.draw(canvas);
             super.draw(canvas);
             return;
@@ -93,6 +94,8 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
         // The glass goes where the press moved it and blurs what is there now; the icon follows
         // through the canvas
         liquidPress.mapRect(m, m, m + w, m + h, movedRect);
+        // Its corners grow with it, or the round button turns square as it stretches
+        backgroundDrawable.setRadiusScale(org.telegram.ui.Components.LiquidPressEffect.radiusScale(w, h, movedRect));
         backgroundDrawable.setBounds(Math.round(movedRect.left - m), Math.round(movedRect.top - m), Math.round(movedRect.right + m), Math.round(movedRect.bottom + m));
         // Not put back until the next frame: the glass is a RenderNode drawn later
         backgroundDrawable.draw(canvas);

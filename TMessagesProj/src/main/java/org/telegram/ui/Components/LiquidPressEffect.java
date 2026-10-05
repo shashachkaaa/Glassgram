@@ -211,6 +211,18 @@ public class LiquidPressEffect {
         out.set(cx - hw, cy - hh, cx + hw, cy + hh);
     }
 
+    /**
+     * How much the corner radii of glass drawn at {@link #mapRect} grow with it. A canvas scale
+     * stretched the corners along with the surface; new bounds keep the old radius, and a circle
+     * or a capsule whose half size outgrows it turns into a rounded square.
+     */
+    public static float radiusScale(float width, float height, android.graphics.RectF moved) {
+        if (width <= 0 || height <= 0) {
+            return 1f;
+        }
+        return Math.max(1f, Math.max(moved.width() / width, moved.height() / height));
+    }
+
     /** The catalog's InteractiveHighlight: a faint wash and a light spot under the finger. */
     public void drawGlow(Canvas canvas, float width, float height, float radius) {
         final float progress = press.getValue();

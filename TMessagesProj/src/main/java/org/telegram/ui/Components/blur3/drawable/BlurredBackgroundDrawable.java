@@ -98,8 +98,8 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     }
 
     public BlurredBackgroundDrawable setRadius(float radius) {
-        Arrays.fill(boundProps.radii, radius);
-        Arrays.fill(boundProps.shaderRadii, radius);
+        Arrays.fill(boundProps.baseRadii, radius);
+        Arrays.fill(boundProps.baseShaderRadii, radius);
         boundProps.build();
 
         onBoundPropsChanged();
@@ -107,10 +107,10 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     }
 
     public BlurredBackgroundDrawable setRadius(float topLeft, float topRight, float bottomRight, float bottomLeft) {
-        boundProps.radii[0] = boundProps.radii[1] = topLeft;
-        boundProps.radii[2] = boundProps.radii[3] = topRight;
-        boundProps.radii[4] = boundProps.radii[5] = bottomRight;
-        boundProps.radii[6] = boundProps.radii[7] = bottomLeft;
+        boundProps.baseRadii[0] = boundProps.baseRadii[1] = topLeft;
+        boundProps.baseRadii[2] = boundProps.baseRadii[3] = topRight;
+        boundProps.baseRadii[4] = boundProps.baseRadii[5] = bottomRight;
+        boundProps.baseRadii[6] = boundProps.baseRadii[7] = bottomLeft;
         boundProps.build();
 
         onBoundPropsChanged();
@@ -118,17 +118,31 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
     }
 
     public void setRadius(float topLeft, float topRight, float bottomRight, float bottomLeft, boolean forceBottomZero) {
-        boundProps.radii[0] = boundProps.radii[1] = topLeft;
-        boundProps.radii[2] = boundProps.radii[3] = topRight;
-        boundProps.radii[4] = boundProps.radii[5] = forceBottomZero ? 0 : bottomRight;
-        boundProps.radii[6] = boundProps.radii[7] = forceBottomZero ? 0 : bottomLeft;
-        boundProps.shaderRadii[0] = boundProps.shaderRadii[1] = topLeft;
-        boundProps.shaderRadii[2] = boundProps.shaderRadii[3] = topRight;
-        boundProps.shaderRadii[4] = boundProps.shaderRadii[5] = bottomRight;
-        boundProps.shaderRadii[6] = boundProps.shaderRadii[7] = bottomLeft;
+        boundProps.baseRadii[0] = boundProps.baseRadii[1] = topLeft;
+        boundProps.baseRadii[2] = boundProps.baseRadii[3] = topRight;
+        boundProps.baseRadii[4] = boundProps.baseRadii[5] = forceBottomZero ? 0 : bottomRight;
+        boundProps.baseRadii[6] = boundProps.baseRadii[7] = forceBottomZero ? 0 : bottomLeft;
+        boundProps.baseShaderRadii[0] = boundProps.baseShaderRadii[1] = topLeft;
+        boundProps.baseShaderRadii[2] = boundProps.baseShaderRadii[3] = topRight;
+        boundProps.baseShaderRadii[4] = boundProps.baseShaderRadii[5] = bottomRight;
+        boundProps.baseShaderRadii[6] = boundProps.baseShaderRadii[7] = bottomLeft;
         boundProps.build();
 
         onBoundPropsChanged();
+    }
+
+    /**
+     * Scales the corner radii, for glass that is stretched by changing its bounds (the Liquid
+     * Glass press): a circle or a capsule has to stay one as it grows, which a fixed radius
+     * smaller than its new half size does not do, it turns into a rounded square.
+     */
+    public void setRadiusScale(float scale) {
+        if (boundProps.radiusScale != scale) {
+            boundProps.radiusScale = scale;
+            boundProps.build();
+
+            onBoundPropsChanged();
+        }
     }
 
     public BlurredBackgroundDrawable setThickness(int thickness) {
@@ -234,6 +248,10 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
 
     protected static class Props {
         public final Rect bounds = new Rect();
+        // Radii as set, and as drawn: scaled by radiusScale while the glass is stretched
+        public final float[] baseRadii = new float[8];
+        public final float[] baseShaderRadii = new float[8];
+        public float radiusScale = 1f;
         public final float[] radii = new float[8];
         public final float[] shaderRadii = new float[8];
         public int padding;
@@ -254,6 +272,10 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
         public final Path strokePathBottom = new Path();
 
         public void build() {
+            for (int i = 0; i < 8; i++) {
+                radii[i] = baseRadii[i] * radiusScale;
+                shaderRadii[i] = baseShaderRadii[i] * radiusScale;
+            }
             radiiAreSame = RadiiUtils.radiiAreSame(radii);
 
             boundsWithPadding.set(bounds);
