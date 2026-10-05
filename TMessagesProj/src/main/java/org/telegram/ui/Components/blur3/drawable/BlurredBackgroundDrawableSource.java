@@ -132,8 +132,11 @@ public class BlurredBackgroundDrawableSource extends BlurredBackgroundDrawable {
         return true;
     }
 
+    // A method rather than a lambda in the field: the field is set before the constructor sets source
+    private final GlassLayer.Backdrop backdrop = this::drawBackdrop;
+
     /** What is behind the glass, with (0, 0) at its top-left corner. */
-    private final GlassLayer.Backdrop backdrop = c -> {
+    private void drawBackdrop(Canvas c) {
         final Rect r = boundProps.boundsWithPadding;
         final float e = dp(BACKDROP_OUTSET_DP);
         final BlurredBackgroundSource picture = unwrap(source);
@@ -159,5 +162,5 @@ public class BlurredBackgroundDrawableSource extends BlurredBackgroundDrawable {
             c.translate(-sL, -sT);
             picture.draw(c, sL - e, sT - e, sL + r.width() + e, sT + r.height() + e);
         }
-    };
+    }
 }
