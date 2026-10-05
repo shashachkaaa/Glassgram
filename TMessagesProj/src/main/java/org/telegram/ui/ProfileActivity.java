@@ -2565,6 +2565,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         return;
                     }
                     finishFragment();
+                } else if (id >= CHAT_MENU_ID_OFFSET) {
+                    // An item of the chat's menu: the chat runs it once this profile has closed
+                    final ChatActivity chat = chatWithIosHeader();
+                    if (chat != null) {
+                        final int chatItemId = id - CHAT_MENU_ID_OFFSET;
+                        finishFragment();
+                        AndroidUtilities.runOnUIThread(() -> chat.performHeaderMenuItem(chatItemId), 300);
+                    }
                 } else if (id == block_contact) {
                     onBlockContactClicked(false);
                 } else if (id == add_contact) {
@@ -12124,6 +12132,61 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return color;
     }
 
+    /*
+     * A chat with the iOS-like header has no menu in it: its items are added here, to the
+     * profile's menu, when the profile was opened from that chat, and run by the chat.
+     */
+    private static final int CHAT_MENU_ID_OFFSET = 1_000_000;
+
+    private ChatActivity chatWithIosHeader() {
+        if (getParentLayout() == null) {
+            return null;
+        }
+        final List<BaseFragment> stack = getParentLayout().getFragmentStack();
+        if (stack == null || stack.isEmpty()) {
+            return null;
+        }
+        final int index = stack.indexOf(this);
+        // While the profile is being opened it may not be in the stack yet: the chat is the last one then
+        final BaseFragment previous = index > 0 ? stack.get(index - 1) : index < 0 ? stack.get(stack.size() - 1) : null;
+        if (previous instanceof ChatActivity) {
+            final ChatActivity chat = (ChatActivity) previous;
+            if (chat.hasIosHeader() && chat.getDialogId() == getDialogId()) {
+                return chat;
+            }
+        }
+        return null;
+    }
+
+    private void addChatHeaderMenuItems() {
+        final ChatActivity chat = chatWithIosHeader();
+        if (chat == null || otherItem == null) {
+            return;
+        }
+        // What the profile's menu has already, by its text, stays once
+        final java.util.HashSet<String> existing = new java.util.HashSet<>();
+        for (ActionBarMenuItem.SubItemInfo info : otherItem.getVisibleSubItemsInfo()) {
+            if (info.text != null) {
+                existing.add(info.text.toString());
+            }
+        }
+        final int red = getThemedColor(Theme.key_text_RedRegular);
+        boolean gap = false;
+        for (ActionBarMenuItem.SubItemInfo info : chat.getHeaderMenuItemsForProfile()) {
+            if (info.text == null || existing.contains(info.text.toString())) {
+                continue;
+            }
+            if (!gap) {
+                otherItem.addColoredGap();
+                gap = true;
+            }
+            final ActionBarMenuSubItem cell = otherItem.addSubItem(CHAT_MENU_ID_OFFSET + info.id, info.iconDrawable != null ? 0 : info.icon, info.iconDrawable, info.text, true, false);
+            if (info.red) {
+                cell.setColors(red, red);
+            }
+        }
+    }
+
     private void createActionBarMenu(boolean animated) {
         if (actionBar == null || otherItem == null) {
             return;
@@ -12394,6 +12457,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (selfUser && !myProfile) {
             otherItem.addSubItem(logout, R.drawable.msg_leave, LocaleController.getString(R.string.LogOut));
         }
+        addChatHeaderMenuItems();
         if (!isPulledDown) {
             otherItem.hideSubItem(gallery_menu_save);
             otherItem.hideSubItem(set_as_main);

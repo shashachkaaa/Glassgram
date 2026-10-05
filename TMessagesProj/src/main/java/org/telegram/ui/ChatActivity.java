@@ -4593,6 +4593,8 @@ public class ChatActivity extends BaseFragment implements
             actionBar.setChatAvatarContainer(avatarContainer);
             actionBar.setForcedMenuMinWidth(dp(46));
             avatarContainer.setActionBar(actionBar);
+        } else {
+            setupIosHeader();
         }
 
         chatInputViewsContainer = new ChatInputViewsContainer(context);
@@ -42527,8 +42529,91 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void setInMenuMode(boolean value) {
         super.setInMenuMode(value);
+        if (value) {
+            // Without its menu the chat has no use for the header with the avatar at the end
+            disableIosHeader();
+        }
         if (actionBar != null) {
             actionBar.createMenu().setVisibility(inMenuMode ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    /*
+     * The iOS-like chat header: the back button, the name and the status centered in a pill that
+     * wraps them, and the avatar on its own glass circle at the end. The chat's menu leaves the
+     * header (it comes back for search): its items are in the profile's menu, which runs them here
+     * (see getHeaderMenuItemsForProfile).
+     */
+    private View iosHeaderAvatar;
+
+    private boolean canUseIosHeader() {
+        return avatarContainer != null && avatarContainer.getParent() == actionBar && headerItem != null
+            && chatMode == 0 && threadMessageId == 0 && !isReport() && startLoadFromDate == 0
+            && currentEncryptedChat == null && !inPreviewMode && !inBubbleMode && !isInsideContainer && !inMenuMode
+            && (currentUser != null || currentChat != null) && !UserObject.isReplyUser(currentUser)
+            && !ChatObject.isForum(currentChat);
+    }
+
+    private void setupIosHeader() {
+        if (!canUseIosHeader()) {
+            return;
+        }
+        actionBar.setChatAvatarContainer(avatarContainer);
+        avatarContainer.setActionBar(actionBar);
+        avatarContainer.setIosHeader(true);
+        final BackupImageView avatar = avatarContainer.getAvatarImageView();
+        final ImageReceiver receiver = avatar.getImageReceiver();
+        iosHeaderAvatar = new View(getContext()) {
+            @Override
+            protected void onDraw(Canvas canvas) {
+                // The pill's own avatar keeps loading (and updating) the picture, hidden; it is drawn here
+                receiver.setImageCoords(0, 0, getWidth(), getHeight());
+                receiver.setRoundRadius(getWidth() / 2);
+                receiver.draw(canvas);
+            }
+        };
+        receiver.setParentView(iosHeaderAvatar);
+        iosHeaderAvatar.setContentDescription(getString(R.string.AccDescrProfilePicture));
+        // As the avatar in the pill did: the profile, or the community the chat belongs to
+        iosHeaderAvatar.setOnClickListener(v -> avatar.performClick());
+        actionBar.setGlassEndView(iosHeaderAvatar);
+    }
+
+    private void disableIosHeader() {
+        if (iosHeaderAvatar == null) {
+            return;
+        }
+        iosHeaderAvatar = null;
+        if (actionBar != null) {
+            actionBar.setGlassEndView(null);
+            actionBar.setChatAvatarContainer(null);
+        }
+        if (avatarContainer != null) {
+            avatarContainer.getAvatarImageView().getImageReceiver().setParentView(avatarContainer.getAvatarImageView());
+            avatarContainer.setIosHeader(false);
+        }
+    }
+
+    public boolean hasIosHeader() {
+        return iosHeaderAvatar != null;
+    }
+
+    /** The visible items of the chat's menu, for the profile's menu: id, icon and text of each. */
+    public ArrayList<ActionBarMenuItem.SubItemInfo> getHeaderMenuItemsForProfile() {
+        final ArrayList<ActionBarMenuItem.SubItemInfo> items = headerItem != null ? headerItem.getVisibleSubItemsInfo() : new ArrayList<>();
+        // The profile has its own call buttons
+        for (int i = items.size() - 1; i >= 0; i--) {
+            if (items.get(i).id == call || items.get(i).id == video_call) {
+                items.remove(i);
+            }
+        }
+        return items;
+    }
+
+    /** Runs an item of the chat's menu, picked in the profile's menu. */
+    public void performHeaderMenuItem(int id) {
+        if (actionBar != null && actionBar.getActionBarMenuOnItemClick() != null) {
+            actionBar.getActionBarMenuOnItemClick().onItemClick(id);
         }
     }
 

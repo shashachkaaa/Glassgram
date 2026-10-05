@@ -245,6 +245,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 }
                 return super.onTouchEvent(event);
             }
+
+            @Override
+            public void setVisibility(int visibility) {
+                // In the iOS-like header the avatar is drawn at the end of the bar; here it only keeps loading
+                super.setVisibility(iosHeader && visibility == VISIBLE ? INVISIBLE : visibility);
+            }
         };
         if (baseFragment instanceof ChatActivity || baseFragment instanceof TopicsFragment) {
             if (parentFragment == null || (parentFragment.getChatMode() != ChatActivity.MODE_QUICK_REPLIES && parentFragment.getChatMode() != ChatActivity.MODE_WELCOME_MESSAGES && parentFragment.getChatMode() != ChatActivity.MODE_EDIT_BUSINESS_LINK) && parentFragment.getChatMode() != ChatActivity.MODE_SUGGESTIONS && !parentFragment.isInBotForumMode()) {
@@ -853,6 +859,25 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         setClipChildren(false);
     }
 
+    // The iOS-like chat header: the avatar is at the end of the bar on its own glass, and the title
+    // and the status are centered in the pill
+    private boolean iosHeader;
+
+    public void setIosHeader(boolean value) {
+        if (iosHeader == value) {
+            return;
+        }
+        iosHeader = value;
+        if (!avatarImageIsHidden) {
+            avatarImageView.setVisibility(VISIBLE);
+        }
+        requestLayout();
+    }
+
+    public boolean isIosHeader() {
+        return iosHeader;
+    }
+
     private boolean glassMode;
     public void setGlassMode() {
         if (titleTextView != null) {
@@ -871,17 +896,26 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         final int subtitleTop = viewTop + dp(glassMode ? 23.66f : 24);
 
         avatarImageView.layout(1 + leftPadding, 1 + viewTop, 1 + leftPadding + avatarImageView.getMeasuredWidth(), 1 + viewTop + avatarImageView.getMeasuredHeight());
-        int l = leftPadding + (avatarImageView.getVisibility() == VISIBLE ? dp(glassMode ? 49.66f : 55) : dp(glassMode ? 13 : 1)) + rightAvatarPadding;
+        final int l = leftPadding + (avatarImageView.getVisibility() == VISIBLE ? dp(glassMode ? 49.66f : 55) : dp(glassMode ? 13 : 1)) + rightAvatarPadding;
+        // The iOS-like header centers the title and the status on each other; the pill wraps them
+        int titleLeft = l, subtitleLeft = l;
+        if (iosHeader) {
+            final float titleWidth = titleTextView.getExactWidthIncludeDrawables();
+            final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? subtitleTextView.getExactWidthIncludeDrawables() : 0;
+            final float contentWidth = Math.max(titleWidth, subtitleWidth);
+            titleLeft = l + (int) ((contentWidth - titleWidth) / 2f);
+            subtitleLeft = l + (int) ((contentWidth - subtitleWidth) / 2f);
+        }
         SimpleTextView titleTextLargerCopyView = this.titleTextLargerCopyView.get();
         if (getSubtitleTextView().getVisibility() != GONE) {
-            titleTextView.layout(l, viewTop + dp(1.66f) - titleTextView.getPaddingTop(), l + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(1.66f) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
+            titleTextView.layout(titleLeft, viewTop + dp(1.66f) - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(1.66f) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
             if (titleTextLargerCopyView != null) {
-                titleTextLargerCopyView.layout(l, viewTop + dp(1.66f), l + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(1.66f));
+                titleTextLargerCopyView.layout(titleLeft, viewTop + dp(1.66f), titleLeft + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(1.66f));
             }
         } else {
-            titleTextView.layout(l, viewTop + dp(11) - titleTextView.getPaddingTop(), l + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(11) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
+            titleTextView.layout(titleLeft, viewTop + dp(11) - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(11) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
             if (titleTextLargerCopyView != null) {
-                titleTextLargerCopyView.layout(l, viewTop + dp(10), l + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(10));
+                titleTextLargerCopyView.layout(titleLeft, viewTop + dp(10), titleLeft + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(10));
             }
         }
         if (communityItem != null) {
@@ -906,13 +940,13 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             starFgItem.layout(leftPadding + dp(28), viewTop + dp(24), leftPadding + dp(28) + starFgItem.getMeasuredWidth(), viewTop + dp(24) + starFgItem.getMeasuredHeight());
         }
         if (subtitleTextView != null) {
-            subtitleTextView.layout(l, subtitleTop, l + subtitleTextView.getMeasuredWidth(), subtitleTop + subtitleTextView.getTextHeight());
+            subtitleTextView.layout(subtitleLeft, subtitleTop, subtitleLeft + subtitleTextView.getMeasuredWidth(), subtitleTop + subtitleTextView.getTextHeight());
         } else if (animatedSubtitleTextView != null) {
             animatedSubtitleTextView.layout(l, subtitleTop, l + animatedSubtitleTextView.getMeasuredWidth(), subtitleTop + animatedSubtitleTextView.getTextHeight());
         }
         SimpleTextView subtitleTextLargerCopyView = this.subtitleTextLargerCopyView.get();
         if (subtitleTextLargerCopyView != null) {
-            subtitleTextLargerCopyView.layout(l, subtitleTop, l + subtitleTextLargerCopyView.getMeasuredWidth(), subtitleTop + subtitleTextLargerCopyView.getTextHeight());
+            subtitleTextLargerCopyView.layout(subtitleLeft, subtitleTop, subtitleLeft + subtitleTextLargerCopyView.getMeasuredWidth(), subtitleTop + subtitleTextLargerCopyView.getTextHeight());
         }
     }
 

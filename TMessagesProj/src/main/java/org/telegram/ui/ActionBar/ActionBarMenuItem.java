@@ -2647,6 +2647,58 @@ public class ActionBarMenuItem extends FrameLayout {
         return item;
     }
 
+    /** A sub item of the menu, as another menu can show it: its id, icon and text, and whether it is red. */
+    public static class SubItemInfo {
+        public int id;
+        public int icon;
+        public Drawable iconDrawable;
+        public CharSequence text;
+        public boolean red;
+    }
+
+    /** The sub items shown now, laid out or not yet, in their order; gaps, texts and swipe-back items are left out. */
+    public ArrayList<SubItemInfo> getVisibleSubItemsInfo() {
+        final ArrayList<SubItemInfo> result = new ArrayList<>();
+        final int red = Theme.getColor(Theme.key_text_RedRegular, resourcesProvider);
+        if (popupLayout != null) {
+            for (int i = 0; i < popupLayout.getItemsCount(); i++) {
+                final View view = popupLayout.getItemAt(i);
+                if (!(view instanceof ActionBarMenuSubItem) || view.getVisibility() != VISIBLE || !(view.getTag() instanceof Integer)) {
+                    continue;
+                }
+                final ActionBarMenuSubItem cell = (ActionBarMenuSubItem) view;
+                final SubItemInfo info = new SubItemInfo();
+                info.id = (Integer) view.getTag();
+                info.icon = cell.getIconResId();
+                if (info.icon == 0 && cell.getImageView().getDrawable() != null && cell.getImageView().getDrawable().getConstantState() != null) {
+                    // A copy: one drawable cannot be in two views
+                    info.iconDrawable = cell.getImageView().getDrawable().getConstantState().newDrawable().mutate();
+                }
+                info.text = cell.getTextView().getText();
+                info.red = cell.getTextView().getCurrentTextColor() == red;
+                result.add(info);
+            }
+        }
+        if (lazyList != null) {
+            for (int i = 0; i < lazyList.size(); i++) {
+                final Item item = lazyList.get(i);
+                if (item.viewType != VIEW_TYPE_SUBITEM || item.visibility != VISIBLE) {
+                    continue;
+                }
+                final SubItemInfo info = new SubItemInfo();
+                info.id = item.id;
+                info.icon = item.icon;
+                if (item.iconDrawable != null && item.iconDrawable.getConstantState() != null) {
+                    info.iconDrawable = item.iconDrawable.getConstantState().newDrawable().mutate();
+                }
+                info.text = item.text;
+                info.red = item.textColor != null && item.textColor == red;
+                result.add(info);
+            }
+        }
+        return result;
+    }
+
     private Item findLazyItem(int id) {
         if (lazyMap == null) {
             return null;

@@ -475,6 +475,42 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    // The iOS-like chat header: at the end, instead of the menu, a view (the avatar) on its own glass
+    // circle; the menu comes back only for search, its items live in the profile's menu
+    private View glassEndView;
+
+    /** Puts the view (40dp) on a glass circle at the end of the bar and hides the menu outside search; null brings the menu back. */
+    public void setGlassEndView(View view) {
+        if (glassEndView == view) {
+            return;
+        }
+        if (glassEndView != null) {
+            removeView(glassEndView);
+        }
+        glassEndView = view;
+        if (view != null) {
+            final int size = dp(40);
+            final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size, Gravity.RIGHT | Gravity.BOTTOM);
+            // Centered in the menu's glass circle: 6dp + 46dp / 2 from the end, mid-height of the bar
+            lp.rightMargin = dp(6 + 23) - size / 2;
+            lp.bottomMargin = (getCurrentActionBarHeight() - size) / 2;
+            addView(view, lp);
+        }
+        updateGlassEndMenu();
+        invalidate();
+    }
+
+    public View getGlassEndView() {
+        return glassEndView;
+    }
+
+    private void updateGlassEndMenu() {
+        if (menu != null && menu.getVisibility() != GONE) {
+            // Invisible, not gone: it keeps its place, and search opens in it as before
+            menu.setVisibility(glassEndView != null && !isSearchFieldVisible ? INVISIBLE : VISIBLE);
+        }
+    }
+
     // The selection bar's close button on a bar without a back button (the chats list): it sits on
     // the back button's glass circle, and the pill with the counter starts after it, as in a chat
     private View glassActionModeCloseView;
@@ -567,6 +603,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (child == backButtonImageView) {
             return GLASS_BACK;
+        }
+        if (glassMode && child != null && child == glassEndView) {
+            return GLASS_MENU;
         }
         if (child == menu) {
             // The search field lives in the menu but sits on the pill
@@ -1600,6 +1639,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void onSearchFieldVisibilityChanged(boolean visible) {
         isSearchFieldVisible = visible;
+        updateGlassEndMenu();
         checkMenuItemsWidth();
         if (searchVisibleAnimator != null) {
             searchVisibleAnimator.cancel();
@@ -2033,7 +2073,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     public void onMenuButtonPressed() {
-        if (isActionModeShowed()) {
+        if (isActionModeShowed() || menu != null && menu.getVisibility() != VISIBLE) {
             return;
         }
         if (menu != null) {
@@ -2648,7 +2688,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         final float actionModeFactor = getActionModeFactor();
         final int menuWidthA = hasForcedMenuWidth ? forcedMenuWidth : (int) animatorMenuItemsWidth.getFactor();
-        final int menuWidth = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
+        final int menuWidthB = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
+        // With an end view the menu's glass is a circle under it, until search or selection need the menu
+        final float endFactor = glassMode && glassEndView != null ? (1f - actionModeFactor) * (1f - searchFieldVisibleAlpha) : 0f;
+        final int menuWidth = lerp(menuWidthB, s, endFactor);
+        if (glassEndView != null) {
+            final float alpha = Math.max(0f, Math.min(1f, endFactor));
+            if (glassEndView.getAlpha() != alpha) {
+                glassEndView.setAlpha(alpha);
+            }
+            final int visibility = alpha > 0f ? VISIBLE : INVISIBLE;
+            if (glassEndView.getVisibility() != visibility) {
+                glassEndView.setVisibility(visibility);
+            }
+        }
 
         final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
         // The selection bar's own close button gets the back button's glass circle where the bar has none
@@ -2705,7 +2758,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && glassAlpha > 0) {
             glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
-            glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * animatorHasMenuItems.getFloatValue())));
+            glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * Math.max(endFactor, animatorHasMenuItems.getFloatValue()))));
             drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
         }
 
