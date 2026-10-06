@@ -789,7 +789,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         final int width = MeasureSpec.getSize(widthMeasureSpec);
         final int availableWidth = width - dp((avatarImageView.getVisibility() == VISIBLE ? 54 : 0) + 16);
         avatarImageView.measure(MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY));
-        titleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(24 + 8), MeasureSpec.AT_MOST));
+        // In the iOS-like header a long name is cut inside the pill, with its badges after it
+        final int titleWidth = iosHeader ? Math.min(availableWidth, (int) Math.ceil(iosContentWidth())) : availableWidth;
+        titleTextView.measure(MeasureSpec.makeMeasureSpec(titleWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(24 + 8), MeasureSpec.AT_MOST));
         if (subtitleTextView != null) {
             // In the iOS-like header the pill keeps its width: a longer status is cut inside it
             final int subtitleWidth = iosHeader ? Math.min(availableWidth, (int) Math.ceil(iosContentWidth())) : availableWidth;
@@ -948,7 +950,11 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     /** The width of the pill's content in the iOS-like header: the name, the room for the status and the minimum. */
     private float iosContentWidth() {
-        return Math.max(Math.max(titleTextView.getExactWidth(), iosStatusBudget()), dp(IOS_HEADER_MIN_WIDTH_DP - IOS_HEADER_PADDING_DP));
+        final float width = Math.max(Math.max(titleTextView.getExactWidth(), iosStatusBudget()), dp(IOS_HEADER_MIN_WIDTH_DP - IOS_HEADER_PADDING_DP));
+        // A name longer than the bar has room for: the pill is as wide as it can be, and the name is cut
+        // inside it, or the name ran out of the pill and the status was centered on the whole name
+        final int maxWidth = actionBar != null ? actionBar.getAvatarContainerMaxWidth() - dp(IOS_HEADER_PADDING_DP) : 0;
+        return maxWidth > 0 ? Math.min(width, maxWidth) : width;
     }
 
     private boolean glassMode;
@@ -974,7 +980,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         int titleLeft = l, subtitleLeft = l;
         if (iosHeader) {
             final float contentWidth = iosContentWidth();
-            final float titleWidth = titleTextView.getExactWidth();
+            final float titleWidth = Math.min(titleTextView.getExactWidth(), contentWidth);
             // A status longer than the pill is cut to it, from the pill's start
             final float subtitleWidth = subtitleTextView != null && subtitleTextView.getVisibility() != GONE ? Math.min(subtitleTextView.getExactWidth(), contentWidth) : 0;
             titleLeft = l + (int) Math.max(0, (contentWidth - titleWidth) / 2f);

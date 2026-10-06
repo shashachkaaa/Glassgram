@@ -2626,6 +2626,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    /** The widest the chat's title pill gets: the bar between the back button and the end button. */
+    public int getAvatarContainerMaxWidth() {
+        return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6);
+    }
+
     public void checkAvatarContainerWidth(boolean animated) {
         if (chatAvatarContainer == null) {
             return;
@@ -2637,7 +2642,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             //visualWidth = Math.max(visualWidth, dp(168));
         }
 
-        final int width = Math.min(getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6), visualWidth);
+        final int width = Math.min(getAvatarContainerMaxWidth(), visualWidth);
         if (animated) {
             if (animatorAvatarContainerWidth.getToFactor() != width) {
                 animatorAvatarContainerWidth.animateTo(width);
