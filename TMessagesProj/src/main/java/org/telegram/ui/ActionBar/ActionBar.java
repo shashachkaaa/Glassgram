@@ -231,6 +231,51 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             invalidate();
         }
     }
+    private float glassPillAlpha = 1f;
+    private float glassBackOverlay;
+
+    /** Fades only the pill, for a screen that hides its title (the chats list with topics open beside it). */
+    public void setGlassPillAlpha(float alpha) {
+        if (glassPillAlpha != alpha) {
+            glassPillAlpha = alpha;
+            invalidate();
+        }
+    }
+
+    /**
+     * Shows the back button's glass circle even with this bar's back button hidden: the chats list
+     * keeps it under the back button of the topics opened beside it, which has no glass of its own.
+     */
+    public void setGlassBackOverlay(float factor) {
+        if (glassBackOverlay != factor) {
+            glassBackOverlay = factor;
+            invalidate();
+        }
+    }
+
+    private final int[] glassTouchLocation = new int[2];
+
+    /**
+     * Presses the back button's glass circle with a touch on another view's button drawn over it (the
+     * topics' back button over the chats list's glass, see {@link #setGlassBackOverlay}).
+     */
+    public void glassBackTouchFrom(View source, MotionEvent ev) {
+        if (!glassMode || !glassShown[GLASS_BACK]) {
+            return;
+        }
+        source.getLocationOnScreen(glassTouchLocation);
+        float x = glassTouchLocation[0] + ev.getX(), y = glassTouchLocation[1] + ev.getY();
+        getLocationOnScreen(glassTouchLocation);
+        x -= glassTouchLocation[0];
+        y -= glassTouchLocation[1];
+        final RectF r = glassRect[GLASS_BACK];
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassUnclip();
+        }
+        glassPress(GLASS_BACK).onTouch(action, x - r.left, y - r.top);
+    }
+
     private View glassPillFollower;
     private boolean glassActionModeMoved;
     private boolean glassPillFollowerMoved;
@@ -2770,14 +2815,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
             final int pillOffset = glassPillContent != null ? (int) glassPillContent.getContentOffsetY() : 0;
             glassDrawable.setBounds(left, t + pillOffset, right, b + pillOffset);
-            if (glassAlpha > 0) {
-                glassDrawable.setAlpha((int) (255 * glassAlpha));
+            if (glassAlpha * glassPillAlpha > 0) {
+                glassDrawable.setAlpha((int) (255 * glassAlpha * glassPillAlpha));
                 drawGlass(canvas, glassDrawable, GLASS_PILL, p);
             }
         }
         // The back glass goes with its arrow: the chats list hides the arrow (alpha 0, still visible)
         // while topics are open beside it, and its glass stayed there as a smudge under the topics' bar
-        final float backAlpha = hasBackButton ? backButtonImageView.getAlpha() : closeFactor;
+        final float backAlpha = Math.max(hasBackButton ? backButtonImageView.getAlpha() : closeFactor, glassBackOverlay);
         if (glassDrawableBack != null && backAlpha > 0 && glassAlpha > 0) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);
             glassDrawableBack.setAlpha((int) (255 * glassAlpha * backAlpha));

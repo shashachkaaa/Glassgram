@@ -634,6 +634,14 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
         }
 
         actionBar.setBackButtonDrawable(new BackDrawable(false));
+        if (parentDialogsActivity != null && parentDialogsActivity.getActionBar() != null) {
+            // Beside the chats list the back button sits on the list's glass circle: it presses with it
+            final ActionBar listActionBar = parentDialogsActivity.getActionBar();
+            actionBar.getBackButton().setOnTouchListener((v, ev) -> {
+                listActionBar.glassBackTouchFrom(v, ev);
+                return false;
+            });
+        }
 
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override

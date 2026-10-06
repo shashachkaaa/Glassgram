@@ -5689,6 +5689,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     // The back button's glass is drawn by the bar, with the button's alpha
                     actionBar.invalidate();
                 }
+                // The title's pill goes with the title; the topics' back button gets the round glass
+                // circle (with the list's back button hidden, the pill slid under it as an oval)
+                actionBar.setGlassPillAlpha(1f - progress);
+                actionBar.setGlassBackOverlay(progress);
 
                 if (folderId != 0 || communityId != 0) {
                     actionBarDefaultPaint.setColor(
