@@ -4,12 +4,17 @@ on:
   push:
     branches: [ "master" ]
     tags: [ "*" ]
-    # The badges list is read by the app at runtime; editing it needs no new APK
+    # The badges list is read by the app at runtime, and the bot and the branding are not in the
+    # app: editing them needs no new APK
     paths-ignore:
       - "glassgram-api/**"
+      - "glassgram-bot/**"
+      - "branding/**"
   pull_request:
     paths-ignore:
       - "glassgram-api/**"
+      - "glassgram-bot/**"
+      - "branding/**"
   workflow_dispatch:
     inputs:
       release_tag:
