@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -13,6 +15,7 @@ import android.graphics.RecordingCanvas;
 import android.graphics.RenderNode;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.content.Context;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
@@ -28,6 +31,7 @@ import org.telegram.liquidglass.BackdropGlass;
 import org.telegram.liquidglass.GlassLayer;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.R;
 
 import java.util.function.IntSupplier;
 
@@ -102,6 +106,15 @@ public class LiquidPanelDrawable extends Drawable {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
     }
 
+    /**
+     * A sheet's background as Liquid Glass: the old {@code sheet_shadow_round} 9-patch (kept for its
+     * padding) with round top corners. A color set later through a color filter or tint, as sheets
+     * did for the 9-patch, takes over from the supplier.
+     */
+    public static LiquidPanelDrawable sheet(Context context, IntSupplier color) {
+        return new LiquidPanelDrawable(context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate(), AndroidUtilities.dp(16), 0, color);
+    }
+
     public static Drawable wrap(Drawable original, float topRadius, float bottomRadius, IntSupplier color) {
         return new LiquidPanelDrawable(original, topRadius, bottomRadius, color);
     }
@@ -158,7 +171,7 @@ public class LiquidPanelDrawable extends Drawable {
         path.rewind();
         path.addRoundRect(rect, radii, Path.Direction.CW);
 
-        final int baseColor = color.getAsInt();
+        final int baseColor = hasFilterColor ? filterColor : color.getAsInt();
         final boolean dark = ColorUtils.calculateLuminance(baseColor | 0xFF000000) < 0.5f;
 
         // Shadow around the panel only, so it never shows through the glass
@@ -303,7 +316,54 @@ public class LiquidPanelDrawable extends Drawable {
     }
 
     @Override
+    public void setColorFilter(int color, @NonNull PorterDuff.Mode mode) {
+        setFilterColor(color);
+    }
+
+    @Override
+    public void setTint(int tintColor) {
+        setFilterColor(tintColor);
+    }
+
+    // Sheets colored the 9-patch with a filter; the glass takes that color as its own
+    private boolean hasFilterColor;
+    private int filterColor;
+    private static java.lang.reflect.Method porterDuffGetColor;
+    private static boolean porterDuffGetColorFailed;
+
+    private void setFilterColor(int color) {
+        if (!hasFilterColor || filterColor != color) {
+            hasFilterColor = true;
+            filterColor = color;
+            invalidateSelf();
+        }
+    }
+
+    private static Integer colorOf(ColorFilter filter) {
+        if (Build.VERSION.SDK_INT >= 29 && filter instanceof android.graphics.BlendModeColorFilter) {
+            return ((android.graphics.BlendModeColorFilter) filter).getColor();
+        }
+        if (filter instanceof PorterDuffColorFilter && !porterDuffGetColorFailed) {
+            try {
+                if (porterDuffGetColor == null) {
+                    porterDuffGetColor = PorterDuffColorFilter.class.getDeclaredMethod("getColor");
+                    porterDuffGetColor.setAccessible(true);
+                }
+                return (Integer) porterDuffGetColor.invoke(filter);
+            } catch (Throwable e) {
+                porterDuffGetColorFailed = true;
+            }
+        }
+        return null;
+    }
+
+    @Override
     public void setColorFilter(@Nullable ColorFilter colorFilter) {
+        final Integer filterColor = colorFilter == null ? null : colorOf(colorFilter);
+        if (filterColor != null) {
+            setFilterColor(filterColor);
+            return;
+        }
         // The color comes from the supplier; callers used the filter only to tint the 9-patch
         invalidateSelf();
     }
