@@ -644,7 +644,7 @@ public class MessageObject {
     }
 
     public boolean hasMediaSpoilers() {
-        return !isRepostPreview && (messageOwner.media != null && messageOwner.media.spoiler || needDrawBluredPreview()) || isHiddenSensitive();
+        return !isRepostPreview && (messageOwner.media != null && messageOwner.media.spoiler || needDrawBluredPreviewInChat()) || isHiddenSensitive();
     }
 
     public Boolean isSensitiveCached;
@@ -9988,6 +9988,26 @@ public class MessageObject {
         return false;
     }
 
+    /**
+     * Glassgram: self-destructing photos and videos kept by "Save Self-Destructing Media" are shown in
+     * the chat as they are, not blurred behind a fire, and can be forwarded as copies. They still
+     * open in the disappearing media viewer.
+     */
+    public boolean isGlassgramKeptSelfDestructing() {
+        if (!GlassgramConfig.spyDisableSelfDestruct || isRepostPreview || hasExtendedMediaPreview() || !needDrawBluredPreview()) {
+            return false;
+        }
+        if (isRoundVideo() || isVoice() || isRoundOnce() || isVoiceOnce()) {
+            return false;
+        }
+        return getMedia(messageOwner) instanceof TLRPC.TL_messageMediaPhoto || isVideo() || isGif();
+    }
+
+    /** Whether the chat draws the media blurred: self-destructing media, unless Glassgram keeps it. */
+    public boolean needDrawBluredPreviewInChat() {
+        return needDrawBluredPreview() && !isGlassgramKeptSelfDestructing();
+    }
+
     public boolean needDrawBluredPreview() {
         if (isRepostPreview) {
             return false;
@@ -11601,7 +11621,7 @@ public class MessageObject {
     public boolean canForwardMessage() {
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
-        return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && (!messageOwner.noforwards || GlassgramConfig.ignoreContentProtection);
+        return !(messageOwner instanceof TLRPC.TL_message_secret) && (!needDrawBluredPreview() || isGlassgramKeptSelfDestructing()) && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && (!messageOwner.noforwards || GlassgramConfig.ignoreContentProtection);
     }
 
     public boolean canEditMedia() {
