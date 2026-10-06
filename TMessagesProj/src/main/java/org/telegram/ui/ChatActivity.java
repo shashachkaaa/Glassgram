@@ -42581,10 +42581,9 @@ public class ChatActivity extends BaseFragment implements
         iosHeaderAvatar = new View(getContext()) {
             @Override
             protected void onDraw(Canvas canvas) {
-                // The pill's own avatar keeps loading (and updating) the picture, hidden; it is drawn here
-                receiver.setImageCoords(0, 0, getWidth(), getHeight());
-                receiver.setRoundRadius(getWidth() / 2);
-                receiver.draw(canvas);
+                // The pill's own avatar keeps loading (and updating) the picture, hidden; it is drawn
+                // here, with the community arrow and the timer that sat on it
+                avatarContainer.drawIosAvatar(canvas, receiver, getWidth());
             }
         };
         receiver.setParentView(iosHeaderAvatar);

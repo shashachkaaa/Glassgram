@@ -550,6 +550,10 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (child == subtitleTextView && subtitleSlideProgress < 1f) {
             return drawSubtitleSlide(canvas, child, drawingTime);
         }
+        if (iosHeader && (child == communityItem || child == timeItem)) {
+            // They sit on the avatar, which the iOS-like header shows at the end of the bar (drawIosAvatar)
+            return false;
+        }
         if (child == avatarImageView) {
             final boolean hasTimer = timeItem != null && timeItem.getVisibility() == VISIBLE;
             final boolean hasCommunity = communityItem != null && communityItem.getVisibility() == VISIBLE;
@@ -1045,7 +1049,67 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     public void setCommunityItemVisible(boolean visible) {
         if (communityItem != null) {
             communityItem.setVisibility(visible && !avatarImageIsHidden ? VISIBLE : GONE);
+            invalidateIosAvatar();
         }
+    }
+
+    private void invalidateIosAvatar() {
+        if (iosHeader && actionBar != null && actionBar.getGlassEndView() != null) {
+            actionBar.getGlassEndView().invalidate();
+        }
+    }
+
+    /**
+     * Draws the avatar of the iOS-like header (at the end of the bar) with what sits on the avatar
+     * here: the arrow of the community the chat belongs to and the self-destruct timer, cut out of
+     * the picture as on this avatar, placed and scaled for the given size.
+     */
+    public void drawIosAvatar(Canvas canvas, ImageReceiver receiver, float size) {
+        final boolean hasTimer = timeItem != null && timeItem.getVisibility() == VISIBLE;
+        final boolean hasCommunity = communityItem != null && communityItem.getVisibility() == VISIBLE;
+        final float avatarSize = avatarImageView.getWidth() > 0 ? avatarImageView.getWidth() : dp(avatarSizeInDp) - 2;
+        final float scale = size / avatarSize;
+        if (hasTimer || hasCommunity) {
+            canvas.saveLayer(-dp(3), -dp(3), size + dp(3), size + dp(3), null);
+        }
+        receiver.setImageCoords(0, 0, size, size);
+        receiver.setRoundRadius((int) (size / 2));
+        receiver.draw(canvas);
+        if (hasTimer || hasCommunity) {
+            if (hasTimer) {
+                canvas.drawCircle(itemCenterX(timeItem) * scale, (itemCenterY(timeItem) - dpf2(0.33f)) * scale, dpf2(12f) * timeItem.getScaleX() * scale, Theme.PAINT_CLEAR);
+            }
+            if (hasCommunity) {
+                canvas.drawCircle(itemCenterX(communityItem) * scale, itemCenterY(communityItem) * scale, dpf2(7.66f) * communityItem.getScaleX() * scale, Theme.PAINT_CLEAR);
+            }
+            canvas.restore();
+            if (hasTimer) {
+                drawIosAvatarItem(canvas, timeItem, scale);
+            }
+            if (hasCommunity) {
+                drawIosAvatarItem(canvas, communityItem, scale);
+            }
+        }
+    }
+
+    private float itemCenterX(View item) {
+        return item.getLeft() + item.getWidth() / 2f - avatarImageView.getLeft();
+    }
+
+    private float itemCenterY(View item) {
+        return item.getTop() + item.getHeight() / 2f - avatarImageView.getTop();
+    }
+
+    private void drawIosAvatarItem(Canvas canvas, View item, float scale) {
+        final int restore = canvas.save();
+        canvas.scale(scale, scale);
+        canvas.translate(item.getLeft() - avatarImageView.getLeft(), item.getTop() - avatarImageView.getTop());
+        canvas.scale(item.getScaleX(), item.getScaleY(), item.getWidth() / 2f, item.getHeight() / 2f);
+        if (item.getAlpha() < 1f) {
+            canvas.saveLayerAlpha(0, 0, item.getWidth(), item.getHeight(), (int) (255 * item.getAlpha()));
+        }
+        item.draw(canvas);
+        canvas.restoreToCount(restore);
     }
 
 
@@ -1057,6 +1121,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 timeItem.setScaleX(factor * 0.85f);
                 timeItem.setScaleY(factor * 0.85f);
                 timeItem.setVisibility(factor > 0 ? VISIBLE : GONE);
+                invalidateIosAvatar();
             }
         }
     }
