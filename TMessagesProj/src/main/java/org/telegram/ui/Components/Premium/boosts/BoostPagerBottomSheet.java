@@ -9,6 +9,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.drawable.ColorDrawable;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -25,6 +26,7 @@ import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.ViewPagerFixed;
 import org.telegram.ui.Stories.DarkThemeResourceProvider;
 
@@ -68,6 +70,10 @@ public class BoostPagerBottomSheet extends BottomSheet {
         setApplyTopPadding(false);
         useBackgroundTopPadding = false;
         setBackgroundColor(Color.TRANSPARENT);
+        if (LiquidPanelDrawable.isSupported()) {
+            // The pages draw their own glass panels; a glass background here would blur the whole pager
+            shadowDrawable = new ColorDrawable(Color.TRANSPARENT);
+        }
         fixNavigationBar();
         AndroidUtilities.setLightStatusBar(this, isLightStatusBar());
         checkScreenOrientation();
@@ -128,7 +134,10 @@ public class BoostPagerBottomSheet extends BottomSheet {
                     }
                     final float r = dp(14);
                     AndroidUtilities.rectTmp.set(0, currentTop, getWidth(), getHeight() + dp(8));
-                    canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+                    if (!LiquidPanelDrawable.isSupported()) {
+                        // With glass each page shows its own panel through the clip below
+                        canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+                    }
                     canvas.save();
                     path.rewind();
                     path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);

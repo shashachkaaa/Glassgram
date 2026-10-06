@@ -200,7 +200,7 @@ public class CreateGroupCallBottomSheet extends BottomSheetWithRecyclerListView 
                         break;
                     case HOLDER_TYPE_SHADOW_TEXT:
                         TextInfoPrivacyCell cell = new TextInfoPrivacyCell(context);
-                        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
+                        cell.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider), .35f) : Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
                         cell.setTopPadding(17);
                         cell.setBottomPadding(17);
                         view = cell;

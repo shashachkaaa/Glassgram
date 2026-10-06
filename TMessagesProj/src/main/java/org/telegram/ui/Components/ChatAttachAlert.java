@@ -1929,6 +1929,22 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                 return 0;
             }
 
+            private void drawSheetPanel(Canvas canvas, int top, int bottom) {
+                if (LiquidPanelDrawable.isSupported() && currentPanTranslationY != 0) {
+                    // The glass places its backdrop by its bounds in this view, not by the canvas,
+                    // so the keyboard pan the canvas is translated by goes into the bounds
+                    final int pan = Math.round(currentPanTranslationY);
+                    canvas.save();
+                    canvas.translate(0, -currentPanTranslationY);
+                    shadowDrawable.setBounds(0, top + pan, getMeasuredWidth(), bottom + pan);
+                    shadowDrawable.draw(canvas);
+                    canvas.restore();
+                } else {
+                    shadowDrawable.setBounds(0, top, getMeasuredWidth(), bottom);
+                    shadowDrawable.draw(canvas);
+                }
+            }
+
             private void drawChildBackground(Canvas canvas, View child) {
                 if (child instanceof AttachAlertLayout) {
                     canvas.save();
@@ -1984,8 +2000,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                         currentAttachLayout.getCustomBackground() :
                         getActionBarDrawableColor();
                     shadowDrawable.setAlpha(viewAlpha);
-                    shadowDrawable.setBounds(0, top, getMeasuredWidth(), getMeasuredHeight() + dp(45) + backgroundPaddingTop);
-                    shadowDrawable.draw(canvas);
+                    drawSheetPanel(canvas, top, getMeasuredHeight() + dp(45) + backgroundPaddingTop);
                     if (actionBarType == 2) {
                         Theme.dialogs_onlineCirclePaint.setColor(backgroundColor);
                         Theme.dialogs_onlineCirclePaint.setAlpha(viewAlpha);
@@ -2103,8 +2118,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     boolean drawBackground = !(currentAttachLayout == photoPreviewLayout || nextAttachLayout == photoPreviewLayout || (currentAttachLayout == photoLayout && nextAttachLayout == null));
                     if (drawBackground) {
                         shadowDrawable.setAlpha(viewAlpha);
-                        shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
-                        shadowDrawable.draw(canvas);
+                        drawSheetPanel(canvas, top, height);
                         if (actionBarType == 2) {
                             Theme.dialogs_onlineCirclePaint.setColor(backgroundColor);
                             Theme.dialogs_onlineCirclePaint.setAlpha(viewAlpha);

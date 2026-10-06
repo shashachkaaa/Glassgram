@@ -217,10 +217,19 @@ public class LiquidPanelDrawable extends Drawable {
         node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
         node.setClipToBounds(false);
         decor.getLocationOnScreen(decorLocation);
+        // The windows drawn here use the shared scratch rects too; a sheet that set one before drawing
+        // its panel and used it after (to clip its content) got the windows' rect and showed nothing
+        savedRectTmp.set(AndroidUtilities.rectTmp);
+        savedRectTmp2.set(AndroidUtilities.rectTmp2);
         final RecordingCanvas rc = node.beginRecording(decor.getWidth(), decor.getHeight());
-        decor.draw(rc);
-        drawWindowsBelow(rc, activity, decor, host.getRootView());
-        node.endRecording();
+        try {
+            decor.draw(rc);
+            drawWindowsBelow(rc, activity, decor, host.getRootView());
+        } finally {
+            node.endRecording();
+            AndroidUtilities.rectTmp.set(savedRectTmp);
+            AndroidUtilities.rectTmp2.set(savedRectTmp2);
+        }
 
         host.getLocationOnScreen(hostLocation);
         drawnLocation[0] = hostLocation[0];
@@ -246,6 +255,8 @@ public class LiquidPanelDrawable extends Drawable {
 
     private final ArrayList<View> windowsBelow = new ArrayList<>();
     private final int[] windowLocation = new int[2];
+    private final RectF savedRectTmp = new RectF();
+    private final Rect savedRectTmp2 = new Rect();
 
     /*
      * The activity's other windows between its own and this panel's, drawn over it as they are on

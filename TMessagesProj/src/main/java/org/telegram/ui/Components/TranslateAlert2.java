@@ -271,7 +271,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
         containerView.addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 78, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
         buttonView = new FrameLayout(context);
-        buttonView.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        buttonView.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
 
         buttonShadowView = new View(context);
         buttonShadowView.setBackgroundColor(getThemedColor(Theme.key_dialogShadowLine));
@@ -1198,7 +1198,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
             super(context);
 
             backgroundView = new View(context);
-            backgroundView.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+            backgroundView.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
             addView(backgroundView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.TOP | Gravity.FILL_HORIZONTAL, 0,  12, 0, 0));
 
             backButton = new ImageView(context);
@@ -1459,6 +1459,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
 
         private Path bgPath = new Path();
         private Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private LiquidPanelDrawable glassPanel;
 
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
@@ -1490,10 +1491,20 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
 
             topBulletinContainer.setTranslationY(-topBulletinContainer.getTop() - topBulletinContainer.getHeight() + getTranslationY() + Math.max(AndroidUtilities.statusBarHeight + dp(56) + topBulletinContainer.getHeight(), top));
 
-            bgPath.rewind();
-            AndroidUtilities.rectTmp.set(0, top, getWidth(), getHeight() + R);
-            bgPath.addRoundRect(AndroidUtilities.rectTmp, R, R, Path.Direction.CW);
-            canvas.drawPath(bgPath, bgPaint);
+            if (LiquidPanelDrawable.isSupported()) {
+                if (glassPanel == null) {
+                    glassPanel = new LiquidPanelDrawable(null, R, 0, () -> getThemedColor(Theme.key_dialogBackground));
+                    glassPanel.setHost(this);
+                }
+                glassPanel.setRadius(R, 0);
+                glassPanel.setBounds(0, (int) top, getWidth(), (int) (getHeight() + R));
+                glassPanel.draw(canvas);
+            } else {
+                bgPath.rewind();
+                AndroidUtilities.rectTmp.set(0, top, getWidth(), getHeight() + R);
+                bgPath.addRoundRect(AndroidUtilities.rectTmp, R, R, Path.Direction.CW);
+                canvas.drawPath(bgPath, bgPaint);
+            }
 
             super.dispatchDraw(canvas);
         }

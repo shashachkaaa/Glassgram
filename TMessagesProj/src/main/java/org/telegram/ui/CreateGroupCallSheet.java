@@ -31,6 +31,7 @@ import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.boosts.cells.selector.SelectorUserCell;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
@@ -235,7 +236,20 @@ public class CreateGroupCallSheet extends BottomSheetWithRecyclerListView {
 
     @Override
     protected RecyclerListView.SelectionAdapter createAdapter(RecyclerListView listView) {
-        return adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider);
+        return adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider) {
+            @Override
+            protected int getThemedColor(int key) {
+                // On glass the rows show the sheet's glass, and the gaps between sections are a light shade over it
+                if (LiquidPanelDrawable.isSupported()) {
+                    if (key == Theme.key_dialogBackground) {
+                        return 0;
+                    } else if (key == Theme.key_dialogBackgroundGray) {
+                        return Theme.multAlpha(super.getThemedColor(key), .35f);
+                    }
+                }
+                return super.getThemedColor(key);
+            }
+        };
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {

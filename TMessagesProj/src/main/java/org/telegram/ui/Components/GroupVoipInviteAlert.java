@@ -660,7 +660,7 @@ public class GroupVoipInviteAlert extends UsersAlertBase {
                     break;
                 case 1:
                     GraySectionCell cell = new GraySectionCell(mContext);
-                    cell.setBackgroundColor(Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled));
+                    cell.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled), 0.35f) : Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled));
                     cell.setTextColor(Theme.key_voipgroup_searchPlaceholder);
                     view = cell;
                     break;
@@ -832,7 +832,7 @@ public class GroupVoipInviteAlert extends UsersAlertBase {
                     break;
                 case 2:
                     GraySectionCell cell = new GraySectionCell(mContext);
-                    cell.setBackgroundColor(Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled));
+                    cell.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled), 0.35f) : Theme.getColor(Theme.key_voipgroup_actionBarUnscrolled));
                     cell.setTextColor(Theme.key_voipgroup_searchPlaceholder);
                     view = cell;
                     break;

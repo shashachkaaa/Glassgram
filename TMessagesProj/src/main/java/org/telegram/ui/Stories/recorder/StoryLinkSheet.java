@@ -42,6 +42,7 @@ import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
 import org.telegram.ui.Components.CircularProgressDrawable;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LoadingSpan;
 import org.telegram.ui.Components.Paint.Views.LinkPreview;
 import org.telegram.ui.Components.Paint.Views.StoryLinkPreviewDialog;
@@ -282,7 +283,10 @@ public class StoryLinkSheet extends BottomSheetWithRecyclerListView implements N
             @Override
             protected int getThemedColor(int key) {
                 if (key == Theme.key_dialogBackgroundGray)
-                    return 0xFF0D0D0D;
+                    return LiquidPanelDrawable.isSupported() ? Theme.multAlpha(0xFF0D0D0D, .35f) : 0xFF0D0D0D;
+                // On glass the rows show the sheet's glass instead of repeating its color
+                if (key == Theme.key_dialogBackground && LiquidPanelDrawable.isSupported())
+                    return 0;
                 return super.getThemedColor(key);
             }
         };

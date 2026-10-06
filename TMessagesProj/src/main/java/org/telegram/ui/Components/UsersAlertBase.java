@@ -95,9 +95,10 @@ public class UsersAlertBase extends BottomSheet {
 
         currentAccount = account;
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> backgroundColor);
 
         containerView = createContainerView(context);
+        ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
         containerView.setWillNotDraw(false);
         containerView.setClipChildren(false);
         containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
@@ -535,11 +536,15 @@ public class UsersAlertBase extends BottomSheet {
                 }
             }
 
+            final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+            if (glass) {
+                ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * (drawTitle ? 1.0f : radProgress), 0);
+            }
             shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
             shadowDrawable.draw(canvas);
 
             if(!drawTitle) {
-                if (radProgress != 1.0f) {
+                if (!glass && radProgress != 1.0f) {
                     Theme.dialogs_onlineCirclePaint.setColor(backgroundColor);
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + AndroidUtilities.dp(24));
                     canvas.drawRoundRect(rect, AndroidUtilities.dp(12) * radProgress, AndroidUtilities.dp(12) * radProgress, Theme.dialogs_onlineCirclePaint);

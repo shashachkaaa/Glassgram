@@ -423,10 +423,14 @@ public class PhonebookShareAlert extends BottomSheet {
                     height -= AndroidUtilities.statusBarHeight;
                 }
 
+                final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+                if (glass) {
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * rad, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
                 shadowDrawable.draw(canvas);
 
-                if (rad != 1.0f) {
+                if (!glass && rad != 1.0f) {
                     backgroundPaint.setColor(getThemedColor(Theme.key_dialogBackground));
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + AndroidUtilities.dp(24));
                     canvas.drawRoundRect(rect, r * rad, r * rad, backgroundPaint);

@@ -22,6 +22,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.GLIcon.GLIconRenderer;
 import org.telegram.ui.Components.Premium.GLIcon.GLIconTextureView;
 import org.telegram.ui.Components.Premium.GLIcon.Icon3D;
@@ -104,12 +105,15 @@ public class ExplainStarsSheet extends BottomSheetWithRecyclerListView {
 
     @Override
     protected RecyclerListView.SelectionAdapter createAdapter(RecyclerListView listView) {
-        return adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider) {
+        adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider) {
             @Override
             public boolean isEnabled(RecyclerView.ViewHolder holder) {
                 return false;
             }
         };
+        // Rows would only repeat the sheet color over the glass
+        adapter.setApplyBackground(!LiquidPanelDrawable.isSupported());
+        return adapter;
     }
 
     public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {

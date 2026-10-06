@@ -35,6 +35,7 @@ import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FireworksOverlay;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.PremiumPreviewBottomSheet;
 import org.telegram.ui.Components.Premium.boosts.adapters.BoostAdapter;
 import org.telegram.ui.Components.Premium.boosts.cells.ActionBtnCell;
@@ -105,6 +106,10 @@ public class BoostViaGiftsBottomSheet extends BottomSheetWithRecyclerListView im
 
     public BoostViaGiftsBottomSheet(BaseFragment fragment, boolean needFocus, boolean hasFixedSize, long dialogId, TL_stories.PrepaidGiveaway prepaidGiveaway) {
         super(fragment, needFocus, hasFixedSize);
+        if (shadowDrawable instanceof LiquidPanelDrawable) {
+            // Shown as a page of BoostPagerBottomSheet, so onCreate never sets the host
+            ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
+        }
         this.prepaidGiveaway = prepaidGiveaway;
         this.topPadding = 0.15f;
         setApplyTopPadding(false);

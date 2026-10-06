@@ -43,6 +43,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Paint.Views.PaintColorsListView;
 import org.telegram.ui.Components.Paint.Views.PipettePickerView;
 import org.telegram.ui.Components.ViewPagerFixed;
@@ -80,7 +81,7 @@ public class ColorPickerBottomSheet extends BottomSheet {
 
         fixNavigationBar(0xff252525);
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> 0xff252525);
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff252525, PorterDuff.Mode.MULTIPLY));
 
         LinearLayout linearLayout = new LinearLayout(context);

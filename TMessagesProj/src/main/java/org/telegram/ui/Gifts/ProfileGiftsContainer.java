@@ -87,6 +87,7 @@ import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.boosts.UserSelectorBottomSheet;
 import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RecyclerListView;
@@ -1894,6 +1895,8 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             listView.setSpanCount(3);
             listView.setOverScrollMode(OVER_SCROLL_NEVER);
             listView.setScrollEnabled(false);
+            // The cells' white background would cover the glass
+            listView.adapter.setApplyBackground(!LiquidPanelDrawable.isSupported());
             layout.addView(listView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 11, 0, 11, 0));
 
             button.setText(getString(R.string.Gift2UnpinAlertButton), false);

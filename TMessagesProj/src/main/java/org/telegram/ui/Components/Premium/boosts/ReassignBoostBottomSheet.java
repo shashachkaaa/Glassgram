@@ -48,6 +48,7 @@ import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.Components.Premium.PremiumGradient;
 import org.telegram.ui.Components.Premium.boosts.cells.selector.SelectorBtnCell;
@@ -101,7 +102,7 @@ public class ReassignBoostBottomSheet extends BottomSheetWithRecyclerListView {
         buttonContainer.setClickable(true);
         buttonContainer.setOrientation(LinearLayout.VERTICAL);
         buttonContainer.setPadding(dp(8), dp(8), dp(8), dp(8));
-        buttonContainer.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+        buttonContainer.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
         actionButton = new GradientButtonWithCounterView(getContext(), true, resourcesProvider);
         actionButton.withCounterIcon();
         actionButton.setCounterColor(0xFF9874fc);
@@ -246,7 +247,7 @@ public class ReassignBoostBottomSheet extends BottomSheetWithRecyclerListView {
                         view = cell;
                         break;
                     case HOLDER_TYPE_DIVIDER:
-                        view = new ShadowSectionCell(context, 12, Theme.getColor(Theme.key_windowBackgroundGray));
+                        view = new ShadowSectionCell(context, 12, LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundGray), 0.35f) : Theme.getColor(Theme.key_windowBackgroundGray));
                         break;
                     case HOLDER_TYPE_SUBTITLE:
                         view = new HeaderCell(context, 22);

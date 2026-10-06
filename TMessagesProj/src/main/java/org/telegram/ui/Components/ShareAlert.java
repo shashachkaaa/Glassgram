@@ -462,7 +462,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
         parentFragment = fragment;
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> getThemedColor(Theme.key_dialogBackground));
         int backgroundColor = getThemedColor(behindKeyboardColorKey = Theme.key_dialogBackground);
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(backgroundColor, PorterDuff.Mode.MULTIPLY));
 //        fixNavigationBar(backgroundColor);
@@ -925,8 +925,18 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                     top = AndroidUtilities.lerp(top + systemInsets.top, -backgroundPaddingTop, pinAlpha = this.pinnedToTop.set(pinnedToTop));
                 }
 
-                shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
-                shadowDrawable.draw(canvas);
+                if (LiquidPanelDrawable.isSupported()) {
+                    // The glass places its backdrop by view coordinates, so it is drawn untranslated
+                    final int panY = (int) currentPanTranslationY;
+                    canvas.save();
+                    canvas.translate(0, -currentPanTranslationY);
+                    shadowDrawable.setBounds(0, top + panY, getMeasuredWidth(), height + panY);
+                    shadowDrawable.draw(canvas);
+                    canvas.restore();
+                } else {
+                    shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
+                    shadowDrawable.draw(canvas);
+                }
 
                 if (bulletinContainer2 != null) {
                     if (top <= systemInsets.top && bulletinContainer2.getChildCount() > 0) {
@@ -1006,6 +1016,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             }
         };
         containerView = sizeNotifierFrameLayout;
+        ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
 
         iBlur3FactoryLiquidGlass.setSourceRootView(new ViewPositionWatcher(containerView), containerView);
         iBlur3FactoryFrostedLiquidGlass.setSourceRootView(new ViewPositionWatcher(containerView), containerView);

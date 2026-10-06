@@ -731,7 +731,7 @@ public class EmbedBottomSheet extends BottomSheet {
         ((FrameLayout.LayoutParams) lineView.getLayoutParams()).bottomMargin = AndroidUtilities.dp(48);
 
         FrameLayout frameLayout = new FrameLayout(context);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground));
+        frameLayout.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground));
         containerLayout.addView(frameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.BOTTOM));
 
         LinearLayout linearLayout = new LinearLayout(context);

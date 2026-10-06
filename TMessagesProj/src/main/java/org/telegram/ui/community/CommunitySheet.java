@@ -67,6 +67,7 @@ import org.telegram.ui.Components.IconBackgroundColors;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.JoinGroupAlert;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SearchViewPager;
 import org.telegram.ui.Components.UItem;
@@ -1122,6 +1123,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
         private float top;
 
         private final Path path = new Path();
+        private LiquidPanelDrawable glassBackground;
 
         @Override
         protected void dispatchDraw(@NonNull Canvas canvas) {
@@ -1148,7 +1150,19 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
             AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
             final float r = AndroidUtilities.lerp(dp(14), 0, actionBarT);
-            canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            if (LiquidPanelDrawable.isSupported()) {
+                if (glassBackground == null) {
+                    glassBackground = new LiquidPanelDrawable(null, r, r, () -> backgroundPaint.getColor());
+                    glassBackground.setHost(this);
+                }
+                glassBackground.setRadius(r, r);
+                glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                glassBackground.draw(canvas);
+                // Drawing the glass records the windows behind, whose views reuse rectTmp
+                AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
+            } else {
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            }
             canvas.save();
             path.rewind();
             path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);

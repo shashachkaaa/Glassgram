@@ -22,6 +22,7 @@ import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
 import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.StorageDiagramView;
 import org.telegram.ui.Storage.CacheModel;
@@ -71,7 +72,7 @@ public class DialogCacheBottomSheet extends BottomSheetWithRecyclerListView {
                     TextInfoPrivacyCell textInfoPrivacyCell = new TextInfoPrivacyCell(parent.getContext());
                     textInfoPrivacyCell.setFixedSize(12);
                     CombinedDrawable combinedDrawable = new CombinedDrawable(
-                            new ColorDrawable(Theme.getColor(Theme.key_windowBackgroundGray)),
+                            new ColorDrawable(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundGray), .35f) : Theme.getColor(Theme.key_windowBackgroundGray)),
                             Theme.getThemedDrawableByKey(parent.getContext(), R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow)
                     );
                     combinedDrawable.setFullsize(true);

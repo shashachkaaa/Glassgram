@@ -91,6 +91,7 @@ import org.telegram.ui.Components.FolderBottomSheet;
 import org.telegram.ui.Components.HintView;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
 import org.telegram.ui.Components.Premium.PremiumFeatureBottomSheet;
@@ -2562,7 +2563,7 @@ public class FilterCreateActivity extends BaseFragment {
                     View view;
                     if (viewType == VIEW_TYPE_CREATE_LINK) {
                         view = new CreateLinkCell(getContext());
-                        view.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground));
+                        view.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground));
                     } else if (viewType == VIEW_TYPE_LINK) {
                         view = new LinkCell(getContext(), null, currentAccount, filter.id) {
                             @Override
@@ -2594,10 +2595,10 @@ public class FilterCreateActivity extends BaseFragment {
                                 updateRows(true);
                             }
                         };
-                        view.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground));
+                        view.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground));
                     } else if (viewType == VIEW_TYPE_SHADOW_TEXT || viewType == VIEW_TYPE_SHADOW) {
                         view = new TextInfoPrivacyCell(getContext());
-                        view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+                        view.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundGray), 0.35f) : Theme.getColor(Theme.key_windowBackgroundGray));
                     } else {
                         view = new HeaderView(getContext());
 //                        TextView textView = new TextView(getContext());

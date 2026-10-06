@@ -36,6 +36,7 @@ import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.boosts.adapters.SelectorAdapter;
 import org.telegram.ui.Components.Premium.boosts.adapters.SelectorAdapter.Item;
 import org.telegram.ui.Components.Premium.boosts.cells.selector.SelectorBtnCell;
@@ -523,13 +524,35 @@ public class SelectorBottomSheet extends BottomSheetWithRecyclerListView {
         drawFilledStatusBar(canvas, top);
     }
 
+    private LiquidPanelDrawable glassPanel;
+
+    @Override
+    protected boolean shouldDrawBackground() {
+        // With glass the panel is drawn only by drawFilledStatusBar, not under it as well
+        return !LiquidPanelDrawable.isSupported();
+    }
+
     private void drawFilledStatusBar(Canvas canvas, int top) {
+        if (LiquidPanelDrawable.isSupported()) {
+            // Not drawn, but its top still decides where a tap dismisses
+            shadowDrawable.setBounds(0, top, containerView.getMeasuredWidth(), containerView.getMeasuredHeight());
+        }
         backgroundPaint.setColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
         top = Math.max(0, top);
         top = AndroidUtilities.lerp(top, 0, statusBarT.set(top < AndroidUtilities.statusBarHeight));
         AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, containerView.getWidth() - backgroundPaddingLeft, containerView.getHeight() + dp(14));
         final float r = dp(14) * (1f - statusBarT.get());
-        canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+        if (LiquidPanelDrawable.isSupported()) {
+            if (glassPanel == null) {
+                glassPanel = new LiquidPanelDrawable(null, r, 0, () -> Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+                glassPanel.setHost(containerView);
+            }
+            glassPanel.setRadius(r, 0);
+            glassPanel.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+            glassPanel.draw(canvas);
+        } else {
+            canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+        }
     }
 
     private void updateActionButton(boolean animated) {

@@ -59,6 +59,7 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EmojiPacksAlert;
 import org.telegram.ui.Components.FireworksOverlay;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.Components.LoadingSpan;
 import org.telegram.ui.Components.Premium.GLIcon.GLIconRenderer;
@@ -606,7 +607,7 @@ public class PremiumPreviewBottomSheet extends BottomSheetWithRecyclerListView i
                     };
                     break;
                 case 2:
-                    view = new ShadowSectionCell(context, 12, getThemedColor(Theme.key_windowBackgroundGray));
+                    view = new ShadowSectionCell(context, 12, LiquidPanelDrawable.isSupported() ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), 0.35f) : getThemedColor(Theme.key_windowBackgroundGray));
                     break;
                 case 3:
                     view = new View(context) {

@@ -28,6 +28,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.FixedHeightEmptyCell;
 import org.telegram.ui.Components.BottomSheetWithRecyclerListView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.PremiumPreviewFragment;
 
@@ -82,7 +83,7 @@ public class DoubledLimitsBottomSheet extends BottomSheetWithRecyclerListView im
                 canvas.drawRect(0, 0, getMeasuredWidth(), 1, Theme.dividerPaint);
             }
         };
-        divider.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+        divider.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
         containerView.addView(divider, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 72, Gravity.BOTTOM, 0, 0, 0, 0));
 
         premiumButtonView = new PremiumButtonView(getContext(), true, resourcesProvider);

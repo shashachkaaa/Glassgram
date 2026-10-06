@@ -86,6 +86,7 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FireworksOverlay;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.Components.Loadable;
 import org.telegram.ui.Components.LoginOrView;
@@ -1396,7 +1397,8 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
                         }, true, 9);
                         break;
                     case VIEW_TYPE_SHADOW:
-                        view = new ShadowSectionCell(context, 12, Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
+                        final int shadowColor = Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider);
+                        view = new ShadowSectionCell(context, 12, LiquidPanelDrawable.isSupported() ? Theme.multAlpha(shadowColor, 0.35f) : shadowColor);
                         break;
                     case VIEW_TYPE_HEADER_CELL:
                         view = new HeaderCell(context);

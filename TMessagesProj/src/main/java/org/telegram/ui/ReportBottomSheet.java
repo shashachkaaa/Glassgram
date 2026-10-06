@@ -48,6 +48,7 @@ import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.PremiumFeatureBottomSheet;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
@@ -64,6 +65,9 @@ public class ReportBottomSheet extends BottomSheet {
     private static final int PAGE_TYPE_OPTIONS = 0;
     private static final int PAGE_TYPE_SUB_OPTIONS = 1;
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // On Liquid Glass the panel is glass and the rows on it lose their own fills
+    private final boolean glass = LiquidPanelDrawable.isSupported();
+    private LiquidPanelDrawable glassBackground;
     private final boolean sponsored;
     private final boolean stories;
     private final boolean ephemeral;
@@ -372,7 +376,19 @@ public class ReportBottomSheet extends BottomSheet {
             top = Math.max(AndroidUtilities.statusBarHeight, top) - AndroidUtilities.statusBarHeight * actionBarT;
             AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
             final float r = AndroidUtilities.lerp(dp(14), 0, actionBarT);
-            canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            if (glass) {
+                if (glassBackground == null) {
+                    glassBackground = new LiquidPanelDrawable(null, r, r, () -> backgroundPaint.getColor());
+                    glassBackground.setHost(this);
+                }
+                glassBackground.setRadius(r, r);
+                glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                glassBackground.draw(canvas);
+                // Drawing the glass records the windows behind, whose views reuse rectTmp
+                AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
+            } else {
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            }
             canvas.save();
             path.rewind();
             path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
@@ -447,10 +463,11 @@ public class ReportBottomSheet extends BottomSheet {
                 headerView.setText(LocaleController.getString(R.string.Report2));
             }
             headerView.backDrawable.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
-            headerView.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            headerView.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
             addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
             listView = new UniversalRecyclerView(context, currentAccount, 0, true, this::fillItems, this::onClick, null, resourcesProvider);
+            listView.adapter.setApplyBackground(!glass);
             listView.setClipToPadding(false);
             listView.layoutManager.setReverseLayout(true);
             listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -461,6 +478,19 @@ public class ReportBottomSheet extends BottomSheet {
                 }
             });
             contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
+
+        @Override
+        protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+            if (glass && child == contentView) {
+                // The header is see-through on glass: the list is cut below it instead of passing under it
+                canvas.save();
+                canvas.clipRect(0, headerView.getY() + headerView.getHeight(), getWidth(), getHeight());
+                final boolean result = super.drawChild(canvas, child, drawingTime);
+                canvas.restore();
+                return result;
+            }
+            return super.drawChild(canvas, child, drawingTime);
         }
 
         public float top() {
@@ -559,7 +589,7 @@ public class ReportBottomSheet extends BottomSheet {
                     } else if (option != null) {
                         headerCell.setText(option.title);
                     }
-                    headerCell.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+                    headerCell.setBackgroundColor(glass ? 0 : getThemedColor(Theme.key_dialogBackground));
                     UItem headerItem = UItem.asCustom(headerCell);
                     headerItem.id = -2;
                     items.add(headerItem);
@@ -618,7 +648,7 @@ public class ReportBottomSheet extends BottomSheet {
                         button.setText(LocaleController.getString(R.string.Report2Send), false);
 
                         buttonContainer = new FrameLayout(getContext());
-                        buttonContainer.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+                        buttonContainer.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
                         buttonContainer.addView(button, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.FILL, 12, 12, 12, 12));
 
                         View buttonShadow = new View(getContext());
@@ -642,7 +672,7 @@ public class ReportBottomSheet extends BottomSheet {
                 if (sponsored && pageType == PAGE_TYPE_OPTIONS) {
                     FrameLayout frameLayout = new FrameLayout(getContext());
                     Drawable shadowDrawable = Theme.getThemedDrawable(getContext(), R.drawable.greydivider, Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider));
-                    Drawable background = new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray));
+                    Drawable background = new ColorDrawable(glass ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), .35f) : getThemedColor(Theme.key_windowBackgroundGray));
                     CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
                     combinedDrawable.setFullsize(true);
                     frameLayout.setBackground(combinedDrawable);

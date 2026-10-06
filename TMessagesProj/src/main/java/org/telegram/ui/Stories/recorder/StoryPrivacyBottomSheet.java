@@ -2454,6 +2454,8 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
                 glassBackground.setRadius(r, r);
                 glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
                 glassBackground.draw(canvas);
+                // Drawing the glass records the windows behind, whose views reuse rectTmp
+                AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
             } else {
                 canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
             }
@@ -4639,6 +4641,8 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
         private final RecyclerListView listView;
         private final Adapter adapter;
         private final TextView headerView;
+        private final boolean glass = LiquidPanelDrawable.isSupported();
+        private LiquidPanelDrawable glassBackground;
 
         public ChoosePeerSheet(Context context, int currentAccount, boolean isLive, TLRPC.InputPeer selected, Utilities.Callback<TLRPC.InputPeer> onPeerSelected, Theme.ResourcesProvider resourcesProvider) {
             super(context, false, resourcesProvider);
@@ -4663,13 +4667,36 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
                     top = AndroidUtilities.lerp(top, 0, statusBarT.set(top < AndroidUtilities.statusBarHeight));
                     AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(14));
                     final float r = dp(14) * (1f - statusBarT.get());
-                    canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+                    if (glass) {
+                        if (glassBackground == null) {
+                            glassBackground = new LiquidPanelDrawable(null, r, r, () -> backgroundPaint.getColor());
+                            glassBackground.setHost(this);
+                        }
+                        glassBackground.setRadius(r, r);
+                        glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                        glassBackground.draw(canvas);
+                    } else {
+                        canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+                    }
                     headerView.setTranslationY(Math.max(AndroidUtilities.statusBarHeight + dp(8), dp(14) + top));
 
                     canvas.save();
                     canvas.clipRect(backgroundPaddingLeft, AndroidUtilities.statusBarHeight + dp(14), getWidth() - backgroundPaddingLeft, getHeight());
                     super.dispatchDraw(canvas);
                     canvas.restore();
+                }
+
+                @Override
+                protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                    if (glass && child == listView) {
+                        // The header is see-through on glass: the list is cut below it instead of passing under it
+                        canvas.save();
+                        canvas.clipRect(0, headerView.getY() + headerView.getHeight(), getWidth(), getHeight());
+                        final boolean result = super.drawChild(canvas, child, drawingTime);
+                        canvas.restore();
+                        return result;
+                    }
+                    return super.drawChild(canvas, child, drawingTime);
                 }
 
                 @Override
@@ -4719,7 +4746,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
             headerView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
             headerView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
             headerView.setPadding(backgroundPaddingLeft + dp(22), dp(2), backgroundPaddingLeft + dp(22), dp(14));
-            headerView.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            headerView.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
             headerView.setTypeface(AndroidUtilities.bold());
             headerView.setText(getString(isLive ? R.string.StoryPrivacyPublishLiveAs : R.string.StoryPrivacyPublishAs));
             containerView.addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));

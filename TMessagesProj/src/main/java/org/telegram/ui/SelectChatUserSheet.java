@@ -54,6 +54,7 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
 import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RecyclerListView;
@@ -294,7 +295,10 @@ public class SelectChatUserSheet extends BottomSheetWithRecyclerListView {
     private UniversalAdapter adapter;
     @Override
     protected RecyclerListView.SelectionAdapter createAdapter(RecyclerListView listView) {
-        return adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, this::fillItems, resourcesProvider);
+        adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, this::fillItems, resourcesProvider);
+        // On glass the rows show the sheet's glass instead of a white fill
+        adapter.setApplyBackground(!LiquidPanelDrawable.isSupported());
+        return adapter;
     }
 
     private boolean isInitialOwnerAdmin() {

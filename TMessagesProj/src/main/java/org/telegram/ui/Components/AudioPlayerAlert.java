@@ -406,7 +406,11 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
 
             @Override
             protected void onDraw(Canvas canvas) {
+                final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
                 if (playlist.size() <= 1) {
+                    if (glass) {
+                        ((LiquidPanelDrawable) shadowDrawable).setRadius(dp(16), 0);
+                    }
                     shadowDrawable.setBounds(0, getMeasuredHeight() - playerLayout.getMeasuredHeight() - backgroundPaddingTop, getMeasuredWidth(), getMeasuredHeight());
                     shadowDrawable.draw(canvas);
                     if (isProfilePlaylist) {
@@ -443,10 +447,14 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     top += (int) (AndroidUtilities.statusBarHeight * (1f - moveProgress));
                     y += (int) (AndroidUtilities.statusBarHeight * (1f - moveProgress));
 
+                    if (glass) {
+                        // The glass loses its corners itself instead of a patch over them
+                        ((LiquidPanelDrawable) shadowDrawable).setRadius(dp(16) * (isProfilePlaylist ? 1.0f : rad), 0);
+                    }
                     shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
                     shadowDrawable.draw(canvas);
 
-                    if (!isProfilePlaylist && rad != 1.0f) {
+                    if (!glass && !isProfilePlaylist && rad != 1.0f) {
                         Theme.dialogs_onlineCirclePaint.setColor(getThemedColor(Theme.key_dialogBackground));
                         rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + dp(24));
                         canvas.drawRoundRect(rect, dp(12) * rad, dp(12) * rad, Theme.dialogs_onlineCirclePaint);
@@ -1427,6 +1435,10 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     super.onSelectedChanged(viewHolder, actionState);
                     if (viewHolder != null) {
                         viewHolder.itemView.setTag(R.id.dragging, actionState == ItemTouchHelper.ACTION_STATE_DRAG ? true : null);
+                        if (LiquidPanelDrawable.isSupported() && !isProfilePlaylist && actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                            // Cells are clear on glass; the dragged one must hide the ones it passes over
+                            viewHolder.itemView.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+                        }
                     }
                 }
 
@@ -1435,6 +1447,9 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     super.clearView(recyclerView, viewHolder);
                     viewHolder.itemView.setPressed(false);
                     viewHolder.itemView.setTag(R.id.dragging, null);
+                    if (LiquidPanelDrawable.isSupported() && !isProfilePlaylist) {
+                        viewHolder.itemView.setBackgroundColor(0);
+                    }
                 }
 
             });
@@ -2535,7 +2550,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             } else {
                 onReorderTouch = null;
             }
-            cell.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            cell.setBackgroundColor(LiquidPanelDrawable.isSupported() && !isProfilePlaylist ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
             cell.setMessageObject(messageObject, isMyList(), isMyList() || noforwards || messageObject.getId() <= 0 ? null : btn -> showOptions(cell, messageObject), needDivider, onReorderTouch);
         }
 

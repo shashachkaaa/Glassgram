@@ -72,6 +72,7 @@ import org.telegram.ui.Components.FragmentFloatingButton;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
@@ -2219,7 +2220,7 @@ public class ResaleGiftsFragment extends BaseFragment implements FactorAnimator.
         private UniversalAdapter adapter;
         @Override
         protected RecyclerListView.SelectionAdapter createAdapter(RecyclerListView listView) {
-            return adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, this::fillItems, resourcesProvider) {
+            adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, this::fillItems, resourcesProvider) {
                 @NonNull
                 @Override
                 public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -2233,6 +2234,9 @@ public class ResaleGiftsFragment extends BaseFragment implements FactorAnimator.
                     return super.onCreateViewHolder(parent, viewType);
                 }
             };
+            // Gift cells would get an opaque white background over the glass
+            adapter.setApplyBackground(!LiquidPanelDrawable.isSupported());
+            return adapter;
         }
 
         private boolean hadResaleGifts;

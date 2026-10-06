@@ -839,10 +839,14 @@ public class StickersAlert extends BottomSheet implements NotificationCenter.Not
                     }
                 }
 
+                final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+                if (glass) {
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * radProgress, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), getMeasuredHeight());
                 shadowDrawable.draw(canvas);
 
-                if (radProgress != 1.0f) {
+                if (!glass && radProgress != 1.0f) {
                     Theme.dialogs_onlineCirclePaint.setColor(getThemedColor(Theme.key_dialogBackground));
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + AndroidUtilities.dp(24));
                     canvas.drawRoundRect(rect, AndroidUtilities.dp(12) * radProgress, AndroidUtilities.dp(12) * radProgress, Theme.dialogs_onlineCirclePaint);
@@ -857,7 +861,7 @@ public class StickersAlert extends BottomSheet implements NotificationCenter.Not
                 canvas.drawRoundRect(rect, AndroidUtilities.dp(2), AndroidUtilities.dp(2), Theme.dialogs_onlineCirclePaint);
 
                 updateLightStatusBar(statusBarHeight > AndroidUtilities.statusBarHeight / 2);
-                if (statusBarHeight > 0) {
+                if (!glass && statusBarHeight > 0) {
                     Theme.dialogs_onlineCirclePaint.setColor(getThemedColor(Theme.key_dialogBackground));
                     canvas.drawRect(backgroundPaddingLeft, AndroidUtilities.statusBarHeight - statusBarHeight, getMeasuredWidth() - backgroundPaddingLeft, AndroidUtilities.statusBarHeight, Theme.dialogs_onlineCirclePaint);
                 }
@@ -1140,7 +1144,7 @@ public class StickersAlert extends BottomSheet implements NotificationCenter.Not
         containerView.addView(shadow[1], frameLayoutParams);
 
         pickerBottomLayout = new AnimatedTextView(context);
-        pickerBottomLayout.setBackground(Theme.createSelectorWithBackgroundDrawable(getThemedColor(Theme.key_dialogBackground), getThemedColor(Theme.key_listSelector)));
+        pickerBottomLayout.setBackground(LiquidPanelDrawable.isSupported() ? Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL) : Theme.createSelectorWithBackgroundDrawable(getThemedColor(Theme.key_dialogBackground), getThemedColor(Theme.key_listSelector)));
         pickerBottomLayout.setTextColor(getThemedColor(buttonTextColorKey = Theme.key_dialogTextBlue2));
         pickerBottomLayout.setTextSize(dp(14));
         pickerBottomLayout.setPadding(dp(18), 0, dp(18), 0);
@@ -2109,14 +2113,14 @@ public class StickersAlert extends BottomSheet implements NotificationCenter.Not
             pickerBottomLayout.setAlpha(0f);
         } else if (backgroundColorKey >= 0 && backgroundSelectorColorKey >= 0) {
             pickerBottomLayout.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(24), getThemedColor(backgroundColorKey), getThemedColor(backgroundSelectorColorKey)));
-            pickerBottomFrameLayout.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+            pickerBottomFrameLayout.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Color.TRANSPARENT : getThemedColor(Theme.key_dialogBackground));
             params.leftMargin = params.topMargin = params.rightMargin = params.bottomMargin = dp(8);
             emptyParams.bottomMargin = gridParams.bottomMargin = shadowParams.bottomMargin = dp(64);
             if (pickerBottomLayout.getAlpha() < 1f) {
                 pickerBottomLayout.animate().alpha(1f).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).setDuration(240).start();
             }
         } else {
-            pickerBottomLayout.setBackground(Theme.createSelectorWithBackgroundDrawable(getThemedColor(Theme.key_dialogBackground), Theme.multAlpha(getThemedColor(Theme.key_text_RedBold), .1f)));
+            pickerBottomLayout.setBackground(LiquidPanelDrawable.isSupported() ? Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_text_RedBold), .1f), Theme.RIPPLE_MASK_ALL) : Theme.createSelectorWithBackgroundDrawable(getThemedColor(Theme.key_dialogBackground), Theme.multAlpha(getThemedColor(Theme.key_text_RedBold), .1f)));
             pickerBottomFrameLayout.setBackgroundColor(Color.TRANSPARENT);
             params.leftMargin = params.topMargin = params.rightMargin = params.bottomMargin = 0;
             emptyParams.bottomMargin = gridParams.bottomMargin = shadowParams.bottomMargin = dp(48);

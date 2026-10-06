@@ -49,6 +49,7 @@ import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.BottomPagesView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LinkSpanDrawable;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.PremiumPreviewFragment;
@@ -446,7 +447,7 @@ public class PremiumFeatureBottomSheet extends BottomSheet implements Notificati
         buttonContainer = new FrameLayout(getContext());
 
         buttonContainer.addView(premiumButtonView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER_VERTICAL, 16, 0, 16, 0));
-        buttonContainer.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        buttonContainer.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
         linearLayout.addView(buttonContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 68, Gravity.BOTTOM));
 
         if (startType == PremiumPreviewFragment.FEATURE_GIFTS) {

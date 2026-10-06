@@ -145,6 +145,7 @@ import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkPath;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LoadingSpan;
 import org.telegram.ui.Components.Premium.LimitPreviewView;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
@@ -398,7 +399,7 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
         });
         updateViewPager();
         bottomView = new View(context);
-        bottomView.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        bottomView.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
         containerView.addView(bottomView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.BOTTOM));
         containerView.addView(viewPager, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
 
@@ -1611,6 +1612,7 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
         private final RectF rect = new RectF();
         private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
+        private LiquidPanelDrawable glassBackground;
 
         public ContainerView(Context context) {
             super(context);
@@ -1639,7 +1641,16 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
             backgroundPaint.setColor(getThemedColor(Theme.key_dialogBackground));
             path.rewind();
             path.addRoundRect(rect, r, r, Path.Direction.CW);
-            canvas.drawPath(path, backgroundPaint);
+            if (LiquidPanelDrawable.isSupported()) {
+                if (glassBackground == null) {
+                    glassBackground = new LiquidPanelDrawable(null, r, 0, () -> getThemedColor(Theme.key_dialogBackground));
+                    glassBackground.setHost(this);
+                }
+                glassBackground.setBounds((int) rect.left, (int) top, (int) rect.right, getHeight());
+                glassBackground.draw(canvas);
+            } else {
+                canvas.drawPath(path, backgroundPaint);
+            }
 
             super.dispatchDraw(canvas);
             if (dimAlpha != 0) {

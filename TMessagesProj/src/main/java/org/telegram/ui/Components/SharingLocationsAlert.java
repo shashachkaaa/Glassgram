@@ -64,7 +64,7 @@ public class SharingLocationsAlert extends BottomSheet implements NotificationCe
         delegate = sharingLocationsAlertDelegate;
         fixNavigationBar();
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> getThemedColor(Theme.key_dialogBackground));
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY));
 
         containerView = new FrameLayout(context) {
@@ -132,6 +132,7 @@ public class SharingLocationsAlert extends BottomSheet implements NotificationCe
         };
         containerView.setWillNotDraw(false);
         containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
+        ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
 
         listView = new RecyclerListView(context) {
             @Override
@@ -175,7 +176,7 @@ public class SharingLocationsAlert extends BottomSheet implements NotificationCe
         containerView.addView(shadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3, Gravity.BOTTOM | Gravity.LEFT, 0, 0, 0, 48));
 
         PickerBottomLayout pickerBottomLayout = new PickerBottomLayout(context, false);
-        pickerBottomLayout.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        pickerBottomLayout.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
         containerView.addView(pickerBottomLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.BOTTOM));
         pickerBottomLayout.cancelButton.setPadding(AndroidUtilities.dp(18), 0, AndroidUtilities.dp(18), 0);
         pickerBottomLayout.cancelButton.setTextColor(getThemedColor(Theme.key_text_RedBold));

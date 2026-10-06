@@ -154,16 +154,21 @@ public class FiltersListBottomSheet extends BottomSheet implements NotificationC
                     }
                 }
 
+                // On glass the panel loses its corners itself; the opaque patches below would cover it
+                final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+                if (glass) {
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * radProgress, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), getMeasuredHeight());
                 shadowDrawable.draw(canvas);
 
-                if (radProgress != 1.0f) {
+                if (!glass && radProgress != 1.0f) {
                     Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_dialogBackground));
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + AndroidUtilities.dp(24));
                     canvas.drawRoundRect(rect, AndroidUtilities.dp(12) * radProgress, AndroidUtilities.dp(12) * radProgress, Theme.dialogs_onlineCirclePaint);
                 }
 
-                if (statusBarHeight > 0) {
+                if (!glass && statusBarHeight > 0) {
                     Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_dialogBackground));
                     canvas.drawRect(backgroundPaddingLeft, AndroidUtilities.statusBarHeight - statusBarHeight, getMeasuredWidth() - backgroundPaddingLeft, AndroidUtilities.statusBarHeight, Theme.dialogs_onlineCirclePaint);
                 }

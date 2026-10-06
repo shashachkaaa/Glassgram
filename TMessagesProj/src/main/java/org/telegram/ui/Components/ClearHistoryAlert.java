@@ -134,7 +134,7 @@ public class ClearHistoryAlert extends BottomSheet {
             newTimer = currentTimer = 3;
         }
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> getThemedColor(Theme.key_dialogBackground));
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY));
 
         NestedScrollView scrollView = new NestedScrollView(context) {
@@ -201,8 +201,13 @@ public class ClearHistoryAlert extends BottomSheet {
             @Override
             protected void onDraw(Canvas canvas) {
                 int top = (int) (scrollOffsetY - backgroundPaddingTop + getScrollY() - getTranslationY());
-                shadowDrawable.setBounds(0, top, getMeasuredWidth(), top + linearLayout.getMeasuredHeight() + backgroundPaddingTop + AndroidUtilities.dp(19));
+                // The glass places its backdrop by view coordinates, so it is drawn unscrolled
+                final int scrollY = LiquidPanelDrawable.isSupported() ? getScrollY() : 0;
+                canvas.save();
+                canvas.translate(0, scrollY);
+                shadowDrawable.setBounds(0, top - scrollY, getMeasuredWidth(), top - scrollY + linearLayout.getMeasuredHeight() + backgroundPaddingTop + AndroidUtilities.dp(19));
                 shadowDrawable.draw(canvas);
+                canvas.restore();
             }
 
             @Override
@@ -213,6 +218,7 @@ public class ClearHistoryAlert extends BottomSheet {
         };
         scrollView.setFillViewport(true);
         scrollView.setWillNotDraw(false);
+        ((LiquidPanelDrawable) shadowDrawable).setHost(scrollView);
         scrollView.setClipToPadding(false);
         scrollView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
         containerView = scrollView;
@@ -297,7 +303,7 @@ public class ClearHistoryAlert extends BottomSheet {
 
             ShadowSectionCell shadowSectionCell = new ShadowSectionCell(context);
             Drawable drawable = Theme.getThemedDrawableByKey(context, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
-            CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
+            CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), 0.35f) : getThemedColor(Theme.key_windowBackgroundGray)), drawable);
             combinedDrawable.setFullsize(true);
             shadowSectionCell.setBackgroundDrawable(combinedDrawable);
             linearLayout.addView(shadowSectionCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -360,7 +366,7 @@ public class ClearHistoryAlert extends BottomSheet {
 
         FrameLayout buttonContainer = new FrameLayout(context);
         Drawable drawable = Theme.getThemedDrawableByKey(context, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow);
-        CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
+        CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), 0.35f) : getThemedColor(Theme.key_windowBackgroundGray)), drawable);
         combinedDrawable.setFullsize(true);
         buttonContainer.setBackgroundDrawable(combinedDrawable);
         linearLayout.addView(buttonContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -370,7 +376,7 @@ public class ClearHistoryAlert extends BottomSheet {
         buttonContainer.addView(infoCell);
 
         setTimerButton = new BottomSheetCell(context, resourcesProvider);
-        setTimerButton.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        setTimerButton.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
         if (autoDeleteOnly) {
             setTimerButton.setText(LocaleController.getString(R.string.AutoDeleteSet));
         } else if (full && currentTimer == 0) {

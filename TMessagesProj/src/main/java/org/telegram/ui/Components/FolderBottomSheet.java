@@ -977,14 +977,14 @@ public class FolderBottomSheet extends BottomSheetWithRecyclerListView {
                     view = titleCell = new TitleCell(getContext(), invite instanceof TL_chatlists.TL_chatlists_chatlistInviteAlready || updates != null, escapedTitle, titleEntities, titleNoanimate);
                 } else if (viewType == VIEW_TYPE_HINT) {
                     view = new TextInfoPrivacyCell(getContext());
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+                    view.setBackgroundColor(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundGray), 0.35f) : Theme.getColor(Theme.key_windowBackgroundGray));
                 } else if (viewType == VIEW_TYPE_USER) {
                     GroupCreateUserCell userCell = new GroupCreateUserCell(getContext(), 1, 0, false);
-                    userCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    userCell.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_windowBackgroundWhite));
                     view = userCell;
                 } else if (viewType == VIEW_TYPE_HEADER) {
                     view = new HeaderCell(getContext());
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    view.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_windowBackgroundWhite));
                 }
                 return new RecyclerListView.Holder(view);
             }

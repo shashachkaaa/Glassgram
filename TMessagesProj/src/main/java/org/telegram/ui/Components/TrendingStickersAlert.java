@@ -223,11 +223,30 @@ public class TrendingStickersAlert extends BottomSheet {
             canvas.translate(0, layout.getTranslationY() + translationY);
 
             // background with top corners
-            shadowDrawable.setBounds(0, scrollOffsetY - backgroundPaddingTop + offset, getMeasuredWidth(), getMeasuredHeight() + (translationY < 0 ? -translationY : 0));
-            shadowDrawable.draw(canvas);
+            final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+            if (glass) {
+                // The glass places its backdrop by view coordinates, so it is drawn untranslated. It grows over
+                // the status bar and loses its corners itself instead of patches painted over it.
+                final float shift = layout.getTranslationY() + translationY;
+                final int shiftY = (int) shift;
+                int panelTop = scrollOffsetY - backgroundPaddingTop + offset;
+                if (statusBarAlpha > 0f) {
+                    final int bottom = (int) Math.max(0, scrollOffsetY + topOffset * (1f - fraction) + AndroidUtilities.dp(24) + shift);
+                    panelTop = Math.min(panelTop, (int) (AndroidUtilities.lerp(bottom, -AndroidUtilities.statusBarHeight, statusBarAlpha) - shift) - backgroundPaddingTop);
+                }
+                ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * fraction, 0);
+                canvas.save();
+                canvas.translate(0, -shift);
+                shadowDrawable.setBounds(0, panelTop + shiftY, getMeasuredWidth(), getMeasuredHeight() + (translationY < 0 ? -translationY : 0) + shiftY);
+                shadowDrawable.draw(canvas);
+                canvas.restore();
+            } else {
+                shadowDrawable.setBounds(0, scrollOffsetY - backgroundPaddingTop + offset, getMeasuredWidth(), getMeasuredHeight() + (translationY < 0 ? -translationY : 0));
+                shadowDrawable.draw(canvas);
+            }
 
             // mutable top corners
-            if (fraction > 0f && fraction < 1f) {
+            if (!glass && fraction > 0f && fraction < 1f) {
                 final float radius = AndroidUtilities.dp(12) * fraction;
                 shapeDrawable.setColor(getThemedColor(Theme.key_dialogBackground));
                 radii[0] = radii[1] = radii[2] = radii[3] = radius;
@@ -258,7 +277,7 @@ public class TrendingStickersAlert extends BottomSheet {
             // status bar
             setStatusBarVisible(fraction == 0f && !isDismissed(), true);
             updateLightStatusBar(statusBarAlpha > .5f);
-            if (statusBarAlpha > 0f) {
+            if (statusBarAlpha > 0f && !LiquidPanelDrawable.isSupported()) {
                 paint.setColor(getThemedColor(Theme.key_dialogBackground));
                 int bottom = (int) Math.max(0, scrollOffsetY + topOffset * (1f - getFraction()) + AndroidUtilities.dp(24) + (layout.getTranslationY() + (AndroidUtilities.statusBarHeight - topOffset)));
                 canvas.drawRect(backgroundPaddingLeft, AndroidUtilities.lerp(bottom, -AndroidUtilities.statusBarHeight, statusBarAlpha), getMeasuredWidth() - backgroundPaddingLeft, bottom, paint);

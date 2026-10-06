@@ -300,7 +300,7 @@ public class JoinCallAlert extends BottomSheet {
         currentType = type;
 
         int backgroundColor;
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> Theme.getColor(currentType == TYPE_DISPLAY ? Theme.key_voipgroup_inviteMembersBackground : Theme.key_dialogBackground));
         if (type == TYPE_DISPLAY) {
             if (VoIPService.getSharedInstance() != null) {
                 long did = VoIPService.getSharedInstance().getSelfId();
@@ -440,6 +440,7 @@ public class JoinCallAlert extends BottomSheet {
                 }
             };
             internalLayout = containerView;
+            ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
             containerView.setWillNotDraw(false);
             containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
         }

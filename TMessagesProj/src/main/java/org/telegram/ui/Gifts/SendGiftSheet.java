@@ -70,6 +70,7 @@ import org.telegram.ui.Components.EditTextEmoji;
 import org.telegram.ui.Components.EditTextSuggestionsFix;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
 import org.telegram.ui.Components.Premium.GiftPremiumBottomSheet;
 import org.telegram.ui.Components.Premium.boosts.BoostDialogs;
@@ -407,7 +408,7 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         if (starGift != null && starGift.auction) {
             limitContainerWrapper = new FrameLayout(context);
             limitContainerWrapper.addView(limitContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 30, 10, 14, 10, 14));
-            limitContainerWrapper.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            limitContainerWrapper.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
         } else {
             limitContainer.setVisibility(starGift != null && starGift.limited ? View.VISIBLE : View.GONE);
             buttonContainer.addView(limitContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 30, 10, 10, 10, 0));

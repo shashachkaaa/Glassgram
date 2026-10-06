@@ -221,16 +221,21 @@ public class InviteLinkBottomSheet extends BottomSheet {
                     }
                 }
 
+                final boolean glass = LiquidPanelDrawable.isSupported() && shadowDrawable instanceof LiquidPanelDrawable;
+                if (glass) {
+                    // The glass loses its corners itself instead of being covered by patches
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(dp(16) * radProgress, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), height + dp(10) + AndroidUtilities.navigationBarHeight);
                 shadowDrawable.draw(canvas);
 
-                if (radProgress != 1.0f) {
+                if (radProgress != 1.0f && !glass) {
                     Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_dialogBackground));
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + dp(24));
                     canvas.drawRoundRect(rect, dp(12) * radProgress, dp(12) * radProgress, Theme.dialogs_onlineCirclePaint);
                 }
 
-                if (statusBarHeight > 0) {
+                if (statusBarHeight > 0 && !glass) {
                     Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_dialogBackground));
                     canvas.drawRect(backgroundPaddingLeft, AndroidUtilities.statusBarHeight - statusBarHeight, getMeasuredWidth() - backgroundPaddingLeft, AndroidUtilities.statusBarHeight, Theme.dialogs_onlineCirclePaint);
                 }
@@ -620,7 +625,8 @@ public class InviteLinkBottomSheet extends BottomSheet {
                     view = new RevenueUserCell(context);
                     break;
                 case 2:
-                    view = new ShadowSectionCell(context, 12, Theme.getColor(Theme.key_windowBackgroundGray));
+                    // Same color as this sheet's body
+                    view = new ShadowSectionCell(context, 12, LiquidPanelDrawable.isSupported() ? 0 : Theme.getColor(Theme.key_windowBackgroundGray));
                     break;
                 case 3:
                     LinkActionView linkActionView = new LinkActionView(context, fragment, InviteLinkBottomSheet.this, chatId, false, isChannel) {

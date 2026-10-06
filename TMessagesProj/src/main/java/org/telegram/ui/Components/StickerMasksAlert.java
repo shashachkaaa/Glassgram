@@ -322,7 +322,7 @@ public class StickerMasksAlert extends BottomSheet implements NotificationCenter
         MediaDataController.getInstance(currentAccount).loadRecents(MediaDataController.TYPE_MASK, false, true, false);
         MediaDataController.getInstance(currentAccount).loadRecents(MediaDataController.TYPE_FAVE, false, true, false);
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> 0xff252525);
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff252525, PorterDuff.Mode.MULTIPLY));
 
         containerView = new SizeNotifierFrameLayout(context) {
@@ -415,10 +415,14 @@ public class StickerMasksAlert extends BottomSheet implements NotificationCenter
                     y += AndroidUtilities.statusBarHeight;
                 }
 
+                final boolean glass = LiquidPanelDrawable.isSupported();
+                if (glass) {
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(AndroidUtilities.dp(16) * rad, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
                 shadowDrawable.draw(canvas);
 
-                if (rad != 1.0f) {
+                if (!glass && rad != 1.0f) {
                     Theme.dialogs_onlineCirclePaint.setColor(0xff252525);
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + AndroidUtilities.dp(24));
                     canvas.drawRoundRect(rect, AndroidUtilities.dp(12) * rad, AndroidUtilities.dp(12) * rad, Theme.dialogs_onlineCirclePaint);
@@ -458,14 +462,17 @@ public class StickerMasksAlert extends BottomSheet implements NotificationCenter
                     }
                 }
 
-                int color1 = 0xff252525;
-                int finalColor = Color.argb((int) (255 * statusBarProgress), (int) (Color.red(color1) * 0.8f), (int) (Color.green(color1) * 0.8f), (int) (Color.blue(color1) * 0.8f));
-                Theme.dialogs_onlineCirclePaint.setColor(finalColor);
-                canvas.drawRect(backgroundPaddingLeft, 0, getMeasuredWidth() - backgroundPaddingLeft, AndroidUtilities.statusBarHeight, Theme.dialogs_onlineCirclePaint);
+                if (!glass) {
+                    int color1 = 0xff252525;
+                    int finalColor = Color.argb((int) (255 * statusBarProgress), (int) (Color.red(color1) * 0.8f), (int) (Color.green(color1) * 0.8f), (int) (Color.blue(color1) * 0.8f));
+                    Theme.dialogs_onlineCirclePaint.setColor(finalColor);
+                    canvas.drawRect(backgroundPaddingLeft, 0, getMeasuredWidth() - backgroundPaddingLeft, AndroidUtilities.statusBarHeight, Theme.dialogs_onlineCirclePaint);
+                }
             }
         };
         containerView.setWillNotDraw(false);
         containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
+        ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
 
         searchFieldHeight = AndroidUtilities.dp(64);
 

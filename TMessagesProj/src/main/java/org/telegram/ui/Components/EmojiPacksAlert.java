@@ -583,6 +583,7 @@ public class EmojiPacksAlert extends BottomSheet implements NotificationCenter.N
 
         private Paint paint = new Paint();
         private Path path = new Path();
+        private LiquidPanelDrawable glassPanel;
         private Boolean lastOpen = null;
         boolean attached;
         SparseArray<ArrayList<EmojiImageView>> viewsGroupedByLines = new SparseArray<>();
@@ -657,8 +658,18 @@ public class EmojiPacksAlert extends BottomSheet implements NotificationCenter.N
 
             float r = dp((1f - statusBarT) * 14);
             AndroidUtilities.rectTmp.set(getPaddingLeft(), y, getWidth() - getPaddingRight(), getBottom() + r);
-            path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
-            canvas.drawPath(path, paint);
+            if (LiquidPanelDrawable.isSupported()) {
+                if (glassPanel == null) {
+                    glassPanel = new LiquidPanelDrawable(null, r, 0, () -> getThemedColor(Theme.key_dialogBackground));
+                    glassPanel.setHost(this);
+                }
+                glassPanel.setRadius(r, 0);
+                glassPanel.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                glassPanel.draw(canvas);
+            } else {
+                path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
+                canvas.drawPath(path, paint);
+            }
 
             boolean open = statusBarT > .5f;
             if (lastOpen == null || open != lastOpen) {

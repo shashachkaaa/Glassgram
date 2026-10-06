@@ -667,7 +667,7 @@ public class PollVotesAlert extends BottomSheet {
 
         updatePlaceholder();
 
-        shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        shadowDrawable = LiquidPanelDrawable.sheet(context, () -> Theme.getColor(Theme.key_dialogBackgroundGray));
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogBackgroundGray), PorterDuff.Mode.MULTIPLY));
 
         containerView = new FrameLayout(context) {
@@ -767,10 +767,14 @@ public class PollVotesAlert extends BottomSheet {
                 top += AndroidUtilities.statusBarHeight;
                 y += AndroidUtilities.statusBarHeight;
 
+                final boolean glass = LiquidPanelDrawable.isSupported();
+                if (glass) {
+                    ((LiquidPanelDrawable) shadowDrawable).setRadius(dp(16) * rad, 0);
+                }
                 shadowDrawable.setBounds(0, top, getMeasuredWidth(), height);
                 shadowDrawable.draw(canvas);
 
-                if (rad != 1.0f) {
+                if (!glass && rad != 1.0f) {
                     Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_dialogBackground));
                     rect.set(backgroundPaddingLeft, backgroundPaddingTop + top, getMeasuredWidth() - backgroundPaddingLeft, backgroundPaddingTop + top + dp(24));
                     canvas.drawRoundRect(rect, dp(12) * rad, dp(12) * rad, Theme.dialogs_onlineCirclePaint);
@@ -795,6 +799,7 @@ public class PollVotesAlert extends BottomSheet {
         };
         containerView.setWillNotDraw(false);
         containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
+        ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
 
         listView = new RecyclerListView(context) {
             private final GradientProtectionDrawable gradientProtectionDrawable = new GradientProtectionDrawable(WindowInsetsCompat.Side.BOTTOM);

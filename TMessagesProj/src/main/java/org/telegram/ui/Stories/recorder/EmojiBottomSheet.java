@@ -100,6 +100,7 @@ import org.telegram.ui.Components.EmojiTabsStrip;
 import org.telegram.ui.Components.EmojiView;
 import org.telegram.ui.Components.ExtendedGridLayoutManager;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LoadingSpan;
 import org.telegram.ui.Components.PermissionRequest;
 import org.telegram.ui.Components.Premium.PremiumFeatureBottomSheet;
@@ -1668,6 +1669,7 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
 
         private final AnimatedFloat isActionBarT = new AnimatedFloat(this, 0, 250, CubicBezierInterpolator.EASE_OUT_QUINT);
         private final RectF handleRect = new RectF();
+        private LiquidPanelDrawable glassBackground;
 
         public ContainerView(Context context) {
             super(context);
@@ -1680,7 +1682,7 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
         }
 
         private void setupBlurBitmap() {
-            if (blurBitmap != null || !(resourcesProvider == null ? Theme.isCurrentThemeDark() : resourcesProvider.isDark()) || drawBlurBitmap == null || SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW || LiteMode.isPowerSaverApplied()) {
+            if (blurBitmap != null || LiquidPanelDrawable.isSupported() || !(resourcesProvider == null ? Theme.isCurrentThemeDark() : resourcesProvider.isDark()) || drawBlurBitmap == null || SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW || LiteMode.isPowerSaverApplied()) {
                 return;
             }
             final int scale = 16;
@@ -1766,7 +1768,19 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
                 this.overStatusBar = overStatusBar;
                 AndroidUtilities.setLightStatusBar(getWindow(), overStatusBar ? AndroidUtilities.computePerceivedBrightness(backgroundPaint.getColor()) >= .721f : false);
             }
-            canvas.drawRoundRect(AndroidUtilities.rectTmp, (1f - statusBar) * dp(14), (1f - statusBar) * dp(14), backgroundPaint);
+            if (LiquidPanelDrawable.isSupported()) {
+                if (glassBackground == null) {
+                    glassBackground = new LiquidPanelDrawable(null, dp(14), 0, () -> Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+                    glassBackground.setHost(this);
+                }
+                glassBackground.setRadius((1f - statusBar) * dp(14), 0);
+                glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                glassBackground.draw(canvas);
+                // Drawing the glass records the windows behind, whose views reuse rectTmp
+                AndroidUtilities.rectTmp.set(backgroundPaddingLeft, y, getWidth() - backgroundPaddingLeft, getHeight() + AndroidUtilities.dp(8));
+            } else {
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, (1f - statusBar) * dp(14), (1f - statusBar) * dp(14), backgroundPaint);
+            }
             handleRect.set(
                 (getWidth() - dp(36)) / 2f,
                 y + dp(9.66f),

@@ -264,7 +264,20 @@ public class CreateRtmpStreamBottomSheet extends BottomSheetWithRecyclerListView
 
     @Override
     public RecyclerListView.SelectionAdapter createAdapter(RecyclerListView listView) {
-        adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider);
+        adapter = new UniversalAdapter(listView, getContext(), currentAccount, 0, true, this::fillItems, resourcesProvider) {
+            @Override
+            protected int getThemedColor(int key) {
+                // On glass the rows show the sheet's glass, and the gaps between sections are a light shade over it
+                if (LiquidPanelDrawable.isSupported()) {
+                    if (key == Theme.key_dialogBackground) {
+                        return 0;
+                    } else if (key == Theme.key_dialogBackgroundGray) {
+                        return Theme.multAlpha(super.getThemedColor(key), .35f);
+                    }
+                }
+                return super.getThemedColor(key);
+            }
+        };
         return adapter;
     }
 
