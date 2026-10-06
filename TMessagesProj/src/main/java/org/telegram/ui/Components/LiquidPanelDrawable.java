@@ -15,10 +15,14 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import org.telegram.liquidglass.BackdropGlass;
 import org.telegram.liquidglass.GlassLayer;
@@ -189,15 +193,17 @@ public class LiquidPanelDrawable extends Drawable {
         }
         final RenderNode node = (RenderNode) decorNode;
         node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
+        node.setClipToBounds(false);
+        decor.getLocationOnScreen(decorLocation);
         final RecordingCanvas rc = node.beginRecording(decor.getWidth(), decor.getHeight());
         decor.draw(rc);
+        drawWindowsBelow(rc, activity, decor, host.getRootView());
         node.endRecording();
 
         host.getLocationOnScreen(hostLocation);
         drawnLocation[0] = hostLocation[0];
         drawnLocation[1] = hostLocation[1];
         watchPosition(host);
-        decor.getLocationOnScreen(decorLocation);
         backdropDx = decorLocation[0] - (hostLocation[0] + rect.left);
         backdropDy = decorLocation[1] - (hostLocation[1] + rect.top);
 
@@ -214,6 +220,61 @@ public class LiquidPanelDrawable extends Drawable {
             backdrop, tint, (dark ? 0.7f : 1f) * alpha / 255f, 1f);
         canvas.restore();
         return true;
+    }
+
+    private final ArrayList<View> windowsBelow = new ArrayList<>();
+    private final int[] windowLocation = new int[2];
+
+    /*
+     * The activity's other windows between its own and this panel's, drawn over it as they are on
+     * screen: the story viewer is a window of its own, and a menu opened from a story showed the
+     * profile behind the viewer instead of the story.
+     */
+    private void drawWindowsBelow(Canvas canvas, Activity activity, View decor, View root) {
+        final List<View> views = AndroidUtilities.allGlobalViews();
+        if (views == null) {
+            return;
+        }
+        windowsBelow.clear();
+        boolean afterDecor = false, foundRoot = false;
+        for (int i = 0; i < views.size(); i++) {
+            final View view = views.get(i);
+            if (view == root) {
+                foundRoot = true;
+                break;
+            }
+            if (view == decor) {
+                afterDecor = true;
+            } else if (afterDecor && view.isAttachedToWindow() && view.getVisibility() == View.VISIBLE
+                && view.getWidth() > 0 && view.getHeight() > 0 && view.getAlpha() > 0
+                && !(view instanceof PipRoundVideoView.PipFrameLayout)
+                && AndroidUtilities.findActivity(view.getContext()) == activity) {
+                windowsBelow.add(view);
+            }
+        }
+        if (!foundRoot) {
+            windowsBelow.clear();
+            return;
+        }
+        for (int i = 0; i < windowsBelow.size(); i++) {
+            final View view = windowsBelow.get(i);
+            if (view.getLayoutParams() instanceof WindowManager.LayoutParams) {
+                final WindowManager.LayoutParams params = (WindowManager.LayoutParams) view.getLayoutParams();
+                if ((params.flags & WindowManager.LayoutParams.FLAG_DIM_BEHIND) != 0) {
+                    canvas.drawColor(Color.argb((int) (0xFF * params.dimAmount), 0, 0, 0));
+                }
+            }
+            view.getLocationOnScreen(windowLocation);
+            canvas.save();
+            canvas.translate(windowLocation[0] - decorLocation[0], windowLocation[1] - decorLocation[1]);
+            try {
+                view.draw(canvas);
+            } catch (Exception ignore) {
+                // A window that cannot be drawn here is left out of the glass
+            }
+            canvas.restore();
+        }
+        windowsBelow.clear();
     }
 
     private final GlassLayer.Backdrop backdrop = c -> {
