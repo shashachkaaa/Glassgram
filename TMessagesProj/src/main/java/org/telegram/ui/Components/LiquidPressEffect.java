@@ -70,6 +70,9 @@ public class LiquidPressEffect {
     // The swelling surface goes past its view; these ancestors stop clipping it meanwhile
     private int unclipLevels;
     private final java.util.ArrayList<android.view.ViewGroup> unclipped = new java.util.ArrayList<>();
+    // Groups that also clipped to their padding: a button in a padded container was cut at the
+    // padding's edge while it swelled, with clipChildren already off
+    private final java.util.ArrayList<android.view.ViewGroup> unclippedPadding = new java.util.ArrayList<>();
 
     /** Lets the surface swell past its view: the given number of ancestors stop clipping while it is pressed. */
     public void setUnclipParents(int levels) {
@@ -77,7 +80,7 @@ public class LiquidPressEffect {
     }
 
     private void unclipParents() {
-        if (unclipLevels <= 0 || !unclipped.isEmpty()) {
+        if (unclipLevels <= 0 || !unclipped.isEmpty() || !unclippedPadding.isEmpty()) {
             return;
         }
         android.view.ViewParent parent = view.getParent();
@@ -87,12 +90,23 @@ public class LiquidPressEffect {
                 group.setClipChildren(false);
                 unclipped.add(group);
             }
+            // Not lists and scrolls: off, their rows would show in the padding while it is pressed
+            final boolean scrolls = group instanceof androidx.recyclerview.widget.RecyclerView
+                || group instanceof android.widget.AbsListView
+                || group instanceof android.widget.ScrollView
+                || group instanceof androidx.core.widget.NestedScrollView;
+            final boolean padded = group.getPaddingLeft() != 0 || group.getPaddingTop() != 0
+                || group.getPaddingRight() != 0 || group.getPaddingBottom() != 0;
+            if (padded && !scrolls && group.getClipToPadding()) {
+                group.setClipToPadding(false);
+                unclippedPadding.add(group);
+            }
             parent = group.getParent();
         }
     }
 
     private void restoreClipping() {
-        if (unclipped.isEmpty() || pressAnimation.isRunning() || offsetXAnimation.isRunning() || offsetYAnimation.isRunning() || isActive() && press.getValue() > 0.01f) {
+        if (unclipped.isEmpty() && unclippedPadding.isEmpty() || pressAnimation.isRunning() || offsetXAnimation.isRunning() || offsetYAnimation.isRunning() || isActive() && press.getValue() > 0.01f) {
             return;
         }
         for (android.view.ViewGroup group : unclipped) {
@@ -100,6 +114,11 @@ public class LiquidPressEffect {
             group.invalidate();
         }
         unclipped.clear();
+        for (android.view.ViewGroup group : unclippedPadding) {
+            group.setClipToPadding(true);
+            group.invalidate();
+        }
+        unclippedPadding.clear();
     }
 
     public float getPressProgress() {

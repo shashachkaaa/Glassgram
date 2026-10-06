@@ -96,6 +96,7 @@ import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.GroupCreateSpan;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.RadioButton;
 import org.telegram.ui.Components.RecyclerListView;
@@ -236,7 +237,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
                     }
                 }
             };
-            searchField.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+            searchField.setBackgroundColor(glass ? 0 : getThemedColor(Theme.key_dialogBackground));
             searchField.setOnSearchTextChange(this::onSearch);
 
             headerView = new HeaderCell(context, resourcesProvider);
@@ -622,7 +623,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
             buttonContainer.setClickable(true);
             buttonContainer.setOrientation(LinearLayout.VERTICAL);
             buttonContainer.setPadding(dp(10) + backgroundPaddingLeft, dp(10), dp(10) + backgroundPaddingLeft, dp(10));
-            buttonContainer.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            buttonContainer.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
 
             button = new ButtonWithCounterView(context, resourcesProvider);
             button.setOnClickListener(this::onButton1Click);
@@ -635,7 +636,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
             buttonContainer.addView(button2, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 8, 0, 0));
 
             underKeyboardView = new View(context);
-            underKeyboardView.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            underKeyboardView.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
             addView(underKeyboardView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 500, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, -500));
 
             addView(buttonContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL));
@@ -2021,7 +2022,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
                     view = new HeaderCell2(context, resourcesProvider, false);
                 } else if (viewType == VIEW_TYPE_HEADER_CELL) {
                     view = new org.telegram.ui.Cells.HeaderCell(context, resourcesProvider);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+                    view.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
                 } else if (viewType == VIEW_TYPE_NO_USERS) {
                     StickerEmptyView searchEmptyView = new StickerEmptyView(context, null, StickerEmptyView.STICKER_TYPE_SEARCH, resourcesProvider);
                     searchEmptyView.title.setText(getString(R.string.NoResult));
@@ -2030,7 +2031,8 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
                     view = searchEmptyView;
                 } else if (viewType == VIEW_TYPE_SHADOW) {
                     view = new TextInfoPrivacyCell(context, resourcesProvider);
-                    view.setBackgroundColor(0xFF0D0D0D);
+                    // On glass the gap between sections is a shade over it, not a black stripe
+                    view.setBackgroundColor(glass ? 0x40000000 : 0xFF0D0D0D);
                 } else if (viewType == VIEW_TYPE_CHECK) {
                     view = new TextCell(context, 23, true, true, resourcesProvider);
                 } else if (viewType == VIEW_TYPE_BUTTON) {
@@ -2154,6 +2156,9 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
     private int storyPeriod = 86400;
 
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // The sheet is Liquid Glass like the menus it is opened from; its rows lose their own fills
+    private final boolean glass = LiquidPanelDrawable.isSupported();
+    private LiquidPanelDrawable glassBackground;
 
     public StoryPrivacyBottomSheet(Context context, int period, Theme.ResourcesProvider resourcesProvider) {
         super(context, true, resourcesProvider);
@@ -2441,7 +2446,17 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
             top = Math.max(AndroidUtilities.statusBarHeight, top) - AndroidUtilities.statusBarHeight * actionBarT;
             AndroidUtilities.rectTmp.set(backgroundPaddingLeft, top, getWidth() - backgroundPaddingLeft, getHeight() + dp(8));
             final float r = AndroidUtilities.lerp(dp(14), 0, actionBarT);
-            canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            if (glass) {
+                if (glassBackground == null) {
+                    glassBackground = new LiquidPanelDrawable(null, r, r, () -> backgroundPaint.getColor());
+                    glassBackground.setHost(this);
+                }
+                glassBackground.setRadius(r, r);
+                glassBackground.setBounds((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, (int) AndroidUtilities.rectTmp.bottom);
+                glassBackground.draw(canvas);
+            } else {
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, backgroundPaint);
+            }
             canvas.save();
             path.rewind();
             path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);

@@ -47,7 +47,7 @@ public class LiquidPanelDrawable extends Drawable {
 
     private final Drawable original;
     private final Rect padding = new Rect();
-    private final float topRadius, bottomRadius;
+    private float topRadius, bottomRadius;
     private final IntSupplier color;
     private View host;
 
@@ -113,6 +113,15 @@ public class LiquidPanelDrawable extends Drawable {
         this.color = color;
         if (original != null) {
             original.getPadding(padding);
+        }
+    }
+
+    /** For panels whose corners change, like a sheet that loses them at the top of the screen. */
+    public void setRadius(float topRadius, float bottomRadius) {
+        if (this.topRadius != topRadius || this.bottomRadius != bottomRadius) {
+            this.topRadius = topRadius;
+            this.bottomRadius = bottomRadius;
+            invalidateSelf();
         }
     }
 
