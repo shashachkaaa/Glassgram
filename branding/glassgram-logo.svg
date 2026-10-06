@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="14 14 80 80">
+  <!-- Glassgram launcher icon (glassgram_icon_background + glassgram_icon_foreground), cropped for an avatar -->
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="108" y2="108">
+      <stop offset="0" stop-color="#3A3A44"/>
+      <stop offset="1" stop-color="#16161C"/>
+    </linearGradient>
+    <radialGradient id="hl" gradientUnits="userSpaceOnUse" cx="30" cy="18" r="70">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" fill="url(#bg)"/>
+  <rect x="0" y="0" width="108" height="108" fill="url(#hl)"/>
+  <path d="M75,33 L52,56 L58,75 Z" fill="#C9C9D6" stroke="#C9C9D6" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M75,33 L33,50 L52,56 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round"/>
+</svg>
