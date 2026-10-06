@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="14 14 80 80">
+  <!-- @glassGramBot: the Glassgram background and two-tone glass, as a bot's head -->
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="108" y2="108">
+      <stop offset="0" stop-color="#3A3A44"/>
+      <stop offset="1" stop-color="#16161C"/>
+    </linearGradient>
+    <radialGradient id="hl" gradientUnits="userSpaceOnUse" cx="30" cy="18" r="70">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="head"><rect x="31" y="46" width="46" height="34" rx="11"/></clipPath>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" fill="url(#bg)"/>
+  <rect x="0" y="0" width="108" height="108" fill="url(#hl)"/>
+  <g transform="translate(0,-2)">
+  <!-- antenna -->
+  <line x1="54" y1="46" x2="54" y2="38" stroke="#C9C9D6" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="54" cy="34.5" r="4.5" fill="#FFFFFF"/>
+  <!-- ears -->
+  <rect x="26" y="56" width="6" height="14" rx="3" fill="#C9C9D6"/>
+  <rect x="76" y="56" width="6" height="14" rx="3" fill="#C9C9D6"/>
+  <!-- head: two glass facets like the arrow's -->
+  <g clip-path="url(#head)">
+    <rect x="31" y="46" width="46" height="34" fill="#C9C9D6"/>
+    <path d="M31,46 H77 L31,80 Z" fill="#FFFFFF"/>
+  </g>
+  <!-- eyes -->
+  <rect x="42" y="57" width="7" height="12" rx="3.5" fill="#1C1C23"/>
+  <rect x="59" y="57" width="7" height="12" rx="3.5" fill="#1C1C23"/>
+  </g>
+</svg>
