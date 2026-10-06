@@ -5686,6 +5686,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (actionBar.getBackButton() != null) {
                     actionBar.getBackButton().setAlpha(progress == 1f ? 0f : 1f);
+                    // The back button's glass is drawn by the bar, with the button's alpha
+                    actionBar.invalidate();
                 }
 
                 if (folderId != 0 || communityId != 0) {

@@ -2775,9 +2775,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 drawGlass(canvas, glassDrawable, GLASS_PILL, p);
             }
         }
-        if (glassDrawableBack != null && (hasBackButton || closeFactor > 0) && glassAlpha > 0) {
+        // The back glass goes with its arrow: the chats list hides the arrow (alpha 0, still visible)
+        // while topics are open beside it, and its glass stayed there as a smudge under the topics' bar
+        final float backAlpha = hasBackButton ? backButtonImageView.getAlpha() : closeFactor;
+        if (glassDrawableBack != null && backAlpha > 0 && glassAlpha > 0) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);
-            glassDrawableBack.setAlpha((int) (255 * glassAlpha * (hasBackButton ? 1f : closeFactor)));
+            glassDrawableBack.setAlpha((int) (255 * glassAlpha * backAlpha));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
         if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && glassAlpha > 0) {
