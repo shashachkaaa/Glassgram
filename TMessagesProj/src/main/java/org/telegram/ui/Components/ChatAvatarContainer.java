@@ -916,11 +916,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     private float iosStatusBudget = -1;
 
     private float iosStatusBudget() {
+        if (subtitleTextView == null || subtitleTextView.getVisibility() == GONE) {
+            // Comments and threads show only a title: no room for a status
+            return 0;
+        }
         if (iosStatusBudget >= 0) {
             return iosStatusBudget;
-        }
-        if (subtitleTextView == null) {
-            return 0;
         }
         final TextPaint paint = subtitleTextView.getPaint();
         final ArrayList<String> statuses = new ArrayList<>();

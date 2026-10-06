@@ -4589,7 +4589,7 @@ public class ChatActivity extends BaseFragment implements
             actionBar.setForcedMenuWidth(dp(46));
             actionBar.doNotDrawGlassMenu = true;
             avatarContainer.setActionBar(actionBar);
-        } else if (isComments) {
+        } else if (isComments && !canUseIosHeader()) {
             actionBar.setChatAvatarContainer(avatarContainer);
             actionBar.setForcedMenuMinWidth(dp(46));
             avatarContainer.setActionBar(actionBar);
@@ -42562,8 +42562,9 @@ public class ChatActivity extends BaseFragment implements
     private View iosHeaderAvatar;
 
     private boolean canUseIosHeader() {
-        return avatarContainer != null && avatarContainer.getParent() == actionBar && headerItem != null
-            && chatMode == 0 && threadMessageId == 0 && !isReport() && startLoadFromDate == 0
+        // Comments and reply threads too: they may have no menu, the end glass shows the avatar anyway
+        return avatarContainer != null && avatarContainer.getParent() == actionBar
+            && chatMode == 0 && !isReport() && startLoadFromDate == 0
             && currentEncryptedChat == null && !inPreviewMode && !inBubbleMode && !isInsideContainer && !inMenuMode
             && (currentUser != null || currentChat != null) && !UserObject.isReplyUser(currentUser)
             && !ChatObject.isForum(currentChat);
