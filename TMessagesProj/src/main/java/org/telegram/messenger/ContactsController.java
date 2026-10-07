@@ -3027,7 +3027,7 @@ public class ContactsController extends BaseController {
             return formatName((TLRPC.User) object);
         } else if (object instanceof TLRPC.Chat) {
             TLRPC.Chat chat = (TLRPC.Chat) object;
-            return chat.title;
+            return GlassgramText.filter(chat.title);
         } else {
             return LocaleController.getString(R.string.HiddenName);
         }
@@ -3051,6 +3051,8 @@ public class ContactsController extends BaseController {
         /*if ((firstName == null || firstName.length() == 0) && (lastName == null || lastName.length() == 0)) {
             return LocaleController.getString(R.string.HiddenName);
         }*/
+        firstName = GlassgramText.filter(firstName);
+        lastName = GlassgramText.filter(lastName);
         if (firstName != null) {
             firstName = firstName.trim();
         }

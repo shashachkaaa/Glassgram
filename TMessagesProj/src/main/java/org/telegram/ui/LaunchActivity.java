@@ -112,6 +112,7 @@ import org.telegram.messenger.ContactsLoadingObserver;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.FingerprintController;
 import org.telegram.messenger.FlagSecureReason;
 import org.telegram.messenger.GenericProvider;
@@ -6801,6 +6802,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         if (GroupCallActivity.groupCallInstance != null) {
             GroupCallActivity.groupCallInstance.onPause();
         }
+        autoPausePlayback();
+    }
+
+    /** Glassgram: auto-pause when the app goes to the background or the screen turns off; never in picture-in-picture. */
+    private void autoPausePlayback() {
+        if (!GlassgramConfig.autoPause) {
+            return;
+        }
+        MediaController.getInstance().autoPausePlayback();
+        if (GlassgramConfig.autoPauseVideo && PhotoViewer.hasInstance() && !AndroidUtilities.isInPictureInPictureMode(this)) {
+            PhotoViewer.getInstance().autoPauseVideo();
+        }
     }
 
     @Override
@@ -7604,6 +7617,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 onThemeLoadFinish();
             }
         } else if (id == NotificationCenter.screenStateChanged) {
+            if (!ApplicationLoader.isScreenOn) {
+                autoPausePlayback();
+            }
             if (ApplicationLoader.mainInterfacePaused) {
                 return;
             }
@@ -8490,6 +8506,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             BaseFragment baseFragment = getLastFragment();
             if (baseFragment != null && baseFragment.getLastStoryViewer() != null) {
                 baseFragment.getLastStoryViewer().dispatchKeyEvent(event);
+                return true;
+            }
+            if (PhotoViewer.hasInstance() && PhotoViewer.getInstance().isVisible() && PhotoViewer.getInstance().onVolumeKeyUnmute(event)) {
                 return true;
             }
         }

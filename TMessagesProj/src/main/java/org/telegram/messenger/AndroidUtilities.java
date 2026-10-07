@@ -3653,6 +3653,23 @@ public class AndroidUtilities {
         }
     }
 
+    /**
+     * Glassgram: the folder name used inside Pictures, Movies, Download and Music for saved files:
+     * the custom one from settings, or Telegram's own.
+     */
+    public static String getSaveFolderName() {
+        String name = GlassgramConfig.saveFolder;
+        if (name != null) {
+            name = name.replaceAll("[\\\\:*?\"<>|\\u0000-\\u001f]", "").trim();
+            // no path traversal or nesting: a single folder name
+            name = name.replace('/', '_');
+            if (name.equals(".") || name.equals("..")) {
+                name = null;
+            }
+        }
+        return TextUtils.isEmpty(name) ? "Telegram" : name;
+    }
+
     private static File getAlbumDir(boolean secretChat) {
         if (
             secretChat ||
@@ -3669,7 +3686,7 @@ public class AndroidUtilities {
         }
         File storageDir = null;
         if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
-            storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Telegram");
+            storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), getSaveFolderName());
             if (!storageDir.mkdirs()) {
                 if (!storageDir.exists()) {
                     if (BuildVars.LOGS_ENABLED) {

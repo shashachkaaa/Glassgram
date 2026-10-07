@@ -1434,6 +1434,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean pollHasVoteRestrictions;
     private boolean pollClosed;
     private boolean pollResultsPreview;
+    // Glassgram: the results drawn before voting (voting by a tap still works)
+    private boolean pollGlassgramResults;
     private long lastPollCloseTime;
     private String closeTimeText;
     private int closeTimeWidth;
@@ -1778,7 +1780,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private StaticLayout viewsLayout;
     private int viewsTextWidth;
-    private String currentViewsString;
+    private CharSequence currentViewsString;
 
     private StaticLayout repliesLayout;
     private int repliesTextWidth;
@@ -1943,7 +1945,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         setClipToPadding(false);
 
         backgroundDrawable = new MessageBackgroundDrawable(this);
-        avatarImage = new ImageReceiver();
+        avatarImage = new ImageReceiver() {
+            @Override
+            public boolean draw(Canvas canvas) {
+                final boolean result = super.draw(canvas);
+                if (GlassgramConfig.showOnlineIndicator) {
+                    drawGlassgramOnlineDot(canvas, this);
+                }
+                return result;
+            }
+        };
         avatarImage.setAllowLoadingOnAttachedOnly(true);
         avatarImage.setRoundRadius(dp(21));
         avatarDrawable = new AvatarDrawable();
@@ -9691,6 +9702,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else {
                         maxHeight = maxWidth = (int) (Math.min(getParentWidth(), AndroidUtilities.displaySize.y) * 0.5f);
                     }
+                    if (GlassgramConfig.stickerSize != GlassgramConfig.STICKER_SIZE_DEFAULT && !messageObject.isAnimatedEmoji() && !messageObject.isDice()) {
+                        // Glassgram: the sticker size setting; never wider than the chat leaves room for
+                        maxHeight = maxWidth = Math.max(dp(48), Math.min((int) (maxWidth * GlassgramConfig.stickerScale()), getParentWidth() - dp(100)));
+                    }
                     String filter;
                     if (messageObject.isAnimatedEmoji() || messageObject.isDice()) {
                         float zoom = MessagesController.getInstance(currentAccount).animatedEmojisZoom;
@@ -11445,6 +11460,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             PollUtils.VOTE_RESTRICTED_BY_COUNTRY_FLAG |
             PollUtils.VOTE_RESTRICTED_NOT_SUBSCRIBED_FLAG |
             PollUtils.VOTE_RESTRICTED_NOT_SUBSCRIBED_24H_FLAG);
+        // Only with results the server already sent; multiple choice keeps its checkboxes
+        pollGlassgramResults = GlassgramConfig.showPollResults && !todo && !isBot && !pollVoted && !pollClosed && pollHasResults && !multiple_choice && !pollHasVoteRestrictions;
 
         if (pollVoted) {
             messageObject.checkedVotes.clear();
@@ -11716,7 +11733,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         TLRPC.PollAnswerVoters answer = media.results.results.get(b);
                         if (Arrays.equals(button.answer.option, answer.option)) {
                             if (button.pollButtonDrawable != null) {
-                                final boolean isCouterVisible = !isBot && (pollVoted || pollResultsPreview || pollClosed || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults)));
+                                final boolean isCouterVisible = !isBot && (pollVoted || pollResultsPreview || pollClosed || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults) || pollGlassgramResults));
                                 button.pollButtonDrawable.setVotersVisible(isCouterVisible, prevButton != null && !messageIdChanged);
                                 button.pollButtonDrawable.setVotersCount(answer.voters, prevButton != null && !messageIdChanged);
                                 button.pollButtonDrawable.setRecentVoters(answer.recent_voters, prevButton != null && !messageIdChanged);
@@ -11734,7 +11751,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                             button.chosen = answer.chosen;
                             button.count = answer.voters;
                             button.correct = answer.correct;
-                            if ((pollVoted || pollClosed || pollResultsPreview || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults))) && media.results.total_voters > 0) {
+                            if ((pollVoted || pollClosed || pollResultsPreview || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults) || pollGlassgramResults)) && media.results.total_voters > 0) {
                                 float percent = MathUtils.clamp(answer.voters / (float) media.results.total_voters, 0, 1);
                                 button.decimal = 100 * percent;
                                 button.percent = (int) button.decimal;
@@ -18493,6 +18510,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     editDate = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
                 }
                 timeString = LocaleController.formatPmEditedDate(editDate);
+            } else if (GlassgramConfig.editedIcon) {
+                // the pencil mark is added below
+                timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
             } else {
                 timeString = (getString(R.string.EditedMessage) + " " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000));
             }
@@ -18550,6 +18570,21 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         spyDeleted = glassgramForceDeleted || GlassgramSpyStorage.isMarkedDeleted(messageObject);
         int spyTrashExtraWidth = 0;
+        if (edited && GlassgramConfig.editedIcon && !AppGlobalConfig.getInstance(currentAccount).messagePrimaryEditedDate.get()
+                && currentMessageObject.realDate == 0 && !currentMessageObject.isRepostPreview && !TextUtils.isEmpty(timeString)) {
+            // A pencil instead of the word "edited": "✎ 09:44"; Paint.measureText ignores the span, so the width is corrected below
+            final int at = currentTimeString.toString().lastIndexOf(timeString);
+            if (at >= 0) {
+                final int iconSize = dp(12);
+                SpannableStringBuilder withPencil = new SpannableStringBuilder(currentTimeString);
+                withPencil.insert(at, "d ");
+                ColoredImageSpan pencilSpan = new ColoredImageSpan(R.drawable.msg_edit);
+                pencilSpan.setSize(iconSize);
+                withPencil.setSpan(pencilSpan, at, at + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                spyTrashExtraWidth += iconSize - (int) Math.ceil(Theme.chat_timePaint.measureText("d"));
+                currentTimeString = withPencil;
+            }
+        }
         if (currentMessageObject.isGlassgramKeptSelfDestructing()) {
             // The kept media is not blurred, so the time says what it is: "one view | 09:27" or "10s | 09:27"
             final TLRPC.MessageMedia media = MessageObject.getMedia(currentMessageObject.messageOwner);
@@ -18589,7 +18624,19 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         final boolean isInWelcomeMessages = delegate != null && delegate.getChatMode() == ChatActivity.MODE_WELCOME_MESSAGES;
         if ((messageObject.messageOwner.flags & TLRPC.MESSAGE_FLAG_HAS_VIEWS) != 0 && !isInWelcomeMessages) {
             currentViewsString = String.format("%s", LocaleController.formatShortNumber(Math.max(1, messageObject.messageOwner.views), null));
-            viewsTextWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentViewsString));
+            viewsTextWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentViewsString, 0, currentViewsString.length()));
+            if (GlassgramConfig.showForwardCount && messageObject.messageOwner.forwards > 0) {
+                // "1.2K  ↪ 15": the forwards after the views; the span is wider than the "d" it replaces
+                final int iconSize = dp(14);
+                SpannableStringBuilder views = new SpannableStringBuilder(currentViewsString);
+                views.append("  d ");
+                ColoredImageSpan forwardSpan = new ColoredImageSpan(R.drawable.msg_forward);
+                forwardSpan.setSize(iconSize);
+                views.setSpan(forwardSpan, views.length() - 2, views.length() - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                views.append(LocaleController.formatShortNumber(messageObject.messageOwner.forwards, null));
+                currentViewsString = views;
+                viewsTextWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(views, 0, views.length()) - Theme.chat_timePaint.measureText("d") + iconSize) + 1;
+            }
             float drawableWidth = Theme.chat_msgInViewsDrawable.getIntrinsicWidth() * (Theme.chat_timePaint.getTextSize() - dp(2)) / Theme.chat_msgInViewsDrawable.getIntrinsicHeight();
             timeWidth += viewsTextWidth + drawableWidth + dp(10);
         }
@@ -18714,6 +18761,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject.deleted && !currentMessageObject.deletedByThanos) return false;
         if (currentMessageObject.isSponsored()) return false;
         if (currentMessageObject.isEphemeral()) return false;
+        if (GlassgramConfig.hideShareButton && !isGoToSideButton(messageObject)) return false;
         if (currentMessagesGroup != null && currentPosition != null) {
             final boolean last = (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 && (currentPosition.flags & (messageObject.isOutOwner() ? MessageObject.POSITION_FLAG_LEFT : MessageObject.POSITION_FLAG_RIGHT)) != 0;
             if (!currentMessagesGroup.isDocuments && !last) {
@@ -18721,6 +18769,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
         return messageObject.needDrawShareButton();
+    }
+
+    /** Glassgram: whether the side button opens the original message ("go to") rather than sharing it. */
+    private boolean isGoToSideButton(MessageObject messageObject) {
+        return isPinnedChat || messageObject.isSaved || messageObject.searchType == ChatActivity.SEARCH_PUBLIC_POSTS
+            || messageObject.messageOwner.fwd_from != null && messageObject.messageOwner.fwd_from.saved_from_peer != null && messageObject.getDialogId() == UserConfig.getInstance(currentAccount).getClientUserId();
     }
 
     public boolean isInsideBackground(float x, float y) {
@@ -19921,6 +19975,36 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public float getCheckBoxTranslation() {
         return checkBoxTranslation;
+    }
+
+    private Paint glassgramOnlinePaint;
+
+    /** Glassgram: the green dot on the sender's avatar in groups while the sender is online. */
+    private void drawGlassgramOnlineDot(Canvas canvas, ImageReceiver avatar) {
+        // Only the full-size side avatar (the small ones in names and on media are skipped)
+        if (!isChat || currentUser == null || currentMessageObject == null || currentMessageObject.isOutOwner() || avatar.getImageWidth() < dp(40) || !avatar.getVisible()) {
+            return;
+        }
+        TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(currentUser.id);
+        if (user == null) {
+            user = currentUser;
+        }
+        if (user.self || user.bot || user.id == UserConfig.getInstance(currentAccount).getClientUserId()
+                || !(user.status instanceof TLRPC.TL_userStatusOnline) || user.status.expires <= ConnectionsManager.getInstance(currentAccount).getCurrentTime()) {
+            return;
+        }
+        if (glassgramOnlinePaint == null) {
+            glassgramOnlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        }
+        final float cx = avatar.getImageX2() - dp(5);
+        final float cy = avatar.getImageY2() - dp(5);
+        final float alpha = avatar.getAlpha();
+        glassgramOnlinePaint.setColor(getThemedColor(Theme.key_chat_inBubble));
+        glassgramOnlinePaint.setAlpha((int) (glassgramOnlinePaint.getAlpha() * alpha));
+        canvas.drawCircle(cx, cy, dp(7), glassgramOnlinePaint);
+        glassgramOnlinePaint.setColor(getThemedColor(Theme.key_chats_onlineCircle));
+        glassgramOnlinePaint.setAlpha((int) (glassgramOnlinePaint.getAlpha() * alpha));
+        canvas.drawCircle(cx, cy, dp(5), glassgramOnlinePaint);
     }
 
     public boolean shouldDrawAlphaLayer() {
@@ -25808,7 +25892,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
                 Theme.chat_audioPerformerPaint.setAlpha(oldAlpha3);
 
-                if (!todo && (pollVoted && (pollHasResults || !pollHideResults) || pollClosed || pollResultsPreview || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults)) || animatePollAnswerAlpha && !isVotedButHiddenResults)) {
+                if (!todo && (pollVoted && (pollHasResults || !pollHideResults) || pollClosed || pollResultsPreview || (pollHasVoteRestrictions && (!pollHideResults || pollHasResults) || pollGlassgramResults) || animatePollAnswerAlpha && !isVotedButHiddenResults)) {
                     if (lastPoll != null && lastPoll.quiz/* && pollVoted*/) {
                         int key;
                         if (button.correct) {
@@ -25881,7 +25965,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
 
 
-                if (todo || !pollVoted && !pollClosed && !pollResultsPreview && !(pollHasVoteRestrictions && (!pollHideResults || pollHasResults)) || isVotedButHiddenResults || animatePollAnswerAlpha) {
+                if (todo || !pollVoted && !pollClosed && !pollResultsPreview && !(pollHasVoteRestrictions && (!pollHideResults || pollHasResults) || pollGlassgramResults) || isVotedButHiddenResults || animatePollAnswerAlpha) {
                     if (isDrawSelectionBackground()) {
                         Theme.chat_replyLinePaint.setColor(getThemedColor(currentMessageObject.isOutOwner() ? Theme.key_chat_outVoiceSeekbarSelected : Theme.key_chat_inVoiceSeekbarSelected));
                     } else {
@@ -29275,7 +29359,34 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         );
     }
 
+    private Path glassgramStickerClipPath;
+    private float[] glassgramStickerRadii;
+
     protected boolean drawPhotoImage(Canvas canvas) {
+        if (GlassgramConfig.stickerShape != GlassgramConfig.STICKER_SHAPE_DEFAULT && documentAttachType == DOCUMENT_ATTACH_TYPE_STICKER && currentMessageObject != null
+                && currentMessageObject.isAnyKindOfSticker() && !currentMessageObject.isAnimatedEmoji() && !currentMessageObject.isDice()) {
+            // Glassgram: stickers clipped to a rounded rect, or to a bubble-like shape
+            if (glassgramStickerClipPath == null) {
+                glassgramStickerClipPath = new Path();
+                glassgramStickerRadii = new float[8];
+            }
+            final boolean bubble = GlassgramConfig.stickerShape == GlassgramConfig.STICKER_SHAPE_MESSAGE;
+            final float r = dp(bubble ? 18 : 12);
+            Arrays.fill(glassgramStickerRadii, r);
+            if (bubble) {
+                // the small corner where a message bubble has its tail
+                final int corner = currentMessageObject.isOutOwner() ? 4 : 6;
+                glassgramStickerRadii[corner] = glassgramStickerRadii[corner + 1] = dp(6);
+            }
+            glassgramStickerClipPath.rewind();
+            AndroidUtilities.rectTmp.set(photoImage.getImageX(), photoImage.getImageY(), photoImage.getImageX2(), photoImage.getImageY2());
+            glassgramStickerClipPath.addRoundRect(AndroidUtilities.rectTmp, glassgramStickerRadii, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(glassgramStickerClipPath);
+            final boolean result = photoImage.draw(canvas);
+            canvas.restore();
+            return result;
+        }
         if (currentMessageObject != null && currentMessageObject.isLivePhoto()) {
             final AnimatedFileDrawable animation = photoImage.getAnimation();
             if (animation != null && animation.getDurationMs() > 0) {

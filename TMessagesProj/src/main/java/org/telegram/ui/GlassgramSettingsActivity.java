@@ -124,9 +124,33 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_HIDE_SEND_AS = 33;
     private static final int ID_RECENT_STICKERS = 34;
     private static final int ID_ALWAYS_HD = 35;
+    private static final int ID_STICKER_SHAPE = 36;
+    private static final int ID_HIDE_REACTIONS = 37;
+    private static final int ID_HIDE_REACTIONS_CHANNELS = 38;
+    private static final int ID_HIDE_REACTIONS_GROUPS = 39;
+    private static final int ID_HIDE_REACTIONS_PRIVATE = 100;
+    private static final int ID_MESSAGE_TAIL = 101;
+    private static final int ID_EDITED_ICON = 102;
+    private static final int ID_ONLINE_INDICATOR = 103;
+    private static final int ID_FORWARD_COUNT = 104;
+    private static final int ID_HIDE_SHARE = 105;
+    private static final int ID_POLL_RESULTS = 106;
+    private static final int ID_COMMA_MENTION = 107;
+    private static final int ID_DOUBLE_TAP_SEEK = 108;
+    private static final int ID_ORIGINAL_QUALITY = 109;
+    private static final int ID_VOLUME_UNMUTE = 110;
+    private static final int ID_AUTO_PAUSE = 111;
+    private static final int ID_AUTO_PAUSE_VIDEO = 112;
+    private static final int ID_AUTO_PAUSE_VOICE = 113;
+    private static final int ID_AUTO_PAUSE_ROUND = 114;
+    private static final int ID_ZALGO = 115;
+    private static final int ID_SAVE_FOLDER = 116;
+    private static final int ID_SHOW_DC = 117;
 
     private final int page;
     private boolean ghostExpanded;
+    private boolean reactionsExpanded;
+    private boolean autoPauseExpanded;
 
     private GlassgramWallpaperLayout previewView;
     private ChatMessageCell previewCell;
@@ -176,7 +200,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asHeader(getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asCheck(ID_NUMBER_ROUNDING, getString(R.string.GlassgramDisableNumberRounding)).setChecked(GlassgramConfig.disableNumberRounding));
                 items.add(UItem.asCheck(ID_SECONDS, getString(R.string.GlassgramTimeWithSeconds)).setChecked(GlassgramConfig.formatTimeWithSeconds));
-                items.add(UItem.asShadow(getString(R.string.GlassgramGeneralInfo)));
+                items.add(UItem.asCheck(ID_ZALGO, getString(R.string.GlassgramFilterZalgo)).setChecked(GlassgramConfig.filterZalgo));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGeneralInfo) + "\n\n" + getString(R.string.GlassgramFilterZalgoInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramStorage)));
+                items.add(UItem.asButton(ID_SAVE_FOLDER, getString(R.string.GlassgramSaveFolder), saveFolderName()));
+                items.add(UItem.asShadow(LocaleController.formatString(R.string.GlassgramSaveFolderInfo, saveFolderName(), saveFolderName())));
                 items.add(UItem.asHeader(getString(R.string.GlassgramMaps)));
                 items.add(UItem.asCheck(ID_YANDEX_MAPS, getString(R.string.GlassgramUseYandexMaps)).setChecked(GlassgramConfig.useYandexMaps));
                 items.add(UItem.asShadow(getString(R.string.GlassgramUseYandexMapsInfo)));
@@ -188,6 +216,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_RELATIVE_LAST_SEEN, getString(R.string.GlassgramRelativeLastSeen)).setChecked(GlassgramConfig.relativeLastSeen));
                 items.add(UItem.asCheck(ID_HIDE_PHONE, getString(R.string.GlassgramHidePhone)).setChecked(GlassgramConfig.hidePhoneNumber));
                 items.add(UItem.asButton(ID_SHOW_ID, getString(R.string.GlassgramShowId), showIdNames()[GlassgramConfig.showId]));
+                items.add(UItem.asCheck(ID_SHOW_DC, getString(R.string.GlassgramShowDc)).setChecked(GlassgramConfig.showDc));
                 items.add(UItem.asShadow(getString(R.string.GlassgramProfileInfo)));
                 break;
             case PAGE_APPEARANCE:
@@ -199,20 +228,64 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
                 break;
-            case PAGE_CHATS:
+            case PAGE_CHATS: {
+                items.add(UItem.asHeader(getString(R.string.GlassgramStickerSize)));
+                items.add(UItem.asIntSlideView(1, GlassgramConfig.STICKER_SIZE_MIN, GlassgramConfig.stickerSize, GlassgramConfig.STICKER_SIZE_MAX,
+                    val -> String.valueOf(val), val -> {
+                        GlassgramConfig.stickerSize = val;
+                        GlassgramConfig.putInt("stickerSize", val);
+                        rebuildChats();
+                    }));
+                items.add(UItem.asButton(ID_STICKER_SHAPE, getString(R.string.GlassgramStickerShape), stickerShapeNames()[GlassgramConfig.stickerShape]));
+                items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramStickers)));
                 items.add(UItem.asCheck(ID_HIDE_STICKER_TIME, getString(R.string.GlassgramHideStickerTime)).setChecked(GlassgramConfig.hideTimeOnStickers));
                 items.add(UItem.asCheck(ID_RECENT_STICKERS, getString(R.string.GlassgramUnlimitedRecentStickers)).setChecked(GlassgramConfig.unlimitedRecentStickers));
                 items.add(UItem.asCheck(ID_NO_GREETING, getString(R.string.GlassgramDisableGreeting)).setChecked(GlassgramConfig.disableGreetingSticker));
-                items.add(UItem.asShadow(null));
+                final int reactionsHidden = (GlassgramConfig.hideReactionsChannels ? 1 : 0) + (GlassgramConfig.hideReactionsGroups ? 1 : 0) + (GlassgramConfig.hideReactionsPrivate ? 1 : 0);
+                items.add(UItem.asExpandableSwitch(ID_HIDE_REACTIONS, getString(R.string.GlassgramHideReactions), reactionsHidden + "/3")
+                        .setChecked(GlassgramConfig.hideReactions)
+                        .setCollapsed(!reactionsExpanded)
+                        .setClickCallback(v -> toggleSwitch("hideReactions")));
+                if (reactionsExpanded) {
+                    items.add(UItem.asRoundCheckbox(ID_HIDE_REACTIONS_CHANNELS, getString(R.string.GlassgramChannels)).setChecked(GlassgramConfig.hideReactionsChannels).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_HIDE_REACTIONS_GROUPS, getString(R.string.GlassgramGroups)).setChecked(GlassgramConfig.hideReactionsGroups).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_HIDE_REACTIONS_PRIVATE, getString(R.string.GlassgramPrivateChats)).setChecked(GlassgramConfig.hideReactionsPrivate).setPad(1));
+                }
+                items.add(UItem.asShadow(getString(R.string.GlassgramHideReactionsInfo)));
                 items.add(UItem.asHeader(getString(R.string.GlassgramChats)));
                 items.add(UItem.asCheck(ID_HIDE_KEYBOARD, getString(R.string.GlassgramHideKeyboardOnScroll)).setChecked(GlassgramConfig.hideKeyboardOnScroll));
+                items.add(UItem.asCheck(ID_COMMA_MENTION, getString(R.string.GlassgramCommaAfterMention)).setChecked(GlassgramConfig.commaAfterMention));
                 items.add(UItem.asCheck(ID_HIDE_SEND_AS, getString(R.string.GlassgramHideSendAs)).setChecked(GlassgramConfig.hideSendAsButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramHideSendAsInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramMessages)));
+                items.add(UItem.asCheck(ID_MESSAGE_TAIL, getString(R.string.GlassgramRemoveMessageTail)).setChecked(GlassgramConfig.removeMessageTail));
+                items.add(UItem.asCheck(ID_EDITED_ICON, getString(R.string.GlassgramEditedIcon)).setChecked(GlassgramConfig.editedIcon));
+                items.add(UItem.asCheck(ID_ONLINE_INDICATOR, getString(R.string.GlassgramOnlineIndicator)).setChecked(GlassgramConfig.showOnlineIndicator));
+                items.add(UItem.asCheck(ID_FORWARD_COUNT, getString(R.string.GlassgramForwardCount)).setChecked(GlassgramConfig.showForwardCount));
+                items.add(UItem.asCheck(ID_HIDE_SHARE, getString(R.string.GlassgramHideShareButton)).setChecked(GlassgramConfig.hideShareButton));
+                items.add(UItem.asButtonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
+                items.add(UItem.asShadow(null));
                 items.add(UItem.asHeader(getString(R.string.GlassgramPhotos)));
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
                 items.add(UItem.asShadow(getString(R.string.GlassgramAlwaysSendHDInfo)));
+                items.add(UItem.asHeader(getString(R.string.GlassgramVideos)));
+                items.add(UItem.asButton(ID_DOUBLE_TAP_SEEK, getString(R.string.GlassgramDoubleTapSeek), seekNames()[seekIndex()]));
+                items.add(UItem.asCheck(ID_ORIGINAL_QUALITY, getString(R.string.GlassgramOriginalQuality)).setChecked(GlassgramConfig.preferOriginalQuality));
+                items.add(UItem.asButtonCheck(ID_VOLUME_UNMUTE, getString(R.string.GlassgramVolumeUnmute), getString(R.string.GlassgramVolumeUnmuteInfo)).setChecked(GlassgramConfig.volumeUnmute));
+                final int pauses = (GlassgramConfig.autoPauseVideo ? 1 : 0) + (GlassgramConfig.autoPauseVoice ? 1 : 0) + (GlassgramConfig.autoPauseRound ? 1 : 0);
+                items.add(UItem.asExpandableSwitch(ID_AUTO_PAUSE, getString(R.string.GlassgramAutoPause), pauses + "/3")
+                        .setChecked(GlassgramConfig.autoPause)
+                        .setCollapsed(!autoPauseExpanded)
+                        .setClickCallback(v -> toggleSwitch("autoPause")));
+                if (autoPauseExpanded) {
+                    items.add(UItem.asRoundCheckbox(ID_AUTO_PAUSE_VIDEO, getString(R.string.GlassgramAutoPauseVideo)).setChecked(GlassgramConfig.autoPauseVideo).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_AUTO_PAUSE_VOICE, getString(R.string.GlassgramAutoPauseVoice)).setChecked(GlassgramConfig.autoPauseVoice).setPad(1));
+                    items.add(UItem.asRoundCheckbox(ID_AUTO_PAUSE_ROUND, getString(R.string.GlassgramAutoPauseRound)).setChecked(GlassgramConfig.autoPauseRound).setPad(1));
+                }
+                items.add(UItem.asShadow(getString(R.string.GlassgramAutoPauseInfo)));
                 break;
+            }
             case PAGE_GHOST: {
                 int enabled = ghostOptionsEnabled();
                 items.add(UItem.asHeader(getString(R.string.GlassgramGhostEssentials)));
@@ -360,6 +433,30 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_GHOST_MODE:
                 ghostExpanded = !ghostExpanded;
                 if (listView != null) listView.adapter.update(true);
+                return;
+            case ID_HIDE_REACTIONS:
+                reactionsExpanded = !reactionsExpanded;
+                if (listView != null) listView.adapter.update(true);
+                return;
+            case ID_AUTO_PAUSE:
+                autoPauseExpanded = !autoPauseExpanded;
+                if (listView != null) listView.adapter.update(true);
+                return;
+            case ID_STICKER_SHAPE:
+                showChoice(getString(R.string.GlassgramStickerShape), stickerShapeNames(), GlassgramConfig.stickerShape, which -> {
+                    GlassgramConfig.stickerShape = which;
+                    GlassgramConfig.putInt("stickerShape", which);
+                    rebuildChats();
+                });
+                return;
+            case ID_DOUBLE_TAP_SEEK:
+                showChoice(getString(R.string.GlassgramDoubleTapSeek), seekNames(), seekIndex(), which -> {
+                    GlassgramConfig.doubleTapSeekSeconds = SEEK_SECONDS[which];
+                    GlassgramConfig.putInt("doubleTapSeekSeconds", SEEK_SECONDS[which]);
+                });
+                return;
+            case ID_SAVE_FOLDER:
+                showSaveFolderDialog();
                 return;
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
@@ -515,6 +612,57 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_FILTER_SHADOW:
                 value = GlassgramConfig.spyShadowBan = !GlassgramConfig.spyShadowBan;
                 GlassgramConfig.putBoolean("spyShadowBan", value); break;
+            case ID_ZALGO:
+                value = GlassgramConfig.filterZalgo = !GlassgramConfig.filterZalgo;
+                GlassgramConfig.putBoolean("filterZalgo", value); break;
+            case ID_SHOW_DC:
+                value = GlassgramConfig.showDc = !GlassgramConfig.showDc;
+                GlassgramConfig.putBoolean("showDc", value); break;
+            case ID_HIDE_REACTIONS_CHANNELS:
+                value = GlassgramConfig.hideReactionsChannels = !GlassgramConfig.hideReactionsChannels;
+                GlassgramConfig.putBoolean("hideReactionsChannels", value); break;
+            case ID_HIDE_REACTIONS_GROUPS:
+                value = GlassgramConfig.hideReactionsGroups = !GlassgramConfig.hideReactionsGroups;
+                GlassgramConfig.putBoolean("hideReactionsGroups", value); break;
+            case ID_HIDE_REACTIONS_PRIVATE:
+                value = GlassgramConfig.hideReactionsPrivate = !GlassgramConfig.hideReactionsPrivate;
+                GlassgramConfig.putBoolean("hideReactionsPrivate", value); break;
+            case ID_MESSAGE_TAIL:
+                value = GlassgramConfig.removeMessageTail = !GlassgramConfig.removeMessageTail;
+                GlassgramConfig.putBoolean("removeMessageTail", value); break;
+            case ID_EDITED_ICON:
+                value = GlassgramConfig.editedIcon = !GlassgramConfig.editedIcon;
+                GlassgramConfig.putBoolean("editedIcon", value); break;
+            case ID_ONLINE_INDICATOR:
+                value = GlassgramConfig.showOnlineIndicator = !GlassgramConfig.showOnlineIndicator;
+                GlassgramConfig.putBoolean("showOnlineIndicator", value); break;
+            case ID_FORWARD_COUNT:
+                value = GlassgramConfig.showForwardCount = !GlassgramConfig.showForwardCount;
+                GlassgramConfig.putBoolean("showForwardCount", value); break;
+            case ID_HIDE_SHARE:
+                value = GlassgramConfig.hideShareButton = !GlassgramConfig.hideShareButton;
+                GlassgramConfig.putBoolean("hideShareButton", value); break;
+            case ID_POLL_RESULTS:
+                value = GlassgramConfig.showPollResults = !GlassgramConfig.showPollResults;
+                GlassgramConfig.putBoolean("showPollResults", value); break;
+            case ID_COMMA_MENTION:
+                value = GlassgramConfig.commaAfterMention = !GlassgramConfig.commaAfterMention;
+                GlassgramConfig.putBoolean("commaAfterMention", value); break;
+            case ID_ORIGINAL_QUALITY:
+                value = GlassgramConfig.preferOriginalQuality = !GlassgramConfig.preferOriginalQuality;
+                GlassgramConfig.putBoolean("preferOriginalQuality", value); break;
+            case ID_VOLUME_UNMUTE:
+                value = GlassgramConfig.volumeUnmute = !GlassgramConfig.volumeUnmute;
+                GlassgramConfig.putBoolean("volumeUnmute", value); break;
+            case ID_AUTO_PAUSE_VIDEO:
+                value = GlassgramConfig.autoPauseVideo = !GlassgramConfig.autoPauseVideo;
+                GlassgramConfig.putBoolean("autoPauseVideo", value); break;
+            case ID_AUTO_PAUSE_VOICE:
+                value = GlassgramConfig.autoPauseVoice = !GlassgramConfig.autoPauseVoice;
+                GlassgramConfig.putBoolean("autoPauseVoice", value); break;
+            case ID_AUTO_PAUSE_ROUND:
+                value = GlassgramConfig.autoPauseRound = !GlassgramConfig.autoPauseRound;
+                GlassgramConfig.putBoolean("autoPauseRound", value); break;
             case ID_ALWAYS_HD:
                 // Telegram's own default for the HD toggle in the photo viewer
                 value = org.telegram.messenger.SharedConfig.photoHighQualityDefault = !org.telegram.messenger.SharedConfig.photoHighQualityDefault;
@@ -533,7 +681,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (view instanceof CheckBoxCell) {
             ((CheckBoxCell) view).setChecked(value, true);
         }
-        if (page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH) {
+        if (page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH
+                || item.id == ID_HIDE_REACTIONS_CHANNELS || item.id == ID_HIDE_REACTIONS_GROUPS || item.id == ID_HIDE_REACTIONS_PRIVATE
+                || item.id == ID_AUTO_PAUSE_VIDEO || item.id == ID_AUTO_PAUSE_VOICE || item.id == ID_AUTO_PAUSE_ROUND) {
             // The Ghost Mode counter and the mark colors row follow these switches
             if (listView != null) listView.adapter.update(true);
         }
@@ -544,6 +694,81 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (parentLayout != null) {
             parentLayout.rebuildAllFragmentViews(false, false);
         }
+    }
+
+    private static final int[] SEEK_SECONDS = {5, 10, 15, 30};
+
+    private static String[] seekNames() {
+        final String[] names = new String[SEEK_SECONDS.length];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = LocaleController.formatPluralString("Seconds", SEEK_SECONDS[i]);
+        }
+        return names;
+    }
+
+    private static int seekIndex() {
+        for (int i = 0; i < SEEK_SECONDS.length; i++) {
+            if (SEEK_SECONDS[i] == GlassgramConfig.doubleTapSeekSeconds) {
+                return i;
+            }
+        }
+        return 1;
+    }
+
+    private static String[] stickerShapeNames() {
+        return new String[]{getString(R.string.GlassgramStickerShapeDefault), getString(R.string.GlassgramStickerShapeRounded), getString(R.string.GlassgramStickerShapeMessage)};
+    }
+
+    private static String saveFolderName() {
+        return GlassgramConfig.saveFolder == null || GlassgramConfig.saveFolder.isEmpty() ? "Telegram" : GlassgramConfig.saveFolder;
+    }
+
+    /** Switches with an expandable list: the switch toggles, the row itself expands. */
+    private void toggleSwitch(String key) {
+        final boolean value;
+        if ("hideReactions".equals(key)) {
+            value = GlassgramConfig.hideReactions = !GlassgramConfig.hideReactions;
+        } else {
+            value = GlassgramConfig.autoPause = !GlassgramConfig.autoPause;
+        }
+        GlassgramConfig.putBoolean(key, value);
+        if (listView != null) listView.adapter.update(true);
+        rebuildChats();
+    }
+
+    private void rebuildChats() {
+        if (parentLayout != null) {
+            parentLayout.rebuildAllFragmentViews(false, false);
+        }
+    }
+
+    private void showSaveFolderDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final org.telegram.ui.Components.EditTextBoldCursor editText = new org.telegram.ui.Components.EditTextBoldCursor(getParentActivity());
+        editText.setText(GlassgramConfig.saveFolder);
+        editText.setHint("Telegram");
+        editText.setSingleLine(true);
+        editText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 18);
+        editText.setTextColor(getThemedColor(org.telegram.ui.ActionBar.Theme.key_dialogTextBlack));
+        editText.setHintTextColor(getThemedColor(org.telegram.ui.ActionBar.Theme.key_dialogTextHint));
+        editText.setCursorColor(getThemedColor(org.telegram.ui.ActionBar.Theme.key_dialogTextBlack));
+        editText.setBackground(null);
+        final android.widget.FrameLayout container = new android.widget.FrameLayout(getParentActivity());
+        container.addView(editText, org.telegram.ui.Components.LayoutHelper.createFrame(org.telegram.ui.Components.LayoutHelper.MATCH_PARENT, 36, android.view.Gravity.TOP, 24, 8, 24, 0));
+        new AlertDialog.Builder(getParentActivity())
+            .setTitle(getString(R.string.GlassgramSaveFolder))
+            .setView(container)
+            .setPositiveButton(getString(R.string.OK), (d, w) -> {
+                // A folder name only: no separators, nothing that leaves the media folders
+                final String name = editText.getText().toString().trim().replaceAll("[\\\\/:*?\"<>|]", "").replace("..", "");
+                GlassgramConfig.saveFolder = name;
+                GlassgramConfig.putString("saveFolder", name);
+                if (listView != null) listView.adapter.update(true);
+            })
+            .setNegativeButton(getString(R.string.Cancel), null)
+            .show();
     }
 
     private static int ghostOptionsEnabled() {

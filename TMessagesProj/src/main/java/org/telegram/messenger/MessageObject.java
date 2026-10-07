@@ -706,7 +706,24 @@ public class MessageObject {
         if (isRepostPreview) {
             return false;
         }
+        if (GlassgramConfig.hideReactions && isGlassgramReactionsHidden()) {
+            return false;
+        }
         return true;
+    }
+
+    /** Glassgram: reactions hidden for this kind of chat (Saved Messages keeps its tags). */
+    private boolean isGlassgramReactionsHidden() {
+        final long dialogId = getDialogId();
+        if (DialogObject.isChatDialog(dialogId)) {
+            final TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
+            final boolean channel = ChatObject.isChannelAndNotMegaGroup(chat);
+            return GlassgramConfig.hidesReactions(channel, !channel);
+        }
+        if (dialogId == UserConfig.getInstance(currentAccount).getClientUserId()) {
+            return false;
+        }
+        return GlassgramConfig.hidesReactions(false, false);
     }
 
     public boolean shouldDrawReactionsInLayout() {
@@ -7671,6 +7688,7 @@ public class MessageObject {
                 addUrlsByPattern(isOutOwner(), caption, true, 4, (int) getDuration(), false);
             }
             applyTimestampsHighlightForReplyMsg(caption);
+            caption = GlassgramText.filter(caption);
         }
     }
 
@@ -8538,7 +8556,24 @@ public class MessageObject {
         }
     }
 
+    // Glassgram: messageText without Zalgo, and the text it was made from; entities are always applied
+    // to the latter, since their offsets count the removed marks
+    private CharSequence glassgramUnfilteredText, glassgramFilteredText;
+
     private boolean applyEntities() {
+        if (glassgramUnfilteredText != null && messageText == glassgramFilteredText) {
+            messageText = glassgramUnfilteredText;
+        }
+        glassgramUnfilteredText = glassgramFilteredText = null;
+        final boolean hasUrls = applyEntitiesInternal();
+        if (GlassgramConfig.filterZalgo && GlassgramText.hasZalgo(messageText)) {
+            glassgramUnfilteredText = messageText;
+            messageText = glassgramFilteredText = GlassgramText.filter(messageText);
+        }
+        return hasUrls;
+    }
+
+    private boolean applyEntitiesInternal() {
         generateLinkDescription();
         spoilLoginCode();
 
@@ -8707,6 +8742,9 @@ public class MessageObject {
             paint = Theme.chat_msgTextPaint;
         }
 
+        if (glassgramUnfilteredText != null) {
+            glassgramFilteredText = messageText;
+        }
         CharSequence text = messageText;
         try {
             textLayoutOriginalWidth = maxWidth;

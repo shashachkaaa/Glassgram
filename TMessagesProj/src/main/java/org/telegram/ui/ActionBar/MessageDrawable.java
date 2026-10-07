@@ -22,6 +22,7 @@ import android.graphics.drawable.NinePatchDrawable;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
 import org.telegram.ui.Components.blur3.utils.NinePatchBuilder;
@@ -103,6 +104,19 @@ public class MessageDrawable extends Drawable {
     private int overrideRoundRadius;
     private float overrideRounding;
     public boolean forceInvalidatePath;
+    // Glassgram: the "remove message tail" state the cached bubble bitmaps were drawn with
+    private boolean cachedNoTail;
+
+    private void checkNoTailCache() {
+        if (cachedNoTail != GlassgramConfig.removeMessageTail) {
+            cachedNoTail = GlassgramConfig.removeMessageTail;
+            Arrays.fill(currentShadowDrawableRadius, -1);
+            for (int[] radii : currentBackgroundDrawableRadius) {
+                Arrays.fill(radii, -1);
+            }
+            transitionDrawable = null;
+        }
+    }
 
     public MessageDrawable(int type, boolean out, boolean selected) {
         this(type, out, selected, null);
@@ -318,6 +332,7 @@ public class MessageDrawable extends Drawable {
     }
 
     public Drawable getBackgroundDrawable() {
+        checkNoTailCache();
         int newRad;
         if (overrideRoundRadius != 0) {
             newRad = overrideRoundRadius;
@@ -406,6 +421,7 @@ public class MessageDrawable extends Drawable {
     }
 
     public Drawable getTransitionDrawable(int color) {
+        checkNoTailCache();
         if (transitionDrawable == null) {
             Bitmap bitmap = Bitmap.createBitmap(dp(50), dp(40), Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
@@ -442,6 +458,7 @@ public class MessageDrawable extends Drawable {
         if (gradientShader == null && !isSelected && crossfadeFromDrawable == null) {
             return null;
         }
+        checkNoTailCache();
         int newRad = dp(SharedConfig.bubbleRadius);
         int idx;
         if (isTopNear && isBottomNear) {
@@ -668,12 +685,17 @@ public class MessageDrawable extends Drawable {
         if (rad > heightHalf) {
             rad = heightHalf;
         }
+        // Glassgram: a text bubble without the tail, rounded where the tail was
+        final boolean noTail = GlassgramConfig.removeMessageTail && currentType == TYPE_TEXT;
+        final int tailRad = isBottomNear || botButtonsBottom ? Math.min(nearRad, rad) : rad;
         if (isOut) {
             // LEFT-BOTTOM <- RIGHT-BOTTOM
             if (drawFullBubble || currentType == TYPE_PREVIEW || customPaint || drawFullBottom) {
                 int radToUse = botButtonsBottom ? nearRad : rad;
                 if (currentType == TYPE_MEDIA) {
                     path.moveTo(bounds.right - dp(8) - radToUse, bounds.bottom - padding);
+                } else if (noTail) {
+                    path.moveTo(bounds.right - dp(8) - tailRad, bounds.bottom - padding);
                 } else {
                     path.moveTo(bounds.right - dp(2.6f), bounds.bottom - padding);
                 }
@@ -723,7 +745,11 @@ public class MessageDrawable extends Drawable {
                     path.lineTo(bounds.right - padding, top - topY + currentBackgroundHeight);
                 }
             } else {
-                if (drawFullBubble || currentType == TYPE_PREVIEW || customPaint || drawFullBottom) {
+                if (noTail && (drawFullBubble || customPaint || drawFullBottom)) {
+                    path.lineTo(bounds.right - dp(8), bounds.bottom - padding - tailRad);
+                    rect.set(bounds.right - dp(8) - tailRad * 2, bounds.bottom - padding - tailRad * 2, bounds.right - dp(8), bounds.bottom - padding);
+                    path.arcTo(rect, 0, 90, false);
+                } else if (drawFullBubble || currentType == TYPE_PREVIEW || customPaint || drawFullBottom) {
                     path.lineTo(bounds.right - dp(8), bounds.bottom - padding - smallRad - dp(3));
                     rect.set(bounds.right - dp(8), bounds.bottom - padding - smallRad * 2 - dp(9), bounds.right - dp(7) + smallRad * 2, bounds.bottom - padding - dp(1));
                     path.arcTo(rect, 180, -83, false);
@@ -737,6 +763,8 @@ public class MessageDrawable extends Drawable {
 
                 if (currentType == TYPE_MEDIA) {
                     path.moveTo(bounds.left + dp(8) + radToUse, bounds.bottom - padding);
+                } else if (noTail) {
+                    path.moveTo(bounds.left + dp(8) + tailRad, bounds.bottom - padding);
                 } else {
                     path.moveTo(bounds.left + dp(2.6f), bounds.bottom - padding);
                 }
@@ -780,7 +808,11 @@ public class MessageDrawable extends Drawable {
                     path.lineTo(bounds.left + padding, top - topY + currentBackgroundHeight);
                 }
             } else {
-                if (drawFullBubble || currentType == TYPE_PREVIEW || customPaint || drawFullBottom) {
+                if (noTail && (drawFullBubble || customPaint || drawFullBottom)) {
+                    path.lineTo(bounds.left + dp(8), bounds.bottom - padding - tailRad);
+                    rect.set(bounds.left + dp(8), bounds.bottom - padding - tailRad * 2, bounds.left + dp(8) + tailRad * 2, bounds.bottom - padding);
+                    path.arcTo(rect, 180, -90, false);
+                } else if (drawFullBubble || currentType == TYPE_PREVIEW || customPaint || drawFullBottom) {
                     path.lineTo(bounds.left + dp(8), bounds.bottom - padding - smallRad - dp(3));
                     rect.set(bounds.left + dp(7) - smallRad * 2, bounds.bottom - padding - smallRad * 2 - dp(9), bounds.left + dp(8), bounds.bottom - padding - dp(1));
                     path.arcTo(rect, 0, 83, false);

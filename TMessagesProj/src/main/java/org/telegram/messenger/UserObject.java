@@ -115,7 +115,7 @@ public class UserObject {
         } else if (!allowShort && name.length() <= 2) {
             return ContactsController.formatName(user.first_name, user.last_name);
         }
-        return !TextUtils.isEmpty(name) ? name : LocaleController.getString(R.string.HiddenName);
+        return !TextUtils.isEmpty(name) ? GlassgramText.filter(name) : LocaleController.getString(R.string.HiddenName);
     }
 
     public static String getForcedFirstName(TLRPC.User user) {
@@ -133,7 +133,7 @@ public class UserObject {
         if (index >= 0) {
             name = name.substring(0, index);
         }
-        return name;
+        return GlassgramText.filter(name);
     }
 
     public static boolean hasPhoto(TLRPC.User user) {

@@ -10692,7 +10692,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
 
             if (videoUrises != null) {
-                videoPlayer.preparePlayer(videoUrises, VideoPlayer.getSavedQuality(videoUrises, currentMessageObject));
+                VideoPlayer.Quality startQuality = VideoPlayer.getSavedQuality(videoUrises, currentMessageObject);
+                if (startQuality == null && GlassgramConfig.preferOriginalQuality && videoUrises.size() > 1) {
+                    startQuality = getOriginalQuality(videoUrises);
+                }
+                videoPlayer.preparePlayer(videoUrises, startQuality);
             } else {
                 videoPlayer.preparePlayer(uri, "other", FileLoader.PRIORITY_HIGH, videoByteOffset);
             }
@@ -18796,6 +18800,54 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         return isVisible && placeProvider != null;
     }
 
+    /** Glassgram: pauses the playing video when the screen turns off or the app goes to the background; not in PiP. */
+    public void autoPauseVideo() {
+        if (!isVisible || PipInstance == this || !isVideoPlaying()) {
+            return;
+        }
+        manuallyPaused = true;
+        cancelVideoPlayRunnable();
+        pauseVideoOrWeb();
+        if (containerView != null) {
+            containerView.invalidate();
+        }
+    }
+
+    // Glassgram: the volume key that unmuted the video, so its repeats and release are consumed too
+    private int unmuteVolumeKeyCode;
+
+    /** Glassgram: with volumeUnmute, a volume key unmutes a muted video instead of changing the volume. */
+    public boolean onVolumeKeyUnmute(KeyEvent event) {
+        if (!GlassgramConfig.volumeUnmute) {
+            unmuteVolumeKeyCode = 0;
+            return false;
+        }
+        final int keyCode = event.getKeyCode();
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return false;
+        }
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            if (unmuteVolumeKeyCode == keyCode) {
+                unmuteVolumeKeyCode = 0;
+                return true;
+            }
+            return false;
+        }
+        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+            return false;
+        }
+        if (event.getRepeatCount() > 0) {
+            return unmuteVolumeKeyCode == keyCode;
+        }
+        unmuteVolumeKeyCode = 0;
+        if (isVisible && !muteVideo && sendPhotoType != SELECT_TYPE_AVATAR && isCurrentVideo && videoPlayer != null && videoPlayer.isMuted() && !CastSync.isActive()) {
+            videoPlayer.setVolume(1.0f);
+            unmuteVolumeKeyCode = keyCode;
+            return true;
+        }
+        return false;
+    }
+
     private void updateMinMax(float scale) {
         if (aspectRatioFrameLayout != null && aspectRatioFrameLayout.getVisibility() == View.VISIBLE && textureUploaded) {
             View view = usedSurfaceView ? videoSurfaceView : videoTextureView;
@@ -20906,7 +20958,26 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         boolean forward = x >= width / 3 * 2;
         long current = getCurrentVideoPosition();
         long total = getVideoDuration();
-        return current != C.TIME_UNSET && total > 15 * 1000 && (!forward || total - current > 10000);
+        return current != C.TIME_UNSET && total > 15 * 1000 && (!forward || total - current > doubleTapSeekMs());
+    }
+
+    // Glassgram: the original file among the video's qualities, or the largest one
+    private static VideoPlayer.Quality getOriginalQuality(ArrayList<VideoPlayer.Quality> qualities) {
+        VideoPlayer.Quality max = null;
+        for (VideoPlayer.Quality q : qualities) {
+            if (q == null || q.uris.isEmpty()) continue;
+            if (q.original) return q;
+            if (max == null || max.width * max.height < q.width * q.height) {
+                max = q;
+            }
+        }
+        return max;
+    }
+
+    // Glassgram: the double-tap seek step, 10 s in Telegram
+    private static long doubleTapSeekMs() {
+        final int seconds = GlassgramConfig.doubleTapSeekSeconds;
+        return (seconds > 0 ? seconds : 10) * 1000L;
     }
 
     long totalRewinding;
@@ -20920,18 +20991,19 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             int width = getContainerViewWidth();
             boolean forward = x >= width / 3 * 2;
             if (canDoubleTapSeekVideo(e)) {
+                final long seekMs = doubleTapSeekMs();
                 long old = current;
                 if (x >= width / 3 * 2) {
-                    current += 10000;
+                    current += seekMs;
                 } else if (x < width / 3) {
-                    current -= 10000;
+                    current -= seekMs;
                 }
                 if (old != current) {
                     boolean apply = true;
                     if (current > total) {
                         current = total;
                     } else if (current < 0) {
-                        if (current < -9000) {
+                        if (current < -(seekMs - 1000)) {
                             apply = false;
                         }
                         current = 0;
@@ -20939,7 +21011,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     if (apply) {
                         videoForwardDrawable.setOneShootAnimation(true);
                         videoForwardDrawable.setLeftSide(x < width / 3);
-                        videoForwardDrawable.addTime(10000);
+                        videoForwardDrawable.addTime(seekMs);
                         seekVideoOrWebTo(current);
                         containerView.invalidate();
                         videoPlayerSeekbar.setProgress(current / (float) total, true);
@@ -23567,6 +23639,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
         @Override
         public boolean dispatchKeyEvent(KeyEvent event) {
+            if (onVolumeKeyUnmute(event)) {
+                return true;
+            }
             int keyCode = event.getKeyCode();
             if (!muteVideo && sendPhotoType != SELECT_TYPE_AVATAR && isCurrentVideo && videoPlayer != null && event.getRepeatCount() == 0 && event.getAction() == KeyEvent.ACTION_DOWN && (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN)) {
                 videoPlayer.setVolume(1.0f);

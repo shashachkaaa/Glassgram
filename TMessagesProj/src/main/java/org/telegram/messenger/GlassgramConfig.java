@@ -21,6 +21,13 @@ public class GlassgramConfig {
     public static int downloadBoost;
     public static boolean uploadBoost;
 
+    // Names and messages without "Zalgo" stacks of combining marks
+    public static boolean filterZalgo;
+    // Saved files go to Pictures/<saveFolder>, Download/<saveFolder>...; empty: Telegram's own
+    public static String saveFolder = "";
+    // The data center next to the id in profiles
+    public static boolean showDc;
+
     public static final int SHOW_ID_OFF = 0, SHOW_ID_TELEGRAM_API = 1, SHOW_ID_BOT_API = 2;
     public static final int BOOST_OFF = 0, BOOST_FAST = 1, BOOST_ULTRA = 2;
 
@@ -52,6 +59,45 @@ public class GlassgramConfig {
     public static boolean hideKeyboardOnScroll;
     public static boolean hideSendAsButton;
     public static boolean unlimitedRecentStickers;
+    // Stickers: the size (12 is Telegram's own, 4..20) and the shape
+    public static final int STICKER_SIZE_DEFAULT = 12, STICKER_SIZE_MIN = 4, STICKER_SIZE_MAX = 20;
+    public static final int STICKER_SHAPE_DEFAULT = 0, STICKER_SHAPE_ROUNDED = 1, STICKER_SHAPE_MESSAGE = 2;
+    public static int stickerSize = STICKER_SIZE_DEFAULT;
+    public static int stickerShape;
+
+    // Reactions hidden from the interface, by chat kind
+    public static boolean hideReactions;
+    public static boolean hideReactionsChannels = true;
+    public static boolean hideReactionsGroups = true;
+    public static boolean hideReactionsPrivate = true;
+
+    // Messages
+    public static boolean removeMessageTail;
+    public static boolean editedIcon;
+    public static boolean showOnlineIndicator;
+    public static boolean showForwardCount;
+    public static boolean hideShareButton;
+    public static boolean showPollResults;
+    public static boolean commaAfterMention;
+
+    // Videos
+    public static int doubleTapSeekSeconds = 10;
+    public static boolean preferOriginalQuality;
+    public static boolean volumeUnmute;
+    public static boolean autoPause;
+    public static boolean autoPauseVideo = true;
+    public static boolean autoPauseVoice;
+    public static boolean autoPauseRound;
+
+    /** Whether reactions are hidden in this chat: channels, groups, or private chats and bots. */
+    public static boolean hidesReactions(boolean channel, boolean group) {
+        return hideReactions && (channel ? hideReactionsChannels : group ? hideReactionsGroups : hideReactionsPrivate);
+    }
+
+    /** The sticker size multiplier: 1 for Telegram's own size. */
+    public static float stickerScale() {
+        return stickerSize / (float) STICKER_SIZE_DEFAULT;
+    }
 
     /** Recent stickers kept when the limit is lifted; Telegram's own is 20-30. */
     public static final int UNLIMITED_RECENT_STICKERS = 200;
@@ -139,6 +185,29 @@ public class GlassgramConfig {
         ignoreContentProtection = p.getBoolean("ignoreContentProtection", false);
         pluginsEngine = p.getBoolean("pluginsEngine", false);
         pluginsEnableAfterInstall = p.getBoolean("pluginsEnableAfterInstall", true);
+        filterZalgo = p.getBoolean("filterZalgo", false);
+        saveFolder = p.getString("saveFolder", "");
+        showDc = p.getBoolean("showDc", false);
+        stickerSize = Math.max(STICKER_SIZE_MIN, Math.min(STICKER_SIZE_MAX, p.getInt("stickerSize", STICKER_SIZE_DEFAULT)));
+        stickerShape = p.getInt("stickerShape", STICKER_SHAPE_DEFAULT);
+        hideReactions = p.getBoolean("hideReactions", false);
+        hideReactionsChannels = p.getBoolean("hideReactionsChannels", true);
+        hideReactionsGroups = p.getBoolean("hideReactionsGroups", true);
+        hideReactionsPrivate = p.getBoolean("hideReactionsPrivate", true);
+        removeMessageTail = p.getBoolean("removeMessageTail", false);
+        editedIcon = p.getBoolean("editedIcon", false);
+        showOnlineIndicator = p.getBoolean("showOnlineIndicator", false);
+        showForwardCount = p.getBoolean("showForwardCount", false);
+        hideShareButton = p.getBoolean("hideShareButton", false);
+        showPollResults = p.getBoolean("showPollResults", false);
+        commaAfterMention = p.getBoolean("commaAfterMention", false);
+        doubleTapSeekSeconds = p.getInt("doubleTapSeekSeconds", 10);
+        preferOriginalQuality = p.getBoolean("preferOriginalQuality", false);
+        volumeUnmute = p.getBoolean("volumeUnmute", false);
+        autoPause = p.getBoolean("autoPause", false);
+        autoPauseVideo = p.getBoolean("autoPauseVideo", true);
+        autoPauseVoice = p.getBoolean("autoPauseVoice", false);
+        autoPauseRound = p.getBoolean("autoPauseRound", false);
         loaded = true;
     }
 
@@ -152,6 +221,10 @@ public class GlassgramConfig {
 
     public static void putInt(String key, int value) {
         prefs().edit().putInt(key, value).apply();
+    }
+
+    public static void putString(String key, String value) {
+        prefs().edit().putString(key, value).apply();
     }
 
     public static void setTitleText(String text) {

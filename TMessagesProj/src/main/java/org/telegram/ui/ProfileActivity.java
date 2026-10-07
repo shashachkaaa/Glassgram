@@ -4502,7 +4502,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == addMemberRow) {
                 openAddMember();
             } else if (position == idRow) {
-                AndroidUtilities.addToClipboard(glassgramIdText());
+                AndroidUtilities.addToClipboard(org.telegram.messenger.GlassgramConfig.showId != 0 ? glassgramIdText() : glassgramDcText(glassgramDcId()));
                 BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.TextCopied)).show();
             } else if (position == usernameRow) {
                 processOnClickOrPress(position, view, x, y);
@@ -10500,6 +10500,35 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return String.valueOf(chatId);
     }
 
+    /** The data center of the profile, known from its photo; 0 when unknown or not shown. */
+    private int glassgramDcId() {
+        if (!org.telegram.messenger.GlassgramConfig.showDc) {
+            return 0;
+        }
+        if (userId != 0) {
+            final TLRPC.User user = getMessagesController().getUser(userId);
+            return user != null && user.photo != null ? user.photo.dc_id : 0;
+        }
+        final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+        return chat != null && chat.photo != null ? chat.photo.dc_id : 0;
+    }
+
+    private static String glassgramDcText(int dc) {
+        final String location;
+        switch (dc) {
+            case 1: case 3: location = "Miami"; break;
+            case 2: case 4: location = "Amsterdam"; break;
+            case 5: location = "Singapore"; break;
+            default: location = null;
+        }
+        return "DC " + dc + (location != null ? " (" + location + ")" : "");
+    }
+
+    /** The ID row shows the ID, the data center, or both. */
+    private boolean glassgramHasIdRow() {
+        return org.telegram.messenger.GlassgramConfig.showId != 0 || glassgramDcId() > 0;
+    }
+
     private void updateRowsIds() {
         updateNotifications(false);
 
@@ -10772,7 +10801,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
-                if (user != null && org.telegram.messenger.GlassgramConfig.showId != 0) {
+                if (user != null && glassgramHasIdRow()) {
                     idRow = rowCount++;
                 }
                 if (userInfo != null) {
@@ -10910,7 +10939,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 sharedMediaRow = rowCount++;
             }
         } else if (chatId != 0) {
-            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || org.telegram.messenger.GlassgramConfig.showId != 0) {
+            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || glassgramHasIdRow()) {
                 if (emptyRow < 0 && emptyRow2 < 0) {
                     if (hasMusic || peerColor != null || actionsView == null) {
                         emptyRow2 = rowCount++;
@@ -10933,7 +10962,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
                 }
-                if (org.telegram.messenger.GlassgramConfig.showId != 0) {
+                if (glassgramHasIdRow()) {
                     idRow = rowCount++;
                 }
             }
@@ -11837,7 +11866,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         changed = true;
                     }
                 } else if (chat.title != null) {
-                    CharSequence title = chat.title;
+                    CharSequence title = org.telegram.messenger.GlassgramText.filter(chat.title);
                     try {
                         title = Emoji.replaceEmoji(title, nameTextView[a].getPaint().getFontMetricsInt(), false);
                     } catch (Exception ignore) {
@@ -13623,7 +13652,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             containsGift = !myProfile && today && !getMessagesController().premiumPurchaseBlocked();
                         }
                     } else if (position == idRow) {
-                        detailCell.setTextAndValue(glassgramIdText(), "ID", false);
+                        final int dc = glassgramDcId();
+                        if (org.telegram.messenger.GlassgramConfig.showId == 0) {
+                            detailCell.setTextAndValue(glassgramDcText(dc), "DC", false);
+                        } else if (dc > 0) {
+                            detailCell.setTextAndValue(glassgramIdText() + " · " + glassgramDcText(dc), "ID", false);
+                        } else {
+                            detailCell.setTextAndValue(glassgramIdText(), "ID", false);
+                        }
                     } else if (position == phoneRow) {
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);

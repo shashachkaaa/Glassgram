@@ -47,6 +47,7 @@ import androidx.media3.common.C;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.pip.source.IPipSourceDelegate;
@@ -757,18 +758,20 @@ public class PipVideoOverlay implements IPipSourceDelegate {
                     return false;
                 }
 
+                // Glassgram: the double-tap seek step, 10 s in Telegram
+                final long seekMs = (GlassgramConfig.doubleTapSeekSeconds > 0 ? GlassgramConfig.doubleTapSeekSeconds : 10) * 1000L;
                 long old = current;
                 if (forward) {
-                    current += 10000;
+                    current += seekMs;
                 } else {
-                    current -= 10000;
+                    current -= seekMs;
                 }
                 if (old != current) {
                     boolean apply = true;
                     if (current > total) {
                         current = total;
                     } else if (current < 0) {
-                        if (current < -9000) {
+                        if (current < -(seekMs - 1000)) {
                             apply = false;
                         }
                         current = 0;
@@ -776,9 +779,9 @@ public class PipVideoOverlay implements IPipSourceDelegate {
                     if (apply) {
                         videoForwardDrawable.setOneShootAnimation(true);
                         videoForwardDrawable.setLeftSide(!forward);
-                        videoForwardDrawable.addTime(10000);
+                        videoForwardDrawable.addTime(seekMs);
                         seekTo(current);
-                        onUpdateRewindProgressUiInternal(forward ? 10000 : -10000, current / (float) total, true);
+                        onUpdateRewindProgressUiInternal(forward ? seekMs : -seekMs, current / (float) total, true);
                         if (!isShowingControls) {
                             toggleControls(isShowingControls = true);
                             if (!postedDismissControls) {

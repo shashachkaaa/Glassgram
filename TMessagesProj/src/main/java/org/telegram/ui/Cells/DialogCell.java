@@ -2396,6 +2396,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             if (nameString instanceof String) {
                 nameString = ((String) nameString).replace('\n', ' ');
             }
+            nameString = org.telegram.messenger.GlassgramText.filter(nameString);
             CharSequence nameStringFinal = nameString;
             final org.telegram.messenger.GlassgramBadges.Badge textBadge = glassgramBadgeAfterStatus ? null : glassgramBadge;
             if (textBadge != null) {
