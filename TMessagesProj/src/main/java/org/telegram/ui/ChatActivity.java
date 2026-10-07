@@ -4607,22 +4607,30 @@ public class ChatActivity extends BaseFragment implements
         // Glassgram: the input as separate glass pieces (attach circle, field, send circle, bots' menu)
         chatInputViewsContainer.setGlassgramSegments(
             () -> glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider),
-            out -> {
-                if (chatActivityEnterView == null || chatActivityEnterView.getVisibility() != View.VISIBLE
-                        || chatActivityEnterView.getParent() != chatInputBubbleContainer
-                        || searchContainer != null && searchContainer.getVisibility() == View.VISIBLE
-                        || bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE
-                        || !chatActivityEnterView.getGlassgramSegments(out)) {
-                    return false;
-                }
-                final float dx = chatInputBubbleContainer.getX() + chatActivityEnterView.getX();
-                for (int i = 0; i < out.length; i += 2) {
-                    if (out[i] >= 0) {
-                        out[i] += dx;
-                        out[i + 1] += dx;
+            new ChatInputViewsContainer.GlassgramSegmentsProvider() {
+                @Override
+                public boolean getSegments(float[] out) {
+                    if (chatActivityEnterView == null || chatActivityEnterView.getVisibility() != View.VISIBLE
+                            || chatActivityEnterView.getParent() != chatInputBubbleContainer
+                            || searchContainer != null && searchContainer.getVisibility() == View.VISIBLE
+                            || bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE
+                            || !chatActivityEnterView.getGlassgramSegments(out)) {
+                        return false;
                     }
+                    final float dx = chatInputBubbleContainer.getX() + chatActivityEnterView.getX();
+                    for (int i = 0; i < out.length; i += 2) {
+                        if (out[i] >= 0) {
+                            out[i] += dx;
+                            out[i + 1] += dx;
+                        }
+                    }
+                    return true;
                 }
-                return true;
+
+                @Override
+                public LiquidPressEffect getPress(int segment) {
+                    return chatActivityEnterView == null ? null : chatActivityEnterView.getGlassgramPress(segment);
+                }
             });
 
 

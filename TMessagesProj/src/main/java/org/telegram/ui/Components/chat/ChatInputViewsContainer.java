@@ -19,6 +19,7 @@ import androidx.annotation.NonNull;
 
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.inset.InAppKeyboardInsetView;
@@ -111,6 +112,11 @@ public class ChatInputViewsContainer extends FrameLayout {
      */
     public interface GlassgramSegmentsProvider {
         boolean getSegments(float[] out);
+
+        /** The Liquid Glass press of a piece (it swells and stretches under the finger), or null. */
+        default LiquidPressEffect getPress(int segment) {
+            return null;
+        }
     }
 
     public static final int SEGMENT_MENU = 0, SEGMENT_ATTACH = 1, SEGMENT_FIELD = 2, SEGMENT_SEND = 3;
@@ -120,6 +126,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     private Utilities.Callback0Return<BlurredBackgroundDrawable> glassgramSegmentFactory;
     private final BlurredBackgroundDrawable[] glassgramSegmentDrawables = new BlurredBackgroundDrawable[SEGMENT_COUNT];
     private final float[] glassgramSegments = new float[SEGMENT_COUNT * 2];
+    private final RectF glassgramMovedRect = new RectF();
     private int glassgramSegmentsAlpha = 255;
 
     public void setGlassgramSegments(Utilities.Callback0Return<BlurredBackgroundDrawable> factory, GlassgramSegmentsProvider provider) {
@@ -158,9 +165,29 @@ public class ChatInputViewsContainer extends FrameLayout {
             if (drawable == null) {
                 return false;
             }
-            drawable.setBounds(Math.round(left) - pad, i == SEGMENT_FIELD ? island.top : buttonTop, Math.round(right) + pad, island.bottom);
+            final int top = i == SEGMENT_FIELD ? island.top : buttonTop;
             drawable.setAlpha(glassgramSegmentsAlpha);
+            final LiquidPressEffect press = glassgramSegmentsProvider.getPress(i);
+            if (press == null || !press.isActive()) {
+                drawable.setRadiusScale(1f);
+                drawable.setBounds(Math.round(left) - pad, top, Math.round(right) + pad, island.bottom);
+                drawable.draw(canvas);
+                continue;
+            }
+            // Pressed, the glass goes where the press moved it and refracts what is under it there,
+            // its corners growing with it so the circles stay round
+            final float visibleTop = top + pad, visibleBottom = island.bottom - pad;
+            press.mapRect(left, visibleTop, right, visibleBottom, glassgramMovedRect);
+            drawable.setRadiusScale(LiquidPressEffect.radiusScale(right - left, visibleBottom - visibleTop, glassgramMovedRect));
+            drawable.setBounds(
+                Math.round(glassgramMovedRect.left) - pad, Math.round(glassgramMovedRect.top) - pad,
+                Math.round(glassgramMovedRect.right) + pad, Math.round(glassgramMovedRect.bottom) + pad);
             drawable.draw(canvas);
+            canvas.save();
+            canvas.translate(glassgramMovedRect.left, glassgramMovedRect.top);
+            press.drawGlow(canvas, glassgramMovedRect.width(), glassgramMovedRect.height(),
+                Math.min(glassgramMovedRect.width(), glassgramMovedRect.height()) / 2f);
+            canvas.restore();
         }
         return true;
     }

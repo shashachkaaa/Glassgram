@@ -2652,6 +2652,19 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
                 return super.dispatchTouchEvent(ev);
             }
+
+            @Override
+            protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                if (child != null && child == sendButtonContainer) {
+                    // Glassgram: the send button moves with its pressed glass circle
+                    canvas.save();
+                    glassgramTransform(canvas, GLASSGRAM_SEGMENT_SEND, getX(), getY());
+                    final boolean result = super.drawChild(canvas, child, drawingTime);
+                    canvas.restore();
+                    return result;
+                }
+                return super.drawChild(canvas, child, drawingTime);
+            }
         };
         textFieldContainer.setClipChildren(false);
         textFieldContainer.setClipToPadding(false);
@@ -2689,6 +2702,15 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             @Override
             protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                if (child != null && (child == attachButton || child == botCommandsMenuButton)) {
+                    // Glassgram: the button moves with its pressed glass piece
+                    canvas.save();
+                    glassgramTransform(canvas, child == attachButton ? GLASSGRAM_SEGMENT_ATTACH : GLASSGRAM_SEGMENT_MENU,
+                        textFieldContainer.getX() + getX(), textFieldContainer.getY() + getY());
+                    final boolean result = super.drawChild(canvas, child, drawingTime);
+                    canvas.restore();
+                    return result;
+                }
                 if (child != null && child == messageEditText) {
                     return drawMessageEditText(canvas, () -> super.drawChild(canvas, child, drawingTime));
                 }
@@ -14739,7 +14761,13 @@ public class ChatActivityEnterView extends FrameLayout implements
     /* Glassgram: the input split into glass pieces, like iOS: [menu] (attach) [field  emoji] (send) */
 
     private static final int GLASSGRAM_GAP = 6;
+    // the pieces, in the order of ChatInputViewsContainer's segments
+    private static final int GLASSGRAM_SEGMENT_MENU = 0, GLASSGRAM_SEGMENT_ATTACH = 1, GLASSGRAM_SEGMENT_FIELD = 2, GLASSGRAM_SEGMENT_SEND = 3;
     private int glassgramAttachLeft, glassgramFieldLeft;
+    // Liquid Glass press of the menu, attach and send pieces: swell, stretch towards the finger, a light under it
+    private final LiquidPressEffect[] glassgramPress = new LiquidPressEffect[4];
+    private final RectF[] glassgramRects = {new RectF(), new RectF(), new RectF(), new RectF()};
+    private int glassgramPressed = -1;
     private final float[] glassgramSegments = new float[8], glassgramLastSegments = new float[8];
     private boolean glassgramLastSplit;
     private Runnable glassgramSegmentsListener;
@@ -14833,6 +14861,85 @@ public class ChatActivityEnterView extends FrameLayout implements
         return true;
     }
 
+    /** The press of a piece for the glass drawn behind it, or null. */
+    public LiquidPressEffect getGlassgramPress(int segment) {
+        return glassgramLastSplit && segment >= 0 && segment < glassgramPress.length ? glassgramPress[segment] : null;
+    }
+
+    private LiquidPressEffect glassgramPress(int segment) {
+        if (glassgramPress[segment] == null) {
+            glassgramPress[segment] = new LiquidPressEffect(this);
+        }
+        return glassgramPress[segment];
+    }
+
+    private boolean glassgramPressActive() {
+        for (LiquidPressEffect effect : glassgramPress) {
+            if (effect != null && effect.isActive()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The pieces' rects in this view, from their x ranges: buttons one line high at the bottom, the field as tall as it is. */
+    private void glassgramUpdateRects(float[] segments) {
+        final float bottom = textFieldContainer.getY() + textFieldContainer.getHeight();
+        final float fieldTop = textFieldContainer.getY() + messageEditTextContainer.getY();
+        for (int i = 0; i < glassgramRects.length; i++) {
+            final float left = segments[i * 2], right = segments[i * 2 + 1];
+            if (left < 0 || right <= left) {
+                glassgramRects[i].setEmpty();
+            } else {
+                glassgramRects[i].set(left, i == GLASSGRAM_SEGMENT_FIELD ? fieldTop : bottom - dp(DEFAULT_HEIGHT), right, bottom);
+            }
+        }
+    }
+
+    /** Moves what a pressed piece carries with its glass; parentX, parentY: where the drawing parent is in this view. */
+    private void glassgramTransform(Canvas canvas, int segment, float parentX, float parentY) {
+        final LiquidPressEffect effect = glassgramPress[segment];
+        if (!glassgramLastSplit || effect == null || !effect.isActive() || glassgramRects[segment].isEmpty()) {
+            return;
+        }
+        final RectF r = glassgramRects[segment];
+        canvas.translate(r.left - parentX, r.top - parentY);
+        effect.transform(canvas, r.width(), r.height());
+        canvas.translate(parentX - r.left, parentY - r.top);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        glassgramTouch(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private void glassgramTouch(MotionEvent ev) {
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassgramPressed = -1;
+            if (glassgramSplit() && getGlassgramSegments(glassgramSegments)) {
+                glassgramUpdateRects(glassgramSegments);
+                for (int segment : new int[]{GLASSGRAM_SEGMENT_ATTACH, GLASSGRAM_SEGMENT_SEND, GLASSGRAM_SEGMENT_MENU}) {
+                    if (glassgramRects[segment].contains(ev.getX(), ev.getY())) {
+                        glassgramPressed = segment;
+                        break;
+                    }
+                }
+            }
+        }
+        if (glassgramPressed < 0 || action != MotionEvent.ACTION_DOWN && action != MotionEvent.ACTION_MOVE
+                && action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) {
+            return;
+        }
+        final RectF r = glassgramRects[glassgramPressed];
+        glassgramPress(glassgramPressed).onTouch(action, ev.getX() - r.left, ev.getY() - r.top);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            glassgramPressed = -1;
+        }
+        invalidate();
+    }
+
     private void glassgramCheckSegments() {
         final boolean split = glassgramSplit();
         if (split && glassgramAttachPinned() && attachButton.getVisibility() == VISIBLE
@@ -14846,7 +14953,16 @@ public class ChatActivityEnterView extends FrameLayout implements
             return;
         }
         final boolean has = split && getGlassgramSegments(glassgramSegments);
-        if (has != glassgramLastSplit || has && !java.util.Arrays.equals(glassgramSegments, glassgramLastSegments)) {
+        if (has) {
+            glassgramUpdateRects(glassgramSegments);
+        }
+        final boolean pressed = has && glassgramPressActive();
+        if (pressed) {
+            // the buttons are drawn moved by their parents: redraw them with this frame
+            textFieldContainer.invalidate();
+            messageEditTextContainer.invalidate();
+        }
+        if (pressed || has != glassgramLastSplit || has && !java.util.Arrays.equals(glassgramSegments, glassgramLastSegments)) {
             glassgramLastSplit = has;
             System.arraycopy(glassgramSegments, 0, glassgramLastSegments, 0, glassgramSegments.length);
             glassgramSegmentsListener.run();
