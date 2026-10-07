@@ -421,6 +421,12 @@
     <string name="GlassgramStickerShapeDefault">Обычная</string>
     <string name="GlassgramStickerShapeRounded">Скруглённая</string>
     <string name="GlassgramStickerShapeMessage">Как сообщение</string>
+    <string name="GlassgramStickerSizeSmall">Маленький</string>
+    <string name="GlassgramStickerSizeLarge">Большой</string>
+    <string name="GlassgramStickerPreviewLine1">Покажи свой лучший стикер</string>
+    <string name="GlassgramStickerPreviewLine2">Вау, какой милый!</string>
+    <string name="GlassgramNumberRoundingExample">1,23 тыс. → 1 234</string>
+    <string name="GlassgramTimeWithSecondsExample">12:34 → 12:34:56</string>
     <string name="GlassgramHideReactions">Скрыть реакции</string>
     <string name="GlassgramHideReactionsInfo">Реакции будут полностью скрыты из интерфейса.</string>
     <string name="GlassgramChannels">Каналы</string>

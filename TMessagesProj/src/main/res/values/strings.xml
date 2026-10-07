@@ -11389,6 +11389,12 @@
     <string name="GlassgramStickerShapeDefault">Default</string>
     <string name="GlassgramStickerShapeRounded">Rounded</string>
     <string name="GlassgramStickerShapeMessage">Message</string>
+    <string name="GlassgramStickerSizeSmall">Small</string>
+    <string name="GlassgramStickerSizeLarge">Large</string>
+    <string name="GlassgramStickerPreviewLine1">Show me your best sticker</string>
+    <string name="GlassgramStickerPreviewLine2">Woah, so cute!</string>
+    <string name="GlassgramNumberRoundingExample">1.23K → 1,234</string>
+    <string name="GlassgramTimeWithSecondsExample">12:34 → 12:34:56</string>
     <string name="GlassgramHideReactions">Hide Reactions</string>
     <string name="GlassgramHideReactionsInfo">Reactions will be completely hidden from the interface.</string>
     <string name="GlassgramChannels">Channels</string>
