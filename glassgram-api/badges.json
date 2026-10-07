@@ -92,7 +92,11 @@
       "badge": "critic",
       "text": "Пидорас"
     },
-    "6090475162": "supporter"
+    "6090475162": "supporter",
+    "8048923927": {
+      "badge": "glassgram",
+      "text": "Официальный бот шпион от glassGram."
+    }
   },
   "usernames": {
     "glassgramdev": {
