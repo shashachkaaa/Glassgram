@@ -11260,6 +11260,7 @@
     <string name="GlassgramHideStories">Hide Stories</string>
     <string name="GlassgramHeaderBadge">My Badge in the Header</string>
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
+    <string name="GlassgramSplitInput">Split Message Field</string>
     <string name="GlassgramUpdateTitle">Glassgram update</string>
     <string name="GlassgramUpdateText">Glassgram %1$s is out. You have %2$s.</string>
     <string name="GlassgramUpdateDownload">Download</string>

@@ -4604,6 +4604,26 @@ public class ChatActivity extends BaseFragment implements
             glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider));
         chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(
             glassBackgroundDrawableFactoryFrosted.create(chatInputViewsContainer, blurredBackgroundColorProvider));
+        // Glassgram: the input as separate glass pieces (attach circle, field, send circle, bots' menu)
+        chatInputViewsContainer.setGlassgramSegments(
+            () -> glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider),
+            out -> {
+                if (chatActivityEnterView == null || chatActivityEnterView.getVisibility() != View.VISIBLE
+                        || chatActivityEnterView.getParent() != chatInputBubbleContainer
+                        || searchContainer != null && searchContainer.getVisibility() == View.VISIBLE
+                        || bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE
+                        || !chatActivityEnterView.getGlassgramSegments(out)) {
+                    return false;
+                }
+                final float dx = chatInputBubbleContainer.getX() + chatActivityEnterView.getX();
+                for (int i = 0; i < out.length; i += 2) {
+                    if (out[i] >= 0) {
+                        out[i] += dx;
+                        out[i + 1] += dx;
+                    }
+                }
+                return true;
+            });
 
 
         chatInputBubbleContainer = chatInputViewsContainer.getInputIslandBubbleContainer();
@@ -8092,6 +8112,7 @@ public class ChatActivity extends BaseFragment implements
         checkSendButtonBlockedByTyping(false);
 
         chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0));
+        chatActivityEnterView.setGlassgramSegmentsListener(chatInputViewsContainer::invalidate);
 
         int chatListIndex = contentView.indexOfChild(chatListView);
         chatListIndex = chatListIndex < 0 ? contentView.getChildCount() : (chatListIndex + 1);

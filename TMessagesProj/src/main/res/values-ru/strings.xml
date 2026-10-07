@@ -288,6 +288,7 @@
     <string name="GlassgramHideStories">Скрыть истории</string>
     <string name="GlassgramHeaderBadge">Мой значок в шапке</string>
     <string name="GlassgramGlassHeader">Стеклянная шапка списка чатов</string>
+    <string name="GlassgramSplitInput">Раздельное поле ввода</string>
     <string name="GlassgramUpdateTitle">Обновление Glassgram</string>
     <string name="GlassgramUpdateText">Вышел Glassgram %1$s. У вас %2$s.</string>
     <string name="GlassgramUpdateDownload">Скачать</string>

@@ -17,6 +17,7 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 
+import org.telegram.messenger.Utilities;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
@@ -93,7 +94,75 @@ public class ChatInputViewsContainer extends FrameLayout {
     public void updateColors() {
         blurredBackgroundDrawable.updateColors();
         underKeyboardBackgroundDrawable.updateColors();
+        for (BlurredBackgroundDrawable drawable : glassgramSegmentDrawables) {
+            if (drawable != null) {
+                drawable.updateColors();
+            }
+        }
         invalidate();
+    }
+
+    /* Glassgram: the input as separate glass pieces */
+
+    /**
+     * Where the pieces are: fills out with [left, right] pairs of the visible shapes, in this view's
+     * x, for the bots' menu, the attach circle, the field and the send circle (a left below 0 skips
+     * that piece). Returns false to draw the single island instead.
+     */
+    public interface GlassgramSegmentsProvider {
+        boolean getSegments(float[] out);
+    }
+
+    public static final int SEGMENT_MENU = 0, SEGMENT_ATTACH = 1, SEGMENT_FIELD = 2, SEGMENT_SEND = 3;
+    private static final int SEGMENT_COUNT = 4;
+
+    private GlassgramSegmentsProvider glassgramSegmentsProvider;
+    private Utilities.Callback0Return<BlurredBackgroundDrawable> glassgramSegmentFactory;
+    private final BlurredBackgroundDrawable[] glassgramSegmentDrawables = new BlurredBackgroundDrawable[SEGMENT_COUNT];
+    private final float[] glassgramSegments = new float[SEGMENT_COUNT * 2];
+    private int glassgramSegmentsAlpha = 255;
+
+    public void setGlassgramSegments(Utilities.Callback0Return<BlurredBackgroundDrawable> factory, GlassgramSegmentsProvider provider) {
+        glassgramSegmentFactory = factory;
+        glassgramSegmentsProvider = provider;
+        invalidate();
+    }
+
+    private BlurredBackgroundDrawable glassgramSegmentDrawable(int index) {
+        BlurredBackgroundDrawable drawable = glassgramSegmentDrawables[index];
+        if (drawable == null && glassgramSegmentFactory != null) {
+            drawable = glassgramSegmentDrawables[index] = glassgramSegmentFactory.run();
+            if (drawable != null) {
+                drawable.setPadding(dp(7));
+                drawable.setRadius(dp(INPUT_BUBBLE_RADIUS));
+            }
+        }
+        return drawable;
+    }
+
+    /** Draws the pieces around the island rect (bounds with the drawables' padding); false when there are none. */
+    private boolean drawGlassgramSegments(Canvas canvas, Rect island) {
+        if (glassgramSegmentsProvider == null || inputBubbleOffsetLeft != 0 || inputBubbleOffsetRight != 0
+                || !glassgramSegmentsProvider.getSegments(glassgramSegments)) {
+            return false;
+        }
+        final int pad = dp(7);
+        // Buttons keep the one-line height at the bottom while the field grows
+        final int buttonTop = Math.max(island.top, island.bottom - dp(INPUT_BUBBLE_RADIUS * 2) - pad * 2);
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            final float left = glassgramSegments[i * 2], right = glassgramSegments[i * 2 + 1];
+            if (left < 0 || right - left < dp(8)) {
+                continue;
+            }
+            final BlurredBackgroundDrawable drawable = glassgramSegmentDrawable(i);
+            if (drawable == null) {
+                return false;
+            }
+            drawable.setBounds(Math.round(left) - pad, i == SEGMENT_FIELD ? island.top : buttonTop, Math.round(right) + pad, island.bottom);
+            drawable.setAlpha(glassgramSegmentsAlpha);
+            drawable.draw(canvas);
+        }
+        return true;
     }
 
 
@@ -269,7 +338,7 @@ public class ChatInputViewsContainer extends FrameLayout {
         tmpRect.offset(0, blurTop + (int) bubbleInputTranlationY);
 
         blurredBackgroundDrawable.setBounds(tmpRect);
-        if (drawInputBackground)
+        if (drawInputBackground && !drawGlassgramSegments(canvas, tmpRect))
             blurredBackgroundDrawable.draw(canvas);
 
         if (needDrawInAppKeyboard) {
@@ -320,6 +389,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     }
 
     public void setInputBubbleAlpha(int alpha) {
+        glassgramSegmentsAlpha = alpha;
         if (blurredBackgroundDrawable != null) {
             blurredBackgroundDrawable.setAlpha(alpha);
         }

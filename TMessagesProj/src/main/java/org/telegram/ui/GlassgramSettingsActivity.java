@@ -118,6 +118,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_HEADER_BADGE = 91;
     private static final int ID_GLASS_HEADER = 92;
     private static final int ID_HIDE_FAB = 22;
+    private static final int ID_SPLIT_INPUT = 118;
 
     private static final int ID_HIDE_STICKER_TIME = 30;
     private static final int ID_NO_GREETING = 31;
@@ -243,6 +244,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HEADER_BADGE, getString(R.string.GlassgramHeaderBadge)).setChecked(GlassgramConfig.headerBadge));
                 items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
+                items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
                 break;
             case PAGE_CHATS: {
@@ -545,6 +547,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_HIDE_FAB:
                 value = GlassgramConfig.hideFloatingButton = !GlassgramConfig.hideFloatingButton;
                 GlassgramConfig.putBoolean("hideFloatingButton", value);
+                break;
+            case ID_SPLIT_INPUT:
+                value = GlassgramConfig.splitInput = !GlassgramConfig.splitInput;
+                GlassgramConfig.putBoolean("splitInput", value);
                 break;
             case ID_HIDE_STICKER_TIME:
                 value = GlassgramConfig.hideTimeOnStickers = !GlassgramConfig.hideTimeOnStickers;

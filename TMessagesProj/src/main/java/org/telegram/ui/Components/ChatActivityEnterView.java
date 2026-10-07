@@ -2703,6 +2703,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         emojiButton = new ChatActivityEnterViewAnimatedIconView(context) {
             @Override
+            public void setTranslationX(float translationX) {
+                // Glassgram: in the split input it sits at the field's right end, away from the left-side shifts
+                super.setTranslationX(glassgramSplit() ? 0 : translationX);
+            }
+
+            @Override
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 if (getTag() != null && attachLayout != null && !emojiViewVisible && !MediaDataController.getInstance(currentAccount).getUnreadStickerSets().isEmpty() && dotPaint != null) {
@@ -2831,6 +2837,27 @@ public class ChatActivityEnterView extends FrameLayout implements
                 public boolean dispatchTouchEvent(MotionEvent event) {
                     if (getAlpha() < 0.5f) return false;
                     return super.dispatchTouchEvent(event);
+                }
+
+                // Glassgram: in the split input the attach circle stays, also while typing
+                @Override
+                public void setAlpha(float alpha) {
+                    super.setAlpha(glassgramAttachPinned() ? 1f : alpha);
+                }
+
+                @Override
+                public void setScaleX(float scaleX) {
+                    super.setScaleX(glassgramAttachPinned() ? 1f : scaleX);
+                }
+
+                @Override
+                public void setScaleY(float scaleY) {
+                    super.setScaleY(glassgramAttachPinned() ? 1f : scaleY);
+                }
+
+                @Override
+                public void setTranslationX(float translationX) {
+                    super.setTranslationX(glassgramSplit() ? 0 : translationX);
                 }
             };
             attachButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -8793,6 +8820,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (doneButton != null && doneButton.getVisibility() == VISIBLE) {
             layoutParams.rightMargin = Math.max(layoutParams.rightMargin, Math.max(0, doneButton.width() - dp(DEFAULT_HEIGHT)));
         }
+        if (glassgramSplit()) {
+            // the emoji button is at the field's right end in the split input, typing or not
+            layoutParams.rightMargin = Math.max(layoutParams.rightMargin, dp(50));
+        }
         if (oldRightMargin != layoutParams.rightMargin) {
             messageEditText.setLayoutParams(layoutParams);
         }
@@ -14558,6 +14589,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 ((MarginLayoutParams) richDraftPreview.getLayoutParams()).leftMargin = dp(50);
             }
         }
+        glassgramApplySplitLayout();
         updateBotCommandsMenuContainerTopPadding();
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
@@ -14692,6 +14724,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        glassgramCheckSegments();
         if (emojiView == null || emojiView.getVisibility() != View.VISIBLE || emojiView.getStickersExpandOffset() == 0) {
             super.dispatchDraw(canvas);
         } else {
@@ -14700,6 +14733,123 @@ public class ChatActivityEnterView extends FrameLayout implements
             canvas.translate(0, -emojiView.getStickersExpandOffset());
             super.dispatchDraw(canvas);
             canvas.restore();
+        }
+    }
+
+    /* Glassgram: the input split into glass pieces, like iOS: [menu] (attach) [field  emoji] (send) */
+
+    private static final int GLASSGRAM_GAP = 6;
+    private int glassgramAttachLeft, glassgramFieldLeft;
+    private final float[] glassgramSegments = new float[8], glassgramLastSegments = new float[8];
+    private boolean glassgramLastSplit;
+    private Runnable glassgramSegmentsListener;
+
+    public boolean glassgramSplit() {
+        // not where the attach button lives in the side controls (scheduled messages, comments)
+        return org.telegram.messenger.GlassgramConfig.splitInput && isChat && !isStories && attachButton != null && parentFragment != null && sideButtons == null;
+    }
+
+    /** The attach circle stays shown, except while a voice or a video message is recorded or edited. */
+    private boolean glassgramAttachPinned() {
+        return glassgramSplit() && !recordingAudioVideo && editingMessageObject == null
+            && (recordedAudioPanel == null || recordedAudioPanel.getVisibility() != VISIBLE);
+    }
+
+    /** Called when the pieces move, to redraw the glass behind them. */
+    public void setGlassgramSegmentsListener(Runnable listener) {
+        glassgramSegmentsListener = listener;
+    }
+
+    /** Lays out the split input: the bots' menu, the attach circle, then the field with the emoji button at its end. */
+    private void glassgramApplySplitLayout() {
+        if (!glassgramSplit()) {
+            return;
+        }
+        final boolean menu = botCommandsMenuButton != null && botCommandsMenuButton.getTag() != null;
+        if (botCommandsMenuButton != null) {
+            botCommandsMenuButton.setGlassgramStyle(true);
+        }
+        glassgramAttachLeft = menu ? dp(8 + 6 + GLASSGRAM_GAP) + botCommandsMenuButton.getMeasuredWidth() : 0;
+        glassgramFieldLeft = glassgramAttachLeft + dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
+
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) attachButton.getLayoutParams();
+        lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
+        lp.leftMargin = glassgramAttachLeft;
+        lp.rightMargin = 0;
+        lp = (FrameLayout.LayoutParams) emojiButton.getLayoutParams();
+        lp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+        lp.leftMargin = 0;
+        lp.rightMargin = dp(2);
+        if (deleteRichDraftButton != null) {
+            lp = (FrameLayout.LayoutParams) deleteRichDraftButton.getLayoutParams();
+            lp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+            lp.leftMargin = 0;
+            lp.rightMargin = dp(2);
+        }
+        int textLeft = glassgramFieldLeft + dp(14);
+        if (senderSelectView != null && senderSelectView.getVisibility() == View.VISIBLE) {
+            lp = (FrameLayout.LayoutParams) senderSelectView.getLayoutParams();
+            lp.leftMargin = glassgramFieldLeft + dp(4);
+            textLeft = glassgramFieldLeft + dp(4 + 8) + lp.width;
+        }
+        if (messageEditText != null) {
+            ((MarginLayoutParams) messageEditText.getLayoutParams()).leftMargin = textLeft;
+        }
+        if (richDraftPreview != null) {
+            ((MarginLayoutParams) richDraftPreview.getLayoutParams()).leftMargin = textLeft - dp(8);
+        }
+        ((MarginLayoutParams) messageEditTextContainer.getLayoutParams()).rightMargin = dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
+    }
+
+    /**
+     * The glass pieces in this view's x: [left, right] of the bots' menu, the attach circle, the
+     * field and the send circle (a left below 0 skips one). False draws the single island, as while recording.
+     */
+    public boolean getGlassgramSegments(float[] out) {
+        if (!glassgramSplit() || recordingAudioVideo || getVisibility() != VISIBLE || messageEditTextContainer == null
+                || recordedAudioPanel != null && recordedAudioPanel.getVisibility() == VISIBLE
+                || botWebViewButton != null && botWebViewButton.getVisibility() == VISIBLE) {
+            return false;
+        }
+        final float base = textFieldContainer.getX() + messageEditTextContainer.getX();
+        if (botCommandsMenuButton != null && botCommandsMenuButton.getTag() != null && botCommandsMenuButton.getVisibility() == VISIBLE) {
+            out[0] = base + botCommandsMenuButton.getX() - dp(6);
+            out[1] = base + botCommandsMenuButton.getX() + botCommandsMenuButton.getGlassgramVisualWidth() + dp(6);
+        } else {
+            out[0] = out[1] = -1;
+        }
+        final boolean attach = attachButton.getVisibility() == VISIBLE && attachButton.getAlpha() > 0.5f;
+        if (attach) {
+            out[2] = base + attachButton.getX();
+            out[3] = out[2] + dp(DEFAULT_HEIGHT);
+        } else {
+            out[2] = out[3] = -1;
+        }
+        // without the attach circle the field takes its place
+        out[4] = base + (attach ? glassgramFieldLeft : glassgramAttachLeft);
+        out[5] = base + messageEditTextContainer.getMeasuredWidth();
+        out[6] = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
+        out[7] = getMeasuredWidth();
+        return true;
+    }
+
+    private void glassgramCheckSegments() {
+        final boolean split = glassgramSplit();
+        if (split && glassgramAttachPinned() && attachButton.getVisibility() == VISIBLE
+                && (attachButton.getAlpha() != 1f || attachButton.getScaleX() != 1f || attachButton.getScaleY() != 1f)) {
+            // shown again after recording, when the alpha left by the hiding animation stays
+            attachButton.setAlpha(1f);
+            attachButton.setScaleX(1f);
+            attachButton.setScaleY(1f);
+        }
+        if (glassgramSegmentsListener == null) {
+            return;
+        }
+        final boolean has = split && getGlassgramSegments(glassgramSegments);
+        if (has != glassgramLastSplit || has && !java.util.Arrays.equals(glassgramSegments, glassgramLastSegments)) {
+            glassgramLastSplit = has;
+            System.arraycopy(glassgramSegments, 0, glassgramLastSegments, 0, glassgramSegments.length);
+            glassgramSegmentsListener.run();
         }
     }
 

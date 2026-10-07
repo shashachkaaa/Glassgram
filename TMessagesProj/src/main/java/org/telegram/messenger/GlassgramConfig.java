@@ -51,6 +51,8 @@ public class GlassgramConfig {
     public static boolean hideStories;
     public static boolean headerBadge = true;
     public static boolean glassHeader = true;
+    /** The message input split into glass pieces: attach circle, field, send circle (and the bots' menu). */
+    public static boolean splitInput = true;
     public static boolean hideFloatingButton;
 
     // Chats
@@ -159,6 +161,7 @@ public class GlassgramConfig {
         hideStories = p.getBoolean("hideStories", false);
         headerBadge = p.getBoolean("headerBadge", true);
         glassHeader = p.getBoolean("glassHeader", true);
+        splitInput = p.getBoolean("splitInput", true);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);
         disableGreetingSticker = p.getBoolean("disableGreetingSticker", false);

@@ -97,9 +97,27 @@ public class BotCommandsMenuView extends View {
         invalidate();
     }
 
+    private boolean glassgramStyle;
+
+    /** Glassgram: a gray pill with white text, for the menu's own glass piece in the split input. */
+    public void setGlassgramStyle(boolean glassgramStyle) {
+        if (this.glassgramStyle != glassgramStyle) {
+            this.glassgramStyle = glassgramStyle;
+            updateColors();
+            invalidate();
+        }
+    }
+
+    /** The pill's width as drawn, following the expand animation. */
+    public float getGlassgramVisualWidth() {
+        return AndroidUtilities.dp(40) + (menuTextWidth + AndroidUtilities.dp(4)) * CubicBezierInterpolator.DEFAULT.getInterpolation(expandProgress);
+    }
+
     private void updateColors() {
-        paint.setColor(Theme.getColor(Theme.key_chat_messagePanelVoiceBackground));
-        int textColor = Theme.getColor(Theme.key_chat_messagePanelVoiceDuration);
+        paint.setColor(glassgramStyle
+            ? Theme.multAlpha(Theme.getColor(Theme.key_glass_defaultIcon), 0.45f)
+            : Theme.getColor(Theme.key_chat_messagePanelVoiceBackground));
+        int textColor = glassgramStyle ? 0xFFFFFFFF : Theme.getColor(Theme.key_chat_messagePanelVoiceDuration);
         backDrawable.setBackColor(textColor);
         backDrawable.setIconColor(textColor);
         if (webViewAnimation != null) {
