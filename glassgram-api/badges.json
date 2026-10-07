@@ -37,7 +37,7 @@
       }
     },
     "supporter": {
-      "icon": "star",
+      "icon": "supporter",
       "donate_bot": "glassGramBot",
       "text": {
         "en": "Supported Glassgram development.",

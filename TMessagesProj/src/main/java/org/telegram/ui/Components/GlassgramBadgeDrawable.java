@@ -1,10 +1,13 @@
 package org.telegram.ui.Components;
 
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
@@ -13,6 +16,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.R;
 import org.telegram.messenger.utils.Choreographer60FpsContent;
@@ -38,7 +42,7 @@ public class GlassgramBadgeDrawable extends Drawable {
     private final Runnable invalidate = this::invalidateSelf;
     private int size;
     private int color = 0xFFFFFFFF;
-    private int lastColor;
+    private int lastColor, lastGlyphColor;
     private long lastProcess;
     /** Called once per frame drawn, for hosts that are not this drawable's callback. */
     Runnable onFrame;
@@ -87,18 +91,59 @@ public class GlassgramBadgeDrawable extends Drawable {
         }
     }
 
-    /** Draws the badge of badgeSize at left, top in color. */
-    public void draw(Canvas canvas, int left, int top, int badgeSize, int color) {
-        color |= 0xFF000000;
-        if (color != lastColor) {
+    /**
+     * The badge's colors follow the theme the way Telegram's verified mark does: the theme's
+     * verified color with a white glyph next to plain names. A colored host (an accent passed on
+     * purpose, a secret chat's green name) keeps its color, and over a cover or a photo, where a
+     * light theme draws the name white, the badge is white with the glyph cut out.
+     */
+    private static boolean isCutout(int nameColor) {
+        return !Theme.isCurrentThemeDark() && !isColored(nameColor) && AndroidUtilities.computePerceivedBrightness(nameColor) > 0.75f;
+    }
+
+    private static boolean isColored(int color) {
+        final float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        return hsv[1] > 0.25f && hsv[2] > 0.2f;
+    }
+
+    private static int fillColor(int nameColor) {
+        if (isColored(nameColor) || isCutout(nameColor)) {
+            return nameColor;
+        }
+        return Theme.getColor(Theme.key_chats_verifiedBackground);
+    }
+
+    private final Paint cutoutPaint = new Paint();
+    private boolean lastCutout;
+
+    /** Draws the badge of badgeSize at left, top, next to a name in nameColor. */
+    public void draw(Canvas canvas, int left, int top, int badgeSize, int nameColor) {
+        nameColor |= 0xFF000000;
+        final boolean cutout = isCutout(nameColor);
+        final int color = fillColor(nameColor) | 0xFF000000;
+        final int glyphColor = Theme.getColor(Theme.key_chats_verifiedCheck) | 0xFF000000;
+        if (color != lastColor || cutout != lastCutout || glyphColor != lastGlyphColor) {
             lastColor = color;
-            shape.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(color, 0.3f), PorterDuff.Mode.SRC_IN));
-            glyph.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+            lastCutout = cutout;
+            lastGlyphColor = glyphColor;
+            shape.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+            glyph.setColorFilter(new PorterDuffColorFilter(cutout ? 0xFF000000 : glyphColor, PorterDuff.Mode.SRC_IN));
         }
         shape.setBounds(left, top, left + badgeSize, top + badgeSize);
-        shape.draw(canvas);
         glyph.setBounds(left, top, left + badgeSize, top + badgeSize);
-        glyph.draw(canvas);
+        if (cutout) {
+            // A white rosette with the glyph showing the cover through it
+            cutoutPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+            final int layer = canvas.saveLayer(left, top, left + badgeSize, top + badgeSize, null);
+            shape.draw(canvas);
+            canvas.saveLayer(left, top, left + badgeSize, top + badgeSize, cutoutPaint);
+            glyph.draw(canvas);
+            canvas.restoreToCount(layer);
+        } else {
+            shape.draw(canvas);
+            glyph.draw(canvas);
+        }
 
         // Sparkles in the badge's own coordinates: the same badge can be drawn in several
         // places at once (the profile draws the name twice) and they all must match

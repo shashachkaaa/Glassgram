@@ -110,19 +110,20 @@ public final class GlassgramBadges {
                     return R.drawable.glassgram_badge_code;
                 case "shield":
                     return R.drawable.glassgram_badge_shield;
+                case "supporter":
+                    return R.drawable.glassgram_badge_supporter;
                 case "arrow":
                 default:
                     return R.drawable.glassgram_badge_arrow;
             }
         }
 
-        /** The badge drawn still at sizePx for bulletins, in the bulletin text color. */
+        /** The badge drawn still at sizePx for bulletins, in the theme's verified colors. */
         public Drawable createDrawable(Context context, int sizePx) {
             Drawable shape = ContextCompat.getDrawable(context, R.drawable.glassgram_badge_shape).mutate();
-            int color = Theme.getColor(Theme.key_undo_infoColor);
-            shape.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(color, 0.3f), PorterDuff.Mode.SRC_IN));
+            shape.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chats_verifiedBackground), PorterDuff.Mode.SRC_IN));
             Drawable glyph = ContextCompat.getDrawable(context, getIconResId()).mutate();
-            glyph.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+            glyph.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chats_verifiedCheck), PorterDuff.Mode.SRC_IN));
             CombinedDrawable drawable = new CombinedDrawable(shape, glyph);
             drawable.setCustomSize(sizePx, sizePx);
             drawable.setIconSize(sizePx, sizePx);
