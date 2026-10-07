@@ -1,18 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glassgram badge glyph (supporter): the Glassgram arrow with a small star, drawn white on the badge's shape -->
+<!-- Glassgram badge glyph (supporter: the Glassgram arrow with a small star), drawn white on the badge's shape -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
-        android:pathData="M18.17,5.83 L11.51,12.49 L13.22,17.98 Z"
-        android:fillColor="#B3FFFFFF"
-        android:strokeColor="#B3FFFFFF"
-        android:strokeWidth="1.4"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M18.17,5.83 L6.02,10.78 L11.51,12.49 Z"
+        android:pathData="M18.17,5.83 L6.02,10.74 L12.19,11.8 L13.25,17.98 Z"
         android:fillColor="#FFFFFFFF"
         android:strokeColor="#FFFFFFFF"
         android:strokeWidth="1.4"

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glassgram badge glyph (arrow), drawn white on the badge's shape -->
+<!-- Glassgram notification icon: the launcher icon's pointer arrow, white on transparency for the status bar -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
-        android:pathData="M17.57,6.43 L5.42,11.34 L11.59,12.4 L12.65,18.58 Z"
+        android:pathData="M19.98,4.02 L4.02,10.48 L12.13,11.87 L13.52,19.98 Z"
         android:fillColor="#FFFFFFFF"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.4"
+        android:strokeWidth="1.6"
         android:strokeLineJoin="round" />
 </vector>
