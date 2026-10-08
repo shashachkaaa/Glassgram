@@ -3552,13 +3552,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             public void setAlpha(float alpha) {
                 super.setAlpha(alpha);
                 updateAttachButtonTranslationX();
-                glassgramSendStateChanged();
+                glassgramButtonsChanged();
             }
 
             @Override
             public void setVisibility(int visibility) {
                 super.setVisibility(visibility);
-                glassgramSendStateChanged();
+                glassgramButtonsChanged();
             }
         };
         sendButton.setVisibility(INVISIBLE);
@@ -4004,13 +4004,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             @Override
             public void setAlpha(float alpha) {
                 super.setAlpha(alpha);
-                glassgramSendStateChanged();
+                glassgramButtonsChanged();
             }
 
             @Override
             public void setVisibility(int visibility) {
                 super.setVisibility(visibility);
-                glassgramSendStateChanged();
+                glassgramButtonsChanged();
             }
         };
         doneButton.setContentDescription(getString(R.string.EditMessage));
@@ -6159,10 +6159,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             .scaleY(show ? 1.0f : 0.6f)
             .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
             .setDuration(420)
+            // split, the attach glass grows into a tall pill with it: redraw the input every frame
+            .setUpdateListener(a -> glassgramButtonsChanged())
             .withEndAction(() -> {
                 if (!show) {
                     aiButton.setVisibility(View.GONE);
                 }
+                glassgramButtonsChanged();
             })
             .start();
         if (show) {
@@ -14816,10 +14819,11 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     /**
-     * The send (done) button's hiding animation redraws only the button, not this view, so the
-     * field did not shrink back from it when the text was erased: redraw this view to follow it.
+     * The animations of the send (done) and AI buttons redraw only the button, not this view, so
+     * the glass behind them did not follow (the field stayed over the erased send button, the AI
+     * pill popped up at once): redraw this view to follow them.
      */
-    private void glassgramSendStateChanged() {
+    private void glassgramButtonsChanged() {
         if (glassgramSendInsideAnimated != null && glassgramSplit()) {
             invalidate();
         }
@@ -14944,8 +14948,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         // with the AI button shown the attach piece is a tall pill carrying both
         final int heightIndex = org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_ATTACH_HEIGHT;
         out[heightIndex] = 0;
-        if (attach && aiButton != null && aiButton.getVisibility() == VISIBLE && aiButton.getAlpha() > 0.5f) {
-            out[heightIndex] = textFieldContainer.getHeight() - aiButton.getY();
+        if (attach && aiButton != null && aiButton.getVisibility() == VISIBLE && aiButton.getAlpha() > 0f) {
+            // grows out of the attach circle as the AI button appears, and back into it
+            final float oneLine = dp(org.telegram.ui.Components.chat.ChatInputViewsContainer.INPUT_BUBBLE_RADIUS * 2);
+            final float tall = textFieldContainer.getHeight() - aiButton.getTop();
+            out[heightIndex] = AndroidUtilities.lerp(oneLine, tall, Math.min(1f, aiButton.getAlpha()));
         }
         return true;
     }
