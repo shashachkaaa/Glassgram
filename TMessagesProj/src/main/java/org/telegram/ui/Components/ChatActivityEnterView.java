@@ -14775,6 +14775,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     private final float[] glassgramSegments = new float[org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_VALUES];
     private final float[] glassgramLastSegments = new float[org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_VALUES];
     private boolean glassgramLastSplit, glassgramLaidOutSendInside;
+    // How far the field has grown over the send button (0: the send circle apart, 1: inside the field)
+    private AnimatedFloat glassgramSendInsideAnimated;
     private Runnable glassgramSegmentsListener;
 
     public boolean glassgramSplit() {
@@ -14895,12 +14897,18 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         // without the attach circle the field takes its place
         out[4] = base + (attach ? glassgramFieldLeft : glassgramAttachLeft);
-        if (glassgramSendInside()) {
-            // the send button is inside the field, which reaches the end
-            out[5] = getMeasuredWidth();
+        // With text the field grows over the send button, smoothly, and shrinks back from it
+        if (glassgramSendInsideAnimated == null) {
+            glassgramSendInsideAnimated = new AnimatedFloat(this, 0, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
+            glassgramSendInsideAnimated.set(glassgramSendInside(), true);
+        }
+        final float inside = glassgramSendInsideAnimated.set(glassgramSendInside());
+        final float fieldEnd = base + messageEditTextContainer.getMeasuredWidth();
+        out[5] = AndroidUtilities.lerp(fieldEnd, getMeasuredWidth(), inside);
+        if (inside > 0f) {
+            // the send button has the field's glass behind it now
             out[6] = out[7] = -1;
         } else {
-            out[5] = base + messageEditTextContainer.getMeasuredWidth();
             out[6] = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
             out[7] = getMeasuredWidth();
         }
