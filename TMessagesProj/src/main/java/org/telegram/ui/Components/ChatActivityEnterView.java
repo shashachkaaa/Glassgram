@@ -14634,6 +14634,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (wasHeight > 0 && textFieldContainer.getMeasuredHeight() != wasHeight) {
             for (int i = 0; i < 2; ++i) {
                 final View view = i == 0 ? aiButton : richButton;
+                if (view == aiButton && glassgramSplit()) {
+                    // held at the bottom by its gravity, it does not move with the field's height
+                    continue;
+                }
                 view.setTranslationY(view.getTranslationY() + textFieldContainer.getMeasuredHeight() - wasHeight);
                 view.animate()
                     .translationY(0)
@@ -14846,9 +14850,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             ((MarginLayoutParams) richDraftPreview.getLayoutParams()).leftMargin = textLeft - dp(8);
         }
         ((MarginLayoutParams) messageEditTextContainer.getLayoutParams()).rightMargin = dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
-        // The AI button sits above the attach button, on the same tall glass pill
+        // The AI button sits right above the attach button, the two on one glass pill whatever the field's height
         if (aiButton != null) {
-            ((MarginLayoutParams) aiButton.getLayoutParams()).leftMargin = glassgramAttachLeft;
+            final FrameLayout.LayoutParams aiLp = (FrameLayout.LayoutParams) aiButton.getLayoutParams();
+            aiLp.gravity = Gravity.BOTTOM | Gravity.LEFT;
+            aiLp.leftMargin = glassgramAttachLeft;
+            aiLp.topMargin = 0;
+            aiLp.bottomMargin = dp(DEFAULT_HEIGHT - 4);
         }
         // The reply, edit and forward panel is inside the field's glass: its line starts at the
         // text's left (the panel's texts are 52dp in, after the hidden icon), its close button at the field's end
