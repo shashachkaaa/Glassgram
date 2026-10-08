@@ -150,8 +150,36 @@ public class ChatInputViewsContainer extends FrameLayout {
         return drawable;
     }
 
+    /**
+     * While the rich editor opens from the field or closes into it, it morphs the field's glass
+     * itself and the input's background is off: the other pieces are still drawn here, faded by this.
+     */
+    public boolean glassgramMorphing;
+    public float glassgramMorphAlpha = 1f;
+    private final Rect glassgramIsland = new Rect();
+
+    /** Where the field's glass is (its bounds with the padding, in this view) while the input is split; false otherwise. */
+    public boolean getGlassgramFieldBounds(Rect out) {
+        if (glassgramSegmentsProvider == null || inputBubbleOffsetLeft != 0 || inputBubbleOffsetRight != 0
+                || !glassgramSegmentsProvider.getSegments(glassgramSegments)) {
+            return false;
+        }
+        final float left = glassgramSegments[SEGMENT_FIELD * 2], right = glassgramSegments[SEGMENT_FIELD * 2 + 1];
+        if (left < 0 || right - left < dp(8)) {
+            return false;
+        }
+        computeIslandRect(glassgramIsland);
+        final int pad = dp(7);
+        out.set(Math.round(left) - pad, glassgramIsland.top, Math.round(right) + pad, glassgramIsland.bottom);
+        return true;
+    }
+
     /** Draws the pieces around the island rect (bounds with the drawables' padding); false when there are none. */
     private boolean drawGlassgramSegments(Canvas canvas, Rect island) {
+        return drawGlassgramSegments(canvas, island, false);
+    }
+
+    private boolean drawGlassgramSegments(Canvas canvas, Rect island, boolean buttonsOnly) {
         if (glassgramSegmentsProvider == null || inputBubbleOffsetLeft != 0 || inputBubbleOffsetRight != 0
                 || !glassgramSegmentsProvider.getSegments(glassgramSegments)) {
             return false;
@@ -161,7 +189,7 @@ public class ChatInputViewsContainer extends FrameLayout {
         final int buttonTop = Math.max(island.top, island.bottom - dp(INPUT_BUBBLE_RADIUS * 2) - pad * 2);
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             final float left = glassgramSegments[i * 2], right = glassgramSegments[i * 2 + 1];
-            if (left < 0 || right - left < dp(8)) {
+            if (left < 0 || right - left < dp(8) || buttonsOnly && i == SEGMENT_FIELD) {
                 continue;
             }
             final BlurredBackgroundDrawable drawable = glassgramSegmentDrawable(i);
@@ -173,7 +201,7 @@ public class ChatInputViewsContainer extends FrameLayout {
                 // a tall pill for the AI button above the attach button, as on iOS
                 top = Math.max(island.top, island.bottom - Math.round(glassgramSegments[SEGMENT_ATTACH_HEIGHT]) - pad * 2);
             }
-            drawable.setAlpha(glassgramSegmentsAlpha);
+            drawable.setAlpha(buttonsOnly ? Math.round(glassgramSegmentsAlpha * Math.max(0f, Math.min(1f, glassgramMorphAlpha))) : glassgramSegmentsAlpha);
             final LiquidPressEffect press = glassgramSegmentsProvider.getPress(i);
             if (press == null || !press.isActive()) {
                 drawable.setRadiusScale(1f);
@@ -351,6 +379,19 @@ public class ChatInputViewsContainer extends FrameLayout {
     private final Rect tmpRect = new Rect();
     private final RectF tmpRectF = new RectF();
 
+    /** The input island's bounds, with the background's padding. */
+    private void computeIslandRect(Rect out) {
+        final int blurTop = getMeasuredHeight() - currentBlurredHeight;
+        out.set(
+            Math.round(inputBubbleOffsetLeft),
+            0,
+            getMeasuredWidth() - Math.round(inputBubbleOffsetRight),
+            inputBubbleHeightRound
+        );
+        out.inset(0, -dp(7));
+        out.offset(0, blurTop + (int) bubbleInputTranlationY);
+    }
+
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
         underKeyboardBackgroundDrawable.setBounds(
@@ -360,20 +401,15 @@ public class ChatInputViewsContainer extends FrameLayout {
             Math.max(getMeasuredHeight(), getMeasuredHeight() - (int) imeBottomInset + dp(INPUT_KEYBOARD_RADIUS * 2))
         );
 
-        final int blurTop = getMeasuredHeight() - currentBlurredHeight;
-
-        tmpRect.set(
-            Math.round(inputBubbleOffsetLeft),
-            0,
-            getMeasuredWidth() - Math.round(inputBubbleOffsetRight),
-            inputBubbleHeightRound
-        );
-        tmpRect.inset(0, -dp(7));
-        tmpRect.offset(0, blurTop + (int) bubbleInputTranlationY);
+        computeIslandRect(tmpRect);
 
         blurredBackgroundDrawable.setBounds(tmpRect);
-        if (drawInputBackground && !drawGlassgramSegments(canvas, tmpRect))
-            blurredBackgroundDrawable.draw(canvas);
+        if (drawInputBackground) {
+            if (!drawGlassgramSegments(canvas, tmpRect))
+                blurredBackgroundDrawable.draw(canvas);
+        } else if (glassgramMorphing) {
+            drawGlassgramSegments(canvas, tmpRect, true);
+        }
 
         if (needDrawInAppKeyboard) {
             underKeyboardBackgroundDrawable.draw(canvas);

@@ -163,11 +163,21 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         return this;
     }
 
+    // Glassgram: with the input split into glass pieces the editor grows out of the field's glass
+    // (and shrinks back into it), the attach and send circles fading where they are
+    private boolean glassgramSplit;
+    private final Rect glassgramFieldRect = new Rect();
+    private final int[] glassgramSendFrom = new int[2];
+
     private void updateAnimatingLocations() {
         animateInputView.getLocationInWindow(location);
+        glassgramSplit = animateInputView.getGlassgramFieldBounds(glassgramFieldRect);
         if (animateFromRect == null) animateFromRect = new RectF();
-        animateFromRect = new RectF(animateInputBackground.getBounds());
+        animateFromRect = new RectF(glassgramSplit ? glassgramFieldRect : animateInputBackground.getBounds());
         animateFromRect.offset(location[0], location[1]);
+        if (glassgramSplit) {
+            animateEnterView.sendButtonContainer.getLocationInWindow(glassgramSendFrom);
+        }
 
         if (animateEnterViewFrom == null) animateEnterViewFrom = new int[2];
         animateEnterView.getLocationInWindow(animateEnterViewFrom);
@@ -190,6 +200,8 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
 
             animateInputBackground = animateInputView.blurredBackgroundDrawable;
             animateInputView.drawInputBackground = false;
+            animateInputView.glassgramMorphing = true;
+            animateInputView.glassgramMorphAlpha = isOpen ? 1f : 0f;
             animateInputView.invalidate();
             animateEnterView.setAlpha(0.0f);
             animateEnterView.sendButtonContainer.setVisibility(View.INVISIBLE);
@@ -212,6 +224,8 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
                 listView.setTranslationX(lerp(animateEnterViewFrom[0] - animateEnterViewTo[0], 0, animateOpenProgress));
                 listView.setTranslationY(lerp(animateEnterViewFrom[1] - animateEnterViewTo[1], 0, animateOpenProgress));
                 container.invalidate();
+                animateInputView.glassgramMorphAlpha = 1f - animateOpenProgress;
+                animateInputView.invalidate();
             });
             va.addListener(new AnimatorListenerAdapter() {
                 @Override
@@ -224,6 +238,8 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
                     animateInputBackground.setRadius(dp(ChatInputViewsContainer.INPUT_BUBBLE_RADIUS));
                     animateInputBackground.setAlpha(0xFF);
                     animateInputView.drawInputBackground = true;
+                    animateInputView.glassgramMorphing = false;
+                    animateInputView.glassgramMorphAlpha = 1f;
                     animateInputView.invalidate();
                     callback.run();
                 }
@@ -437,9 +453,12 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
                         canvas.restore();
 
                         canvas.save();
+                        // split, the send button starts from its own circle, not from the field's corner
+                        final float sendFromRight = glassgramSplit ? glassgramSendFrom[0] + animateEnterView.sendButtonContainer.getWidth() : rect.right;
+                        final float sendFromBottom = glassgramSplit ? glassgramSendFrom[1] + animateEnterView.sendButtonContainer.getHeight() : rect.bottom;
                         canvas.translate(
-                            lerp(rect.right, bottomContainer.getX() + bottomInnerContainer.getX() + bottomPanel.getX() + sendButton.getX() + sendButton.getWidth(), animateOpenProgress) - animateEnterView.sendButtonContainer.getWidth(),
-                            lerp(rect.bottom, bottomContainer.getY() + bottomInnerContainer.getY() + bottomPanel.getY() + sendButton.getY() + sendButton.getHeight(), animateOpenProgress) - animateEnterView.sendButtonContainer.getHeight()
+                            lerp(sendFromRight, bottomContainer.getX() + bottomInnerContainer.getX() + bottomPanel.getX() + sendButton.getX() + sendButton.getWidth(), animateOpenProgress) - animateEnterView.sendButtonContainer.getWidth(),
+                            lerp(sendFromBottom, bottomContainer.getY() + bottomInnerContainer.getY() + bottomPanel.getY() + sendButton.getY() + sendButton.getHeight(), animateOpenProgress) - animateEnterView.sendButtonContainer.getHeight()
                         );
                         canvas.saveLayerAlpha(-dp(6), -dp(6), animateEnterView.sendButtonContainer.getWidth(), animateEnterView.sendButtonContainer.getHeight(), (int) (0xFF * (1.0f - animateOpenProgress)), Canvas.ALL_SAVE_FLAG);
                         animateEnterView.sendButtonContainer.draw(canvas);
