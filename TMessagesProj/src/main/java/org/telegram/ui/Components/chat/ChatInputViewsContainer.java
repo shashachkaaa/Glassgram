@@ -120,12 +120,15 @@ public class ChatInputViewsContainer extends FrameLayout {
     }
 
     public static final int SEGMENT_MENU = 0, SEGMENT_ATTACH = 1, SEGMENT_FIELD = 2, SEGMENT_SEND = 3;
-    private static final int SEGMENT_COUNT = 4;
+    public static final int SEGMENT_COUNT = 4;
+    /** After the pairs: how tall the attach piece is when it also carries the AI button (0: one line). */
+    public static final int SEGMENT_ATTACH_HEIGHT = SEGMENT_COUNT * 2;
+    public static final int SEGMENT_VALUES = SEGMENT_COUNT * 2 + 1;
 
     private GlassgramSegmentsProvider glassgramSegmentsProvider;
     private Utilities.Callback0Return<BlurredBackgroundDrawable> glassgramSegmentFactory;
     private final BlurredBackgroundDrawable[] glassgramSegmentDrawables = new BlurredBackgroundDrawable[SEGMENT_COUNT];
-    private final float[] glassgramSegments = new float[SEGMENT_COUNT * 2];
+    private final float[] glassgramSegments = new float[SEGMENT_VALUES];
     private final RectF glassgramMovedRect = new RectF();
     private int glassgramSegmentsAlpha = 255;
 
@@ -165,7 +168,11 @@ public class ChatInputViewsContainer extends FrameLayout {
             if (drawable == null) {
                 return false;
             }
-            final int top = i == SEGMENT_FIELD ? island.top : buttonTop;
+            int top = i == SEGMENT_FIELD ? island.top : buttonTop;
+            if (i == SEGMENT_ATTACH && glassgramSegments[SEGMENT_ATTACH_HEIGHT] > dp(INPUT_BUBBLE_RADIUS * 2)) {
+                // a tall pill for the AI button above the attach button, as on iOS
+                top = Math.max(island.top, island.bottom - Math.round(glassgramSegments[SEGMENT_ATTACH_HEIGHT]) - pad * 2);
+            }
             drawable.setAlpha(glassgramSegmentsAlpha);
             final LiquidPressEffect press = glassgramSegmentsProvider.getPress(i);
             if (press == null || !press.isActive()) {

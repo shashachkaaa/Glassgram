@@ -48,6 +48,18 @@ public class ChatReplyContainer extends FrameLayout {
         return layouts[0];
     }
 
+    private boolean glassgramCompact;
+
+    /** Glassgram: inside the split input's glass field, as on iOS: a thin line instead of the icon. */
+    public void setGlassgramCompact(boolean compact) {
+        if (glassgramCompact != compact) {
+            glassgramCompact = compact;
+            for (Layout layout : layouts) {
+                layout.invalidate();
+            }
+        }
+    }
+
     public void switchLayouts() {
         switchLayouts(true);
     }
@@ -172,6 +184,30 @@ public class ChatReplyContainer extends FrameLayout {
         public boolean dispatchTouchEvent(MotionEvent ev) {
             if (!active) return false;
             return super.dispatchTouchEvent(ev);
+        }
+
+        private android.graphics.Paint glassgramLinePaint;
+
+        @Override
+        protected void dispatchDraw(Canvas canvas) {
+            if (glassgramCompact) {
+                if (glassgramLinePaint == null) {
+                    glassgramLinePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                }
+                glassgramLinePaint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_glass_defaultText, resourcesProvider), 0.45f));
+                final float x = name.getX() - dp(10) - (image.getVisibility() == View.VISIBLE && image.getX() < name.getX() ? name.getX() - image.getX() : 0);
+                AndroidUtilities.rectTmp.set(x - dp(1.5f), dp(7), x + dp(1.5f), dp(41));
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(1.5f), dp(1.5f), glassgramLinePaint);
+            }
+            super.dispatchDraw(canvas);
+        }
+
+        @Override
+        protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+            if (glassgramCompact && child == icon) {
+                return false;
+            }
+            return super.drawChild(canvas, child, drawingTime);
         }
 
         @Override

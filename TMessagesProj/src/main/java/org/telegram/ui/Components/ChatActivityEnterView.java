@@ -14768,8 +14768,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     private final LiquidPressEffect[] glassgramPress = new LiquidPressEffect[4];
     private final RectF[] glassgramRects = {new RectF(), new RectF(), new RectF(), new RectF()};
     private int glassgramPressed = -1;
-    private final float[] glassgramSegments = new float[8], glassgramLastSegments = new float[8];
-    private boolean glassgramLastSplit;
+    private final float[] glassgramSegments = new float[org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_VALUES];
+    private final float[] glassgramLastSegments = new float[org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_VALUES];
+    private boolean glassgramLastSplit, glassgramLaidOutSendInside;
     private Runnable glassgramSegmentsListener;
 
     public boolean glassgramSplit() {
@@ -14777,10 +14778,28 @@ public class ChatActivityEnterView extends FrameLayout implements
         return org.telegram.messenger.GlassgramConfig.splitInput && isChat && !isStories && attachButton != null && parentFragment != null && sideButtons == null;
     }
 
-    /** The attach circle stays shown, except while a voice or a video message is recorded or edited. */
+    /** The attach circle stays shown, also while editing (media can be added), except while a voice or a video message is recorded. */
     private boolean glassgramAttachPinned() {
-        return glassgramSplit() && !recordingAudioVideo && editingMessageObject == null
+        return glassgramSplit() && !recordingAudioVideo
             && (recordedAudioPanel == null || recordedAudioPanel.getVisibility() != VISIBLE);
+    }
+
+    /** With text, or while editing, the send (done) button sits inside the field at its end, as on iOS. */
+    private boolean glassgramSendInside() {
+        return sendButton != null && sendButton.getVisibility() == VISIBLE && sendButton.getAlpha() > 0.5f
+            || doneButton != null && doneButton.getVisibility() == VISIBLE && doneButton.getAlpha() > 0.5f;
+    }
+
+    /** Finds the reply panel in the top view and gives it the compact look of the glass field. */
+    private void glassgramCompactReply(View view, boolean compact, int depth) {
+        if (view instanceof ChatReplyContainer) {
+            ((ChatReplyContainer) view).setGlassgramCompact(compact);
+        } else if (view instanceof ViewGroup && depth < 3) {
+            final ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                glassgramCompactReply(group.getChildAt(i), compact, depth + 1);
+            }
+        }
     }
 
     /** Called when the pieces move, to redraw the glass behind them. */
@@ -14827,6 +14846,19 @@ public class ChatActivityEnterView extends FrameLayout implements
             ((MarginLayoutParams) richDraftPreview.getLayoutParams()).leftMargin = textLeft - dp(8);
         }
         ((MarginLayoutParams) messageEditTextContainer.getLayoutParams()).rightMargin = dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
+        // The AI button sits above the attach button, on the same tall glass pill
+        if (aiButton != null) {
+            ((MarginLayoutParams) aiButton.getLayoutParams()).leftMargin = glassgramAttachLeft;
+        }
+        // The reply, edit and forward panel is inside the field's glass: its line starts at the
+        // text's left (the panel's texts are 52dp in, after the hidden icon), its close button at the field's end
+        glassgramLaidOutSendInside = glassgramSendInside();
+        if (topView != null) {
+            final MarginLayoutParams topLp = (MarginLayoutParams) topView.getLayoutParams();
+            topLp.leftMargin = glassgramFieldLeft - dp(52 - 24);
+            topLp.rightMargin = glassgramLaidOutSendInside ? 0 : dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
+            glassgramCompactReply(topView, true, 0);
+        }
     }
 
     /**
@@ -14855,9 +14887,21 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         // without the attach circle the field takes its place
         out[4] = base + (attach ? glassgramFieldLeft : glassgramAttachLeft);
-        out[5] = base + messageEditTextContainer.getMeasuredWidth();
-        out[6] = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
-        out[7] = getMeasuredWidth();
+        if (glassgramSendInside()) {
+            // the send button is inside the field, which reaches the end
+            out[5] = getMeasuredWidth();
+            out[6] = out[7] = -1;
+        } else {
+            out[5] = base + messageEditTextContainer.getMeasuredWidth();
+            out[6] = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
+            out[7] = getMeasuredWidth();
+        }
+        // with the AI button shown the attach piece is a tall pill carrying both
+        final int heightIndex = org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_ATTACH_HEIGHT;
+        out[heightIndex] = 0;
+        if (attach && aiButton != null && aiButton.getVisibility() == VISIBLE && aiButton.getAlpha() > 0.5f) {
+            out[heightIndex] = textFieldContainer.getHeight() - aiButton.getY();
+        }
         return true;
     }
 
@@ -14891,7 +14935,11 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (left < 0 || right <= left) {
                 glassgramRects[i].setEmpty();
             } else {
-                glassgramRects[i].set(left, i == GLASSGRAM_SEGMENT_FIELD ? fieldTop : bottom - dp(DEFAULT_HEIGHT), right, bottom);
+                float height = dp(DEFAULT_HEIGHT);
+                if (i == GLASSGRAM_SEGMENT_ATTACH) {
+                    height = Math.max(height, segments[org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_ATTACH_HEIGHT]);
+                }
+                glassgramRects[i].set(left, i == GLASSGRAM_SEGMENT_FIELD ? fieldTop : bottom - height, right, bottom);
             }
         }
     }
@@ -14955,6 +15003,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         final boolean has = split && getGlassgramSegments(glassgramSegments);
         if (has) {
             glassgramUpdateRects(glassgramSegments);
+            if (glassgramSendInside() != glassgramLaidOutSendInside) {
+                // the reply panel's close button follows the field's end
+                requestLayout();
+            }
         }
         final boolean pressed = has && glassgramPressActive();
         if (pressed) {

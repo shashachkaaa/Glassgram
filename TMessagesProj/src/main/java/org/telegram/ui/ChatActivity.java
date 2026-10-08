@@ -4618,7 +4618,7 @@ public class ChatActivity extends BaseFragment implements
                         return false;
                     }
                     final float dx = chatInputBubbleContainer.getX() + chatActivityEnterView.getX();
-                    for (int i = 0; i < out.length; i += 2) {
+                    for (int i = 0; i < ChatInputViewsContainer.SEGMENT_COUNT * 2; i += 2) {
                         if (out[i] >= 0) {
                             out[i] += dx;
                             out[i + 1] += dx;
