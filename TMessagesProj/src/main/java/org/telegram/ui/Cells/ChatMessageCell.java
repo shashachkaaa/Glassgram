@@ -19030,7 +19030,20 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (adminString != null) {
                 nameWidth -= dp(8);
             }
+            // Glassgram: the sender's badge right after the name, in the name's color, as in the chats list
+            final org.telegram.messenger.GlassgramBadges.Badge glassgramBadge = needAuthorName && messageObject.customName == null && !viaBot && !viaGuestBot
+                ? org.telegram.messenger.GlassgramBadges.get(currentUser != null ? currentUser : currentChat) : null;
+            int glassgramBadgeWidth = 0;
+            if (glassgramBadge != null) {
+                glassgramBadgeWidth = (int) Math.ceil(Theme.chat_namePaint.measureText(" ") + Theme.chat_namePaint.getTextSize() * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT);
+                nameWidth -= glassgramBadgeWidth;
+            }
             nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0), TextUtils.TruncateAt.END);
+            if (glassgramBadge != null) {
+                nameStringFinal = org.telegram.messenger.GlassgramBadges.withBadge(nameStringFinal, glassgramBadge, 16);
+                org.telegram.ui.Components.GlassgramBadgeSpan.attach(this, nameStringFinal);
+                nameWidth += glassgramBadgeWidth;
+            }
 
             if (viaGuestBot) {
                 int colorKey;
