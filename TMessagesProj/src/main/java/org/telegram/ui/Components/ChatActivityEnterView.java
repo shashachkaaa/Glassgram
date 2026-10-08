@@ -3552,6 +3552,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             public void setAlpha(float alpha) {
                 super.setAlpha(alpha);
                 updateAttachButtonTranslationX();
+                glassgramSendStateChanged();
+            }
+
+            @Override
+            public void setVisibility(int visibility) {
+                super.setVisibility(visibility);
+                glassgramSendStateChanged();
             }
         };
         sendButton.setVisibility(INVISIBLE);
@@ -3992,6 +3999,18 @@ public class ChatActivityEnterView extends FrameLayout implements
             @Override
             public boolean isInactive() {
                 return !doneButtonEnabled;
+            }
+
+            @Override
+            public void setAlpha(float alpha) {
+                super.setAlpha(alpha);
+                glassgramSendStateChanged();
+            }
+
+            @Override
+            public void setVisibility(int visibility) {
+                super.setVisibility(visibility);
+                glassgramSendStateChanged();
             }
         };
         doneButton.setContentDescription(getString(R.string.EditMessage));
@@ -14794,6 +14813,16 @@ public class ChatActivityEnterView extends FrameLayout implements
     private boolean glassgramSendInside() {
         return sendButton != null && sendButton.getVisibility() == VISIBLE && sendButton.getAlpha() > 0.5f
             || doneButton != null && doneButton.getVisibility() == VISIBLE && doneButton.getAlpha() > 0.5f;
+    }
+
+    /**
+     * The send (done) button's hiding animation redraws only the button, not this view, so the
+     * field did not shrink back from it when the text was erased: redraw this view to follow it.
+     */
+    private void glassgramSendStateChanged() {
+        if (glassgramSendInsideAnimated != null && glassgramSplit()) {
+            invalidate();
+        }
     }
 
     /** Finds the reply panel in the top view and gives it the compact look of the glass field. */
