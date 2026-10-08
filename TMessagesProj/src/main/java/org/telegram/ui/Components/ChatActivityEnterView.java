@@ -15032,6 +15032,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 && action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) {
             return;
         }
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassgramUnclip();
+        }
         final RectF r = glassgramRects[glassgramPressed];
         glassgramPress(glassgramPressed).onTouch(action, ev.getX() - r.left, ev.getY() - r.top);
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -15040,7 +15043,61 @@ public class ChatActivityEnterView extends FrameLayout implements
         invalidate();
     }
 
+    // The groups that stopped clipping while a piece is pressed, and how each clipped before
+    private final java.util.ArrayList<ViewGroup> glassgramUnclipped = new java.util.ArrayList<>();
+    private final java.util.ArrayList<boolean[]> glassgramUnclippedWas = new java.util.ArrayList<>();
+
+    /**
+     * A pressed piece's icon swells and leans with its glass, past the containers it sits in, which
+     * cut it at their edges while the glass (drawn by the input container) went on: they stop
+     * clipping until the press settles.
+     */
+    private void glassgramUnclip() {
+        if (!glassgramUnclipped.isEmpty()) {
+            return;
+        }
+        final java.util.ArrayList<ViewGroup> groups = new java.util.ArrayList<>();
+        groups.add(messageEditTextContainer);
+        groups.add(textFieldContainer);
+        groups.add(sendButtonContainer);
+        groups.add(this);
+        android.view.ViewParent parent = getParent();
+        for (int i = 0; i < 2 && parent instanceof ViewGroup; i++) {
+            groups.add((ViewGroup) parent);
+            parent = parent.getParent();
+        }
+        for (ViewGroup group : groups) {
+            if (group == null) {
+                continue;
+            }
+            final boolean clipChildren = group.getClipChildren();
+            final boolean clipPadding = group.getClipToPadding();
+            if (!clipChildren && !clipPadding) {
+                continue;
+            }
+            group.setClipChildren(false);
+            group.setClipToPadding(false);
+            glassgramUnclipped.add(group);
+            glassgramUnclippedWas.add(new boolean[]{clipChildren, clipPadding});
+        }
+    }
+
+    private void glassgramRestoreClipping() {
+        for (int i = 0; i < glassgramUnclipped.size(); i++) {
+            final ViewGroup group = glassgramUnclipped.get(i);
+            final boolean[] was = glassgramUnclippedWas.get(i);
+            group.setClipChildren(was[0]);
+            group.setClipToPadding(was[1]);
+            group.invalidate();
+        }
+        glassgramUnclipped.clear();
+        glassgramUnclippedWas.clear();
+    }
+
     private void glassgramCheckSegments() {
+        if (!glassgramUnclipped.isEmpty() && glassgramPressed < 0 && !glassgramPressActive()) {
+            glassgramRestoreClipping();
+        }
         final boolean split = glassgramSplit();
         if (split && glassgramAttachPinned() && attachButton.getVisibility() == VISIBLE
                 && (attachButton.getAlpha() != 1f || attachButton.getScaleX() != 1f || attachButton.getScaleY() != 1f)) {
