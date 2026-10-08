@@ -7,17 +7,17 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M75,33 L33,50 L54.35,53.65 L58,75 Z"
-        android:strokeWidth="5"
+        android:pathData="M69.12,38.88 L38.88,51.12 L54.25,53.75 L56.88,69.12 Z"
+        android:strokeWidth="3.6"
         android:strokeLineJoin="round">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="75" android:startY="33" android:endX="45.5" android:endY="62.5">
+            <gradient android:type="linear" android:startX="69.12" android:startY="38.88" android:endX="47.88" android:endY="60.12">
                 <item android:offset="0" android:color="#FFFFFFFF" />
                 <item android:offset="1" android:color="#FFFFE0C7" />
             </gradient>
         </aapt:attr>
         <aapt:attr name="android:strokeColor">
-            <gradient android:type="linear" android:startX="75" android:startY="33" android:endX="45.5" android:endY="62.5">
+            <gradient android:type="linear" android:startX="69.12" android:startY="38.88" android:endX="47.88" android:endY="60.12">
                 <item android:offset="0" android:color="#FFFFFFFF" />
                 <item android:offset="1" android:color="#FFFFE0C7" />
             </gradient>

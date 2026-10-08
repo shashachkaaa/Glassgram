@@ -18,8 +18,18 @@ if not os.path.exists(CHROME):
 # The arrow in the 108 icon space: tip, left wing, notch, right wing; symmetric about the tip-back axis
 TIP, LEFT, NOTCH, RIGHT = (75, 33), (33, 50), (54.35, 53.65), (58, 75)
 BACK = (45.5, 62.5)  # middle of the wings, where the gradient ends
+# The arrow's full size, for the badge glyphs (inside their rosette)
+GLYPH_TIP, GLYPH_LEFT, GLYPH_NOTCH, GLYPH_RIGHT = TIP, LEFT, NOTCH, RIGHT
+
+# The launcher arrow is smaller than that: at full size it filled the icon like Telegram's paper
+# plane, and RuStore turned the logo down for it. Scaled about the icon's center
+SCALE = 0.72
+def _s(p):
+    return (round(54 + (p[0] - 54) * SCALE, 2), round(54 + (p[1] - 54) * SCALE, 2))
+TIP, LEFT, NOTCH, RIGHT, BACK = _s(TIP), _s(LEFT), _s(NOTCH), _s(RIGHT), _s(BACK)
+
 PATH = 'M%g,%g L%g,%g L%g,%g L%g,%g Z' % (TIP + LEFT + NOTCH + RIGHT)
-STROKE = 5
+STROKE = round(5 * SCALE, 2)
 
 # variant: (tip color, back color, background stops, highlight alpha)
 VARIANTS = {
@@ -89,7 +99,7 @@ def badge_glyph(dx, dy, extra, comment):
     # the icon arrow mapped into the 24 badge space (x' = 0.2893x - 4.13, y' = 0.2893y - 3.12)
     def m(p):
         return (round(0.2893 * p[0] - 4.13 + dx, 2), round(0.2893 * p[1] - 3.12 + dy, 2))
-    pts = m(TIP) + m(LEFT) + m(NOTCH) + m(RIGHT)
+    pts = m(GLYPH_TIP) + m(GLYPH_LEFT) + m(GLYPH_NOTCH) + m(GLYPH_RIGHT)
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <!-- Glassgram badge glyph ({comment}), drawn white on the badge's shape -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
