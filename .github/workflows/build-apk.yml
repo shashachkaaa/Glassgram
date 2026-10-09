@@ -46,8 +46,15 @@ env:
 
 jobs:
   build:
+    name: build (${{ matrix.edition }})
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    # Two editions side by side: the full app, and the RuStore edition without ghost mode, the spy
+    # and the in-app updates (GLASSGRAM_STORE)
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [ full, rustore ]
 
     steps:
       - name: Free disk space
@@ -146,7 +153,11 @@ jobs:
           if [ -n "$RELEASE_TAG" ]; then
             VERSION_ARG="-PGLASSGRAM_VERSION_NAME=${RELEASE_TAG#v}"
           fi
-          ./gradlew ${{ steps.task.outputs.task }} $VERSION_ARG \
+          STORE_ARG=""
+          if [ "${{ matrix.edition }}" = "rustore" ]; then
+            STORE_ARG="-PGLASSGRAM_STORE=true"
+          fi
+          ./gradlew ${{ steps.task.outputs.task }} $VERSION_ARG $STORE_ARG \
             --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dorg.gradle.workers.max=4
@@ -162,6 +173,9 @@ jobs:
           else
             base="glassgram-${{ steps.task.outputs.variant }}-${GITHUB_SHA::7}"
           fi
+          if [ "${{ matrix.edition }}" = "rustore" ]; then
+            base="${base}-rustore"
+          fi
           count=$(find "${{ steps.task.outputs.out }}" -name '*.apk' | wc -l)
           find "${{ steps.task.outputs.out }}" -name '*.apk' | while read -r apk; do
             flavor_dir="$(basename "$(dirname "$apk")")"
@@ -176,7 +190,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: telegram-${{ steps.task.outputs.variant }}-${{ github.sha }}
+          name: glassgram-${{ matrix.edition }}-${{ steps.task.outputs.variant }}-${{ github.sha }}
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -184,7 +198,7 @@ jobs:
       # Artifacts are temporary; every master build is also published as the
       # "latest" pre-release, so the newest APK always has a stable download link.
       - name: Publish APK as the "latest" pre-release
-        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+        if: matrix.edition == 'full' && github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -195,9 +209,23 @@ jobs:
             --title "Glassgram (latest master build)" \
             --notes "Built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
 
+      # The RuStore edition gets its own pre-release with a stable link. It is never attached to
+      # the releases: the app's update check (which reads the latest release) would offer it
+      - name: Publish the RuStore APK as the "latest-rustore" pre-release
+        if: matrix.edition == 'rustore' && github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest-rustore --yes --cleanup-tag || true
+          gh release create latest-rustore dist/*.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Glassgram for RuStore (latest master build)" \
+            --notes "RuStore edition (no ghost mode, spy or in-app updates), built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
+
       # A pushed tag, or a manual run with release_tag (which creates the tag on this commit)
       - name: Attach APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+        if: matrix.edition == 'full' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != '')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}

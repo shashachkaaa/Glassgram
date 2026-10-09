@@ -164,6 +164,11 @@ android {
         buildConfigField "int", "TG_APP_ID", tgAppId
         buildConfigField "String", "TG_APP_HASH", "\"" + tgAppHash + "\""
         buildConfigField "String", "GLASSGRAM_VERSION", "\"" + GLASSGRAM_VERSION_NAME + "\""
+        // The RuStore edition (-PGLASSGRAM_STORE=true): without the features that change how
+        // Telegram itself works (ghost mode, spy, self-destruct and content protection, ads)
+        // and without updates from outside the store
+        def glassgramStore = (project.findProperty("GLASSGRAM_STORE") ?: "false").toString() == "true"
+        buildConfigField "boolean", "GLASSGRAM_STORE", (glassgramStore ? "true" : "false")
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 

@@ -374,11 +374,16 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
                 items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
                 items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
-                items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
+                // The RuStore edition has no ghost mode and no spy, nor their look of deleted messages
+                if (!GlassgramConfig.STORE_BUILD) {
+                    items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
+                }
                 items.add(UItem.asButton(ID_PLUGINS, R.drawable.msg_bots, getString(R.string.GlassgramPlugins)));
                 items.add(header(getString(R.string.GlassgramPrivacySection)));
-                items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
-                items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
+                if (!GlassgramConfig.STORE_BUILD) {
+                    items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
+                    items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
+                }
                 items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 items.add(header(getString(R.string.GlassgramLinks)));
                 items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));

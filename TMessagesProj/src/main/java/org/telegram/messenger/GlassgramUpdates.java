@@ -77,7 +77,8 @@ public final class GlassgramUpdates {
 
     /** Checks for a new release when the app is opened and offers it in this activity. */
     public static void checkOnOpen(Activity activity) {
-        if (activity == null) {
+        // The RuStore edition is updated by the store only
+        if (activity == null || GlassgramConfig.STORE_BUILD) {
             return;
         }
         if (available != null) {

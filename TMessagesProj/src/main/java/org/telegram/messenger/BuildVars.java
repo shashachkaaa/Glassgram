@@ -27,6 +27,8 @@ public class BuildVars {
     public static String BUILD_VERSION_STRING = BuildConfig.BUILD_VERSION_STRING;
     /** Glassgram's own version (BUILD_VERSION_STRING is Telegram's), for the update check. */
     public static String GLASSGRAM_VERSION = BuildConfig.GLASSGRAM_VERSION;
+    /** The RuStore edition: see GlassgramConfig.STORE_BUILD. */
+    public static final boolean GLASSGRAM_STORE = BuildConfig.GLASSGRAM_STORE;
 
     // Injected at build time from the APP_ID / APP_HASH secrets, see TMessagesProj/build.gradle
     public static int APP_ID = BuildConfig.TG_APP_ID;

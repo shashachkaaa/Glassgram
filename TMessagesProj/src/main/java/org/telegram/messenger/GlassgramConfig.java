@@ -135,6 +135,12 @@ public class GlassgramConfig {
     public static final int SPY_LIMIT_16_GB = 4;
     public static final int SPY_LIMIT_UNLIMITED = 5;
 
+    /**
+     * The RuStore edition: the features that change how Telegram itself works (ghost mode, the
+     * spy, keeping self-destructing and protected content, hiding ads) are off and not offered.
+     */
+    public static final boolean STORE_BUILD = BuildVars.GLASSGRAM_STORE;
+
     private static boolean loaded;
 
     public static synchronized void load() {
@@ -211,6 +217,21 @@ public class GlassgramConfig {
         autoPauseVideo = p.getBoolean("autoPauseVideo", true);
         autoPauseVoice = p.getBoolean("autoPauseVoice", false);
         autoPauseRound = p.getBoolean("autoPauseRound", false);
+        if (STORE_BUILD) {
+            ghostMode = false;
+            spySaveDeletedMessages = false;
+            spySaveEditsHistory = false;
+            spySaveInBotDialogs = false;
+            spySaveReadDate = false;
+            spySaveLastSeenDate = false;
+            spySaveAttachments = false;
+            spyTranslucentDeleted = false;
+            spyDeletedTrashMark = false;
+            spyDisableAds = false;
+            spyDisplayGhostStatus = false;
+            spyDisableSelfDestruct = false;
+            ignoreContentProtection = false;
+        }
         loaded = true;
     }
 
