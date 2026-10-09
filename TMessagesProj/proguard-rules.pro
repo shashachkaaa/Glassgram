@@ -60,4 +60,6 @@
 -keep class com.chaquo.python.** { *; }
 -keep class de.robv.android.xposed.** { *; }
 -keep class com.aliucord.hook.** { *; }
+-keep class com.android.dx.** { *; }
+-dontwarn com.android.dx.**
 -dontwarn com.chaquo.python.**

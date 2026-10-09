@@ -58,6 +58,8 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     // Xposed-style method hooks for plugins
     implementation 'com.aliucord:Aliuhook:1.1.4'
+    // Plugins' class proxies (extera_utils.classes): Java subclasses made at runtime
+    implementation 'com.linkedin.dexmaker:dexmaker:2.28.6'
 
     compileOnly 'org.checkerframework:checker-qual:2.5.2'
     compileOnly 'org.checkerframework:checker-compat-qual:2.5.0'
