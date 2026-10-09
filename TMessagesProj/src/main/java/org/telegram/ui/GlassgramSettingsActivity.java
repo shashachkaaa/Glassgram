@@ -379,12 +379,15 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
                 }
                 items.add(UItem.asButton(ID_PLUGINS, R.drawable.msg_bots, getString(R.string.GlassgramPlugins)));
-                items.add(header(getString(R.string.GlassgramPrivacySection)));
-                if (!GlassgramConfig.STORE_BUILD) {
+                if (GlassgramConfig.STORE_BUILD) {
+                    // no "Spy & Ghost" section: the filters join the categories
+                    items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                } else {
+                    items.add(header(getString(R.string.GlassgramPrivacySection)));
                     items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
                     items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
+                    items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 }
-                items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
                 items.add(header(getString(R.string.GlassgramLinks)));
                 items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
                 items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));

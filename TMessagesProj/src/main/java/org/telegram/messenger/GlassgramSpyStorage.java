@@ -175,7 +175,8 @@ public final class GlassgramSpyStorage {
 
     /** Whether earlier versions of this message were saved. Reads the store once, then keeps an index. */
     public static boolean hasEditHistory(MessageObject message) {
-        if (message == null) {
+        // The RuStore edition shows nothing the spy kept (installed over the full app)
+        if (message == null || GlassgramConfig.STORE_BUILD) {
             return false;
         }
         long selfId = UserConfig.getInstance(message.currentAccount).getClientUserId();
@@ -423,6 +424,9 @@ public final class GlassgramSpyStorage {
     }
 
     public static boolean isMarkedDeleted(int account, long channelId, int messageId) {
+        if (GlassgramConfig.STORE_BUILD) {
+            return false;
+        }
         synchronized (DELETED_LOCK) {
             HashSet<String> set = loadDeletedIds();
             return !set.isEmpty() && set.contains(deletedKey(account, channelId, messageId));
@@ -472,7 +476,7 @@ public final class GlassgramSpyStorage {
     }
 
     public static boolean isMarkedDeleted(MessageObject message) {
-        if (message == null || message.messageOwner == null || message.getId() <= 0 || message.scheduled) {
+        if (GlassgramConfig.STORE_BUILD || message == null || message.messageOwner == null || message.getId() <= 0 || message.scheduled) {
             return false;
         }
         long channelId = 0;
