@@ -97,7 +97,11 @@
       "badge": "glassgram",
       "text": "Официальный бот шпион от glassGram."
     },
-    "8549953763": "owner"
+    "8549953763": "owner",
+    "-1003306363917": {
+      "badge": "critic",
+      "text": "Сообщество собакоедов"
+    }
   },
   "usernames": {
     "glassgramdev": {
