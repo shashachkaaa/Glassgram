@@ -3165,14 +3165,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.setRightDrawableOnClick(null);
         }
         statusDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
-        // Glassgram: without a status (no Premium) the title keeps no room for it, or the
-        // badge after it stood apart from the title behind an empty gap
+        // Glassgram: the status takes room only while there is one (see the drawable's width)
         final SimpleTextView glassgramTitle = actionBar.getTitleTextView();
         if (glassgramTitle != null) {
-            final boolean hasStatus = emojiStatusId != null || user != null && MessagesController.getInstance(currentAccount).isPremiumUser(user);
-            if (glassgramTitle.setRightDrawable(hasStatus ? statusDrawable : null)) {
-                glassgramTitle.requestLayout();
-            }
+            glassgramTitle.requestLayout();
+            glassgramTitle.invalidate();
         }
         updateHeaderBadge(user);
         if (animatedStatusView != null) {
@@ -3627,7 +3624,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 communityAvatarImage.setForUserOrChat(community, communityAvatarDrawable);
                 actionBar.addView(communityAvatarImage, LayoutHelper.createFrame(32, 32, Gravity.BOTTOM | Gravity.LEFT, 58, 0, 0, 12f));
             } else {
-                statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
+                // Glassgram: no width while empty (no Premium), or the badge after it stood apart
+                // from the title behind an empty gap
+                statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26)) {
+                    @Override
+                    public int getIntrinsicWidth() {
+                        return getDrawable() == null ? 0 : super.getIntrinsicWidth();
+                    }
+                };
                 statusDrawable.center = true;
                 // The app's name as text: the stock title is Telegram's wordmark image
                 actionBar.setTitle(org.telegram.messenger.GlassgramConfig.getTitle(), statusDrawable);
