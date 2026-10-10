@@ -29887,6 +29887,38 @@ public class ChatActivity extends BaseFragment implements
 
     Bulletin.Delegate bulletinDelegate;
 
+    private static final int GLASSGRAM_MENU_RADIUS = 24;
+
+    /**
+     * Glassgram: the message menu as on iOS: taller items with larger text, thin lines between
+     * the groups instead of shaded gaps, the press highlight rounded like the card's corners.
+     */
+    private void glassgramIosMenu(ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout) {
+        int first = -1, last = -1;
+        for (int i = 0; i < popupLayout.getItemsCount(); i++) {
+            final View child = popupLayout.getItemAt(i);
+            if (child instanceof ActionBarMenuSubItem && child.getVisibility() != View.GONE) {
+                if (first < 0) {
+                    first = i;
+                }
+                last = i;
+            }
+        }
+        final int dividerColor = Theme.multAlpha(getThemedColor(Theme.key_actionBarDefaultSubmenuItem), 0.12f);
+        for (int i = 0; i < popupLayout.getItemsCount(); i++) {
+            final View child = popupLayout.getItemAt(i);
+            if (child instanceof ActionBarMenuSubItem) {
+                final ActionBarMenuSubItem item = (ActionBarMenuSubItem) child;
+                item.setItemHeight(50);
+                item.setPadding(dp(20), 0, dp(20), 0);
+                item.getTextView().setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+                item.updateSelectorBackground(i == first, i == last, GLASSGRAM_MENU_RADIUS - 8);
+            } else if (child instanceof ActionBarPopupWindow.GapView) {
+                ((ActionBarPopupWindow.GapView) child).setDividerStyle(dividerColor);
+            }
+        }
+    }
+
     /** Glassgram: the back button is an iOS chevron. */
     private BackDrawable glassgramBackDrawable(boolean close) {
         final BackDrawable drawable = new BackDrawable(close);
@@ -31225,9 +31257,11 @@ public class ChatActivity extends BaseFragment implements
 
             updateScrimSourceBitmap();
 
+            // Glassgram: a rounder card, as on iOS
+            popupLayout.setGlassRadius(dp(GLASSGRAM_MENU_RADIUS));
             popupLayout.setBackground(scrimBlur3Factory.create(popupLayout, true)
                 .setColorProvider(BlurredBackgroundProviderImpl.messageMenuBackground(resourceProvider))
-                .setRadius(dp(12))
+                .setRadius(dp(GLASSGRAM_MENU_RADIUS))
                 .setPadding(dp(8)));
 
             boolean addGap = false;
@@ -32471,6 +32505,7 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
+            glassgramIosMenu(popupLayout);
             ReactionsContainerLayout finalReactionsLayout1 = reactionsLayout;
             if (reactionsLayout != null) {
                 reactionsLayout.setParentLayout(scrimPopupContainerLayout);

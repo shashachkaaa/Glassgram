@@ -371,12 +371,19 @@ public class ActionBarPopupWindow extends PopupWindow {
             }
         }
 
+        private int glassRadius = dp(12);
+
+        /** The corner radius of the menu's glass (set before the background). */
+        public void setGlassRadius(int radius) {
+            glassRadius = radius;
+        }
+
         @Override
         public void setBackgroundDrawable(Drawable drawable) {
             if (drawable instanceof BlurredBackgroundDrawable && LiquidPanelDrawable.isSupported()) {
                 // Telegram's glass for menus samples the screen the menu was opened from and
                 // comes out nearly opaque here; menus are the library's glass instead
-                final LiquidPanelDrawable panel = (LiquidPanelDrawable) LiquidPanelDrawable.wrap(drawable, dp(12), dp(12),
+                final LiquidPanelDrawable panel = (LiquidPanelDrawable) LiquidPanelDrawable.wrap(drawable, glassRadius, glassRadius,
                     () -> getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
                 panel.setHost(this);
                 drawable = panel;
@@ -1136,13 +1143,34 @@ public class ActionBarPopupWindow extends PopupWindow {
             this(context, Theme.getColor(colorKey, resourcesProvider), Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider));
         }
 
+        private Paint dividerPaint;
+
+        /** Glassgram: a thin line across the menu, as on iOS, instead of a shaded gap. */
+        public void setDividerStyle(int color) {
+            shadowDrawable = null;
+            setBackgroundColor(Color.TRANSPARENT);
+            if (dividerPaint == null) {
+                dividerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            }
+            dividerPaint.setColor(color);
+            setWillNotDraw(false);
+            invalidate();
+        }
+
         public void setColor(int color) {
+            if (dividerPaint != null) {
+                return;
+            }
             setBackgroundColor(color);
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            if (dividerPaint != null) {
+                final float h = Math.max(1, dp(0.66f));
+                canvas.drawRect(dp(20), (getHeight() - h) / 2f, getWidth() - dp(20), (getHeight() + h) / 2f, dividerPaint);
+            }
             if (shadowDrawable != null) {
                 shadowDrawable.setBounds(0, 0, getWidth(), getHeight());
                 shadowDrawable.draw(canvas);
