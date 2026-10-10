@@ -28,6 +28,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -228,6 +229,8 @@ public class ManageChatUserCell extends FrameLayout {
     }
 
     public void update(int mask) {
+        // Glassgram: the badge after the name (members and admins lists)
+        org.telegram.messenger.GlassgramBadges.applyTo(nameTextView, currentObject instanceof TLObject ? org.telegram.messenger.GlassgramBadges.get((TLObject) currentObject) : null);
         if (currentObject == null) {
             return;
         }

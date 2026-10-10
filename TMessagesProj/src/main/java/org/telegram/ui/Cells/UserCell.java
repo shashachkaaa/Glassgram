@@ -342,6 +342,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             storiable = false;
             currentObject = null;
             nameTextView.setText("");
+            org.telegram.messenger.GlassgramBadges.applyTo(nameTextView, null);
             statusTextView.setText("");
             avatarImageView.setImageDrawable(null);
             return;
@@ -697,6 +698,8 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             nameTextView.setRightDrawable(null);
             nameTextView.setRightDrawableTopPadding(0);
         }
+        // Glassgram: the badge after the name's status (members lists, contacts, search)
+        org.telegram.messenger.GlassgramBadges.applyTo(nameTextView, org.telegram.messenger.GlassgramBadges.get(currentUser != null ? currentUser : currentChat));
         if (currentStatus != null) {
             statusTextView.setTextColor(statusColor);
             CharSequence status = currentStatus;
