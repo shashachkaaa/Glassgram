@@ -2928,6 +2928,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.loadingMessagesFailed)
             .add(NotificationCenter.didUpdateConnectionState)
             .add(NotificationCenter.updateInterfaces)
+            .add(NotificationCenter.dialogsNeedReload)
             .add(NotificationCenter.updateDefaultSendAsPeer)
             .add(NotificationCenter.userIsPremiumBlockedUpadted)
             .add(NotificationCenter.didLoadSendAsPeers)
@@ -3693,7 +3694,7 @@ public class ChatActivity extends BaseFragment implements
         if (inPreviewMode) {
             actionBar.setBackButtonDrawable(null);
         } else {
-            actionBar.setBackButtonDrawable(new BackDrawable(isReport()));
+            actionBar.setBackButtonDrawable(glassgramBackDrawable(isReport()));
         }
 
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -21995,8 +21996,13 @@ public class ChatActivity extends BaseFragment implements
             if (chatActivityEnterView != null) {
                 chatActivityEnterView.updateSendButtonPaid();
             }
+        } else if (id == NotificationCenter.dialogsNeedReload) {
+            glassgramUpdateBackCounter(true);
         } else if (id == NotificationCenter.updateInterfaces) {
             int updateMask = (Integer) args[0];
+            if ((updateMask & (MessagesController.UPDATE_MASK_READ_DIALOG_MESSAGE | MessagesController.UPDATE_MASK_NEW_MESSAGE)) != 0) {
+                glassgramUpdateBackCounter(true);
+            }
             if ((updateMask & MessagesController.UPDATE_MASK_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_CHAT_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
                 if (currentChat != null) {
                     TLRPC.Chat chat = getMessagesController().getChat(currentChat.id);
@@ -23475,6 +23481,7 @@ public class ChatActivity extends BaseFragment implements
                 replaceMessageObjects(messageObjects, loadIndex, false);
             });
         } else if (id == NotificationCenter.notificationsSettingsUpdated) {
+            glassgramUpdateBackCounter(true);
             updateTitleIcons();
             if (ChatObject.isChannel(currentChat) || UserObject.isReplyUser(currentUser) || currentUser != null && currentUser.id == UserObject.VERIFY) {
                 updateBottomOverlay();
@@ -29821,7 +29828,7 @@ public class ChatActivity extends BaseFragment implements
             mentionContainer.animate().alpha(chatActivityEnterView.isStickersExpanded() || isInPreviewMode() ? 0 : 1f).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
         }
         if (actionBar != null) {
-            actionBar.setBackButtonDrawable(!value ? new BackDrawable(false) : null);
+            actionBar.setBackButtonDrawable(!value ? glassgramBackDrawable(false) : null);
             if (headerItem != null) {
                 headerItem.setAlpha(!value ? 1.0f : 0.0f);
             }
@@ -29880,9 +29887,42 @@ public class ChatActivity extends BaseFragment implements
 
     Bulletin.Delegate bulletinDelegate;
 
+    /** Glassgram: the back button is an iOS chevron. */
+    private BackDrawable glassgramBackDrawable(boolean close) {
+        final BackDrawable drawable = new BackDrawable(close);
+        drawable.setChevron(true);
+        return drawable;
+    }
+
+    /**
+     * Glassgram: next to the back chevron, as on iOS, the unread messages of the other chats,
+     * leaving out muted and archived ones.
+     */
+    private void glassgramUpdateBackCounter(boolean animated) {
+        if (actionBar == null || inPreviewMode || isInsideContainer || inBubbleMode) {
+            return;
+        }
+        int count = 0;
+        final MessagesController controller = getMessagesController();
+        final ArrayList<TLRPC.Dialog> dialogs = controller.getAllDialogs();
+        for (int i = 0; i < dialogs.size(); i++) {
+            final TLRPC.Dialog dialog = dialogs.get(i);
+            if (dialog == null || dialog.id == dialog_id || dialog.folder_id != 0) {
+                continue;
+            }
+            final int unread = dialog.unread_count > 0 ? dialog.unread_count : dialog.unread_mark ? 1 : 0;
+            if (unread == 0 || controller.isDialogMuted(dialog.id, 0)) {
+                continue;
+            }
+            count += unread;
+        }
+        actionBar.setGlassBackCounter(count, animated);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        glassgramUpdateBackCounter(false);
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
@@ -30561,9 +30601,9 @@ public class ChatActivity extends BaseFragment implements
 
         if (AndroidUtilities.isTablet()) {
             if (AndroidUtilities.isSmallTablet() && ApplicationLoader.applicationContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
-                actionBar.setBackButtonDrawable(new BackDrawable(false));
+                actionBar.setBackButtonDrawable(glassgramBackDrawable(false));
             } else {
-                actionBar.setBackButtonDrawable(new BackDrawable(parentLayout == null || parentLayout.getFragmentStack().isEmpty() || parentLayout.getFragmentStack().get(0) == ChatActivity.this || parentLayout.getFragmentStack().size() == 1));
+                actionBar.setBackButtonDrawable(glassgramBackDrawable(parentLayout == null || parentLayout.getFragmentStack().isEmpty() || parentLayout.getFragmentStack().get(0) == ChatActivity.this || parentLayout.getFragmentStack().size() == 1));
             }
             return false;
         }

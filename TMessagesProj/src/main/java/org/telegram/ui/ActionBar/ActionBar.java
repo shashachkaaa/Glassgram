@@ -312,6 +312,80 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         glassOnlyBack = true;
     }
 
+    /* Glassgram: the unread messages of the other chats next to the back chevron, as on iOS */
+
+    private int glassBackCounterValue;
+    private String glassBackCounterText;
+    private float glassBackCounterWidth;
+    private int glassBackCounterTouchExtra;
+    private org.telegram.ui.Components.AnimatedFloat glassBackCounterProgress;
+    private TextPaint glassBackCounterTextPaint;
+    private Paint glassBackCounterPaint;
+
+    /** Shows count (0 hides it) in a badge on the back button's glass, which widens for it. */
+    public void setGlassBackCounter(int count, boolean animated) {
+        if (!glassMode) {
+            return;
+        }
+        if (glassBackCounterProgress == null) {
+            glassBackCounterProgress = new org.telegram.ui.Components.AnimatedFloat(this, 0, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
+            glassBackCounterTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            glassBackCounterTextPaint.setTypeface(AndroidUtilities.bold());
+            glassBackCounterTextPaint.setTextSize(dp(14));
+            glassBackCounterTextPaint.setTextAlign(Paint.Align.CENTER);
+            glassBackCounterPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        }
+        if (count > 0) {
+            // the text stays while the badge fades out
+            glassBackCounterText = count > 999 ? "999+" : String.valueOf(count);
+            glassBackCounterWidth = Math.max(dp(22), glassBackCounterTextPaint.measureText(glassBackCounterText) + dp(12));
+        }
+        glassBackCounterValue = count;
+        if (!animated) {
+            glassBackCounterProgress.set(count > 0, true);
+        }
+        // the back button takes the taps on the badge too
+        final int touchExtra = count > 0 ? (int) (glassBackCounterWidth - dp(4)) : 0;
+        if (touchExtra != glassBackCounterTouchExtra) {
+            glassBackCounterTouchExtra = touchExtra;
+            if (backButtonImageView != null) {
+                backButtonImageView.setPadding(dp(1), 0, touchExtra, 0);
+            }
+            requestLayout();
+        }
+        invalidate();
+    }
+
+    /** How far the back button's glass is widened for the badge now, and its progress. */
+    private float glassBackCounterProgress() {
+        if (glassBackCounterProgress == null) {
+            return 0f;
+        }
+        return glassBackCounterProgress.set(glassBackCounterValue > 0);
+    }
+
+    private void drawGlassBackCounter(Canvas canvas) {
+        final float progress = glassBackCounterProgress == null ? 0f : glassBackCounterProgress.get();
+        if (progress <= 0f || glassBackCounterText == null || !glassShown[GLASS_BACK] || backButtonImageView == null) {
+            return;
+        }
+        final RectF r = glassRect[GLASS_BACK];
+        final float h = dp(22);
+        final float cx = r.right - dp(8) - glassBackCounterWidth / 2f;
+        final float cy = r.centerY();
+        final float alpha = Math.max(0f, Math.min(1f, progress)) * backButtonImageView.getAlpha() * glassAlpha;
+        canvas.save();
+        canvas.scale(progress, progress, cx, cy);
+        glassBackCounterPaint.setColor(itemsColor);
+        glassBackCounterPaint.setAlpha((int) (Color.alpha(itemsColor) * alpha));
+        AndroidUtilities.rectTmp.set(cx - glassBackCounterWidth / 2f, cy - h / 2f, cx + glassBackCounterWidth / 2f, cy + h / 2f);
+        canvas.drawRoundRect(AndroidUtilities.rectTmp, h / 2f, h / 2f, glassBackCounterPaint);
+        glassBackCounterTextPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        glassBackCounterTextPaint.setAlpha((int) (255 * alpha));
+        canvas.drawText(glassBackCounterText, cx, cy - (glassBackCounterTextPaint.descent() + glassBackCounterTextPaint.ascent()) / 2f, glassBackCounterTextPaint);
+        canvas.restore();
+    }
+
     public void setChatAvatarContainer(ChatAvatarContainer chatAvatarContainer) {
         this.chatAvatarContainer = chatAvatarContainer;
     }
@@ -891,6 +965,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             glassTransform(canvas, surface);
         }
         final boolean result = drawChildContent(canvas, child, drawingTime);
+        if (glassMode && child == backButtonImageView) {
+            drawGlassBackCounter(canvas);
+        }
         canvas.restore();
         return result;
     }
@@ -1920,7 +1997,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         int textLeft;
         if (backButtonImageView != null && backButtonImageView.getVisibility() != GONE) {
-            backButtonImageView.measure(MeasureSpec.makeMeasureSpec(dp(54), MeasureSpec.EXACTLY), actionBarHeightSpec);
+            backButtonImageView.measure(MeasureSpec.makeMeasureSpec(dp(54) + glassBackCounterTouchExtra, MeasureSpec.EXACTLY), actionBarHeightSpec);
             textLeft = dp(AndroidUtilities.isTablet() ? 80 : 72);
         } else {
             textLeft = dp(AndroidUtilities.isTablet() ? 26 : 18);
@@ -2779,6 +2856,15 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (glassMode || glassButtons) {
             glassShown[GLASS_PILL] = glassShown[GLASS_BACK] = glassShown[GLASS_MENU] = false;
         }
+        // The back glass widens for the unread badge, the chevron moving a little to the left
+        final float counterProgress = glassMode && hasBackButton ? glassBackCounterProgress() : 0f;
+        final int backExtra = (int) ((glassBackCounterWidth - dp(4)) * counterProgress);
+        if (glassMode && backButtonImageView != null) {
+            final float tx = dp(2) - dp(3) * counterProgress;
+            if (backButtonImageView.getTranslationX() != tx) {
+                backButtonImageView.setTranslationX(tx);
+            }
+        }
 
         final int t = getHeight() - (getCurrentActionBarHeight() + s) / 2 - p;
         final int b = t + s + p * 2;
@@ -2787,7 +2873,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
             final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
 
-            final int leftDefault = lerp(hasBackButton ? s + p : (int) ((s + p) * closeFactor), s + p, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
+            final int leftDefault = lerp(hasBackButton ? s + p + backExtra : (int) ((s + p) * closeFactor), s + p + backExtra, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
             final int rightDefault = getWidth() - rightOffset;
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
@@ -2824,7 +2910,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         // while topics are open beside it, and its glass stayed there as a smudge under the topics' bar
         final float backAlpha = Math.max(hasBackButton ? backButtonImageView.getAlpha() : closeFactor, glassBackOverlay);
         if (glassDrawableBack != null && backAlpha > 0 && glassAlpha > 0) {
-            glassDrawableBack.setBounds(0, t, s + p * 2, b);
+            glassDrawableBack.setBounds(0, t, s + p * 2 + backExtra, b);
             glassDrawableBack.setAlpha((int) (255 * glassAlpha * backAlpha));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }

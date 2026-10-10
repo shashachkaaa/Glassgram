@@ -39,6 +39,7 @@ public class BackDrawable extends Drawable {
     private float animationTime = 300.0f;
     private boolean rotated = true;
     private int arrowRotation;
+    private boolean chevron;
 
     public float getRotation() {
         return finalRotation;
@@ -60,6 +61,13 @@ public class BackDrawable extends Drawable {
 
     public void setRotatedColor(int value) {
         rotatedColor = value;
+        invalidateSelf();
+    }
+
+    /** Glassgram: an iOS chevron "<" instead of the arrow; it still turns into the cross. */
+    public void setChevron(boolean value) {
+        chevron = value;
+        paint.setStrokeWidth(AndroidUtilities.dp(value ? 2.33f : 2));
         invalidateSelf();
     }
 
@@ -127,6 +135,21 @@ public class BackDrawable extends Drawable {
             canvas.rotate(arrowRotation);
         }
         float rotation = currentRotation;
+        if (chevron && !alwaysClose) {
+            // The chevron's arms become the cross's one stroke and its other stroke grows in
+            canvas.rotate(rotation * (reverseAngle ? -225 : 135));
+            if (rotation > 0) {
+                final float half = AndroidUtilities.dp(8) * rotation;
+                canvas.drawLine(-half, 0, half, 0, paint);
+            }
+            final float tipX = AndroidUtilities.dp(AndroidUtilities.lerp(-3.5f, 0f, rotation));
+            final float endX = AndroidUtilities.dp(AndroidUtilities.lerp(3f, 0f, rotation));
+            final float endY = AndroidUtilities.dp(AndroidUtilities.lerp(8.5f, 8f, rotation));
+            canvas.drawLine(tipX, 0, endX, -endY, paint);
+            canvas.drawLine(tipX, 0, endX, endY, paint);
+            canvas.restore();
+            return;
+        }
         canvas.translate(-AndroidUtilities.dp(0.66f)/* * (rotation)*/, 0);
         if (!alwaysClose) {
             canvas.rotate(currentRotation * (reverseAngle ? -225 : 135));
