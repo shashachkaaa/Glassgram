@@ -23,7 +23,7 @@ public class GlassgramConfig {
 
     // Names and messages without "Zalgo" stacks of combining marks
     public static boolean filterZalgo;
-    // Saved files go to Pictures/<saveFolder>, Download/<saveFolder>...; empty: Telegram's own
+    // Saved files go to Pictures/<saveFolder>, Download/<saveFolder>...; empty: Glassgram
     public static String saveFolder = "";
     // The data center next to the id in profiles
     public static boolean showDc;

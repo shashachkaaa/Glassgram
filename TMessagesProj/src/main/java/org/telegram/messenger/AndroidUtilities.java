@@ -3655,7 +3655,7 @@ public class AndroidUtilities {
 
     /**
      * Glassgram: the folder name used inside Pictures, Movies, Download and Music for saved files:
-     * the custom one from settings, or Telegram's own.
+     * the custom one from settings, or Glassgram's own.
      */
     public static String getSaveFolderName() {
         String name = GlassgramConfig.saveFolder;
@@ -3667,7 +3667,7 @@ public class AndroidUtilities {
                 name = null;
             }
         }
-        return TextUtils.isEmpty(name) ? "Telegram" : name;
+        return TextUtils.isEmpty(name) ? "Glassgram" : name;
     }
 
     private static File getAlbumDir(boolean secretChat) {
