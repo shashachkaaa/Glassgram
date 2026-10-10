@@ -3165,6 +3165,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.setRightDrawableOnClick(null);
         }
         statusDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        // Glassgram: without a status (no Premium) the title keeps no room for it, or the
+        // badge after it stood apart from the title behind an empty gap
+        final SimpleTextView glassgramTitle = actionBar.getTitleTextView();
+        if (glassgramTitle != null) {
+            final boolean hasStatus = emojiStatusId != null || user != null && MessagesController.getInstance(currentAccount).isPremiumUser(user);
+            if (glassgramTitle.setRightDrawable(hasStatus ? statusDrawable : null)) {
+                glassgramTitle.requestLayout();
+            }
+        }
         updateHeaderBadge(user);
         if (animatedStatusView != null) {
             animatedStatusView.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
