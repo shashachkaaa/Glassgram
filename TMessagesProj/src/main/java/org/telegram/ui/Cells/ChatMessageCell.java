@@ -1689,6 +1689,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private StaticLayout nameLayout;
     private int nameLayoutWidth;
+    // Glassgram: where the emoji status goes in the name's line when the badge follows it (-1: at the name's end)
+    private int glassgramNameStatusOffset = -1;
+
+    /** Where the name's emoji status starts: before the Glassgram badge, which comes after it. */
+    private int glassgramNameStatusEnd() {
+        return glassgramNameStatusOffset >= 0 ? glassgramNameStatusOffset : nameLayoutWidth;
+    }
     private boolean adminLayoutIsAdmin, adminLayoutIsOwner, adminLayoutIsTag;
     private StaticLayout adminLayout;
     private RectF adminLayoutRect = new RectF();
@@ -19034,12 +19041,25 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             final org.telegram.messenger.GlassgramBadges.Badge glassgramBadge = needAuthorName && messageObject.customName == null && !viaBot && !viaGuestBot
                 ? org.telegram.messenger.GlassgramBadges.get(currentUser != null ? currentUser : currentChat) : null;
             int glassgramBadgeWidth = 0;
+            // with an emoji status the badge comes after it: the status gets a gap in the text
+            final boolean glassgramStatusFirst = glassgramBadge != null && currentNameStatus != null;
+            final int glassgramStatusGap = dp(22);
+            int glassgramStatusIndex = -1;
+            glassgramNameStatusOffset = -1;
             if (glassgramBadge != null) {
                 glassgramBadgeWidth = (int) Math.ceil(Theme.chat_namePaint.measureText(" ") + Theme.chat_namePaint.getTextSize() * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT);
                 nameWidth -= glassgramBadgeWidth;
             }
             nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0), TextUtils.TruncateAt.END);
             if (glassgramBadge != null) {
+                if (glassgramStatusFirst) {
+                    final SpannableStringBuilder withGap = new SpannableStringBuilder(nameStringFinal);
+                    glassgramStatusIndex = withGap.length();
+                    withGap.append(" ");
+                    withGap.setSpan(new DialogCell.FixedWidthSpan(glassgramStatusGap), glassgramStatusIndex, glassgramStatusIndex + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    nameStringFinal = withGap;
+                    nameWidth += glassgramStatusGap;
+                }
                 nameStringFinal = org.telegram.messenger.GlassgramBadges.withBadge(nameStringFinal, glassgramBadge, 16);
                 org.telegram.ui.Components.GlassgramBadgeSpan.attach(this, nameStringFinal);
                 nameWidth += glassgramBadgeWidth;
@@ -19108,6 +19128,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         namesOffset += getNameHeight();
                     }
                     nameOffsetX = nameLayout.getLineLeft(0);
+                    if (glassgramStatusIndex >= 0 && glassgramStatusIndex < nameLayout.getText().length()) {
+                        glassgramNameStatusOffset = (int) (nameLayout.getPrimaryHorizontal(glassgramStatusIndex) - nameOffsetX);
+                    }
                 } else {
                     nameWidth = nameLayoutWidth = 0;
                     nameOffsetX = 0;
@@ -19118,7 +19141,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (drawTopic && topicButton != null) {
                     nameWidth += topicButton.width + dp(8);
                 }
-                if (currentNameStatus != null && !viaBot) {
+                if (currentNameStatus != null && !viaBot && glassgramNameStatusOffset < 0) {
                     nameWidth += dp(4 + 12 + 4);
                 }
                 if (currentNameBotVerificationId != 0) {
@@ -21485,9 +21508,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             if (currentNameStatusDrawable != null) {
                 currentNameStatusDrawable.setBounds(
-                    (int) (Math.abs(nx) + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : nameLayoutWidth) + dp(2)),
+                    (int) (Math.abs(nx) + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(2)),
                     (int) (ny + nameLayout.getHeight() / 2 - dp(10)),
-                    (int) (Math.abs(nx) + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : nameLayoutWidth) + dp(22)),
+                    (int) (Math.abs(nx) + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(22)),
                     (int) (ny + nameLayout.getHeight() / 2 + dp(10))
                 );
                 currentNameStatusDrawable.setColor(ColorUtils.setAlphaComponent(color, 115));
@@ -22339,9 +22362,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     float starVerticalOffset = isStarDrawable ? 1.5f : 0f;
                     float starHorizontalOffset = isStarDrawable ? -5 : 0;
                     nameStatusSelector.setBounds(
-                        (int) (nx + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : nameLayoutWidth)),
+                        (int) (nx + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd())),
                         (int) (ny - dp(1.33f + 2 - starVerticalOffset)),
-                        (int) (nx + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : nameLayoutWidth) + dp(4 + 12 + 4 + 4 + starHorizontalOffset)),
+                        (int) (nx + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(4 + 12 + 4 + 4 + starHorizontalOffset)),
                         (int) (ny + nameLayout.getHeight() + dp(1.33f + 2 - starVerticalOffset))
                     );
                     nameStatusSelector.setAlpha((int) (0xFF * nameAlpha));
@@ -29326,7 +29349,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public int getNameStatusX() {
-        return (int) (nameX + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : nameLayoutWidth) + dp(2) + dp(4 + 12 + 4) / 2);
+        return (int) (nameX + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(2) + dp(4 + 12 + 4) / 2);
     }
 
     public int getNameStatusY() {
