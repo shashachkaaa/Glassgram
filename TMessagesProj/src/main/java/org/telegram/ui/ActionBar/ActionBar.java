@@ -2860,7 +2860,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final float counterProgress = glassMode && hasBackButton ? glassBackCounterProgress() : 0f;
         final int backExtra = (int) ((glassBackCounterWidth - dp(4)) * counterProgress);
         if (glassMode && backButtonImageView != null) {
-            final float tx = dp(2) - dp(3) * counterProgress;
+            // The arrow sits 2dp right of the circle's middle; the chevron, lighter to the eye on its
+            // open side, a little left of it (with the badge it is left in the capsule anyway)
+            final boolean chevron = backButtonDrawable instanceof BackDrawable && ((BackDrawable) backButtonDrawable).isChevron();
+            final float tx = chevron
+                ? AndroidUtilities.dpf2(-0.5f) - AndroidUtilities.dpf2(0.5f) * counterProgress
+                : dp(2) - dp(3) * counterProgress;
             if (backButtonImageView.getTranslationX() != tx) {
                 backButtonImageView.setTranslationX(tx);
             }

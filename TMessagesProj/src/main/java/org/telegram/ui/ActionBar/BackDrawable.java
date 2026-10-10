@@ -71,6 +71,10 @@ public class BackDrawable extends Drawable {
         invalidateSelf();
     }
 
+    public boolean isChevron() {
+        return chevron;
+    }
+
     public void setArrowRotation(int angle) {
         arrowRotation = angle;
         invalidateSelf();
