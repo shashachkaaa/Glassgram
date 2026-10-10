@@ -220,8 +220,10 @@ public class ChatInputViewsContainer extends FrameLayout {
             drawable.draw(canvas);
             canvas.save();
             canvas.translate(glassgramMovedRect.left, glassgramMovedRect.top);
+            // The light follows the glass's own corners: a tall field is a rounded rectangle, not a capsule
             press.drawGlow(canvas, glassgramMovedRect.width(), glassgramMovedRect.height(),
-                Math.min(glassgramMovedRect.width(), glassgramMovedRect.height()) / 2f);
+                Math.min(Math.min(glassgramMovedRect.width(), glassgramMovedRect.height()) / 2f,
+                    dp(INPUT_BUBBLE_RADIUS) * LiquidPressEffect.radiusScale(right - left, visibleBottom - visibleTop, glassgramMovedRect)));
             canvas.restore();
         }
         return true;

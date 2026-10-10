@@ -2664,6 +2664,14 @@ public class ChatActivityEnterView extends FrameLayout implements
                     canvas.restore();
                     return result;
                 }
+                if (child != null && child == aiButton) {
+                    // the AI button shares the attach button's glass pill: it moves with it
+                    canvas.save();
+                    glassgramTransform(canvas, GLASSGRAM_SEGMENT_ATTACH, getX(), getY());
+                    final boolean result = super.drawChild(canvas, child, drawingTime);
+                    canvas.restore();
+                    return result;
+                }
                 if (child != null && (child == doneButton || child == richButton)) {
                     canvas.save();
                     glassgramTransform(canvas, GLASSGRAM_SEGMENT_FIELD, getX(), getY());
