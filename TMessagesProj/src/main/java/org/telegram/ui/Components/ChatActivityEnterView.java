@@ -2656,9 +2656,17 @@ public class ChatActivityEnterView extends FrameLayout implements
             @Override
             protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
                 if (child != null && child == sendButtonContainer) {
-                    // Glassgram: the send button moves with its pressed glass circle
+                    // Glassgram: the send button moves with its pressed glass circle, or with the
+                    // field's glass when it sits inside the field
                     canvas.save();
-                    glassgramTransform(canvas, GLASSGRAM_SEGMENT_SEND, getX(), getY());
+                    glassgramTransform(canvas, glassgramRects[GLASSGRAM_SEGMENT_SEND].isEmpty() ? GLASSGRAM_SEGMENT_FIELD : GLASSGRAM_SEGMENT_SEND, getX(), getY());
+                    final boolean result = super.drawChild(canvas, child, drawingTime);
+                    canvas.restore();
+                    return result;
+                }
+                if (child != null && (child == doneButton || child == richButton)) {
+                    canvas.save();
+                    glassgramTransform(canvas, GLASSGRAM_SEGMENT_FIELD, getX(), getY());
                     final boolean result = super.drawChild(canvas, child, drawingTime);
                     canvas.restore();
                     return result;
@@ -2711,14 +2719,27 @@ public class ChatActivityEnterView extends FrameLayout implements
                     canvas.restore();
                     return result;
                 }
-                if (child != null && child == messageEditText) {
-                    return drawMessageEditText(canvas, () -> super.drawChild(canvas, child, drawingTime));
+                // Glassgram: the field's content (text, emoji button...) moves with the field's pressed glass
+                final boolean fieldPressed = child != null && glassgramPress[GLASSGRAM_SEGMENT_FIELD] != null && glassgramPress[GLASSGRAM_SEGMENT_FIELD].isActive();
+                if (fieldPressed) {
+                    canvas.save();
+                    glassgramTransform(canvas, GLASSGRAM_SEGMENT_FIELD, textFieldContainer.getX() + getX(), textFieldContainer.getY() + getY());
                 }
-                if (shouldDrawRecordedAudioPanelInParent && child == recordedAudioPanel) {
-                    return true;
+                try {
+                    if (child != null && child == messageEditText) {
+                        return drawMessageEditText(canvas, () -> super.drawChild(canvas, child, drawingTime));
+                    }
+                    if (shouldDrawRecordedAudioPanelInParent && child == recordedAudioPanel) {
+                        return true;
+                    }
+                    return super.drawChild(canvas, child, drawingTime);
+                } finally {
+                    if (fieldPressed) {
+                        canvas.restore();
+                    }
                 }
-                return super.drawChild(canvas, child, drawingTime);
             }
+
         };
         frameLayout.setClipChildren(false);
         textFieldContainer.addView(frameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 0, 0, DEFAULT_HEIGHT, 0));
@@ -4764,12 +4785,17 @@ public class ChatActivityEnterView extends FrameLayout implements
         boolean clip = child == topView || child == textFieldContainer;
         if (clip) {
             final float separatorY = getMeasuredHeight() - animatorInputFieldHeight.getFactor();
+            // Glassgram: a pressed glass piece swells and leans past the line between the reply
+            // panel and the field, and its button was cut there (the attach clip lost its top)
+            final float pressSlack = glassgramLastSplit && glassgramPressActive() ? dp(24) : 0;
             canvas.save();
             if (child == textFieldContainer) {
-                canvas.clipRect(0, separatorY, getMeasuredWidth(), getMeasuredHeight());
+                canvas.clipRect(0, separatorY - pressSlack, getMeasuredWidth(), getMeasuredHeight() + pressSlack);
             }
             if (child == topView) {
-                canvas.clipRect(0, 0, getMeasuredWidth(), separatorY);
+                canvas.clipRect(0, -pressSlack, getMeasuredWidth(), separatorY + pressSlack);
+                // the reply panel is on the field's glass: it moves with it
+                glassgramTransform(canvas, GLASSGRAM_SEGMENT_FIELD, 0, 0);
             }
         }
         boolean result = super.drawChild(canvas, child, drawingTime);
@@ -15020,7 +15046,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             glassgramPressed = -1;
             if (glassgramSplit() && getGlassgramSegments(glassgramSegments)) {
                 glassgramUpdateRects(glassgramSegments);
-                for (int segment : new int[]{GLASSGRAM_SEGMENT_ATTACH, GLASSGRAM_SEGMENT_SEND, GLASSGRAM_SEGMENT_MENU}) {
+                for (int segment : new int[]{GLASSGRAM_SEGMENT_ATTACH, GLASSGRAM_SEGMENT_SEND, GLASSGRAM_SEGMENT_MENU, GLASSGRAM_SEGMENT_FIELD}) {
                     if (glassgramRects[segment].contains(ev.getX(), ev.getY())) {
                         glassgramPressed = segment;
                         break;
