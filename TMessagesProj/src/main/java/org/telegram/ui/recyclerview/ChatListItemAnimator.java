@@ -31,6 +31,7 @@ import org.telegram.ui.Cells.UserInfoCell;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.ChatGreetingsView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
+import org.telegram.ui.Components.GlassgramSpringInterpolator;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ThanosEffect;
 import org.telegram.ui.TextMessageEnterTransition;
@@ -60,6 +61,17 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
     HashMap<Long, Long> groupIdToEnterDelay = new HashMap<>();
 
     private boolean shouldAnimateEnterFromBottom;
+
+    // glassGram: new messages at the bottom come in on a longer spring, like on iOS: the list
+    // moves up and a new bubble grows out of its corner; a sent text flies out of the field
+    // on the same spring (TextMessageEnterTransition)
+    public static final long GLASSGRAM_ENTER_DURATION = 460;
+    private static final Interpolator GLASSGRAM_ENTER_SPRING = new GlassgramSpringInterpolator(0.82f);
+    private boolean glassgramSpringEnter;
+
+    public static boolean glassgramIosEnter() {
+        return org.telegram.messenger.GlassgramConfig.iosTransitions;
+    }
     private RecyclerView.ViewHolder greetingsSticker;
     private ChatGreetingsView chatGreetingsView;
 
@@ -103,6 +115,11 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
 
         onAnimationStart();
 
+        final Interpolator translationInterpolatorWas = translationInterpolator;
+        glassgramSpringEnter = runTranslationFromBottom && glassgramIosEnter();
+        if (glassgramSpringEnter) {
+            translationInterpolator = GLASSGRAM_ENTER_SPRING;
+        }
         if (runTranslationFromBottom) {
             runMessageEnterTransition();
         } else {
@@ -119,6 +136,8 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
         });
         valueAnimator.setDuration(getRemoveDuration() + getMoveDuration());
         valueAnimator.start();
+        glassgramSpringEnter = false;
+        translationInterpolator = translationInterpolatorWas;
     }
 
     long alphaEnterDelay;
@@ -349,9 +368,11 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
         if (!(chatMessageCell != null && chatMessageCell.getTransitionParams().ignoreAlpha)) {
             holder.itemView.setAlpha(1);
         }
+        boolean glassgramFlying = false;
         if (activity != null && chatMessageCell != null && activity.animatingMessageObjects.contains(chatMessageCell.getMessageObject())) {
             activity.animatingMessageObjects.remove(chatMessageCell.getMessageObject());
             if (activity.getChatActivityEnterView().canShowMessageTransition()) {
+                glassgramFlying = true;
                 if (chatMessageCell.getMessageObject().isVoice()) {
                     if (Math.abs(view.getTranslationY()) < view.getMeasuredHeight() * 3f) {
                         VoiceMessageEnterTransition transition = new VoiceMessageEnterTransition(chatMessageCell, activity.getChatActivityEnterView(), recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);
@@ -366,6 +387,29 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
                 activity.getChatActivityEnterView().startMessageTransition();
             }
         }
+        final boolean glassgramPop = glassgramSpringEnter && !glassgramFlying;
+        if (glassgramPop) {
+            // glassGram: the new bubble grows out of its bottom corner while it fades in
+            if (chatMessageCell != null) {
+                final boolean out = chatMessageCell.getMessageObject() != null && chatMessageCell.getMessageObject().isOutOwner();
+                view.setPivotX(out ? chatMessageCell.getBackgroundDrawableRight() : chatMessageCell.getBackgroundDrawableLeft());
+            } else {
+                view.setPivotX(view.getWidth() / 2f);
+            }
+            view.setPivotY(view.getHeight());
+            view.setScaleX(0.86f);
+            view.setScaleY(0.86f);
+            final boolean fade = !(chatMessageCell != null && chatMessageCell.getTransitionParams().ignoreAlpha);
+            if (fade) {
+                view.setAlpha(0f);
+            }
+            animation.scaleX(1f).scaleY(1f);
+            if (fade) {
+                animation.setUpdateListener(a -> view.setAlpha(Math.min(1f, a.getAnimatedFraction() / 0.3f)));
+            }
+        } else {
+            animation.setUpdateListener(null);
+        }
         animation.translationY(0).setDuration(getMoveDuration())
                 .setInterpolator(translationInterpolator)
                 .setListener(new AnimatorListenerAdapter() {
@@ -377,6 +421,9 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
                     @Override
                     public void onAnimationCancel(Animator animator) {
                         view.setTranslationY(0);
+                        if (glassgramPop) {
+                            glassgramResetEnter(view);
+                        }
                         if (view instanceof ChatMessageCell) {
                             ((ChatMessageCell) view).getTransitionParams().messageEntering = false;
                         }
@@ -384,10 +431,14 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
 
                     @Override
                     public void onAnimationEnd(Animator animator) {
+                        if (glassgramPop) {
+                            glassgramResetEnter(view);
+                        }
                         if (view instanceof ChatMessageCell) {
                             ((ChatMessageCell) view).getTransitionParams().messageEntering = false;
                         }
                         animation.setListener(null);
+                        animation.setUpdateListener(null);
                         if (mAddAnimations.remove(holder)) {
                             dispatchAddFinished(holder);
                             dispatchFinishedWhenDone();
@@ -1628,7 +1679,17 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
 
     @Override
     public long getMoveDuration() {
-        return DEFAULT_DURATION;
+        return glassgramSpringEnter ? GLASSGRAM_ENTER_DURATION : DEFAULT_DURATION;
+    }
+
+    private static void glassgramResetEnter(View view) {
+        if (view.getScaleX() != 1f || view.getScaleY() != 1f) {
+            view.setScaleX(1f);
+            view.setScaleY(1f);
+        }
+        if (view.getAlpha() < 1f && !(view instanceof ChatMessageCell && ((ChatMessageCell) view).getTransitionParams().ignoreAlpha)) {
+            view.setAlpha(1f);
+        }
     }
 
     @Override

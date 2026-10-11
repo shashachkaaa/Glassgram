@@ -11279,7 +11279,7 @@
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
     <string name="GlassgramAnimations">Animations</string>
     <string name="GlassgramIosTransitions">iOS-style Animations</string>
-    <string name="GlassgramIosTransitionsInfo">Screens slide in from the right over the previous one, menus and sheets come out on a spring, tabs switch with a quick fade, like on iPhone.</string>
+    <string name="GlassgramIosTransitionsInfo">Screens slide in from the right over the previous one, menus and sheets come out on a spring, tabs switch with a quick fade, sent messages fly out of the field and new ones spring into the chat, like on iPhone.</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
     <string name="GlassgramStickers">Stickers and Emoji</string>
     <string name="GlassgramHideStickerTime">Hide Time on Stickers</string>

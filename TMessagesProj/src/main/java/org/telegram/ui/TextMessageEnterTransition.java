@@ -50,12 +50,22 @@ import org.telegram.ui.Components.AnimatedEmojiSpan;
 import org.telegram.ui.Components.ChatActivityEnterView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EmptyStubSpan;
+import org.telegram.ui.Components.GlassgramSpringInterpolator;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ReplyMessageLine;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 
 public class TextMessageEnterTransition implements MessageEnterTransitionContainer.Transition {
+
+    // glassGram: as on iOS the bubble grows out of the field's glass and flies up on the
+    // spring the list moves on (ChatListItemAnimator)
+    private static final GlassgramSpringInterpolator glassgramSpring = new GlassgramSpringInterpolator(0.82f);
+    private static final GlassgramSpringInterpolator glassgramSpringX = new GlassgramSpringInterpolator(0.9f);
+    private boolean glassgramIos;
+    private boolean glassgramFromField;
+    private float glassgramFromLeft, glassgramFromRight;
+
     float fromRadius;
     float progress;
 
@@ -247,6 +257,19 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             drawableFromTop -= dp(12);
         }
         drawableFromBottom = textViewY + chatActivityEnterView.getEditField().getMeasuredHeight();
+        glassgramIos = ChatListItemAnimator.glassgramIosEnter();
+        if (glassgramIos && chatActivity.chatInputViewsContainer != null) {
+            final android.graphics.Rect field = new android.graphics.Rect();
+            if (chatActivity.chatInputViewsContainer.getGlassgramFieldBounds(field)) {
+                final PointF p = new PointF();
+                ViewPositionWatcher.computeCoordinatesInParent(chatActivity.chatInputViewsContainer, chatActivity.contentView, p);
+                glassgramFromField = true;
+                glassgramFromLeft = p.x + field.left;
+                glassgramFromRight = p.x + field.right;
+                drawableFromTop = p.y + field.top;
+                drawableFromBottom = p.y + field.bottom;
+            }
+        }
         textLayoutBlock = messageView.getMessageObject().textLayoutBlocks.get(0);
         StaticLayout messageTextLayout = textLayoutBlock.textLayout;
         int normalLinesCount = 0;
@@ -387,7 +410,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
 
         animator.setInterpolator(new LinearInterpolator());
-        animator.setDuration(ChatListItemAnimator.DEFAULT_DURATION);
+        animator.setDuration(glassgramIos ? ChatListItemAnimator.GLASSGRAM_ENTER_DURATION : ChatListItemAnimator.DEFAULT_DURATION);
 
         container.addTransition(this);
         notificationsLocker.lock();
@@ -468,11 +491,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             lastMessageY = messageViewY;
         }
 
-        float progress = ChatListItemAnimator.DEFAULT_INTERPOLATOR.getInterpolation(this.progress);
+        float progress = glassgramIos ? glassgramSpring.getInterpolation(this.progress) : ChatListItemAnimator.DEFAULT_INTERPOLATOR.getInterpolation(this.progress);
         float alphaProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;
 
         float p2 = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(this.progress);
-        float progressX = CubicBezierInterpolator.EASE_OUT.getInterpolation(p2);
+        float progressX = glassgramIos ? glassgramSpringX.getInterpolation(this.progress) : CubicBezierInterpolator.EASE_OUT.getInterpolation(p2);
 
         float toX = messageViewX + textX;
         float toY = messageViewY + textY;
@@ -493,6 +516,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float drawableH = messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop();
         float drawableBottom = (drawableFromBottom - container.getY()) * (1f - progress) + (drawableToTop + drawableH) * progress;
         int drawableRight = (int) (messageViewX + messageView.getBackgroundDrawableRight() + dp(4) * (1f - progressX));
+        if (glassgramFromField) {
+            // glassGram: the bubble starts as the field's glass, as wide as it
+            drawableX = lerp(glassgramFromLeft - container.getX(), messageViewX + messageView.getBackgroundDrawableLeft(), progressX);
+            drawableRight = (int) lerp(glassgramFromRight - container.getX(), messageViewX + messageView.getBackgroundDrawableRight(), progressX);
+        }
         MessageDrawable drawable = null;
         if (!currentMessageObject.isAnimatedEmojiStickers()) {
             drawable = messageView.getCurrentBackgroundDrawable(true);
