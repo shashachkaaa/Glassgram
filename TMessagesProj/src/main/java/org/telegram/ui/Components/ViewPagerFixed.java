@@ -234,7 +234,10 @@ public class ViewPagerFixed extends FrameLayout {
 
         onTabPageSelected(page, forward);
         final int tX = viewPages[0] != null ? viewPages[0].getMeasuredWidth() : 0;
-        if (forward) {
+        final boolean crossfade = crossfadeManualScroll() && viewPages[0] != null && viewPages[1] != null;
+        if (crossfade) {
+            setTranslationX(viewPages[1], 0);
+        } else if (forward) {
             setTranslationX(viewPages[1], tX);
         } else {
             setTranslationX(viewPages[1], -tX);
@@ -246,7 +249,14 @@ public class ViewPagerFixed extends FrameLayout {
             if (viewPages[1] == null) {
                 return;
             }
-            if (animatingForward) {
+            if (crossfade) {
+                // glassGram: the page drawn on top fades in or out; the one under it stays put
+                if (indexOfChild(viewPages[1]) > indexOfChild(viewPages[0])) {
+                    viewPages[1].setAlpha(progress);
+                } else {
+                    viewPages[0].setAlpha(1f - progress);
+                }
+            } else if (animatingForward) {
                 setTranslationX(viewPages[1], viewPages[0].getMeasuredWidth() * (1f - progress));
                 setTranslationX(viewPages[0], -viewPages[0].getMeasuredWidth() * progress);
             } else {
@@ -264,6 +274,13 @@ public class ViewPagerFixed extends FrameLayout {
         manualScrolling.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
+                if (crossfade) {
+                    for (View v : viewPages) {
+                        if (v != null) {
+                            v.setAlpha(1f);
+                        }
+                    }
+                }
                 if (viewPages[1] != null) {
                     swapViews();
                     viewsByType.put(viewTypes[1], viewPages[1]);
@@ -282,10 +299,15 @@ public class ViewPagerFixed extends FrameLayout {
                 notificationsLocker.unlock();
             }
         });
-        manualScrolling.setDuration(getManualScrollDuration());
-        manualScrolling.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        manualScrolling.setDuration(crossfade ? 220 : getManualScrollDuration());
+        manualScrolling.setInterpolator(crossfade ? CubicBezierInterpolator.EASE_OUT : CubicBezierInterpolator.EASE_OUT_QUINT);
         manualScrolling.start();
         return true;
+    }
+
+    /** glassGram: a tap switches pages with a quick crossfade instead of a slide, like iOS tabs. */
+    protected boolean crossfadeManualScroll() {
+        return false;
     }
 
     protected long getManualScrollDuration() {

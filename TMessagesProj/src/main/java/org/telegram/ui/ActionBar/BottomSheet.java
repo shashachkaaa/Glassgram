@@ -77,6 +77,7 @@ import org.telegram.ui.Components.AnimationProperties;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
+import org.telegram.ui.Components.GlassgramSpringInterpolator;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LiquidPanelDrawable;
@@ -405,6 +406,11 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                 );
                 currentAnimation.setDuration((int) (250 * (Math.max(0, translationY) / AndroidUtilities.getPixelsInCM(0.8f, false))));
                 currentAnimation.setInterpolator(CubicBezierInterpolator.DEFAULT);
+                if (org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                    // glassGram: a released sheet springs back into place
+                    currentAnimation.setDuration(420);
+                    currentAnimation.setInterpolator(new GlassgramSpringInterpolator(0.85f));
+                }
                 currentAnimation.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
@@ -1782,6 +1788,10 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
             }
             currentSheetAnimation.setStartDelay(waitingKeyboard ? 0 : 20);
             currentSheetAnimation.setInterpolator(openInterpolator);
+            if (!transitionFromRight && openInterpolator == CubicBezierInterpolator.EASE_OUT_QUINT && org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                // glassGram: the sheet comes up on a spring that settles without a visible bounce, like on iOS
+                currentSheetAnimation.setInterpolator(new GlassgramSpringInterpolator(0.9f));
+            }
             int finalAccount = currentAccount;
             notificationsLocker.lock();
             currentSheetAnimation.addListener(new AnimatorListenerAdapter() {

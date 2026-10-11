@@ -296,6 +296,29 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         }
     }
 
+    /**
+     * glassGram: on a tap the selection pill slides over to the new tab on the long press's
+     * spring, like iOS (the liquid tab bar, when it draws the tabs, has its own).
+     */
+    public void slideSelectorTo(View tab) {
+        if (externalRenderer != null || isInLongPress || tab == null) {
+            return;
+        }
+        final View from = findSelectedTab();
+        if (from == null || from == tab || from.getWidth() <= 0 || tab.getWidth() <= 0) {
+            return;
+        }
+        AndroidUtilities.cancelRunOnUIThread(restoreDrawSelector);
+        if (!drawCustomSelector || !selectedTabPositionX.isRunning()) {
+            animatedLongSelectedViewCenterX = from.getX() + from.getWidth() / 2f;
+        }
+        selectedTabPositionOffsetX.cancel();
+        animatedLongSelectedViewOffsetX = 0;
+        setSkipDrawSelector(true);
+        selectedTabPositionX.animateToFinalPosition(tab.getX() + tab.getWidth() / 2f);
+        AndroidUtilities.runOnUIThread(restoreDrawSelector, 450);
+    }
+
     private View findSelectedTab() {
         for (int a = 0, N = getChildCount(); a < N; a++) {
             final View child = getChildAt(a);

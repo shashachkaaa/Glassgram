@@ -51,6 +51,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.utils.ViewOutlineProviderImpl;
+import org.telegram.ui.Components.GlassgramSpringInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
@@ -858,7 +859,73 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
     }
 
+    private static boolean glassgramSpringMenus() {
+        return org.telegram.messenger.GlassgramConfig.iosTransitions;
+    }
+
+    /**
+     * glassGram: the menu pops out of its corner on a spring, like on iOS, already whole: its
+     * glass and items appear at once instead of unrolling row by row.
+     */
+    private static AnimatorSet glassgramSpringIn(View view, float pivotFractionX, float pivotFractionY) {
+        final GlassgramSpringInterpolator spring = new GlassgramSpringInterpolator(0.72f);
+        final ValueAnimator animator = ValueAnimator.ofFloat(0, 1);
+        animator.setInterpolator(null);
+        animator.addUpdateListener(anm -> {
+            final float t = anm.getAnimatedFraction();
+            final int w = view.getWidth() > 0 ? view.getWidth() : view.getMeasuredWidth();
+            final int h = view.getHeight() > 0 ? view.getHeight() : view.getMeasuredHeight();
+            view.setPivotX(w * pivotFractionX);
+            view.setPivotY(h * pivotFractionY);
+            final float scale = AndroidUtilities.lerp(0.7f, 1f, spring.getInterpolation(t));
+            view.setScaleX(scale);
+            view.setScaleY(scale);
+            view.setAlpha(Math.min(1f, t / 0.25f));
+        });
+        view.setScaleX(0.7f);
+        view.setScaleY(0.7f);
+        view.setAlpha(0f);
+        final AnimatorSet set = new AnimatorSet();
+        set.playTogether(animator);
+        set.setDuration(480);
+        return set;
+    }
+
+    /** glassGram: the menu's glass and items, shown whole for the spring. */
+    private static void glassgramShowWhole(ActionBarPopupWindowLayout content, float finalScaleY) {
+        final boolean updateAnimation = content.updateAnimation;
+        content.updateAnimation = false;
+        content.setBackScaleY(finalScaleY);
+        content.setBackAlpha(255);
+        content.updateAnimation = updateAnimation;
+        for (int a = 0, count = content.getItemsCount(); a < count; a++) {
+            final View child = content.getItemAt(a);
+            if (child instanceof GapView) {
+                continue;
+            }
+            child.setTranslationY(0);
+            child.setAlpha(child.isEnabled() ? 1f : 0.5f);
+            if (child instanceof ActionBarMenuSubItem) {
+                ((ActionBarMenuSubItem) child).onItemShown();
+            }
+        }
+    }
+
     public static AnimatorSet startAnimation(ActionBarPopupWindowLayout content) {
+        if (glassgramSpringMenus()) {
+            content.positions.clear();
+            float finalScaleY = 1f;
+            if (content.getSwipeBack() != null) {
+                content.getSwipeBack().invalidateTransforms();
+                finalScaleY = content.backScaleY;
+            }
+            content.startAnimationPending = false;
+            content.setTranslationY(0);
+            glassgramShowWhole(content, finalScaleY);
+            final AnimatorSet set = glassgramSpringIn(content, 1f, content.shownFromBottom ? 1f : 0f);
+            set.start();
+            return set;
+        }
         content.startAnimationPending = true;
         content.setTranslationY(0);
         content.setAlpha(1.0f);
@@ -952,6 +1019,25 @@ public class ActionBarPopupWindow extends PopupWindow {
             }
             content.setTranslationY(0);
             content.setAlpha(1.0f);
+            if (glassgramSpringMenus()) {
+                content.positions.clear();
+                float finalScaleY = 1f;
+                if (content.getSwipeBack() != null) {
+                    content.getSwipeBack().invalidateTransforms();
+                    finalScaleY = content.backScaleY;
+                }
+                content.startAnimationPending = false;
+                glassgramShowWhole(content, finalScaleY);
+                windowAnimatorSet = glassgramSpringIn(content, 1f, content.shownFromBottom ? 1f : 0f);
+                windowAnimatorSet.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        windowAnimatorSet = null;
+                    }
+                });
+                windowAnimatorSet.start();
+                return;
+            }
             content.setPivotX(content.getMeasuredWidth());
             content.setPivotY(0);
             int count = content.getItemsCount();
@@ -1024,10 +1110,21 @@ public class ActionBarPopupWindow extends PopupWindow {
         registerListener(anchor);
     }
 
+    private AnimatorSet glassgramContextSpring;
+
     @Override
     public void showAtLocation(View parent, int gravity, int x, int y) {
+        // glassGram: the message menu's pop-in becomes a spring, from the same corner
+        final boolean spring = glassgramSpringMenus() && getAnimationStyle() == R.style.PopupContextAnimation && getContentView() != null;
+        if (spring) {
+            setAnimationStyle(0);
+        }
         super.showAtLocation(parent, gravity, x, y);
         unregisterListener();
+        if (spring && isShowing()) {
+            glassgramContextSpring = glassgramSpringIn(getContentView(), 1f, 1f);
+            glassgramContextSpring.start();
+        }
     }
 
     @Override
@@ -1042,6 +1139,10 @@ public class ActionBarPopupWindow extends PopupWindow {
     public void dismiss(boolean animated) {
         setFocusable(false);
         dismissDim();
+        if (glassgramContextSpring != null) {
+            glassgramContextSpring.cancel();
+            glassgramContextSpring = null;
+        }
         if (windowAnimatorSet != null) {
             if (animated && isClosingAnimated) {
                 return;

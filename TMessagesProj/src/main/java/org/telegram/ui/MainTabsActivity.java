@@ -344,6 +344,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                     return;
                 }
 
+                if (org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                    tabsView.slideSelectorTo(v);
+                }
                 selectTab(position, true);
                 viewPager.scrollToPosition(position);
             });

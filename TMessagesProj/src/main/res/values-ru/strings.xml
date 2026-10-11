@@ -306,8 +306,8 @@
     <string name="GlassgramDonateOpenBot">Открыть @%1$s</string>
     <string name="GlassgramHideFloatingButton">Скрыть плавающую кнопку</string>
     <string name="GlassgramAnimations">Анимации</string>
-    <string name="GlassgramIosTransitions">Переходы как в iOS</string>
-    <string name="GlassgramIosTransitionsInfo">Экраны выезжают справа поверх предыдущего, а он отодвигается и затемняется, как на iPhone. Свайп назад работает так же.</string>
+    <string name="GlassgramIosTransitions">Анимации как в iOS</string>
+    <string name="GlassgramIosTransitionsInfo">Экраны выезжают справа поверх предыдущего, меню и шторки появляются на пружине, вкладки переключаются плавным затуханием, как на iPhone.</string>
     <string name="GlassgramChatListInfo">Изменения появятся, когда вы вернётесь к списку чатов.</string>
     <string name="GlassgramStickers">Стикеры и эмодзи</string>
     <string name="GlassgramHideStickerTime">Скрыть время на стикерах</string>

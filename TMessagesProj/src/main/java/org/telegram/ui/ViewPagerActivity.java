@@ -487,6 +487,11 @@ public abstract class ViewPagerActivity extends BaseFragment {
         }
 
         @Override
+        protected boolean crossfadeManualScroll() {
+            return org.telegram.messenger.GlassgramConfig.iosTransitions;
+        }
+
+        @Override
         public void setLayoutParams(ViewGroup.LayoutParams params) {
             super.setLayoutParams(params);
         }
