@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- glassGram splash icon: the launcher icon in a circle. 288dp with the icon's circle 192dp
+     across, as Android 12+ splash icons without a background are sized; the launcher icon itself
+     would take the launcher's shape (a squircle on some phones). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group>
+        <clip-path android:pathData="M54,18 A36,36 0 1,1 54,90 A36,36 0 1,1 54,18 Z" />
+        <path android:pathData="M0,0h108v108h-108z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108">
+                    <item android:offset="0" android:color="#FF3A3A44" />
+                    <item android:offset="1" android:color="#FF16161C" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M0,0h108v108h-108z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="30" android:centerY="18" android:gradientRadius="70">
+                    <item android:offset="0" android:color="#38FFFFFF" />
+                    <item android:offset="1" android:color="#00FFFFFF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+    <path
+        android:pathData="M75,33 L33,50 L54.35,53.65 L58,75 Z"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="75" android:startY="33" android:endX="45.5" android:endY="62.5">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFC9C9D6" />
+            </gradient>
+        </aapt:attr>
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="75" android:startY="33" android:endX="45.5" android:endY="62.5">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFC9C9D6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
