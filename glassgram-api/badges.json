@@ -61,6 +61,9 @@
       "text": {
         "en": "The owner's golden brother and one of the developers of @glassGramBot.",
         "ru": "Золотой брат владельца и один из кодеров @glassGramBot."
+      },
+      "style": {
+        "effect": "orbit"
       }
     },
     "6782032428": {
