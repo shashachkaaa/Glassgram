@@ -64,7 +64,15 @@
       }
     },
     "7091172883": "supporter",
-    "8037199101": "critic",
+    "8037199101": {
+      "badge": "critic",
+      "style": {
+        "name": [
+          "#00C9A7",
+          "#845EC2"
+        ]
+      }
+    },
     "6188761199": {
       "badge": "developer",
       "text": {
