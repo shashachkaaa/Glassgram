@@ -1,14 +1,14 @@
-# Glassgram
+# glassGram
 
-**Glassgram** — неофициальный клиент Telegram для Android на основе [официального исходного кода Telegram](https://github.com/DrKLO/Telegram): режим призрака, сохранение удалённых и отредактированных сообщений, плагины в формате exteraGram и многое другое.
+**glassGram** — неофициальный клиент Telegram для Android на основе [официального исходного кода Telegram](https://github.com/DrKLO/Telegram): режим призрака, сохранение удалённых и отредактированных сообщений, плагины в формате exteraGram и многое другое.
 
-*Glassgram is an unofficial Telegram client for Android built on the official Telegram source code, with a ghost mode, saved deleted and edited messages, exteraGram-compatible Python plugins and more.*
+*glassGram is an unofficial Telegram client for Android built on the official Telegram source code, with a ghost mode, saved deleted and edited messages, exteraGram-compatible Python plugins and more.*
 
 📢 Канал: [@glassgramdev](https://t.me/glassgramdev) · 📦 Скачать: [Releases](https://github.com/shashachkaaa/Telegram/releases)
 
 ## Возможности
 
-Все настройки — в **Glassgram Preferences** (Настройки → Glassgram).
+Все настройки — в **glassGram Preferences** (Настройки → glassGram).
 
 ### 👻 Режим призрака
 - Не отправлять отметки о прочтении сообщений и историй
@@ -29,7 +29,7 @@
 
 ### 🧩 Плагины
 - Python-плагины в формате **exteraGram** (SDK 1.4.5): хуки запросов, обновлений и исходящих сообщений, Xposed-хуки методов, страницы настроек, пункты меню, установка зависимостей из PyPI
-- Установка нажатием на файл `.plugin` в любом чате; список, настройки и журнал — в **Glassgram Preferences → Плагины**
+- Установка нажатием на файл `.plugin` в любом чате; список, настройки и журнал — в **glassGram Preferences → Плагины**
 - Найти плагины: [@exteraPlugins](https://t.me/exteraPlugins)
 
 ### 🏷️ Значки
@@ -66,6 +66,6 @@ APK собирает GitHub Actions (`.github/workflows/build-apk.yml`) на к�
 
 ## Лицензия
 
-Glassgram основан на исходном коде [Telegram for Android](https://github.com/DrKLO/Telegram) и распространяется под той же лицензией — [GNU GPL v2](LICENSE). Glassgram не связан с Telegram FZ-LLC.
+glassGram основан на исходном коде [Telegram for Android](https://github.com/DrKLO/Telegram) и распространяется под той же лицензией — [GNU GPL v2](LICENSE). glassGram не связан с Telegram FZ-LLC.
 
 Telegram API: https://core.telegram.org/api · MTProto: https://core.telegram.org/mtproto

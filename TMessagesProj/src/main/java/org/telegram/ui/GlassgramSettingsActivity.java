@@ -739,7 +739,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     }
 
     private static String saveFolderName() {
-        return GlassgramConfig.saveFolder == null || GlassgramConfig.saveFolder.isEmpty() ? "Glassgram" : GlassgramConfig.saveFolder;
+        return GlassgramConfig.saveFolder == null || GlassgramConfig.saveFolder.isEmpty() ? "glassGram" : GlassgramConfig.saveFolder;
     }
 
     /** Switches with an expandable list: the switch toggles, the row itself expands. */
@@ -783,7 +783,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         }
         final org.telegram.ui.Components.EditTextBoldCursor editText = new org.telegram.ui.Components.EditTextBoldCursor(getParentActivity());
         editText.setText(GlassgramConfig.saveFolder);
-        editText.setHint("Glassgram");
+        editText.setHint("glassGram");
         editText.setSingleLine(true);
         editText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 18);
         editText.setTextColor(getThemedColor(org.telegram.ui.ActionBar.Theme.key_dialogTextBlack));

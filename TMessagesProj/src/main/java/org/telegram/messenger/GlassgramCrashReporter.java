@@ -44,7 +44,7 @@ public final class GlassgramCrashReporter {
             try {
                 StringWriter trace = new StringWriter();
                 exception.printStackTrace(new PrintWriter(trace));
-                String report = "Glassgram " + BuildVars.BUILD_VERSION_STRING
+                String report = "glassGram " + BuildVars.BUILD_VERSION_STRING
                         + "\nAndroid " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + "), " + Build.MANUFACTURER + " " + Build.MODEL
                         + "\nThread: " + thread.getName()
                         + "\n\n" + trace;
@@ -91,7 +91,7 @@ public final class GlassgramCrashReporter {
             builder.setPositiveButton(LocaleController.getString(R.string.GlassgramCrashCopy), (dialog, which) -> {
                 ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
                 if (clipboard != null) {
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Glassgram crash", text));
+                    clipboard.setPrimaryClip(ClipData.newPlainText("glassGram crash", text));
                     Toast.makeText(activity, LocaleController.getString(R.string.TextCopied), Toast.LENGTH_SHORT).show();
                 }
             });

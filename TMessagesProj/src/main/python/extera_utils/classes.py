@@ -395,7 +395,7 @@ class Base:
                                 types = [hints.get(p, object) for p in names]
                         spec.addMethod(attr, marker.name, _jtype(returns), _jtypes(types))
                     elif marker.kind == "mvel":
-                        raise NotImplementedError(f"{cls.__name__}.{attr}: MVEL methods are not supported in Glassgram")
+                        raise NotImplementedError(f"{cls.__name__}.{attr}: MVEL methods are not supported in glassGram")
                     elif marker.kind in ("constructor", "preconstructor"):
                         hooks.append((getattr(cls, attr), marker))
         for entry in methods or ():

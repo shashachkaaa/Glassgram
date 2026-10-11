@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Glassgram</string>
-    <string name="AppNameBeta">Glassgram Beta</string>
+    <string name="AppName">glassGram</string>
+    <string name="AppNameBeta">glassGram Beta</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>
@@ -11236,13 +11236,13 @@
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
     <string name="GlassgramBackgroundChannel">Background connection</string>
-    <string name="GlassgramBackgroundTitle">Glassgram is connected</string>
+    <string name="GlassgramBackgroundTitle">glassGram is connected</string>
     <string name="GlassgramBackgroundText">Receiving messages in the background. You can hide this notification in system settings.</string>
     <string name="GlassgramBatteryTitle">Notifications in the background</string>
-    <string name="GlassgramBatteryText">Glassgram keeps its own connection to deliver notifications instead of push. To keep it alive, allow Glassgram to run in the background without battery restrictions.\n\nOn some phones (Xiaomi, vivo, Huawei, Samsung) also allow autostart and background activity in the app\'s system settings.</string>
+    <string name="GlassgramBatteryText">glassGram keeps its own connection to deliver notifications instead of push. To keep it alive, allow glassGram to run in the background without battery restrictions.\n\nOn some phones (Xiaomi, vivo, Huawei, Samsung) also allow autostart and background activity in the app\'s system settings.</string>
     <string name="GlassgramBatteryAllow">Allow</string>
-    <string name="GlassgramPreferences">Glassgram Preferences</string>
-    <string name="GlassgramPreferencesInfo">Glassgram\'s own options. They apply on this device only.</string>
+    <string name="GlassgramPreferences">glassGram Preferences</string>
+    <string name="GlassgramPreferencesInfo">glassGram\'s own options. They apply on this device only.</string>
     <string name="GlassgramCategories">Categories</string>
     <string name="GlassgramGeneral">General</string>
     <string name="GlassgramAppearance">Appearance</string>
@@ -11261,20 +11261,20 @@
     <string name="GlassgramHeaderBadge">My Badge in the Header</string>
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
     <string name="GlassgramSplitInput">Split Message Field</string>
-    <string name="GlassgramUpdateTitle">Glassgram update</string>
-    <string name="GlassgramUpdateText">Glassgram %1$s is out. You have %2$s.</string>
+    <string name="GlassgramUpdateTitle">glassGram update</string>
+    <string name="GlassgramUpdateText">glassGram %1$s is out. You have %2$s.</string>
     <string name="GlassgramUpdateDownload">Download</string>
     <string name="GlassgramUpdateLater">Remind me later</string>
-    <string name="GlassgramUpdateDownloading">Downloading Glassgram %1$s…</string>
+    <string name="GlassgramUpdateDownloading">Downloading glassGram %1$s…</string>
     <string name="GlassgramUpdateFailed">Could not download the update. Try again later.</string>
     <string name="GlassgramDonateTitle">Support Development</string>
-    <string name="GlassgramDonateSubtitle">By supporting Glassgram you help it grow and get a supporter badge next to your name, visible to everyone using Glassgram.</string>
+    <string name="GlassgramDonateSubtitle">By supporting glassGram you help it grow and get a supporter badge next to your name, visible to everyone using glassGram.</string>
     <string name="GlassgramDonateStep1">Open the bot</string>
     <string name="GlassgramDonateStep1Text">Go to @%1$s and send /donate.</string>
     <string name="GlassgramDonateStep2">Pay with Telegram Stars</string>
     <string name="GlassgramDonateStep2Text">Choose any amount and pay right in Telegram, no card details needed.</string>
     <string name="GlassgramDonateStep3">Get your badge</string>
-    <string name="GlassgramDonateStep3Text">The bot gives you the badge automatically; it shows up in Glassgram within a couple of minutes.</string>
+    <string name="GlassgramDonateStep3Text">The bot gives you the badge automatically; it shows up in glassGram within a couple of minutes.</string>
     <string name="GlassgramDonateOpenBot">Open @%1$s</string>
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
@@ -11345,8 +11345,8 @@
     <string name="GlassgramSpyDone">Done</string>
     <string name="GlassgramSpyFailed">Something went wrong</string>
     <string name="GlassgramCustomization">Customization</string>
-    <string name="GlassgramPreviewName">Glassgram</string>
-    <string name="GlassgramPreviewText">This message was deleted, but Glassgram kept it for you.</string>
+    <string name="GlassgramPreviewName">glassGram</string>
+    <string name="GlassgramPreviewText">This message was deleted, but glassGram kept it for you.</string>
     <string name="GlassgramTranslucentDeleted">Translucent Deleted Messages</string>
     <string name="GlassgramDeletedMark">Deleted Mark</string>
     <string name="GlassgramUsefulFeatures">Useful features</string>
@@ -11371,7 +11371,7 @@
     <string name="GlassgramIconOrange">Orange</string>
     <string name="GlassgramIconPink">Pink</string>
     <string name="GlassgramIconLight">Light</string>
-    <string name="GlassgramCrashTitle">Glassgram crashed</string>
+    <string name="GlassgramCrashTitle">glassGram crashed</string>
     <string name="GlassgramCrashText">The app closed because of an error last time. Copy the report and send it to the developer so it can be fixed.</string>
     <string name="GlassgramCrashCopy">Copy report</string>
     <string name="GlassgramIgnoreContentProtection">Ignore Content Protection</string>
@@ -11419,7 +11419,7 @@
     <string name="GlassgramAutoPauseVideo">Video</string>
     <string name="GlassgramAutoPauseVoice">Voice</string>
     <string name="GlassgramAutoPauseRound">Round</string>
-    <string name="GlassgramAutoPauseInfo">Pauses media playback when the device is locked or Glassgram is minimized.</string>
+    <string name="GlassgramAutoPauseInfo">Pauses media playback when the device is locked or glassGram is minimized.</string>
     <string name="GlassgramProtectedInfo">Self-destructing media can be saved to the gallery and forwarded, and screenshots are allowed. With protection ignored, messages from chats where forwarding is restricted are sent as copies: albums stay albums, and captions of photos and files are left out.</string>
     <string name="GlassgramKeepForMe">Keep for me</string>
     <string name="GlassgramChannel">Channel</string>

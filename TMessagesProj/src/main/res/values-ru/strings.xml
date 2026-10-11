@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Glassgram</string>
-    <string name="AppNameBeta">Glassgram Beta</string>
+    <string name="AppName">glassGram</string>
+    <string name="AppNameBeta">glassGram Beta</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>
@@ -264,13 +264,13 @@
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
     <string name="GlassgramBackgroundChannel">Фоновое соединение</string>
-    <string name="GlassgramBackgroundTitle">Glassgram подключён</string>
+    <string name="GlassgramBackgroundTitle">glassGram подключён</string>
     <string name="GlassgramBackgroundText">Получает сообщения в фоне. Это уведомление можно скрыть в настройках системы.</string>
     <string name="GlassgramBatteryTitle">Уведомления в фоне</string>
-    <string name="GlassgramBatteryText">Вместо push Glassgram держит своё соединение, чтобы присылать уведомления. Чтобы оно не обрывалось, разрешите Glassgram работать в фоне без ограничений батареи.\n\nНа некоторых телефонах (Xiaomi, vivo, Huawei, Samsung) также разрешите автозапуск и работу в фоне в системных настройках приложения.</string>
+    <string name="GlassgramBatteryText">Вместо push glassGram держит своё соединение, чтобы присылать уведомления. Чтобы оно не обрывалось, разрешите glassGram работать в фоне без ограничений батареи.\n\nНа некоторых телефонах (Xiaomi, vivo, Huawei, Samsung) также разрешите автозапуск и работу в фоне в системных настройках приложения.</string>
     <string name="GlassgramBatteryAllow">Разрешить</string>
-    <string name="GlassgramPreferences">Настройки Glassgram</string>
-    <string name="GlassgramPreferencesInfo">Собственные настройки Glassgram. Действуют только на этом устройстве.</string>
+    <string name="GlassgramPreferences">Настройки glassGram</string>
+    <string name="GlassgramPreferencesInfo">Собственные настройки glassGram. Действуют только на этом устройстве.</string>
     <string name="GlassgramCategories">Категории</string>
     <string name="GlassgramGeneral">Основные</string>
     <string name="GlassgramAppearance">Оформление</string>
@@ -289,20 +289,20 @@
     <string name="GlassgramHeaderBadge">Мой значок в шапке</string>
     <string name="GlassgramGlassHeader">Стеклянная шапка списка чатов</string>
     <string name="GlassgramSplitInput">Раздельное поле ввода</string>
-    <string name="GlassgramUpdateTitle">Обновление Glassgram</string>
-    <string name="GlassgramUpdateText">Вышел Glassgram %1$s. У вас %2$s.</string>
+    <string name="GlassgramUpdateTitle">Обновление glassGram</string>
+    <string name="GlassgramUpdateText">Вышел glassGram %1$s. У вас %2$s.</string>
     <string name="GlassgramUpdateDownload">Скачать</string>
     <string name="GlassgramUpdateLater">Напомнить позже</string>
-    <string name="GlassgramUpdateDownloading">Скачивание Glassgram %1$s…</string>
+    <string name="GlassgramUpdateDownloading">Скачивание glassGram %1$s…</string>
     <string name="GlassgramUpdateFailed">Не удалось скачать обновление. Попробуйте позже.</string>
     <string name="GlassgramDonateTitle">Поддержать разработку</string>
-    <string name="GlassgramDonateSubtitle">Поддерживая Glassgram, вы помогаете ему развиваться и получаете значок поддержавшего рядом с именем, который видят все пользователи Glassgram.</string>
+    <string name="GlassgramDonateSubtitle">Поддерживая glassGram, вы помогаете ему развиваться и получаете значок поддержавшего рядом с именем, который видят все пользователи glassGram.</string>
     <string name="GlassgramDonateStep1">Откройте бота</string>
     <string name="GlassgramDonateStep1Text">Перейдите в @%1$s и отправьте /donate.</string>
     <string name="GlassgramDonateStep2">Оплатите звёздами Telegram</string>
     <string name="GlassgramDonateStep2Text">Выберите любую сумму и оплатите прямо в Telegram, без ввода данных карты.</string>
     <string name="GlassgramDonateStep3">Получите значок</string>
-    <string name="GlassgramDonateStep3Text">Бот выдаст значок автоматически, в Glassgram он появится через пару минут.</string>
+    <string name="GlassgramDonateStep3Text">Бот выдаст значок автоматически, в glassGram он появится через пару минут.</string>
     <string name="GlassgramDonateOpenBot">Открыть @%1$s</string>
     <string name="GlassgramHideFloatingButton">Скрыть плавающую кнопку</string>
     <string name="GlassgramChatListInfo">Изменения появятся, когда вы вернётесь к списку чатов.</string>
@@ -377,8 +377,8 @@
     <string name="GlassgramSpyDone">Готово</string>
     <string name="GlassgramSpyFailed">Что-то пошло не так</string>
     <string name="GlassgramCustomization">Оформление</string>
-    <string name="GlassgramPreviewName">Glassgram</string>
-    <string name="GlassgramPreviewText">Это сообщение удалили, но Glassgram его сохранил.</string>
+    <string name="GlassgramPreviewName">glassGram</string>
+    <string name="GlassgramPreviewText">Это сообщение удалили, но glassGram его сохранил.</string>
     <string name="GlassgramTranslucentDeleted">Полупрозрачные удалённые</string>
     <string name="GlassgramDeletedMark">Отметка удаления</string>
     <string name="GlassgramUsefulFeatures">Полезное</string>
@@ -403,7 +403,7 @@
     <string name="GlassgramIconOrange">Оранжевая</string>
     <string name="GlassgramIconPink">Розовая</string>
     <string name="GlassgramIconLight">Светлая</string>
-    <string name="GlassgramCrashTitle">Glassgram вылетел</string>
+    <string name="GlassgramCrashTitle">glassGram вылетел</string>
     <string name="GlassgramCrashText">В прошлый раз приложение закрылось из-за ошибки. Скопируйте отчёт и отправьте разработчику, чтобы её исправили.</string>
     <string name="GlassgramCrashCopy">Скопировать отчёт</string>
     <string name="GlassgramIgnoreContentProtection">Игнорировать защиту контента</string>
@@ -451,7 +451,7 @@
     <string name="GlassgramAutoPauseVideo">Видео</string>
     <string name="GlassgramAutoPauseVoice">Голосовые</string>
     <string name="GlassgramAutoPauseRound">Кружки</string>
-    <string name="GlassgramAutoPauseInfo">Ставит воспроизведение на паузу, когда экран заблокирован или Glassgram свёрнут.</string>
+    <string name="GlassgramAutoPauseInfo">Ставит воспроизведение на паузу, когда экран заблокирован или glassGram свёрнут.</string>
     <string name="GlassgramProtectedInfo">Самоуничтожающиеся медиа можно сохранить в галерею и переслать, скриншоты разрешены. Если защита контента игнорируется, сообщения из чатов с запретом пересылки отправляются копией: альбомы остаются альбомами, а подписи к фото и файлам не переносятся.</string>
     <string name="GlassgramKeepForMe">Сохранить у себя</string>
     <string name="GlassgramChannel">Канал</string>

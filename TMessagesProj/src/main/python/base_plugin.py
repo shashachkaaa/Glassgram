@@ -322,7 +322,7 @@ def _xposed_bridge():
     try:
         return jclass("de.robv.android.xposed.XposedBridge")
     except Exception:
-        raise XposedUnavailable("Xposed method hooks are not available in this Glassgram build")
+        raise XposedUnavailable("Xposed method hooks are not available in this glassGram build")
 
 
 def _make_java_hook(plugin, xposed_hook, priority, before, after, before_filters, after_filters):
