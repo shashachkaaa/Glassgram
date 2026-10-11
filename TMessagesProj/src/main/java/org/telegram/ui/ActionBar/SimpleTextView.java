@@ -695,6 +695,17 @@ public class SimpleTextView extends View implements Drawable.Callback {
         return true;
     }
 
+    private int[] glassgramNameColors;
+
+    /** glassGram: a badge holder's own name color, or two or three for a gradient; null for the text color. */
+    public void setGlassgramNameColors(int[] colors) {
+        if (java.util.Arrays.equals(glassgramNameColors, colors)) {
+            return;
+        }
+        glassgramNameColors = colors;
+        invalidate();
+    }
+
     /** Shows a Glassgram badge after the name's status (and before the verified or muted icon). */
     public void setGlassgramBadge(org.telegram.ui.Components.GlassgramBadgeDrawable badge) {
         if (glassgramBadge == badge) {
@@ -887,7 +898,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
     @Override
     protected void onDraw(Canvas canvas) {
         if (glassgramBadge != null) {
-            glassgramBadge.setColor(textPaint.getColor());
+            glassgramBadge.setColor(glassgramNameColors != null ? glassgramNameColors[0] : textPaint.getColor());
         }
         super.onDraw(canvas);
         int textOffsetX = 0;
@@ -1234,7 +1245,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
             if (emojiStack != null) {
                 emojiStack.clearPositions();
             }
-            layout.draw(canvas);
+            glassgramDrawLayout(canvas);
             canvas.restore();
 
             AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, emojiStack, 0, null, 0, 0, 0, 1f, emojiStackColorFilter);
@@ -1246,12 +1257,32 @@ public class SimpleTextView extends View implements Drawable.Callback {
             if (emojiStack != null) {
                 emojiStack.clearPositions();
             }
-            layout.draw(canvas);
+            glassgramDrawLayout(canvas);
             canvas.restore();
 
             AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, emojiStack, 0, null, 0, 0, 0, 1f, emojiStackColorFilter);
             drawSpoilers(canvas);
         }
+    }
+
+    /** The layout, in the badge holder's own name color or gradient when there is one. */
+    private void glassgramDrawLayout(Canvas canvas) {
+        if (glassgramNameColors == null) {
+            layout.draw(canvas);
+            return;
+        }
+        final int color = textPaint.getColor();
+        final int alpha = textPaint.getAlpha();
+        final android.graphics.Shader shader = textPaint.getShader();
+        textPaint.setColor(glassgramNameColors[0]);
+        textPaint.setAlpha(alpha);
+        if (glassgramNameColors.length > 1 && layout.getLineCount() > 0) {
+            final float left = layout.getLineLeft(0);
+            textPaint.setShader(org.telegram.messenger.GlassgramBadges.nameShader(glassgramNameColors, left, layout.getLineRight(0) - left));
+        }
+        layout.draw(canvas);
+        textPaint.setShader(shader);
+        textPaint.setColor(color);
     }
 
     private void clipOutSpoilers(Canvas canvas) {

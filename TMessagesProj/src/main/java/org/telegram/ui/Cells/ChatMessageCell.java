@@ -1691,6 +1691,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private int nameLayoutWidth;
     // Glassgram: where the emoji status goes in the name's line when the badge follows it (-1: at the name's end)
     private int glassgramNameStatusOffset = -1;
+    // glassGram: the sender's badge, for their own name color or gradient
+    private org.telegram.messenger.GlassgramBadges.Badge glassgramNameBadge;
+    private int[] glassgramNameDrawColors;
 
     /** Where the name's emoji status starts: before the Glassgram badge, which comes after it. */
     private int glassgramNameStatusEnd() {
@@ -19046,6 +19049,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             final int glassgramStatusGap = dp(22);
             int glassgramStatusIndex = -1;
             glassgramNameStatusOffset = -1;
+            glassgramNameBadge = glassgramBadge;
             if (glassgramBadge != null) {
                 glassgramBadgeWidth = (int) Math.ceil(Theme.chat_namePaint.measureText(" ") + Theme.chat_namePaint.getTextSize() * org.telegram.ui.Components.GlassgramBadgeDrawable.SIZE_TO_TEXT);
                 nameWidth -= glassgramBadgeWidth;
@@ -22276,6 +22280,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 } else {
                     Theme.chat_namePaint.setColor(getThemedColor(Theme.key_chat_inForwardedNameText));
                 }
+                glassgramNameDrawColors = !currentMessageObject.isOutOwner() && glassgramNameBadge != null
+                    ? org.telegram.messenger.GlassgramBadges.readableNameColors(glassgramNameBadge, getThemedColor(Theme.key_chat_inBubble)) : null;
+                if (glassgramNameDrawColors != null) {
+                    Theme.chat_namePaint.setColor(glassgramNameDrawColors[0]);
+                }
                 nameY = dp(drawPinnedTop ? 9 : 10);
                 if (viaSpan1 != null || viaSpan2 != null) {
                     int color = getThemedColor(currentMessageObject.isOutOwner() ? Theme.key_chat_outViaBotNameText : Theme.key_chat_inViaBotNameText);
@@ -22375,7 +22384,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             canvas.translate(nx, ny);
             oldAlpha = Theme.chat_namePaint.getAlpha();
             Theme.chat_namePaint.setAlpha((int) (oldAlpha * nameAlpha));
+            final boolean glassgramGradient = glassgramNameDrawColors != null && glassgramNameDrawColors.length > 1 && !currentMessageObject.shouldDrawWithoutBackground();
+            if (glassgramGradient) {
+                Theme.chat_namePaint.setShader(org.telegram.messenger.GlassgramBadges.nameShader(glassgramNameDrawColors, 0, nameLayout.getLineWidth(0)));
+            }
             nameLayout.draw(canvas);
+            if (glassgramGradient) {
+                Theme.chat_namePaint.setShader(null);
+            }
             Theme.chat_namePaint.setAlpha(oldAlpha);
             canvas.restore();
 

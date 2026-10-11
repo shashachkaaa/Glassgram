@@ -56,5 +56,16 @@ from your own server instead, change `GlassgramBadges.API_URL` and return the sa
   badge's. Users and bots use their id; channels and
   supergroups can be written the Bot API way (`-100…`) or as `-` and the channel id; basic groups
   as `-` and the chat id. Glassgram shows ids in profiles (Glassgram Preferences > General > Show ID).
+
+  The object form may also carry the holder's own `style` (set by the holder in @glassGramBot):
+
+  ```json
+  "7091172883": { "badge": "supporter", "style": { "name": ["#FF5F6D", "#FFC371"], "effect": "sparkles" } }
+  ```
+
+  - `name` — one `#RRGGBB` color for the name, or two or three for a gradient. glassGram uses it
+    for the name in chats, the chats list, members lists, the chat header and the profile,
+    moving a color toward white or black where it would be unreadable on the theme.
+  - `effect` — around the avatar in the profile, in the name colors: `sparkles`, `halo` or `orbit`.
 - `usernames` — the same by public username, without `@`, in either form. Handy, but a peer keeps the badge only
   while it keeps the username; ids are safer.

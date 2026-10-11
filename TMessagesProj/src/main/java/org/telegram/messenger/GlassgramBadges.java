@@ -61,17 +61,32 @@ public final class GlassgramBadges {
         public final HashMap<String, String> texts;
         /** For supporters' badges: the bot that takes donations; tapping the badge explains how to get one. */
         public final String donateBot;
+        /** The holder's own style: one color for the name, or two or three for a gradient; null for the theme's. */
+        public final int[] nameColors;
+        /** The holder's own effect around the avatar in the profile (EFFECT_*), or null. */
+        public final String effect;
 
         Badge(String id, String icon, HashMap<String, String> texts, String donateBot) {
+            this(id, icon, texts, donateBot, null, null);
+        }
+
+        Badge(String id, String icon, HashMap<String, String> texts, String donateBot, int[] nameColors, String effect) {
             this.id = id;
             this.icon = icon;
             this.texts = texts;
             this.donateBot = donateBot;
+            this.nameColors = nameColors;
+            this.effect = effect;
         }
 
         /** The same badge with the description given to one peer, when it has its own. */
         Badge withTexts(HashMap<String, String> peerTexts) {
-            return peerTexts == null || peerTexts.isEmpty() ? this : new Badge(id, icon, peerTexts, donateBot);
+            return peerTexts == null || peerTexts.isEmpty() ? this : new Badge(id, icon, peerTexts, donateBot, nameColors, effect);
+        }
+
+        /** The same badge with one peer's own style. */
+        Badge withStyle(int[] colors, String peerEffect) {
+            return colors == null && peerEffect == null ? this : new Badge(id, icon, texts, donateBot, colors, peerEffect);
         }
 
         /** The text shown when the badge is tapped, in the app language when the API has it. */
@@ -262,16 +277,87 @@ public final class GlassgramBadges {
         return texts;
     }
 
-    /** A peer's badge: "badge id", or {"badge": "badge id", "text": its own description}. */
+    public static final String EFFECT_SPARKLES = "sparkles";
+    public static final String EFFECT_HALO = "halo";
+    public static final String EFFECT_ORBIT = "orbit";
+
+    /**
+     * A peer's badge: "badge id", or {"badge": "badge id", "text": its own description,
+     * "style": {"name": ["#RRGGBB", ...], "effect": "sparkles"}}.
+     */
     private static Badge resolve(HashMap<String, Badge> badges, Object value) {
         if (value instanceof String) {
             return badges.get(value);
         } else if (value instanceof JSONObject) {
             JSONObject entry = (JSONObject) value;
             Badge badge = badges.get(entry.optString("badge"));
-            return badge != null ? badge.withTexts(parseTexts(entry.opt("text"))) : null;
+            if (badge == null) {
+                return null;
+            }
+            badge = badge.withTexts(parseTexts(entry.opt("text")));
+            JSONObject style = entry.optJSONObject("style");
+            if (style != null) {
+                badge = badge.withStyle(parseColors(style.optJSONArray("name")), parseEffect(style.optString("effect", null)));
+            }
+            return badge;
         }
         return null;
+    }
+
+    /** One to three opaque colors written "#RRGGBB"; null when there are none or one is not a color. */
+    private static int[] parseColors(org.json.JSONArray array) {
+        if (array == null || array.length() == 0) {
+            return null;
+        }
+        final int count = Math.min(3, array.length());
+        final int[] colors = new int[count];
+        for (int i = 0; i < count; i++) {
+            final String hex = array.optString(i, "").trim();
+            if (!hex.matches("#?[0-9a-fA-F]{6}")) {
+                return null;
+            }
+            colors[i] = 0xFF000000 | Integer.parseInt(hex.startsWith("#") ? hex.substring(1) : hex, 16);
+        }
+        return colors;
+    }
+
+    private static String parseEffect(String effect) {
+        if (EFFECT_SPARKLES.equals(effect) || EFFECT_HALO.equals(effect) || EFFECT_ORBIT.equals(effect)) {
+            return effect;
+        }
+        return null;
+    }
+
+    /**
+     * The badge holder's name colors made readable on the background: too dark on a dark one
+     * or too light on a light one, a color is moved toward white or black. Null for none.
+     */
+    public static int[] readableNameColors(Badge badge, int background) {
+        if (badge == null || badge.nameColors == null) {
+            return null;
+        }
+        final boolean dark = androidx.core.graphics.ColorUtils.calculateLuminance(background) < 0.5;
+        final int[] colors = new int[badge.nameColors.length];
+        for (int i = 0; i < colors.length; i++) {
+            int color = badge.nameColors[i];
+            for (int step = 0; step < 10; step++) {
+                final double l = androidx.core.graphics.ColorUtils.calculateLuminance(color);
+                if (dark ? l >= 0.2 : l <= 0.45) {
+                    break;
+                }
+                color = androidx.core.graphics.ColorUtils.blendARGB(color, dark ? 0xFFFFFFFF : 0xFF000000, 0.15f);
+            }
+            colors[i] = color;
+        }
+        return colors;
+    }
+
+    /** A horizontal gradient for the colors over width, or null for a single color. */
+    public static android.graphics.Shader nameShader(int[] colors, float left, float width) {
+        if (colors == null || colors.length < 2 || width <= 0) {
+            return null;
+        }
+        return new android.graphics.LinearGradient(left, 0, left + width, 0, colors, null, android.graphics.Shader.TileMode.CLAMP);
     }
 
     /** Telegram dialog id for an id written either the app way or the Bot API way (-100…). */
@@ -333,10 +419,16 @@ public final class GlassgramBadges {
 
     /** Shows the badge (or none) after the status of the name in view, reusing the drawable while the badge stays. */
     public static void applyTo(org.telegram.ui.ActionBar.SimpleTextView view, Badge badge) {
+        applyTo(view, badge, true);
+    }
+
+    /** As above; nameStyle false for a view that is not the holder's name (the chats list title). */
+    public static void applyTo(org.telegram.ui.ActionBar.SimpleTextView view, Badge badge, boolean nameStyle) {
         if (view == null) {
             return;
         }
         Object[] shown = shownBadges.get(view);
+        view.setGlassgramNameColors(nameStyle && badge != null ? readableNameColors(badge, Theme.getColor(Theme.key_windowBackgroundWhite)) : null);
         if (badge == null) {
             shownBadges.remove(view);
             view.setGlassgramBadge(null);

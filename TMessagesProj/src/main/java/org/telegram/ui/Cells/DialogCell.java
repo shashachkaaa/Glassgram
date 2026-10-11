@@ -4124,9 +4124,20 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 } else {
                     Theme.dialogs_namePaint[paintIndex].setColor(Theme.dialogs_namePaint[paintIndex].linkColor = Theme.getColor(Theme.key_chats_name, resourcesProvider));
                 }
+                // glassGram: a badge holder's own name color or gradient
+                final int[] glassgramNameColors = currentDialogFolderId == 0 && encryptedChat == null && glassgramBadge != null
+                    ? org.telegram.messenger.GlassgramBadges.readableNameColors(glassgramBadge, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)) : null;
+                if (glassgramNameColors != null) {
+                    Theme.dialogs_namePaint[paintIndex].setColor(glassgramNameColors[0]);
+                    if (glassgramNameColors.length > 1 && nameLayout.getLineCount() > 0) {
+                        final float glassgramLeft = nameLayout.getLineLeft(0);
+                        Theme.dialogs_namePaint[paintIndex].setShader(org.telegram.messenger.GlassgramBadges.nameShader(glassgramNameColors, glassgramLeft, nameLayout.getLineRight(0) - glassgramLeft));
+                    }
+                }
                 canvas.save();
                 canvas.translate(nameLeft + nameLayoutTranslateX, nameTop);
                 SpoilerEffect.layoutDrawMaybe(nameLayout, canvas);
+                Theme.dialogs_namePaint[paintIndex].setShader(null);
                 AnimatedEmojiSpan.drawAnimatedEmojis(canvas, nameLayout, animatedEmojiStackName, -.075f, null, 0, 0, 0, 1f, getAdaptiveEmojiColorFilter(0, nameLayout.getPaint().getColor()));
                 canvas.restore();
                 if (nameLayoutEllipsizeByGradient && !nameLayoutFits) {
