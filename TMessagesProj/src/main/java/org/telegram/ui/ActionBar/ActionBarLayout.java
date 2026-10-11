@@ -621,7 +621,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     // underneath, which moves a third of the way under it and dims.
     private static final float GLASSGRAM_PARALLAX = 0.3f;
     private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
-    private View glassgramSlideTop, glassgramSlideUnder;
+    private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView;
     private float glassgramSlideCover;
 
     private static boolean glassgramIosTransitions() {
@@ -1755,6 +1755,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         containerViewBack.setAlpha(1.0f);
         containerViewBack.setScaleX(1.0f);
         containerViewBack.setScaleY(1.0f);
+        if (glassgramLayerView != null) {
+            glassgramLayerView.setLayerType(LAYER_TYPE_NONE, null);
+            glassgramLayerView = null;
+        }
         if (glassgramSlideTop != null) {
             glassgramSlideTop = glassgramSlideUnder = null;
             containerView.setTranslationX(0);
@@ -1848,7 +1852,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             animationProgress = 0.0f;
             lastFrameTime = System.nanoTime() / 1000000;
         }
-        AndroidUtilities.runOnUIThread(animationRunnable = new Runnable() {
+        // glassGram: the iOS slide steps once per display frame (Choreographer), on the frame's
+        // own time, instead of as often as the main thread's queue runs: smooth at 90 and 120 Hz
+        final boolean iosSlide = !preview && glassgramIosTransitions();
+        final Runnable step = new Runnable() {
             @Override
             public void run() {
                 if (animationRunnable != this) {
@@ -1858,15 +1865,14 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (first) {
                     transitionAnimationStartTime = System.currentTimeMillis();
                 }
-                long newTime = System.nanoTime() / 1000000;
-                long dt = newTime - lastFrameTime;
+                long newTime = iosSlide ? android.view.Choreographer.getInstance().getFrameTimeNanos() / 1000000 : System.nanoTime() / 1000000;
+                long dt = Math.max(0, newTime - lastFrameTime);
                 if (dt > 40 && first) {
                     dt = 0;
-                } else if (dt > 18) {
-                    dt = 18;
+                } else if (dt > (iosSlide ? 34 : 18)) {
+                    dt = iosSlide ? 34 : 18;
                 }
                 lastFrameTime = newTime;
-                final boolean iosSlide = !preview && glassgramIosTransitions();
                 float duration = iosSlide ? 420.0f : preview && open ? 190.0f : 150.0f;
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
@@ -1925,6 +1931,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     under.setAlpha(1.0f);
                     top.setTranslationX(w * (1.0f - cover));
                     under.setTranslationX(-w * GLASSGRAM_PARALLAX * cover);
+                    if (glassgramSlideUnder != under) {
+                        // The page underneath does not change while it slides: drawn once into a layer
+                        if (under.getLayerType() == LAYER_TYPE_NONE) {
+                            under.setLayerType(LAYER_TYPE_HARDWARE, null);
+                            glassgramLayerView = under;
+                        }
+                    }
                     glassgramSlideTop = top;
                     glassgramSlideUnder = under;
                     glassgramSlideCover = cover;
@@ -1970,7 +1983,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     onAnimationEndCheck(false);
                 }
             }
-        });
+        };
+        animationRunnable = step;
+        if (iosSlide) {
+            postOnAnimation(step);
+        } else {
+            AndroidUtilities.runOnUIThread(step);
+        }
     }
 
     @Override

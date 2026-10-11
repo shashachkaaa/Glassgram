@@ -235,8 +235,14 @@ public class ViewPagerFixed extends FrameLayout {
         onTabPageSelected(page, forward);
         final int tX = viewPages[0] != null ? viewPages[0].getMeasuredWidth() : 0;
         final boolean crossfade = crossfadeManualScroll() && viewPages[0] != null && viewPages[1] != null;
+        // glassGram: the fading page goes through a layer, so its alpha does not redraw it every frame
+        final View fading = crossfade ? (indexOfChild(viewPages[1]) > indexOfChild(viewPages[0]) ? viewPages[1] : viewPages[0]) : null;
+        final boolean fadingLayer = fading != null && fading.getLayerType() == LAYER_TYPE_NONE;
         if (crossfade) {
             setTranslationX(viewPages[1], 0);
+            if (fadingLayer) {
+                fading.setLayerType(LAYER_TYPE_HARDWARE, null);
+            }
         } else if (forward) {
             setTranslationX(viewPages[1], tX);
         } else {
@@ -279,6 +285,9 @@ public class ViewPagerFixed extends FrameLayout {
                         if (v != null) {
                             v.setAlpha(1f);
                         }
+                    }
+                    if (fadingLayer) {
+                        fading.setLayerType(LAYER_TYPE_NONE, null);
                     }
                 }
                 if (viewPages[1] != null) {
