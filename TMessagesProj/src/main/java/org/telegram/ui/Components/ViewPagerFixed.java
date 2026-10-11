@@ -237,11 +237,17 @@ public class ViewPagerFixed extends FrameLayout {
         final boolean crossfade = crossfadeManualScroll() && viewPages[0] != null && viewPages[1] != null;
         // glassGram: the fading page goes through a layer, so its alpha does not redraw it every frame
         final View fading = crossfade ? (indexOfChild(viewPages[1]) > indexOfChild(viewPages[0]) ? viewPages[1] : viewPages[0]) : null;
+        final View still = fading == null ? null : fading == viewPages[1] ? viewPages[0] : viewPages[1];
         final boolean fadingLayer = fading != null && fading.getLayerType() == LAYER_TYPE_NONE;
+        // The page under it does not change either: a layer too, so a frame is two textures blended
+        final boolean stillLayer = still != null && still.getLayerType() == LAYER_TYPE_NONE;
         if (crossfade) {
             setTranslationX(viewPages[1], 0);
             if (fadingLayer) {
                 fading.setLayerType(LAYER_TYPE_HARDWARE, null);
+            }
+            if (stillLayer) {
+                still.setLayerType(LAYER_TYPE_HARDWARE, null);
             }
         } else if (forward) {
             setTranslationX(viewPages[1], tX);
@@ -288,6 +294,9 @@ public class ViewPagerFixed extends FrameLayout {
                     }
                     if (fadingLayer) {
                         fading.setLayerType(LAYER_TYPE_NONE, null);
+                    }
+                    if (stillLayer) {
+                        still.setLayerType(LAYER_TYPE_NONE, null);
                     }
                 }
                 if (viewPages[1] != null) {

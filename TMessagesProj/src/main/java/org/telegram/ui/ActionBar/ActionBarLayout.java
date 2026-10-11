@@ -621,7 +621,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     // underneath, which moves a third of the way under it and dims.
     private static final float GLASSGRAM_PARALLAX = 0.3f;
     private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
-    private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView;
+    private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView, glassgramLayerTop;
     // The display frame's time, for the slide's next step
     private long glassgramFrameTimeMs;
     private float glassgramSlideCover;
@@ -1761,6 +1761,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             glassgramLayerView.setLayerType(LAYER_TYPE_NONE, null);
             glassgramLayerView = null;
         }
+        if (glassgramLayerTop != null) {
+            glassgramLayerTop.setLayerType(LAYER_TYPE_NONE, null);
+            glassgramLayerTop = null;
+        }
         if (glassgramSlideTop != null) {
             glassgramSlideTop = glassgramSlideUnder = null;
             containerView.setTranslationX(0);
@@ -1934,10 +1938,15 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     top.setTranslationX(w * (1.0f - cover));
                     under.setTranslationX(-w * GLASSGRAM_PARALLAX * cover);
                     if (glassgramSlideUnder != under) {
-                        // The page underneath does not change while it slides: drawn once into a layer
+                        // Both pages slide in layers: drawn again only when their content changes, so
+                        // a frame of the slide is two textures moved rather than both pages' glass redrawn
                         if (under.getLayerType() == LAYER_TYPE_NONE) {
                             under.setLayerType(LAYER_TYPE_HARDWARE, null);
                             glassgramLayerView = under;
+                        }
+                        if (top.getLayerType() == LAYER_TYPE_NONE) {
+                            top.setLayerType(LAYER_TYPE_HARDWARE, null);
+                            glassgramLayerTop = top;
                         }
                     }
                     glassgramSlideTop = top;
