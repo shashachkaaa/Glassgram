@@ -68,8 +68,7 @@
       "badge": "critic",
       "style": {
         "name": [
-          "#00C9A7",
-          "#845EC2"
+          "#FF5A5F"
         ],
         "effect": "orbit"
       }
