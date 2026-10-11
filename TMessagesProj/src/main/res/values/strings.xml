@@ -11277,6 +11277,9 @@
     <string name="GlassgramDonateStep3Text">The bot gives you the badge automatically; it shows up in glassGram within a couple of minutes.</string>
     <string name="GlassgramDonateOpenBot">Open @%1$s</string>
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
+    <string name="GlassgramAnimations">Animations</string>
+    <string name="GlassgramIosTransitions">iOS-style Transitions</string>
+    <string name="GlassgramIosTransitionsInfo">Screens slide in from the right over the previous one, which moves aside and dims, like on iPhone. Swiping back works the same way.</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
     <string name="GlassgramStickers">Stickers and Emoji</string>
     <string name="GlassgramHideStickerTime">Hide Time on Stickers</string>

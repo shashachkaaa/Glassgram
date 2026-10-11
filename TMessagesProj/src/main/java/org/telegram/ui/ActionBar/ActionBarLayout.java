@@ -617,6 +617,24 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
     public float innerTranslationX;
 
+    // glassGram: iOS-like pushes and pops. The page on top slides the whole width over the one
+    // underneath, which moves a third of the way under it and dims.
+    private static final float GLASSGRAM_PARALLAX = 0.3f;
+    private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
+    private View glassgramSlideTop, glassgramSlideUnder;
+    private float glassgramSlideCover;
+
+    private static boolean glassgramIosTransitions() {
+        return org.telegram.messenger.GlassgramConfig.iosTransitions;
+    }
+
+    /** glassGram: during a swipe back, the page underneath comes out from under the top one. */
+    private void glassgramUpdateBackParallax(float topX) {
+        if (glassgramIosTransitions() && (startedTracking || animationInProgress) && !predictiveBackInProgress && containerViewBack != null && containerView != null) {
+            containerViewBack.setTranslationX(-Math.max(0, containerView.getMeasuredWidth() - topX) * GLASSGRAM_PARALLAX);
+        }
+    }
+
     private boolean maybeStartTracking;
     protected boolean startedTracking;
     private int startedTrackingX;
@@ -957,6 +975,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     public void setInnerTranslationX(float value) {
         innerTranslationX = value;
         invalidate();
+        glassgramUpdateBackParallax(value);
 
         if (fragmentsStack.size() >= 2 && containerView.getMeasuredWidth() > 0) {
             float progress;
@@ -1211,6 +1230,19 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 }
             }
         }
+        if (glassgramSlideTop != null && (child == glassgramSlideTop || child == glassgramSlideUnder)) {
+            final float edge = glassgramSlideTop.getX();
+            if (edge > 0 && edge < getWidth()) {
+                if (child == glassgramSlideUnder) {
+                    scrimPaint.setColor(Color.argb((int) (120 * Math.min(glassgramSlideCover, 0.8f)), 0x00, 0x00, 0x00));
+                    canvas.drawRect(0, 0, edge, getHeight() * 1.5f, scrimPaint);
+                } else if (layerShadowDrawable != null) {
+                    layerShadowDrawable.setBounds((int) edge - layerShadowDrawable.getIntrinsicWidth(), child.getTop(), (int) edge, child.getBottom());
+                    layerShadowDrawable.setAlpha(255);
+                    layerShadowDrawable.draw(canvas);
+                }
+            }
+        }
         canvas.restoreToCount(restoreCount2);
 
         return result;
@@ -1402,6 +1434,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         }
 
         containerView.setLayerType(LAYER_TYPE_HARDWARE, null);
+        glassgramUpdateBackParallax(containerView.getTranslationX());
 
         BaseFragment currentFragment = fragmentsStack.get(fragmentsStack.size() - 1);
         currentFragment.prepareFragmentToSlide(true, true);
@@ -1722,6 +1755,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         containerViewBack.setAlpha(1.0f);
         containerViewBack.setScaleX(1.0f);
         containerViewBack.setScaleY(1.0f);
+        if (glassgramSlideTop != null) {
+            glassgramSlideTop = glassgramSlideUnder = null;
+            containerView.setTranslationX(0);
+            containerViewBack.setTranslationX(0);
+            invalidate();
+        }
     }
 
     public BaseFragment getLastFragment() {
@@ -1827,7 +1866,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     dt = 18;
                 }
                 lastFrameTime = newTime;
-                float duration = preview && open ? 190.0f : 150.0f;
+                final boolean iosSlide = !preview && glassgramIosTransitions();
+                float duration = iosSlide ? 420.0f : preview && open ? 190.0f : 150.0f;
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
                     animationProgress = 1.0f;
@@ -1869,10 +1909,27 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     } else {
                         interpolated = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(animationProgress);
                     }
+                } else if (iosSlide) {
+                    interpolated = glassgramSlideInterpolator.getInterpolation(animationProgress);
                 } else {
                     interpolated = decelerateInterpolator.getInterpolation(animationProgress);
                 }
-                if (open) {
+                if (iosSlide) {
+                    // glassGram: opening slides the new page (containerView) in over the old one;
+                    // closing slides the closing page (containerViewBack) off the one it reveals
+                    final float w = getWidth() - getPaddingLeft() - getPaddingRight();
+                    final float cover = open ? interpolated : 1.0f - interpolated;
+                    final View top = open ? containerView : containerViewBack;
+                    final View under = open ? containerViewBack : containerView;
+                    top.setAlpha(1.0f);
+                    under.setAlpha(1.0f);
+                    top.setTranslationX(w * (1.0f - cover));
+                    under.setTranslationX(-w * GLASSGRAM_PARALLAX * cover);
+                    glassgramSlideTop = top;
+                    glassgramSlideUnder = under;
+                    glassgramSlideCover = cover;
+                    invalidate();
+                } else if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);
                     containerView.setAlpha(clampedInterpolated);
                     if (preview) {
@@ -2218,6 +2275,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         containerView.setTranslationX(0.0f);
                         containerView.setScaleX(0.9f);
                         containerView.setScaleY(0.9f);
+                    } else if (glassgramIosTransitions()) {
+                        // glassGram: waits off screen on the right until the slide starts
+                        containerView.setAlpha(1.0f);
+                        containerView.setTranslationX(getWidth());
+                        containerView.setScaleX(1.0f);
+                        containerView.setScaleY(1.0f);
                     } else {
                         containerView.setTranslationX(48.0f);
                         containerView.setScaleX(1.0f);

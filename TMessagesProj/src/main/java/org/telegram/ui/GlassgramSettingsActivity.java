@@ -119,6 +119,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_GLASS_HEADER = 92;
     private static final int ID_HIDE_FAB = 22;
     private static final int ID_SPLIT_INPUT = 118;
+    private static final int ID_IOS_TRANSITIONS = 119;
 
     private static final int ID_HIDE_STICKER_TIME = 30;
     private static final int ID_NO_GREETING = 31;
@@ -246,6 +247,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
                 items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
+                items.add(header(getString(R.string.GlassgramAnimations)));
+                items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
+                items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
                 break;
             case PAGE_CHATS: {
                 // Sticker size with a chat preview, as one card
@@ -559,6 +563,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_SPLIT_INPUT:
                 value = GlassgramConfig.splitInput = !GlassgramConfig.splitInput;
                 GlassgramConfig.putBoolean("splitInput", value);
+                break;
+            case ID_IOS_TRANSITIONS:
+                value = GlassgramConfig.iosTransitions = !GlassgramConfig.iosTransitions;
+                GlassgramConfig.putBoolean("iosTransitions", value);
                 break;
             case ID_HIDE_STICKER_TIME:
                 value = GlassgramConfig.hideTimeOnStickers = !GlassgramConfig.hideTimeOnStickers;

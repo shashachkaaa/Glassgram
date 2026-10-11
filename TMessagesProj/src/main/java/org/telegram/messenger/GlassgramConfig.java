@@ -53,6 +53,8 @@ public class GlassgramConfig {
     public static boolean glassHeader = true;
     /** The message input split into glass pieces: attach circle, field, send circle (and the bots' menu). */
     public static boolean splitInput = true;
+    /** Pages slide in over each other the whole width, like on iOS, instead of Android's short fade. */
+    public static boolean iosTransitions = true;
     public static boolean hideFloatingButton;
 
     // Chats
@@ -168,6 +170,7 @@ public class GlassgramConfig {
         headerBadge = p.getBoolean("headerBadge", true);
         glassHeader = p.getBoolean("glassHeader", true);
         splitInput = p.getBoolean("splitInput", true);
+        iosTransitions = p.getBoolean("iosTransitions", true);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);
         disableGreetingSticker = p.getBoolean("disableGreetingSticker", false);
