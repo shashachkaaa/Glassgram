@@ -53,7 +53,12 @@
     }
   },
   "peers": {
-    "7262597406": "owner",
+    "7262597406": {
+      "badge": "owner",
+      "style": {
+        "effect": "sparkles"
+      }
+    },
     "7091172883": "supporter",
     "8037199101": "critic",
     "6188761199": {
