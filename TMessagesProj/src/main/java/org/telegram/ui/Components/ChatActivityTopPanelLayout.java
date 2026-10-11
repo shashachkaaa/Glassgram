@@ -59,6 +59,9 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
                 || ev.getAction() == MotionEvent.ACTION_DOWN && backgroundDrawable != null && backgroundDrawable.getBounds().contains((int) ev.getX(), (int) ev.getY());
     }
 
+    // glassGram: rounder, like iOS: a single panel becomes a capsule
+    private static final int GLASSGRAM_RADIUS = 26;
+
     private final Path clipPath = new Path();
     private final RectF clipRectF = new RectF();
 
@@ -68,14 +71,14 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         clipRectF.set(getPaddingLeft(), getPaddingTop(), getMeasuredWidth() - getPaddingRight(), getPaddingTop() + bgHeight);
 
-        final float r = Math.min(dp(18), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
+        final float r = Math.min(dp(GLASSGRAM_RADIUS), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
         clipPath.rewind();
         clipPath.addRoundRect(clipRectF, r, r, Path.Direction.CW);
 
         if (backgroundDrawable != null) {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
             backgroundDrawable.setBounds(getPaddingLeft() - dp(7), 0, getMeasuredWidth() - getPaddingRight() + dp(7), getPaddingTop() + getPaddingBottom() + (int) bgHeight);
-            backgroundDrawable.setRadius(Math.min(dp(18), bgHeight / 2));
+            backgroundDrawable.setRadius(Math.min(dp(GLASSGRAM_RADIUS), bgHeight / 2));
         }
     }
 
@@ -161,8 +164,9 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
             final int wasAlpha = Theme.dividerPaint.getAlpha();
             Theme.dividerPaint.setAlpha((int) (wasAlpha * alpha));
-            final float offsetL = getPaddingLeft() + dp(16) * (1f - alpha);
-            final float offsetR = getPaddingRight() + dp(16) * (1f - alpha);
+            // glassGram: the dividers stop short of the rounded sides, as on iOS
+            final float offsetL = getPaddingLeft() + dp(14) + dp(16) * (1f - alpha);
+            final float offsetR = getPaddingRight() + dp(14) + dp(16) * (1f - alpha);
             canvas.drawLine(offsetL, top, getWidth() - offsetR, top, Theme.dividerPaint);
             Theme.dividerPaint.setAlpha(wasAlpha);
         }
