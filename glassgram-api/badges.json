@@ -68,9 +68,7 @@
       "badge": "critic",
       "style": {
         "name": [
-          "#F72585",
-          "#7209B7",
-          "#4361EE"
+          "#FF5A5F"
         ],
         "effect": "halo"
       }
