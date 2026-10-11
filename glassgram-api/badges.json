@@ -56,7 +56,11 @@
     "7262597406": {
       "badge": "owner",
       "style": {
-        "effect": "sparkles"
+        "effect": "sparkles",
+        "name": [
+          "#74B9FF",
+          "#A29BFE"
+        ]
       }
     },
     "7091172883": "supporter",
