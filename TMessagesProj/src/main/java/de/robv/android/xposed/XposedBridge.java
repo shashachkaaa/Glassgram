@@ -82,7 +82,7 @@ public class XposedBridge {
         if (!(method instanceof Method || method instanceof Constructor<?>))
             throw new IllegalArgumentException("method must be a Method or Constructor");
 
-        var modifiers = method.getModifiers();
+        int modifiers = method.getModifiers();
         if (Modifier.isAbstract(modifiers))
             throw new IllegalArgumentException("method must not be abstract");
     }
@@ -135,7 +135,7 @@ public class XposedBridge {
             hookRecord = hookRecords.get(method);
             if (hookRecord == null) {
                 hookRecord = new HookInfo(method);
-                var backup = hook0(hookRecord, method, callbackMethod);
+                Method backup = hook0(hookRecord, method, callbackMethod);
                 if (backup == null) throw new IllegalStateException("Failed to hook method");
                 hookRecord.backup = backup;
                 hookRecords.put(method, hookRecord);
@@ -193,7 +193,7 @@ public class XposedBridge {
     @Deprecated
     public static void unhookMethod(Member method, XC_MethodHook callback) {
         synchronized (hookRecords) {
-            var record = hookRecords.get(method);
+            HookInfo record = hookRecords.get(method);
             if (record != null) {
                 record.callbacks.remove(callback);
                 if (record.callbacks.size() == 0) {
@@ -230,7 +230,7 @@ public class XposedBridge {
         if (args == null)
             args = EMPTY_ARRAY;
 
-        var hookRecord = hookRecords.get(method);
+        HookInfo hookRecord = hookRecords.get(method);
         try {
             // Checking method is not needed if we found hookRecord
             if (hookRecord != null)
@@ -246,11 +246,11 @@ public class XposedBridge {
 
     private static Object invokeMethod(Member member, Object thisObject, Object[] args) throws IllegalAccessException, InvocationTargetException, InstantiationException {
         if (member instanceof Method) {
-            var method = (Method) member;
+            Method method = (Method) member;
             method.setAccessible(true);
             return method.invoke(thisObject, args);
         } else {
-            var ctor = (Constructor<?>) member;
+            Constructor<?> ctor = (Constructor<?>) member;
             ctor.setAccessible(true);
             return ctor.newInstance(args);
         }
@@ -349,7 +349,7 @@ public class XposedBridge {
             this.method = method;
             isStatic = Modifier.isStatic(method.getModifiers());
             if (method instanceof Method) {
-                var rt = ((Method) method).getReturnType();
+                Class<?> rt = ((Method) method).getReturnType();
                 if (!rt.isPrimitive()) {
                     returnType = rt;
                     return;
@@ -374,7 +374,7 @@ public class XposedBridge {
         }
 
         public Object callback(Object[] args) throws Throwable {
-            var param = new XC_MethodHook.MethodHookParam();
+            XC_MethodHook.MethodHookParam param = new XC_MethodHook.MethodHookParam();
             param.method = method;
 
             if (isStatic) {
@@ -386,8 +386,8 @@ public class XposedBridge {
                 System.arraycopy(args, 1, param.args, 0, args.length - 1);
             }
 
-            var hooks = callbacks.getSnapshot();
-            var hookCount = hooks.length;
+            Object[] hooks = callbacks.getSnapshot();
+            int hookCount = hooks.length;
 
             // shouldn't happen since 0 remaining callbacks leads to unhook
             if (hookCount == 0) {
@@ -442,7 +442,7 @@ public class XposedBridge {
                 }
             } while (--afterIdx >= 0);
 
-            var result = param.getResultOrThrowable();
+            Object result = param.getResultOrThrowable();
             if (returnType != null)
                 result = returnType.cast(result);
             return result;
