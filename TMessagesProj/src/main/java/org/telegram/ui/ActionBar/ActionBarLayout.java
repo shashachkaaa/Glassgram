@@ -622,6 +622,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private static final float GLASSGRAM_PARALLAX = 0.3f;
     private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
     private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView;
+    // The display frame's time, for the slide's next step
+    private long glassgramFrameTimeMs;
     private float glassgramSlideCover;
 
     private static boolean glassgramIosTransitions() {
@@ -1865,7 +1867,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (first) {
                     transitionAnimationStartTime = System.currentTimeMillis();
                 }
-                long newTime = iosSlide ? android.view.Choreographer.getInstance().getFrameTimeNanos() / 1000000 : System.nanoTime() / 1000000;
+                long newTime = iosSlide ? glassgramFrameTimeMs : System.nanoTime() / 1000000;
                 long dt = Math.max(0, newTime - lastFrameTime);
                 if (dt > 40 && first) {
                     dt = 0;
@@ -1986,7 +1988,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         };
         animationRunnable = step;
         if (iosSlide) {
-            postOnAnimation(step);
+            android.view.Choreographer.getInstance().postFrameCallback(frameTimeNanos -> {
+                glassgramFrameTimeMs = frameTimeNanos / 1000000;
+                step.run();
+            });
         } else {
             AndroidUtilities.runOnUIThread(step);
         }
