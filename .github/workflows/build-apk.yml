@@ -30,6 +30,10 @@ on:
           - debug
           - standalone
           - huawei
+      full:
+        description: "Полная сборка без релиза (armeabi-v7a и arm64-v8a, с R8)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -78,7 +82,7 @@ jobs:
 
       - name: Install SDK packages, NDK and CMake
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq nasm ninja-build
+          sudo apt-get update -qq && sudo apt-get install -y -qq nasm ninja-build ccache
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
           echo "Using $SDKMANAGER"
@@ -93,6 +97,30 @@ jobs:
           echo "ANDROID_SDK_ROOT=${ANDROID_HOME}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
+      # The native code is compiled through ccache, whose cache lives between builds: unchanged
+      # C/C++ files are not compiled again. Both editions build the same native code, so both
+      # restore the cache and the full edition saves it.
+      - name: Restore the native build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ env.ANDROID_NDK_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ env.ANDROID_NDK_VERSION }}-
+
+      - name: Set up ccache
+        run: |
+          {
+            echo "CCACHE_DIR=$HOME/.ccache"
+            echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE"
+            echo "CCACHE_NOHASHDIR=true"
+            # The NDK is installed anew on every run: its version, not the compiler's file
+            # times, tells whether cached objects still fit
+            echo "CCACHE_COMPILERCHECK=string:${ANDROID_NDK_VERSION}"
+            echo "CCACHE_MAXSIZE=3G"
+          } >> "$GITHUB_ENV"
+          CCACHE_DIR="$HOME/.ccache" ccache --zero-stats > /dev/null
+          ccache --version | head -1
+
       # Chaquopy (plugins) installs the bundled Python packages with a build Python of the
       # same version as the app's
       - name: Set up Python 3.11
@@ -103,10 +131,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Releases are full builds: armeabi-v7a and arm64-v8a, shrunk by R8. Other builds are test
+      # builds, much faster: arm64-v8a only and without R8 (GLASSGRAM_FAST)
       - name: Select Gradle task
         id: task
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          FULL: ${{ github.event.inputs.full || 'false' }}
         run: |
           VARIANT="${{ github.event.inputs.variant || 'release' }}"
+          if [ -n "$RELEASE_TAG" ] || [ "$FULL" = "true" ]; then
+            FAST=false
+          else
+            FAST=true
+          fi
+          echo "Fast test build: $FAST"
+          echo "fast=$FAST" >> "$GITHUB_OUTPUT"
           case "$VARIANT" in
             release)    TASK=":TMessagesProj_App:assembleAfatRelease";               OUT="TMessagesProj_App/build/outputs/apk" ;;
             debug)      TASK=":TMessagesProj_App:assembleAfatDebug";                 OUT="TMessagesProj_App/build/outputs/apk" ;;
@@ -141,6 +181,7 @@ jobs:
           echo "Signing with the key from the repository secrets"
 
       - name: Build APK
+        id: build
         env:
           # Telegram API credentials of this fork, from the repository secrets
           APP_ID: ${{ secrets.APP_ID }}
@@ -157,10 +198,30 @@ jobs:
           if [ "${{ matrix.edition }}" = "rustore" ]; then
             STORE_ARG="-PGLASSGRAM_STORE=true"
           fi
-          ./gradlew ${{ steps.task.outputs.task }} $VERSION_ARG $STORE_ARG \
+          FAST_ARG=""
+          if [ "${{ steps.task.outputs.fast }}" = "true" ]; then
+            FAST_ARG="-PGLASSGRAM_FAST=true"
+          fi
+          ./gradlew ${{ steps.task.outputs.task }} $VERSION_ARG $STORE_ARG $FAST_ARG -PGLASSGRAM_CCACHE=true \
             --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dorg.gradle.workers.max=4
+
+      - name: Native build cache stats
+        if: always() && steps.build.outcome != 'skipped'
+        run: ccache --show-stats || true
+
+      # Unused objects (an ABI only the releases build, old sources) leave after a week
+      - name: Trim the native build cache
+        if: always() && matrix.edition == 'full' && steps.build.outcome != 'skipped'
+        run: ccache --evict-older-than 7d > /dev/null || true
+
+      - name: Save the native build cache
+        if: always() && matrix.edition == 'full' && steps.build.outcome != 'skipped'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ env.ANDROID_NDK_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Releases: glassgram-v<version>.apk; other builds: glassgram-<variant>-<commit>.apk
       - name: Rename APK
@@ -202,12 +263,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NOTE=""
+          if [ "${{ steps.task.outputs.fast }}" = "true" ]; then
+            NOTE=$'\n\nTest build: arm64-v8a only, without R8.'
+          fi
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest dist/*.apk \
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "glassGram (latest master build)" \
-            --notes "Built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
+            --notes "Built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)${NOTE}"
 
       # The RuStore edition gets its own pre-release with a stable link. It is never attached to
       # the releases: the app's update check (which reads the latest release) would offer it
@@ -216,12 +281,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NOTE=""
+          if [ "${{ steps.task.outputs.fast }}" = "true" ]; then
+            NOTE=$'\n\nTest build: arm64-v8a only, without R8.'
+          fi
           gh release delete latest-rustore --yes --cleanup-tag || true
           gh release create latest-rustore dist/*.apk \
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "glassGram for RuStore (latest master build)" \
-            --notes "RuStore edition (no ghost mode, spy or in-app updates), built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
+            --notes "RuStore edition (no ghost mode, spy or in-app updates), built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)${NOTE}"
 
       # A pushed tag, or a manual run with release_tag (which creates the tag on this commit)
       - name: Attach APK to GitHub Release
