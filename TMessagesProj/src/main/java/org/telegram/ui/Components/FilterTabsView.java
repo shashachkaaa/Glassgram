@@ -1773,6 +1773,9 @@ public class FilterTabsView extends FrameLayout {
             // The list stays laid out for its tabs, which the bar paints; the bar has its own glass
             listView.setAlpha(use ? 0f : 1f);
             setBackground(use ? null : blurredBackgroundDrawable);
+            // The padding is the capsule's edge: clipped to it, the pressed drop, taller than the
+            // capsule, was cut flat at its top and bottom
+            setClipToPadding(!use);
             invalidate();
         }
         liquidTabs.invalidateTabs();
