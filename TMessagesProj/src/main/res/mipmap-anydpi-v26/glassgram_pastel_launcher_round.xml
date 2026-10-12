@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- glassGram launcher icon "Pastel" (branding/gen_icon_pack.py) -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/glassgram_icon_bg_pastel" />
+    <foreground android:drawable="@drawable/glassgram_icon_fg_pastel" />
+    <monochrome android:drawable="@drawable/glassgram_icon_monochrome" />
+</adaptive-icon>

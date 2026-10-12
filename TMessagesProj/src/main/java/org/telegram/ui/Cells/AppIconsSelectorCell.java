@@ -23,6 +23,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.ColorUtils;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
@@ -50,6 +51,8 @@ import java.util.List;
 
 public class AppIconsSelectorCell extends RecyclerListView implements NotificationCenter.NotificationCenterDelegate {
     public final static float ICONS_ROUND_RADIUS = 18;
+    // glassGram has a few dozen icons: two rows scroll half as far as one
+    private final static int ROWS = 2;
 
     private List<LauncherIconController.LauncherIcon> availableIcons = new ArrayList<>();
     private LinearLayoutManager linearLayoutManager;
@@ -64,7 +67,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         setItemAnimator(null);
         setLayoutAnimation(null);
 
-        setLayoutManager(linearLayoutManager = new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false));
+        setLayoutManager(linearLayoutManager = new GridLayoutManager(context, ROWS, GridLayoutManager.HORIZONTAL, false));
         setAdapter(new Adapter() {
 
             @NonNull
@@ -91,18 +94,21 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             @Override
             public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull State state) {
                 int pos = parent.getChildViewHolder(view).getAdapterPosition();
-                if (pos == 0) {
+                if (pos == RecyclerView.NO_POSITION) {
+                    return;
+                }
+                // Columns of ROWS icons, filled top to bottom
+                final int column = pos / ROWS, lastColumn = (getAdapter().getItemCount() - 1) / ROWS;
+                if (column == 0) {
                     outRect.left = AndroidUtilities.dp(18);
                 }
-                if (pos == getAdapter().getItemCount() - 1) {
+                if (column == lastColumn) {
                     outRect.right = AndroidUtilities.dp(18);
                 } else {
-                    int itemCount = getAdapter().getItemCount();
-                    if (itemCount == 4) {
-                        outRect.right = (getWidth() - AndroidUtilities.dp(36) - AndroidUtilities.dp(58) * itemCount) / (itemCount - 1);
-                    } else {
-                        outRect.right = AndroidUtilities.dp(24);
-                    }
+                    outRect.right = AndroidUtilities.dp(24);
+                }
+                if (pos % ROWS != 0) {
+                    outRect.top = AndroidUtilities.dp(14);
                 }
             }
         });
