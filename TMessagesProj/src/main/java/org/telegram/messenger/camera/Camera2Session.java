@@ -91,7 +91,9 @@ public class Camera2Session {
     private boolean gyroStabilization;
     private boolean optionsSet, optionFps60, optionWide;
     private int optionStabilization;
-    private volatile long frameMiddle = 10_000_000L;
+    // with gyroscope stabilization: each frame's exposure time and rolling shutter skew
+    private volatile long frameExposure = 10_000_000L;
+    private volatile long frameSkew;
     // glassGram: a camera of the ultra-wide lens alone (Huawei), switched to below 1x while the main
     // camera serves 1x and up; its zoom is the main camera's times lensRatio
     private volatile String lensId;
@@ -127,7 +129,8 @@ public class Camera2Session {
             frameSeen = true;
             final Long exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME);
             final Long skew = result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW);
-            frameMiddle = (exposure != null ? exposure / 2 : 5_000_000L) + (skew != null ? skew / 2 : 8_000_000L);
+            if (exposure != null) frameExposure = exposure;
+            if (skew != null) frameSkew = skew;
         }
     };
 
@@ -727,15 +730,45 @@ public class Camera2Session {
     }
 
     /**
-     * glassGram: when the middle of a frame was taken, in the gyroscope's clock
-     * ({@link android.os.SystemClock#elapsedRealtimeNanos()}), from its SurfaceTexture timestamp.
+     * glassGram: a SurfaceTexture timestamp (when the first row's exposure started) in the
+     * gyroscope's clock, {@link android.os.SystemClock#elapsedRealtimeNanos()}.
      */
-    public long frameTimeToSensorTime(long timestamp) {
-        long time = timestamp + frameMiddle;
-        if (!realtimeTimestamps) {
-            time += android.os.SystemClock.elapsedRealtimeNanos() - System.nanoTime();
+    public long toSensorClock(long timestamp) {
+        return realtimeTimestamps ? timestamp : timestamp + android.os.SystemClock.elapsedRealtimeNanos() - System.nanoTime();
+    }
+
+    /** glassGram: the exposure time of the last frames' rows. */
+    public long getFrameExposure() {
+        return frameExposure;
+    }
+
+    /** glassGram: the time the last frames took to read out, from their first row to their last. */
+    public long getFrameSkew() {
+        return frameSkew;
+    }
+
+    /**
+     * glassGram: the edge of the upright picture the readout starts at. Sensors read from their top
+     * row, and the picture is the sensor's turned clockwise by its orientation, then mirrored for
+     * the front camera.
+     */
+    public int getReadoutEdge() {
+        final Integer orientation = cameraCharacteristics == null ? null : cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        int edge;
+        switch (orientation == null ? 90 : orientation) {
+            case 0: edge = GyroStabilizer.READOUT_TOP; break;
+            case 180: edge = GyroStabilizer.READOUT_BOTTOM; break;
+            case 270: edge = GyroStabilizer.READOUT_LEFT; break;
+            default: edge = GyroStabilizer.READOUT_RIGHT; break;
         }
-        return time;
+        if (isFront) {
+            if (edge == GyroStabilizer.READOUT_LEFT) {
+                edge = GyroStabilizer.READOUT_RIGHT;
+            } else if (edge == GyroStabilizer.READOUT_RIGHT) {
+                edge = GyroStabilizer.READOUT_LEFT;
+            }
+        }
+        return edge;
     }
 
     /** glassGram: the focal length over the width of the upright preview, at zoom 1. */

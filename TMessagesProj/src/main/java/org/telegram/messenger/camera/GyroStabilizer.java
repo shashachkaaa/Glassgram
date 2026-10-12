@@ -11,6 +11,10 @@ import android.os.SystemClock;
 
 import org.telegram.messenger.FileLog;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+
 /**
  * glassGram: stabilization of video messages by the gyroscope, for cameras that don't smooth the
  * picture they give to apps.
@@ -55,7 +59,6 @@ public class GyroStabilizer implements SensorEventListener {
 
     private final float[] real = new float[4];
     private final float[] rel = new float[3];
-    private final float[] matrix = new float[16];
 
     public GyroStabilizer(Context context) {
         sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -141,20 +144,51 @@ public class GyroStabilizer implements SensorEventListener {
         return true;
     }
 
+    /** Where the camera starts reading a frame out, as an edge of the upright picture. */
+    public static final int READOUT_TOP = 0, READOUT_RIGHT = 1, READOUT_BOTTOM = 2, READOUT_LEFT = 3;
+    /** Strips across the readout, each turned for the moment it was read. */
+    public static final int STRIPS = 12;
+
     /**
-     * The texture matrix for a frame: {@code stMatrix}, the SurfaceTexture's own matrix, after the
-     * stabilizing shift and turn. Texture coordinates before it run over the upright picture, and
-     * the frame draws the square {@code 0.5 ± halfWidth, 0.5 ± halfHeight} of them.
+     * A triangle strip over the drawn square: positions (x, y, 0) in its own -1..1 coordinates and
+     * texture coordinates, which carry the stabilization; the SurfaceTexture's matrix goes after them.
+     */
+    public static class Mesh {
+        public final FloatBuffer positions;
+        public final FloatBuffer textureCoords;
+        public final int count;
+
+        Mesh(int count) {
+            this.count = count;
+            positions = ByteBuffer.allocateDirect(count * 3 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            textureCoords = ByteBuffer.allocateDirect(count * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+        }
+    }
+
+    // a few meshes in turn, as the encoder draws a frame a little after the preview did
+    private final Mesh[] meshes = { new Mesh((STRIPS + 1) * 2), new Mesh((STRIPS + 1) * 2), new Mesh((STRIPS + 1) * 2), new Mesh((STRIPS + 1) * 2) };
+    private int meshIndex;
+    private final float[] rowReal = new float[4];
+    private final float[] rowRel = new float[3];
+
+    /**
+     * The stabilized mesh for a frame, or null before the gyroscope has anything. The camera reads
+     * a frame out row by row over its rolling shutter skew, so while the phone shakes, each row is
+     * taken at a different turn; turning the whole frame as one leaves the rows wobbling like jelly.
+     * So each strip across the readout is turned back for the moment its rows were taken.
      *
      * @param source the camera the frame came from; the virtual camera restarts when it changes
-     * @param frameTime when the frame was taken, in {@link SystemClock#elapsedRealtimeNanos()} time
+     * @param exposureStart when the first row's exposure started, in {@link SystemClock#elapsedRealtimeNanos()} time
+     * @param exposure the exposure time of a row, and skew the time from the first row to the last
+     * @param readout the edge of the upright picture the readout starts at
      * @param focal the focal length in units of the drawn square's half width
      * @param front whether the frame is from the front camera, mirrored like the preview
+     * @param halfWidth the drawn square is {@code 0.5 ± halfWidth, 0.5 ± halfHeight} of the upright texture
      */
-    public void apply(Object source, long frameTime, float focal, boolean front, float halfWidth, float halfHeight, float[] stMatrix, float[] out) {
+    public Mesh apply(Object source, long exposureStart, long exposure, long skew, int readout, float focal, boolean front, float halfWidth, float halfHeight) {
+        final long frameTime = exposureStart + exposure / 2 + skew / 2;
         if (!orientationAt(frameTime, real)) {
-            System.arraycopy(stMatrix, 0, out, 0, 16);
-            return;
+            return null;
         }
         if (source != lastSource || lastFrameTime == 0 || frameTime < lastFrameTime) {
             lastSource = source;
@@ -170,7 +204,7 @@ public class GyroStabilizer implements SensorEventListener {
         }
         lastFrameTime = frameTime;
 
-        // how far the real phone is turned from the virtual camera, kept inside the margin
+        // how far the real phone is turned from the virtual camera in the middle of the frame, kept inside the margin
         relative(virtual, real, rel);
         final float maxTurn = (1f - 1f / MARGIN_ZOOM) / Math.max(focal, 0.1f);
         final float turn = (float) Math.hypot(rel[0], rel[1]);
@@ -190,24 +224,44 @@ public class GyroStabilizer implements SensorEventListener {
             rotate(virtual, -rel[0], -rel[1], -rel[2]);
         }
 
-        // A point the virtual camera sees at p shows in the real frame at rotate(-roll) * p + shift.
-        // Back camera, looking along -z: turning by +y moves the picture right, by +x down.
-        // Front camera, looking along +z and mirrored: the shift goes the other way.
-        float shiftX = focal * rel[1];
-        float shiftY = -focal * rel[0];
-        if (front) {
-            shiftX = -shiftX;
-            shiftY = -shiftY;
+        meshIndex = (meshIndex + 1) % meshes.length;
+        final Mesh mesh = meshes[meshIndex];
+        final boolean across = readout == READOUT_LEFT || readout == READOUT_RIGHT;
+        for (int k = 0; k <= STRIPS; ++k) {
+            // the strip edge, as a line across the readout in the square's -1..1 coordinates
+            final float along = -1f + 2f * k / STRIPS;
+            final float texture = 0.5f + along * (across ? halfWidth : halfHeight);
+            final float fraction = readout == READOUT_LEFT || readout == READOUT_BOTTOM ? texture : 1f - texture;
+            final long rowTime = exposureStart + exposure / 2 + (long) (Math.max(0f, Math.min(1f, fraction)) * skew);
+            if (!orientationAt(rowTime, rowReal)) {
+                System.arraycopy(real, 0, rowReal, 0, 4);
+            }
+            relative(virtual, rowReal, rowRel);
+
+            // A point the virtual camera sees at p shows in the real frame at rotate(-roll) * p + shift.
+            // Back camera, looking along -z: turning by +y moves the picture right, by +x down.
+            // Front camera, looking along +z and mirrored: the shift goes the other way.
+            float shiftX = focal * rowRel[1];
+            float shiftY = -focal * rowRel[0];
+            if (front) {
+                shiftX = -shiftX;
+                shiftY = -shiftY;
+            }
+            final float cos = (float) Math.cos(-rowRel[2]), sin = (float) Math.sin(-rowRel[2]);
+            for (int side = 0; side < 2; ++side) {
+                final float other = side == 0 ? -1f : 1f;
+                final float x = across ? along : other;
+                final float y = across ? other : along;
+                final int vertex = k * 2 + side;
+                mesh.positions.put(vertex * 3, x);
+                mesh.positions.put(vertex * 3 + 1, y);
+                mesh.positions.put(vertex * 3 + 2, 0f);
+                final float qx = x / MARGIN_ZOOM, qy = y / MARGIN_ZOOM;
+                mesh.textureCoords.put(vertex * 2, 0.5f + halfWidth * (shiftX + cos * qx - sin * qy));
+                mesh.textureCoords.put(vertex * 2 + 1, 0.5f + halfHeight * (shiftY + sin * qx + cos * qy));
+            }
         }
-        final float[] m = matrix;
-        android.opengl.Matrix.setIdentityM(m, 0);
-        android.opengl.Matrix.translateM(m, 0, 0.5f, 0.5f, 0);
-        android.opengl.Matrix.scaleM(m, 0, halfWidth, halfHeight, 1);
-        android.opengl.Matrix.translateM(m, 0, shiftX, shiftY, 0);
-        android.opengl.Matrix.rotateM(m, 0, (float) Math.toDegrees(-rel[2]), 0, 0, 1);
-        android.opengl.Matrix.scaleM(m, 0, 1f / (MARGIN_ZOOM * halfWidth), 1f / (MARGIN_ZOOM * halfHeight), 1);
-        android.opengl.Matrix.translateM(m, 0, -0.5f, -0.5f, 0);
-        android.opengl.Matrix.multiplyMM(out, 0, stMatrix, 0, m, 0);
+        return mesh;
     }
 
     /** The real camera's turn from the virtual one, as a rotation vector in the virtual camera's axes. */

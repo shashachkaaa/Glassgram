@@ -237,6 +237,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
     private final float[] mMVPMatrix = new float[16];
     private final float[] mSTMatrix = new float[16];
+    // glassGram: the stabilized picture, as strips across the camera's readout; null when not stabilized
+    private volatile GyroStabilizer.Mesh stabilizedMesh;
     private final float[] moldSTMatrix = new float[16];
     private static final String VERTEX_SHADER =
             "uniform mat4 uMVPMatrix;\n" +
@@ -1583,8 +1585,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
         // glassGram: stabilization by the gyroscope, and the half size of the drawn square of the texture
         private GyroStabilizer stabilizer;
-        private final float[] rawSTMatrix = new float[16];
-        private final float[] stabilizedSTMatrix = new float[16];
         private float textureHalfWidth = 0.5f;
         private float textureHalfHeight = 0.5f;
 
@@ -1927,16 +1927,17 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTexture[surfaceIndex]);
 
-            GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, vertexBuffer);
+            final GyroStabilizer.Mesh mesh = stabilizedMesh;
+            GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, mesh != null ? mesh.positions : vertexBuffer);
             GLES20.glEnableVertexAttribArray(positionHandle);
 
-            GLES20.glVertexAttribPointer(textureHandle, 2, GLES20.GL_FLOAT, false, 8, textureBuffer);
+            GLES20.glVertexAttribPointer(textureHandle, 2, GLES20.GL_FLOAT, false, 8, mesh != null ? mesh.textureCoords : textureBuffer);
             GLES20.glEnableVertexAttribArray(textureHandle);
 
             GLES20.glUniformMatrix4fv(textureMatrixHandle, 1, false, mSTMatrix, 0);
             GLES20.glUniformMatrix4fv(vertexMatrixHandle, 1, false, mMVPMatrix, 0);
 
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, mesh != null ? mesh.count : 4);
 
             GLES20.glDisableVertexAttribArray(positionHandle);
             GLES20.glDisableVertexAttribArray(textureHandle);
@@ -1959,7 +1960,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             }
         }
 
-        /** glassGram: the camera texture's matrix, stabilized by the gyroscope when the camera asks for it. */
+        /** glassGram: the camera texture's matrix, and the gyroscope's stabilized mesh when the camera asks for it. */
         private void updateTextureMatrix() {
             final SurfaceTexture texture = cameraSurface[surfaceIndex];
             Camera2Session session = null;
@@ -1970,19 +1971,19 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     session = (Camera2Session) currentSession;
                 }
             }
+            texture.getTransformMatrix(mSTMatrix);
             if (session == null || !session.isGyroStabilization()) {
-                texture.getTransformMatrix(mSTMatrix);
+                stabilizedMesh = null;
                 return;
             }
             if (stabilizer == null) {
                 stabilizer = new GyroStabilizer(ApplicationLoader.applicationContext);
                 stabilizer.start();
             }
-            texture.getTransformMatrix(rawSTMatrix);
+            // the mesh carries the stabilization; the SurfaceTexture's own matrix goes after it
             final float focal = session.getFocalPerWidth() * session.getStreamZoom() / textureHalfWidth;
-            stabilizer.apply(session, session.frameTimeToSensorTime(texture.getTimestamp()), focal, session.isFront(), textureHalfWidth, textureHalfHeight, rawSTMatrix, stabilizedSTMatrix);
-            // the encoder reads this matrix from its own thread, so it changes in one go
-            System.arraycopy(stabilizedSTMatrix, 0, mSTMatrix, 0, 16);
+            stabilizedMesh = stabilizer.apply(session, session.toSensorClock(texture.getTimestamp()), session.getFrameExposure(), session.getFrameSkew(),
+                    session.getReadoutEdge(), focal, session.isFront(), textureHalfWidth, textureHalfHeight);
         }
 
         @Override
@@ -2786,10 +2787,16 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
             final int tex = cameraTexture[surfaceIndex];
             if (tex != Integer.MIN_VALUE) {
+                // glassGram: the gyroscope's stabilized strips, as in the preview
+                final GyroStabilizer.Mesh mesh = stabilizedMesh;
+                if (mesh != null) {
+                    GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, mesh.positions);
+                    GLES20.glVertexAttribPointer(textureHandle, 2, GLES20.GL_FLOAT, false, 8, mesh.textureCoords);
+                }
                 GLES20.glUniformMatrix4fv(textureMatrixHandle, 1, false, mSTMatrix, 0);
                 GLES20.glUniform1f(alphaHandle, cameraTextureAlpha);
                 GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, tex);
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, mesh != null ? mesh.count : 4);
             }
 
             GLES20.glDisableVertexAttribArray(positionHandle);
