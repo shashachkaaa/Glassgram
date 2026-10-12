@@ -53,38 +53,14 @@
     }
   },
   "peers": {
-    "7262597406": {
-      "badge": "owner",
-      "style": {
-        "effect": "sparkles",
-        "name": [
-          "#00C9A7",
-          "#845EC2"
-        ]
-      }
-    },
+    "7262597406": "owner",
     "7091172883": "supporter",
-    "8037199101": {
-      "badge": "critic",
-      "style": {
-        "name": [
-          "#FF5A5F"
-        ],
-        "effect": "halo"
-      }
-    },
+    "8037199101": "critic",
     "6188761199": {
       "badge": "developer",
       "text": {
         "en": "The owner's golden brother and one of the developers of @glassGramBot.",
         "ru": "Золотой брат владельца и один из кодеров @glassGramBot."
-      },
-      "style": {
-        "effect": "orbit",
-        "name": [
-          "#00C9A7",
-          "#845EC2"
-        ]
       }
     },
     "6782032428": {
