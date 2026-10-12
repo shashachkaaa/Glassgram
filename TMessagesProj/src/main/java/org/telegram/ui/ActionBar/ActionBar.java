@@ -356,16 +356,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         invalidate();
     }
 
-    /** How far the back button's glass is widened for the badge now, and its progress. */
+    /**
+     * How far the back button's glass is widened for the badge now, and its progress. Selection
+     * turns the back button into a close button and hides the badge: the selection bar's text does
+     * not move with the glass, and the glass came over it.
+     */
     private float glassBackCounterProgress() {
         if (glassBackCounterProgress == null) {
             return 0f;
         }
-        return glassBackCounterProgress.set(glassBackCounterValue > 0);
+        return glassBackCounterProgress.set(glassBackCounterValue > 0) * (1f - getActionModeFactor());
     }
 
     private void drawGlassBackCounter(Canvas canvas) {
-        final float progress = glassBackCounterProgress == null ? 0f : glassBackCounterProgress.get();
+        final float progress = glassBackCounterProgress == null ? 0f : glassBackCounterProgress.get() * (1f - getActionModeFactor());
         if (progress <= 0f || glassBackCounterText == null || !glassShown[GLASS_BACK] || backButtonImageView == null) {
             return;
         }
