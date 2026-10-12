@@ -6,7 +6,11 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Shader;
+import android.os.SystemClock;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -24,7 +28,6 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_keyboard;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
-import org.telegram.ui.Components.LoadingDrawable;
 import org.telegram.ui.Components.Text;
 import org.telegram.ui.LinkManager;
 
@@ -54,10 +57,16 @@ class BotButton {
 
     private final Path path = new Path();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF loadingRect = new RectF();
     private final float[] radii = new float[8];
 
-    public LoadingDrawable loadingDrawable;
+    // glassGram: the iOS loading look, a band of light sweeping across the button while the bot answers
+    private static final long SHIMMER_PERIOD = 1100;
+    private Paint shimmerFill, shimmerStroke;
+    private LinearGradient shimmerGradient;
+    private final Matrix shimmerMatrix = new Matrix();
+    private long shimmerStart;
+    private float shimmerAlpha;
+    private long shimmerAlphaTime;
     public Drawable selectorDrawable;
     public Drawable iconDrawable;
     public AnimatedEmojiDrawable animatedEmojiDrawable;
@@ -133,36 +142,9 @@ class BotButton {
 
         canvas.save();
         canvas.clipPath(path);
-        if (drawProgress) {
-            if (loadingDrawable == null) {
-                loadingDrawable = new LoadingDrawable();
-                loadingDrawable.setRadiiDp(5.5f);
-                loadingDrawable.setAppearByGradient(true);
-                loadingDrawable.strokePaint.setStrokeWidth(AndroidUtilities.dpf2(1.25f));
-            } else if (loadingDrawable.isDisappeared() || loadingDrawable.isDisappearing()) {
-                loadingDrawable.reset();
-                loadingDrawable.resetDisappear();
-            }
-        } else if (loadingDrawable != null && !loadingDrawable.isDisappearing() && !loadingDrawable.isDisappeared()) {
-            loadingDrawable.disappear();
-        }
-
-        if (loadingDrawable != null && (drawProgress || loadingDrawable.isDisappearing())) {
-            loadingRect.set(rect);
-            loadingRect.inset(AndroidUtilities.dpf2(.625f), AndroidUtilities.dpf2(.625f));
-            loadingDrawable.setRadii(radii);
-            loadingDrawable.setBounds(loadingRect);
-            loadingDrawable.setColors(
-                Theme.multAlpha(Theme.getColor(Theme.key_chat_serviceBackgroundSelector, resourcesProvider), 1f),
-                Theme.multAlpha(Theme.getColor(Theme.key_chat_serviceBackgroundSelector, resourcesProvider), 2.5f),
-                Theme.multAlpha(Theme.getColor(Theme.key_chat_serviceBackgroundSelector, resourcesProvider), 3f),
-                Theme.multAlpha(Theme.getColor(Theme.key_chat_serviceBackgroundSelector, resourcesProvider), 10f)
-            );
-            loadingDrawable.setAlpha(0xFF);
-            loadingDrawable.draw(canvas);
+        if (drawShimmer(canvas, rect, drawProgress)) {
             invalidate = true;
         }
-
         if (selectorDrawable != null) {
             selectorDrawable.setBounds((int) rect.left, (int) rect.top, (int) rect.right, (int) rect.bottom);
             selectorDrawable.setAlpha(0xFF);
@@ -240,6 +222,42 @@ class BotButton {
         canvas.restore();
 
         return invalidate;
+    }
+
+    /** glassGram: the loading band, fading in and out with the loading; true while it moves. */
+    private boolean drawShimmer(Canvas canvas, RectF rect, boolean loading) {
+        final long now = SystemClock.elapsedRealtime();
+        final float dt = shimmerAlphaTime == 0 ? 0 : Math.min(100, now - shimmerAlphaTime) / 160f;
+        shimmerAlphaTime = now;
+        if (loading && shimmerAlpha == 0) {
+            shimmerStart = now;
+        }
+        shimmerAlpha = Utilities.clamp(shimmerAlpha + (loading ? dt : -dt), 1f, 0f);
+        if (!loading && shimmerAlpha <= 0) {
+            shimmerAlphaTime = 0;
+            return false;
+        }
+        if (shimmerFill == null) {
+            shimmerGradient = new LinearGradient(0, 0, 1, 0, new int[] { 0x00FFFFFF, 0xFFFFFFFF, 0x00FFFFFF }, new float[] { 0f, 0.5f, 1f }, Shader.TileMode.CLAMP);
+            shimmerFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+            shimmerFill.setShader(shimmerGradient);
+            shimmerStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+            shimmerStroke.setShader(shimmerGradient);
+            shimmerStroke.setStyle(Paint.Style.STROKE);
+            shimmerStroke.setStrokeWidth(AndroidUtilities.dpf2(1.33f));
+        }
+        final float band = Math.max(rect.width() * 0.55f, dp(90));
+        final float phase = ((now - shimmerStart) % SHIMMER_PERIOD) / (float) SHIMMER_PERIOD;
+        final float left = AndroidUtilities.lerp(rect.left - band, rect.right, phase);
+        shimmerMatrix.reset();
+        shimmerMatrix.postScale(band, 1);
+        shimmerMatrix.postTranslate(left, 0);
+        shimmerGradient.setLocalMatrix(shimmerMatrix);
+        shimmerFill.setAlpha((int) (0x1C * shimmerAlpha));
+        canvas.drawPath(path, shimmerFill);
+        shimmerStroke.setAlpha((int) (0x60 * shimmerAlpha));
+        canvas.drawPath(path, shimmerStroke);
+        return true;
     }
 
     public void setPressed(boolean pressed) {

@@ -21564,17 +21564,27 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
 
-        if (!transitionParams.transitionBotButtons.isEmpty() && transitionParams.animateBotButtonsChanged) {
-            float t = transitionParams.animateChangeProgress;
-            t = MathUtils.clamp(1f - (float) Math.pow(t, 2f), 0f, 1f);
-            drawBotButtons(canvas, transitionParams.transitionBotButtons, (int) (0xFF * t));
-        }
-        if (!botButtons.isEmpty()) {
-            float alpha = 1f;
-            if (transitionParams.animateBotButtonsChanged) {
-                alpha = 1f - MathUtils.clamp(1f - (float) Math.pow(transitionParams.animateChangeProgress, 2f), 0f, 1f);
+        if (transitionParams.animateBotButtonsChanged) {
+            // glassGram: as on iOS, the changed buttons swap quickly at the start of the edit, rather
+            // than both sets showing through each other for the whole of it; the rest stay put
+            final float t = transitionParams.animateChangeProgress;
+            if (!transitionParams.transitionBotButtons.isEmpty()) {
+                final float alpha = MathUtils.clamp(1f - t / 0.3f, 0f, 1f);
+                if (alpha > 0) {
+                    drawBotButtons(canvas, transitionParams.transitionBotButtons, (int) (0xFF * alpha));
+                }
             }
-            drawBotButtons(canvas, botButtons, (int) (alpha * 0xFF));
+            if (!transitionParams.stableBotButtons.isEmpty()) {
+                drawBotButtons(canvas, transitionParams.stableBotButtons, 0xFF);
+            }
+            if (!transitionParams.animateInBotButtons.isEmpty()) {
+                final float alpha = MathUtils.clamp((t - 0.12f) / 0.3f, 0f, 1f);
+                if (alpha > 0) {
+                    drawBotButtons(canvas, transitionParams.animateInBotButtons, (int) (0xFF * alpha));
+                }
+            }
+        } else if (!botButtons.isEmpty()) {
+            drawBotButtons(canvas, botButtons, 0xFF);
         }
 
         if (askBotForumSeparator != null && (currentPosition == null /*|| (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0 && (currentPosition.flags & MessageObject.POSITION_FLAG_LEFT) != 0*/)) {
@@ -28464,6 +28474,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         public float animateChangeProgress = 1f;
         private ArrayList<BotButton> lastDrawBotButtons = new ArrayList<>();
         private ArrayList<BotButton> transitionBotButtons = new ArrayList<>();
+        // glassGram: on an edit, the new buttons that stay as they were (drawn throughout) and those that come in
+        private final ArrayList<BotButton> stableBotButtons = new ArrayList<>();
+        private final ArrayList<BotButton> animateInBotButtons = new ArrayList<>();
         public boolean animateWidthForButton;
         public int animateFromWidthForButton;
         public int lastDrawnWidthForButtons;
@@ -28976,7 +28989,31 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     }
                 }
                 if (animateBotButtonsChanged) {
+                    // glassGram: as on iOS, a button that is the same in the same place stays put, and
+                    // only the others swap
                     transitionBotButtons.addAll(lastDrawBotButtons);
+                    stableBotButtons.clear();
+                    animateInBotButtons.clear();
+                    for (int i = 0; i < botButtons.size(); i++) {
+                        final BotButton button = botButtons.get(i);
+                        BotButton same = null;
+                        if (!button.isSeparator) {
+                            for (int j = 0; j < transitionBotButtons.size(); j++) {
+                                final BotButton old = transitionBotButtons.get(j);
+                                if (!old.isSeparator && old.y == button.y && old.height == button.height && Math.abs(old.x - button.x) < 0.01f && Math.abs(old.width - button.width) < 0.01f
+                                        && old.title != null && button.title != null && TextUtils.equals(old.title.getText(), button.title.getText())) {
+                                    same = old;
+                                    break;
+                                }
+                            }
+                        }
+                        if (same != null) {
+                            transitionBotButtons.remove(same);
+                            stableBotButtons.add(button);
+                        } else {
+                            animateInBotButtons.add(button);
+                        }
+                    }
                 }
             }
             if (lastDrawnWidthForButtons != widthForButtons) {
@@ -29227,6 +29264,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             moveCaption = false;
             animateDrawingTimeAlpha = false;
             transitionBotButtons.clear();
+            stableBotButtons.clear();
+            animateInBotButtons.clear();
             animateButton = false;
             animateBotButtonsChanged = false;
             animateWidthForButton = false;
