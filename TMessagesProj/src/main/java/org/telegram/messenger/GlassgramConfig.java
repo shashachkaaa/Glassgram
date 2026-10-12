@@ -96,6 +96,7 @@ public class GlassgramConfig {
     public static boolean roundFps60;
     public static boolean roundStabilization;
     public static boolean roundWideCamera;
+    public static boolean roundKeepZoom;
 
     /** Whether video messages use the camera options above, which only Camera2 has. */
     public static boolean roundCameraTweaks() {
@@ -232,6 +233,7 @@ public class GlassgramConfig {
         roundFps60 = p.getBoolean("roundFps60", false);
         roundStabilization = p.getBoolean("roundStabilization", false);
         roundWideCamera = p.getBoolean("roundWideCamera", false);
+        roundKeepZoom = p.getBoolean("roundKeepZoom", false);
         if (STORE_BUILD) {
             ghostMode = false;
             spySaveDeletedMessages = false;

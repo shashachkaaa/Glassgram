@@ -92,6 +92,7 @@ import org.telegram.messenger.camera.Camera2Session;
 import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.camera.CameraInfo;
 import org.telegram.messenger.camera.CameraSession;
+import org.telegram.messenger.camera.GyroStabilizer;
 import org.telegram.messenger.camera.Size;
 import org.telegram.messenger.video.MP4Builder;
 import org.telegram.messenger.video.Mp4Movie;
@@ -195,9 +196,18 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private Camera2Session createCamera2Session(boolean front) {
         final int size = MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize;
         // both cameras at once only promise to work together as they are, so keep the usual back one then
-        final Camera2Session session = Camera2Session.create(front, GlassgramConfig.roundWideCamera && !bothCameras, size, size);
+        final Camera2Session session = Camera2Session.create(front, GlassgramConfig.roundWideCamera && !bothCameras, GlassgramConfig.roundFps60, size, size);
         if (session != null) {
-            session.setVideoOptions(GlassgramConfig.roundFps60, GlassgramConfig.roundStabilization, GlassgramConfig.roundWideCamera && !front);
+            final int stabilization;
+            if (!GlassgramConfig.roundStabilization) {
+                stabilization = Camera2Session.STABILIZATION_OFF;
+            } else if (GyroStabilizer.isAvailable(ApplicationLoader.applicationContext)) {
+                // cameras rarely stabilize the preview they give apps, which is what gets recorded
+                stabilization = Camera2Session.STABILIZATION_GYRO;
+            } else {
+                stabilization = Camera2Session.STABILIZATION_CAMERA;
+            }
+            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, GlassgramConfig.roundWideCamera && !front);
         }
         return session;
     }
@@ -252,6 +262,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     float pinchStartDistance;
 
     float pinchScale;
+    // glassGram: the zoom a pinch starts from, and the last Camera1 zoom
+    private float pinchStartZoom = 1f;
+    private float camera1Zoom;
 
     boolean isInPinchToZoomTouchMode;
     boolean maybePinchToZoomTouchMode;
@@ -788,7 +801,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
 
         if (useCamera2) {
-            bothCameras = DualCameraView.roundDualAvailableStatic(getContext());
+            // glassGram: both cameras at once run at what they can do together, so 60 FPS and the
+            // ultra-wide camera take one camera at a time
+            bothCameras = DualCameraView.roundDualAvailableStatic(getContext()) && !GlassgramConfig.roundFps60 && !GlassgramConfig.roundWideCamera;
             if (bothCameras) {
                 for (int a = 0; a < 2; ++a) {
                     if (camera2Sessions[a] == null) {
@@ -1359,6 +1374,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 if (index == 1) return;
                 surfaceTexture.setDefaultBufferSize(previewSize[0].getWidth(), previewSize[0].getHeight());
                 cameraSession = new CameraSession(selectedCamera, previewSize[0], pictureSize, ImageFormat.JPEG, true);
+                camera1Zoom = 0;
                 updateFlash();
                 cameraThread.setCurrentSession(cameraSession);
                 CameraController.getInstance().openRound(cameraSession, surfaceTexture, () -> {
@@ -1516,6 +1532,13 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         private int surfaceWidth;
         private int surfaceHeight;
 
+        // glassGram: stabilization by the gyroscope, and the half size of the drawn square of the texture
+        private GyroStabilizer stabilizer;
+        private final float[] rawSTMatrix = new float[16];
+        private final float[] stabilizedSTMatrix = new float[16];
+        private float textureHalfWidth = 0.5f;
+        private float textureHalfHeight = 0.5f;
+
         public CameraGLThread(SurfaceTexture surface, int surfaceWidth, int surfaceHeight) {
             super("CameraGLThread");
             surfaceTexture = surface;
@@ -1663,6 +1686,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
             textureBuffer = ByteBuffer.allocateDirect(texData.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
             textureBuffer.put(texData).position(0);
+            textureHalfWidth = tX;
+            textureHalfHeight = tY;
 
             android.opengl.Matrix.setIdentityM(mSTMatrix, 0);
 
@@ -1729,6 +1754,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
 
         public void finish() {
+            if (stabilizer != null) {
+                stabilizer.stop();
+                stabilizer = null;
+            }
             if (cameraSurface != null) {
                 for (int a = 0; a < 2; ++a) {
                     if (cameraSurface[a] != null) {
@@ -1839,11 +1868,11 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 updateFlash();
             }
 
+            updateTextureMatrix();
+
             if (videoEncoder != null && (surfaceIndex == 0 && updateTexImage1 || surfaceIndex == 1 && updateTexImage2)) {
                 videoEncoder.frameAvailable(cameraSurface[surfaceIndex], bothCameras ? surfaceIndex : cameraId, System.nanoTime());
             }
-
-            cameraSurface[surfaceIndex].getTransformMatrix(mSTMatrix);
 
             GLES20.glUseProgram(drawProgram);
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
@@ -1879,6 +1908,32 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     firstFrameThumb = textureView.getBitmap();
                 });
             }
+        }
+
+        /** glassGram: the camera texture's matrix, stabilized by the gyroscope when the camera asks for it. */
+        private void updateTextureMatrix() {
+            final SurfaceTexture texture = cameraSurface[surfaceIndex];
+            Camera2Session session = null;
+            if (useCamera2) {
+                if (bothCameras) {
+                    session = camera2Sessions[surfaceIndex];
+                } else if (currentSession instanceof Camera2Session) {
+                    session = (Camera2Session) currentSession;
+                }
+            }
+            if (session == null || !session.isGyroStabilization()) {
+                texture.getTransformMatrix(mSTMatrix);
+                return;
+            }
+            if (stabilizer == null) {
+                stabilizer = new GyroStabilizer(ApplicationLoader.applicationContext);
+                stabilizer.start();
+            }
+            texture.getTransformMatrix(rawSTMatrix);
+            final float focal = session.getFocalPerWidth() * session.getZoom() / textureHalfWidth;
+            stabilizer.apply(session, session.frameTimeToSensorTime(texture.getTimestamp()), focal, session.isFront(), textureHalfWidth, textureHalfHeight, rawSTMatrix, stabilizedSTMatrix);
+            // the encoder reads this matrix from its own thread, so it changes in one go
+            System.arraycopy(stabilizedSTMatrix, 0, mSTMatrix, 0, 16);
         }
 
         @Override
@@ -1951,6 +2006,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
                     textureBuffer = ByteBuffer.allocateDirect(texData.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
                     textureBuffer.put(texData).position(0);
+                    textureHalfWidth = tX;
+                    textureHalfHeight = tY;
                     break;
                 }
                 case DO_SETSESSION_MESSAGE: {
@@ -1993,6 +2050,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
                     textureBuffer = ByteBuffer.allocateDirect(texData.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
                     textureBuffer.put(texData).position(0);
+                    textureHalfWidth = tX;
+                    textureHalfHeight = tY;
                     break;
                 }
             }
@@ -3785,6 +3844,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 pinchStartDistance = (float) Math.hypot(ev.getX(1) - ev.getX(0), ev.getY(1) - ev.getY(0));
 
                 pinchScale = 1f;
+                // glassGram: with the zoom kept, a pinch goes on from where the last one left it
+                if (useCamera2) {
+                    pinchStartZoom = camera2SessionCurrent == null ? 1f : GlassgramConfig.roundKeepZoom ? camera2SessionCurrent.getZoom() : camera2SessionCurrent.getDefaultZoom();
+                } else {
+                    pinchStartZoom = GlassgramConfig.roundKeepZoom ? camera1Zoom : 0f;
+                }
 
                 pointerId1 = ev.getPointerId(0);
                 pointerId2 = ev.getPointerId(1);
@@ -3815,11 +3880,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             pinchScale = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1)) / pinchStartDistance;
             if (useCamera2) {
                 if (camera2SessionCurrent != null) {
-                    float zoom = Utilities.clamp(camera2SessionCurrent.getDefaultZoom() * pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
+                    float zoom = Utilities.clamp(pinchStartZoom * pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
                     camera2SessionCurrent.setZoom(zoom);
                 }
             } else {
-                float zoom = Math.min(1f, Math.max(0, pinchScale - 1f));
+                float zoom = Math.min(1f, Math.max(0, pinchStartZoom + pinchScale - 1f));
+                camera1Zoom = zoom;
                 cameraSession.setZoom(zoom);
             }
         } else if ((ev.getActionMasked() == MotionEvent.ACTION_UP || (ev.getActionMasked() == MotionEvent.ACTION_POINTER_UP && checkPointerIds(ev)) || ev.getActionMasked() == MotionEvent.ACTION_CANCEL) && isInPinchToZoomTouchMode) {
@@ -3832,7 +3898,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     ValueAnimator finishZoomTransition;
 
     public void finishZoom() {
-        if (finishZoomTransition != null) {
+        if (finishZoomTransition != null || GlassgramConfig.roundKeepZoom) {
             return;
         }
 

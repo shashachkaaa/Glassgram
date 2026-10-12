@@ -151,6 +151,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_ROUND_60FPS = 120;
     private static final int ID_ROUND_STABILIZATION = 121;
     private static final int ID_ROUND_WIDE = 122;
+    private static final int ID_ROUND_KEEP_ZOOM = 123;
+    private static final int ID_ROUND_CAMERA_INFO = 124;
 
     private final int page;
     private boolean ghostExpanded;
@@ -309,6 +311,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButtonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
                 items.add(UItem.asButtonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
                 items.add(UItem.asButtonCheck(ID_ROUND_WIDE, getString(R.string.GlassgramRoundWide), getString(R.string.GlassgramRoundWideInfo)).setChecked(GlassgramConfig.roundWideCamera));
+                items.add(UItem.asButtonCheck(ID_ROUND_KEEP_ZOOM, getString(R.string.GlassgramRoundKeepZoom), getString(R.string.GlassgramRoundKeepZoomInfo)).setChecked(GlassgramConfig.roundKeepZoom));
+                items.add(UItem.asButton(ID_ROUND_CAMERA_INFO, getString(R.string.GlassgramRoundCameraInfo)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramRoundVideosInfo)));
                 break;
             }
@@ -472,6 +476,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_AUTO_PAUSE:
                 autoPauseExpanded = !autoPauseExpanded;
                 if (listView != null) listView.adapter.update(true);
+                return;
+            case ID_ROUND_CAMERA_INFO:
+                showCameraReport();
                 return;
             case ID_DOUBLE_TAP_SEEK:
                 showChoice(getString(R.string.GlassgramDoubleTapSeek), seekNames(), seekIndex(), which -> {
@@ -704,6 +711,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_ROUND_WIDE:
                 value = GlassgramConfig.roundWideCamera = !GlassgramConfig.roundWideCamera;
                 GlassgramConfig.putBoolean("roundWideCamera", value); break;
+            case ID_ROUND_KEEP_ZOOM:
+                value = GlassgramConfig.roundKeepZoom = !GlassgramConfig.roundKeepZoom;
+                GlassgramConfig.putBoolean("roundKeepZoom", value); break;
             case ID_ALWAYS_HD:
                 // Telegram's own default for the HD toggle in the photo viewer
                 value = org.telegram.messenger.SharedConfig.photoHighQualityDefault = !org.telegram.messenger.SharedConfig.photoHighQualityDefault;
@@ -1171,6 +1181,36 @@ public class GlassgramSettingsActivity extends UniversalFragment {
 
     private static String[] showIdNames() {
         return new String[] { getString(R.string.GlassgramShowIdOff), "Telegram API", "Bot API" };
+    }
+
+    /** What the cameras offer video messages; built off the main thread, as it asks the camera service about many ids. */
+    private void showCameraReport() {
+        final Context context = getParentActivity();
+        if (context == null) return;
+        final int size = MessagesController.getInstance(currentAccount).roundVideoSize;
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final String report = org.telegram.messenger.camera.CameraReport.build(context.getApplicationContext(), size);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (getParentActivity() == null) return;
+                final TextView text = new TextView(context);
+                text.setText(report);
+                text.setTextIsSelectable(true);
+                text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+                text.setTypeface(android.graphics.Typeface.MONOSPACE);
+                text.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+                text.setPadding(dp(24), dp(4), dp(24), dp(4));
+                final android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+                scroll.addView(text);
+                final FrameLayout container = new FrameLayout(context);
+                container.addView(scroll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, (int) (AndroidUtilities.displaySize.y * 0.55f)));
+                new AlertDialog.Builder(context)
+                        .setTitle(getString(R.string.GlassgramRoundCameraInfo))
+                        .setView(container)
+                        .setPositiveButton(getString(R.string.Copy), (d, w) -> AndroidUtilities.addToClipboard(report))
+                        .setNegativeButton(getString(R.string.Close), null)
+                        .show();
+            });
+        });
     }
 
     private void showChoice(CharSequence title, String[] names, int current, org.telegram.messenger.Utilities.Callback<Integer> onChoose) {
