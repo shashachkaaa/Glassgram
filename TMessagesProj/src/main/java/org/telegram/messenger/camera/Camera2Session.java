@@ -83,6 +83,8 @@ public class Camera2Session {
     private float defaultZoom = 1f;
     private boolean useZoomRatio;
     private Range<Integer> fpsRange;
+    // glassGram: the camera's own steadiest range with 30 in it, for recording
+    private Range<Integer> recordingFpsRange;
     private int videoStabilizationMode = -1;
     private boolean opticalStabilization;
     private boolean opticalStabilizationOff;
@@ -476,6 +478,7 @@ public class Camera2Session {
         }
         final Integer timestampSource = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
         realtimeTimestamps = timestampSource != null && timestampSource == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
+        recordingFpsRange = findRecordingFpsRange(cameraCharacteristics);
         focalPerWidth = 0;
         if (optionsSet) {
             applyVideoOptions();
@@ -676,6 +679,26 @@ public class Camera2Session {
         } catch (Exception e) {
             FileLog.e(e);
         }
+    }
+
+    /**
+     * glassGram: the range to record in without 60 FPS. 30 to 60 where the camera has it; else the
+     * one with 30 in it and the highest floor, as a camera given a range it doesn't have may fall to
+     * 10 frames a second in dim light, with exposures long enough to smear every move.
+     */
+    static Range<Integer> findRecordingFpsRange(CameraCharacteristics characteristics) {
+        final Range<Integer>[] ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+        if (ranges == null || ranges.length == 0) return null;
+        Range<Integer> best = null;
+        for (Range<Integer> range : ranges) {
+            if (range == null) continue;
+            if (range.getLower() == 30 && range.getUpper() == 60) return range;
+            if (!range.contains(30)) continue;
+            if (best == null || range.getLower() > best.getLower() || range.getLower().equals(best.getLower()) && range.getUpper() < best.getUpper()) {
+                best = range;
+            }
+        }
+        return best;
     }
 
     /** The best frame rate range with 60 in it, or null; with a size, only if that size keeps up. */
@@ -1081,7 +1104,7 @@ public class Camera2Session {
             captureRequestBuilder.set(CaptureRequest.FLASH_MODE, flashing ? (recordingVideo ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_SINGLE) : CaptureRequest.FLASH_MODE_OFF);
 
             if (recordingVideo) {
-                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange != null ? fpsRange : new Range<Integer>(30, 60));
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange != null ? fpsRange : recordingFpsRange != null ? recordingFpsRange : new Range<Integer>(30, 60));
                 captureRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
             } else if (fpsRange != null) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);

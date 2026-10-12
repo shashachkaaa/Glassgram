@@ -104,6 +104,8 @@ public class CameraReport {
                 final CameraCharacteristics c = manager.getCameraCharacteristics(id);
                 final StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 final Range<Integer> range = Camera2Session.find60FpsRange(c, map, size);
+                final Range<Integer> recording = Camera2Session.findRecordingFpsRange(c);
+                sb.append(", recording at ").append(recording != null ? recording.toString() : "the camera's choice");
                 sb.append(", 60 FPS: ");
                 if (range != null) {
                     sb.append("yes ").append(range);
