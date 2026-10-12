@@ -213,12 +213,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
             session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide);
-            session.setLensListener(waitForFrames -> {
-                final CameraGLThread thread = cameraThread;
-                if (thread != null) {
-                    thread.postRunnable(() -> thread.lensTransition.begin(waitForFrames));
-                }
-            });
         }
         return session;
     }
@@ -1958,10 +1952,15 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
             GLES20.glUseProgram(0);
 
-            // glassGram: the cross-fade over a change of lens, and the frame kept for the next one
-            final boolean lensChanges = useCamera2 && !bothCameras && currentSession instanceof Camera2Session && ((Camera2Session) currentSession).hasLensChanges();
-            lensTransition.afterDraw(updateTexImage1 || updateTexImage2, surfaceWidth, surfaceHeight, lensChanges);
-            GLES20.glDisable(GLES20.GL_BLEND);
+            // glassGram: the cross-fade over a change of lens, and the frame kept for it while the zoom moves
+            final Camera2Session lensSession = useCamera2 && !bothCameras && currentSession instanceof Camera2Session && ((Camera2Session) currentSession).hasLensChanges() ? (Camera2Session) currentSession : null;
+            if (lensSession != null) {
+                final boolean newFrame = surfaceIndex == 0 ? updateTexImage1 : updateTexImage2;
+                lensTransition.afterDraw(lensSession, newFrame ? cameraSurface[surfaceIndex].getTimestamp() : 0, lensSession.getLensChangeTime(), lensSession.mayChangeLens(), surfaceWidth, surfaceHeight);
+                GLES20.glDisable(GLES20.GL_BLEND);
+            } else {
+                lensTransition.afterDraw(null, 0, 0, false, 0, 0);
+            }
             lensSnapshotTexture = lensTransition.getTexture();
             lensTransitionAlpha = lensTransition.getAlpha();
 

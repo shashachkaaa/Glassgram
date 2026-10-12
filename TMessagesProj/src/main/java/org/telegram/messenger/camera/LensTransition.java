@@ -9,8 +9,13 @@ import java.nio.FloatBuffer;
 
 /**
  * glassGram: a cross-fade over a change of lens in video messages, as the stock camera does. The
- * picture drawn last is kept as a snapshot; when the lens changes, the snapshot is drawn over the
- * new lens's picture and fades out, instead of the picture jumping from one lens to the other.
+ * frame drawn before the first one of the new lens is kept as a snapshot, drawn over the new lens's
+ * picture and faded out, instead of the picture jumping from one lens to the other.
+ *
+ * Frames are kept only while the zoom moves, as that's what changes lenses: copying every frame
+ * costs the preview its steadiness. And the fade starts only on the first frame of the new lens,
+ * from the frame just before it; a change of lens found out later, or one the camera made by itself
+ * with no snapshot to hand, goes without, as fading from an older frame would stop the picture.
  *
  * Used from the camera's GL thread; the encoder draws the same snapshot from its own context,
  * which shares textures with it, through its own {@link Drawer}.
@@ -18,40 +23,54 @@ import java.nio.FloatBuffer;
 public class LensTransition {
 
     private static final long FADE_TIME = 320;
-    private static final int ROLLING = 0, HELD = 1, FADING = 2;
 
-    private int state = ROLLING;
+    private boolean fading;
     private long fadeStart;
     private final int[] texture = new int[1];
     private int width, height;
+    // whether copying from the surface works, found out on the first copy
+    private boolean copyChecked, copyWorks;
     private boolean hasSnapshot;
+    // the frame the snapshot is of, the frame drawn last, and the change of lens already seen, as frame timestamps
+    private long snapshotTime, lastFrameTime, seenChange;
+    private Object lastSource;
     private float alpha;
     private Drawer drawer;
 
     /**
-     * The lens is changing. With waitForFrames the picture stops until the new lens sends frames
-     * (a camera switched by hand), and the fade starts with them; else it starts now.
+     * After a frame is drawn to the surface and before it's swapped: on the first frame of a new
+     * lens, starts the fade; draws the fading snapshot over the frame; and keeps the frame as the
+     * next snapshot while a change of lens may come.
+     *
+     * @param source the camera the frames come from, or null for none that changes lenses
+     * @param frameTime the new frame's timestamp, or 0 when no new frame was drawn
+     * @param changeTime the timestamp from which frames are of the lens the camera moved to last
+     * @param keepSnapshots whether a change of lens may come soon
      */
-    public void begin(boolean waitForFrames) {
-        if (!hasSnapshot) return;
-        state = waitForFrames ? HELD : FADING;
-        fadeStart = SystemClock.uptimeMillis();
-    }
-
-    /**
-     * After a frame is drawn to the surface and before it's swapped: draws the fading snapshot over
-     * it, or else keeps the frame as the next snapshot when lens changes may come.
-     */
-    public void afterDraw(boolean newFrame, int surfaceWidth, int surfaceHeight, boolean keepSnapshots) {
-        final long now = SystemClock.uptimeMillis();
-        if (state == HELD && newFrame) {
-            state = FADING;
-            fadeStart = now;
+    public void afterDraw(Object source, long frameTime, long changeTime, boolean keepSnapshots, int surfaceWidth, int surfaceHeight) {
+        if (source != lastSource) {
+            lastSource = source;
+            fading = false;
+            hasSnapshot = false;
+            lastFrameTime = 0;
+            seenChange = changeTime;
         }
-        if (state == FADING) {
+        if (source == null) {
+            alpha = 0;
+            return;
+        }
+        final long now = SystemClock.uptimeMillis();
+        if (frameTime != 0 && changeTime != seenChange && frameTime >= changeTime) {
+            seenChange = changeTime;
+            if (hasSnapshot && snapshotTime == lastFrameTime && lastFrameTime < changeTime) {
+                fading = true;
+                fadeStart = now;
+            }
+        }
+        if (fading) {
             final float t = (now - fadeStart) / (float) FADE_TIME;
             if (t >= 1f) {
-                state = ROLLING;
+                fading = false;
                 alpha = 0;
             } else {
                 // ease out: most of the new lens shows early, the rest settles
@@ -64,32 +83,49 @@ public class LensTransition {
         } else {
             alpha = 0;
         }
-        if (state == ROLLING && keepSnapshots && newFrame && surfaceWidth > 0 && surfaceHeight > 0) {
-            if (texture[0] == 0) {
-                GLES20.glGenTextures(1, texture, 0);
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-            } else {
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
-            }
-            if (width != surfaceWidth || height != surfaceHeight) {
-                width = surfaceWidth;
-                height = surfaceHeight;
-                // RGB: the camera's surface has no alpha, and a copy from it into RGBA is an error
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0, GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, null);
-            }
+        if (frameTime == 0) return;
+        lastFrameTime = frameTime;
+        if (fading) return;
+        if (keepSnapshots && surfaceWidth > 0 && surfaceHeight > 0) {
+            hasSnapshot = copy(surfaceWidth, surfaceHeight);
+            snapshotTime = frameTime;
+        } else {
+            hasSnapshot = false;
+        }
+    }
+
+    /** Copies the frame just drawn, on the GPU, from the surface into the snapshot. */
+    private boolean copy(int surfaceWidth, int surfaceHeight) {
+        if (texture[0] == 0) {
+            GLES20.glGenTextures(1, texture, 0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        } else {
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
+        }
+        if (width != surfaceWidth || height != surfaceHeight) {
+            width = surfaceWidth;
+            height = surfaceHeight;
+            copyChecked = false;
+            // RGB: the camera's surface has no alpha, and a copy from it into RGBA is an error
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0, GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, null);
+        }
+        if (!copyChecked) {
             while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
                 // earlier errors aren't the copy's
             }
-            // the frame just drawn, copied on the GPU from the surface
-            GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-            // a copy that failed would fade in from black, so no fade then
-            hasSnapshot = GLES20.glGetError() == GLES20.GL_NO_ERROR;
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
         }
+        GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+        if (!copyChecked) {
+            // checked once, as asking for errors can stall the driver; a copy that failed would fade in from black
+            copyChecked = true;
+            copyWorks = GLES20.glGetError() == GLES20.GL_NO_ERROR;
+        }
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        return copyWorks;
     }
 
     /** How strongly the snapshot shows over the frame drawn last, for the encoder. */
@@ -106,8 +142,10 @@ public class LensTransition {
             GLES20.glDeleteTextures(1, texture, 0);
             texture[0] = 0;
         }
+        width = height = 0;
         hasSnapshot = false;
-        state = ROLLING;
+        fading = false;
+        lastSource = null;
         alpha = 0;
     }
 

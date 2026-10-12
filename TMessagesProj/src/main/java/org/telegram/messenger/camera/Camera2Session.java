@@ -102,22 +102,33 @@ public class Camera2Session {
     private volatile boolean onLens;
     private boolean switchingLens;
 
-    /** glassGram: told when the picture moves to another lens, to cross-fade over it. */
-    public interface LensListener {
-        /** With waitForFrames, the picture stops until the new lens sends frames. */
-        void onLensChange(boolean waitForFrames);
-    }
-
-    private LensListener lensListener;
+    // glassGram: when the picture last moved to another lens, as a frame timestamp: the first frame
+    // of the new lens has it or a later one
+    private volatile long lensChangeTime;
     private String activePhysicalId;
-
-    public void setLensListener(LensListener listener) {
-        lensListener = listener;
-    }
+    private boolean everConfigured;
+    // the zoom moving is what changes lenses, so frames are kept for a cross-fade only then
+    private static final long LENS_SNAPSHOT_TIME = 1500;
+    private volatile long lastZoomChange;
 
     /** glassGram: whether the picture can move between lenses, by the zoom or a switch of camera. */
     public boolean hasLensChanges() {
         return lensId != null || useZoomRatio;
+    }
+
+    /** glassGram: the timestamp from which frames are of the lens the picture moved to last, or 0. */
+    public long getLensChangeTime() {
+        return lensChangeTime;
+    }
+
+    /** glassGram: whether the picture may move to another lens soon, as the zoom has just moved. */
+    public boolean mayChangeLens() {
+        return hasLensChanges() && android.os.SystemClock.uptimeMillis() - lastZoomChange < LENS_SNAPSHOT_TIME;
+    }
+
+    /** glassGram: now, in the clock of the frame timestamps. */
+    private long frameClockNow() {
+        return realtimeTimestamps ? android.os.SystemClock.elapsedRealtimeNanos() : System.nanoTime();
     }
     // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
     private volatile boolean frameSeen;
@@ -133,6 +144,8 @@ public class Camera2Session {
         }
     };
     private float focalPerWidth;
+    // read once per camera, as it's asked for every frame
+    private int sensorOrientation = 90;
 
     public static final int STABILIZATION_OFF = 0;
     /** The camera's own stabilization, where it has one. */
@@ -151,9 +164,9 @@ public class Camera2Session {
                 if (physical != null && !physical.equals(activePhysicalId)) {
                     final boolean changed = activePhysicalId != null;
                     activePhysicalId = physical;
-                    final LensListener listener = lensListener;
-                    if (changed && listener != null) {
-                        listener.onLensChange(false);
+                    if (changed) {
+                        final Long timestamp = result.get(CaptureResult.SENSOR_TIMESTAMP);
+                        lensChangeTime = timestamp != null ? timestamp : frameClockNow();
                     }
                 }
             }
@@ -451,6 +464,11 @@ public class Camera2Session {
             public void onConfigured(@NonNull CameraCaptureSession session) {
                 captureSession = session;
                 configured = true;
+                if (everConfigured) {
+                    // another camera in this session, as the lens changed: its frames all come after now
+                    lensChangeTime = frameClockNow();
+                }
+                everConfigured = true;
                 FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " capture session configured");
                 Camera2Session.this.lastTime = System.currentTimeMillis();
                 try {
@@ -512,6 +530,8 @@ public class Camera2Session {
         final Integer timestampSource = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
         realtimeTimestamps = timestampSource != null && timestampSource == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
         recordingFpsRange = findRecordingFpsRange(cameraCharacteristics);
+        final Integer orientation = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        sensorOrientation = orientation == null ? 90 : orientation;
         focalPerWidth = 0;
         if (optionsSet) {
             applyVideoOptions();
@@ -539,10 +559,6 @@ public class Camera2Session {
      */
     private void switchLens(boolean toLens) {
         onLens = toLens;
-        final LensListener listener = lensListener;
-        if (listener != null) {
-            listener.onLensChange(true);
-        }
         handler.post(() -> {
             if (isClosed || lensId == null) return;
             final String id = toLens ? lensId : mainId;
@@ -719,18 +735,17 @@ public class Camera2Session {
     }
 
     /**
-     * glassGram: the range to record in without 60 FPS. 30 to 60 where the camera has it; else the
-     * one with 30 in it and the highest floor, as a camera given a range it doesn't have may fall to
-     * 10 frames a second in dim light, with exposures long enough to smear every move.
+     * glassGram: the range to record in without 60 FPS: the one with 30 in it and the highest floor,
+     * then the narrowest, so a steady 30 where the camera has it. A range like 30 to 60 lets the
+     * frame rate wander and the picture stutter with it; one the camera doesn't have may fall to 10
+     * frames a second in dim light, with exposures long enough to smear every move.
      */
     static Range<Integer> findRecordingFpsRange(CameraCharacteristics characteristics) {
         final Range<Integer>[] ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
         if (ranges == null || ranges.length == 0) return null;
         Range<Integer> best = null;
         for (Range<Integer> range : ranges) {
-            if (range == null) continue;
-            if (range.getLower() == 30 && range.getUpper() == 60) return range;
-            if (!range.contains(30)) continue;
+            if (range == null || !range.contains(30)) continue;
             if (best == null || range.getLower() > best.getLower() || range.getLower().equals(best.getLower()) && range.getUpper() < best.getUpper()) {
                 best = range;
             }
@@ -787,9 +802,8 @@ public class Camera2Session {
      * the front camera.
      */
     public int getReadoutEdge() {
-        final Integer orientation = cameraCharacteristics == null ? null : cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
         int edge;
-        switch (orientation == null ? 90 : orientation) {
+        switch (sensorOrientation) {
             case 0: edge = GyroStabilizer.READOUT_TOP; break;
             case 180: edge = GyroStabilizer.READOUT_BOTTOM; break;
             case 270: edge = GyroStabilizer.READOUT_LEFT; break;
@@ -996,7 +1010,11 @@ public class Camera2Session {
     private final Rect cropRegion = new Rect();
     public void setZoom(float value) {
         if (!isInitiated()) return;
-        currentZoom = Utilities.clamp(value, maxZoom, minZoom);
+        final float zoom = Utilities.clamp(value, maxZoom, minZoom);
+        if (zoom != currentZoom) {
+            lastZoomChange = android.os.SystemClock.uptimeMillis();
+        }
+        currentZoom = zoom;
         // glassGram: below 1x on the ultra-wide lens camera, from 1x on the main one, with a little
         // room between so the zoom doesn't flip between them right at 1x
         if (lensId != null && optionWide) {
