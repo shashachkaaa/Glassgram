@@ -78,12 +78,17 @@ public class LensTransition {
             if (width != surfaceWidth || height != surfaceHeight) {
                 width = surfaceWidth;
                 height = surfaceHeight;
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+                // RGB: the camera's surface has no alpha, and a copy from it into RGBA is an error
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0, GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, null);
+            }
+            while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
+                // earlier errors aren't the copy's
             }
             // the frame just drawn, copied on the GPU from the surface
             GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+            // a copy that failed would fade in from black, so no fade then
+            hasSnapshot = GLES20.glGetError() == GLES20.GL_NO_ERROR;
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-            hasSnapshot = true;
         }
     }
 
