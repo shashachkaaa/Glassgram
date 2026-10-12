@@ -21780,6 +21780,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+        if (GlassgramConfig.spyDisableAds) {
+            return null;
+        }
         SponsoredMessagesInfo info = sponsoredMessages.get(dialogId);
         if (info != null && (info.loading || Math.abs(SystemClock.elapsedRealtime() - info.loadTime) <= 5 * 60 * 1000)) {
             return info;
@@ -24483,6 +24486,14 @@ public class MessagesController extends BaseController implements NotificationCe
         TLRPC.UserFull userFull = getUserFull(getUserConfig().getClientUserId());
         if (userFull == null) return false;
         return !userFull.sponsored_enabled;
+    }
+
+    /**
+     * Whether ads are not shown: Premium with ads turned off, or glassGram's "Hide ads", with which
+     * the client does not ask for them at all, Premium or not.
+     */
+    public boolean isAdsHidden() {
+        return GlassgramConfig.spyDisableAds || getUserConfig().isPremium() && isSponsoredDisabled();
     }
 
     private boolean loadingAvailableEffects;
