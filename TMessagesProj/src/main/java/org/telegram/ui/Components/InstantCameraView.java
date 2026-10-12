@@ -93,6 +93,7 @@ import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.camera.CameraInfo;
 import org.telegram.messenger.camera.CameraSession;
 import org.telegram.messenger.camera.GyroStabilizer;
+import org.telegram.messenger.camera.LensTransition;
 import org.telegram.messenger.camera.Size;
 import org.telegram.messenger.video.MP4Builder;
 import org.telegram.messenger.video.Mp4Movie;
@@ -212,6 +213,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
             session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide);
+            session.setLensListener(waitForFrames -> {
+                final CameraGLThread thread = cameraThread;
+                if (thread != null) {
+                    thread.postRunnable(() -> thread.lensTransition.begin(waitForFrames));
+                }
+            });
         }
         return session;
     }
@@ -239,6 +246,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private final float[] mSTMatrix = new float[16];
     // glassGram: the stabilized picture, as strips across the camera's readout; null when not stabilized
     private volatile GyroStabilizer.Mesh stabilizedMesh;
+    // glassGram: the cross-fade over a change of lens, for the encoder to draw too
+    private volatile float lensTransitionAlpha;
+    private volatile int lensSnapshotTexture;
     private final float[] moldSTMatrix = new float[16];
     private static final String VERTEX_SHADER =
             "uniform mat4 uMVPMatrix;\n" +
@@ -1585,6 +1595,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
         // glassGram: stabilization by the gyroscope, and the half size of the drawn square of the texture
         private GyroStabilizer stabilizer;
+        final LensTransition lensTransition = new LensTransition();
         private float textureHalfWidth = 0.5f;
         private float textureHalfHeight = 0.5f;
 
@@ -1828,6 +1839,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     GLES20.glDeleteTextures(1, cameraTexture, 1);
                     cameraTexture[1] = Integer.MIN_VALUE;
                 }
+                lensTransitionAlpha = 0;
+                lensSnapshotTexture = 0;
+                lensTransition.release();
             }
             if (eglSurface != null) {
                 egl10.eglMakeCurrent(eglDisplay, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_CONTEXT);
@@ -1943,6 +1957,13 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             GLES20.glDisableVertexAttribArray(textureHandle);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
             GLES20.glUseProgram(0);
+
+            // glassGram: the cross-fade over a change of lens, and the frame kept for the next one
+            final boolean lensChanges = useCamera2 && !bothCameras && currentSession instanceof Camera2Session && ((Camera2Session) currentSession).hasLensChanges();
+            lensTransition.afterDraw(updateTexImage1 || updateTexImage2, surfaceWidth, surfaceHeight, lensChanges);
+            GLES20.glDisable(GLES20.GL_BLEND);
+            lensSnapshotTexture = lensTransition.getTexture();
+            lensTransitionAlpha = lensTransition.getAlpha();
 
             egl10.eglSwapBuffers(eglDisplay, eglSurface);
 
@@ -2308,6 +2329,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         private int resolutionHandle;
         private int previewSizeHandle;
         private int texelSizeHandle;
+        private LensTransition.Drawer lensDrawer;
         private int alphaHandle;
         private int zeroTimeStamps;
         private Integer lastCameraId = 0;
@@ -2803,6 +2825,19 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             GLES20.glDisableVertexAttribArray(textureHandle);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
             GLES20.glUseProgram(0);
+
+            // glassGram: the cross-fade over a change of lens, as in the preview
+            final float lensAlpha = lensTransitionAlpha;
+            final int lensTexture = lensSnapshotTexture;
+            if (lensAlpha > 0 && lensTexture != 0) {
+                if (lensDrawer == null) {
+                    lensDrawer = new LensTransition.Drawer();
+                }
+                lensDrawer.draw(lensTexture, lensAlpha);
+                if (!blendEnabled) {
+                    GLES20.glDisable(GLES20.GL_BLEND);
+                }
+            }
 
             if (overlayHelper != null) {
                 overlayHelper.render();
@@ -3501,6 +3536,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     texelSizeHandle = GLES20.glGetUniformLocation(drawProgram, "texelSize");
                 }
             }
+            // a new context: the cross-fade's program is made again in it
+            lensDrawer = null;
         }
 
         public Surface getInputSurface() {

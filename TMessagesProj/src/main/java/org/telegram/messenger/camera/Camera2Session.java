@@ -101,6 +101,24 @@ public class Camera2Session {
     private float lensRatio = 1f;
     private volatile boolean onLens;
     private boolean switchingLens;
+
+    /** glassGram: told when the picture moves to another lens, to cross-fade over it. */
+    public interface LensListener {
+        /** With waitForFrames, the picture stops until the new lens sends frames. */
+        void onLensChange(boolean waitForFrames);
+    }
+
+    private LensListener lensListener;
+    private String activePhysicalId;
+
+    public void setLensListener(LensListener listener) {
+        lensListener = listener;
+    }
+
+    /** glassGram: whether the picture can move between lenses, by the zoom or a switch of camera. */
+    public boolean hasLensChanges() {
+        return lensId != null || useZoomRatio;
+    }
     // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
     private volatile boolean frameSeen;
     private static final long HIDDEN_CAMERA_TIMEOUT = 2000;
@@ -127,6 +145,18 @@ public class Camera2Session {
         @Override
         public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
             frameSeen = true;
+            if (useZoomRatio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // a camera that zooms out onto its ultra-wide lens moves between lenses by itself
+                final String physical = result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID);
+                if (physical != null && !physical.equals(activePhysicalId)) {
+                    final boolean changed = activePhysicalId != null;
+                    activePhysicalId = physical;
+                    final LensListener listener = lensListener;
+                    if (changed && listener != null) {
+                        listener.onLensChange(false);
+                    }
+                }
+            }
             final Long exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME);
             final Long skew = result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW);
             if (exposure != null) frameExposure = exposure;
@@ -509,6 +539,10 @@ public class Camera2Session {
      */
     private void switchLens(boolean toLens) {
         onLens = toLens;
+        final LensListener listener = lensListener;
+        if (listener != null) {
+            listener.onLensChange(true);
+        }
         handler.post(() -> {
             if (isClosed || lensId == null) return;
             final String id = toLens ? lensId : mainId;
@@ -987,7 +1021,7 @@ public class Camera2Session {
     /** glassGram: repeats the request, watching its frames when that's needed. */
     private void setRepeating(CaptureRequest request) throws Exception {
         // the frame callback also tells a hidden camera that streams from one that doesn't
-        final CameraCaptureSession.CaptureCallback callback = gyroStabilization || hiddenCameraIds.contains(cameraId) ? frameCallback : null;
+        final CameraCaptureSession.CaptureCallback callback = gyroStabilization || hiddenCameraIds.contains(cameraId) || useZoomRatio ? frameCallback : null;
         captureSession.setRepeatingRequest(request, callback, handler);
     }
 
