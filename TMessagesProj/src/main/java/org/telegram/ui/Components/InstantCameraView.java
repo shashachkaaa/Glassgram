@@ -487,6 +487,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         drawable.setPadding(dp(6));
         drawable.setRadius(dp(21));
         buttonsLayout.setBackground(drawable);
+        // glassGram: the zoom slider is the same glass
+        zoomSlider.setGlass(factory, colorProvider, resourcesProvider == null || resourcesProvider.isDark());
     }
 
     private Boolean wasFlashing;
@@ -1977,7 +1979,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 stabilizer.start();
             }
             texture.getTransformMatrix(rawSTMatrix);
-            final float focal = session.getFocalPerWidth() * session.getZoom() / textureHalfWidth;
+            final float focal = session.getFocalPerWidth() * session.getStreamZoom() / textureHalfWidth;
             stabilizer.apply(session, session.frameTimeToSensorTime(texture.getTimestamp()), focal, session.isFront(), textureHalfWidth, textureHalfHeight, rawSTMatrix, stabilizedSTMatrix);
             // the encoder reads this matrix from its own thread, so it changes in one go
             System.arraycopy(stabilizedSTMatrix, 0, mSTMatrix, 0, 16);

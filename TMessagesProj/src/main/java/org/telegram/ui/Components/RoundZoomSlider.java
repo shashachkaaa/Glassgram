@@ -2,6 +2,7 @@ package org.telegram.ui.Components;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -14,6 +15,10 @@ import android.view.View;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Utilities;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
 
 import java.util.Locale;
 
@@ -48,6 +53,11 @@ public class RoundZoomSlider extends View {
     private float targetZoom = 1f;
     private boolean gliding, finishPending;
     private long lastGlideTime;
+    // Liquid Glass: the capsule and the thumb are glass over the chat, the thumb swelling while held
+    private BlurredBackgroundDrawable trackGlass, thumbGlass;
+    private float press;
+    private ValueAnimator pressAnimator;
+    private int textColor = 0xFFFFFFFF;
 
     public RoundZoomSlider(Context context) {
         super(context);
@@ -64,6 +74,32 @@ public class RoundZoomSlider extends View {
         valuePaint.setTextSize(dp(12));
         valuePaint.setTextAlign(Paint.Align.CENTER);
         valuePaint.setTypeface(AndroidUtilities.bold());
+    }
+
+    /** Makes the capsule and the thumb Liquid Glass, with text light over dark glass and dark over light. */
+    public void setGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colors, boolean dark) {
+        trackGlass = factory.create(this, colors);
+        thumbGlass = factory.create(this, colors);
+        textColor = dark ? 0xFFFFFFFF : 0xFF1C1C1E;
+        trackPaint.setColor(Theme.multAlpha(textColor, 0.3f));
+        labelPaint.setColor(Theme.multAlpha(textColor, 0.7f));
+        valuePaint.setColor(textColor);
+        invalidate();
+    }
+
+    private void animatePress(boolean pressed) {
+        if (pressAnimator != null) {
+            pressAnimator.cancel();
+        }
+        pressAnimator = ValueAnimator.ofFloat(press, pressed ? 1f : 0f);
+        pressAnimator.addUpdateListener(a -> {
+            press = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        // a little overshoot as the drop settles, as with the other Liquid Glass presses
+        pressAnimator.setInterpolator(pressed ? new android.view.animation.OvershootInterpolator(1.6f) : CubicBezierInterpolator.EASE_OUT_QUINT);
+        pressAnimator.setDuration(pressed ? 320 : 380);
+        pressAnimator.start();
     }
 
     public void setListener(Listener listener) {
@@ -161,8 +197,14 @@ public class RoundZoomSlider extends View {
             glide();
         }
         final float h = getHeight(), cy = h / 2f;
-        rect.set(0, 0, getWidth(), h);
-        canvas.drawRoundRect(rect, h / 2f, h / 2f, backgroundPaint);
+        if (trackGlass != null) {
+            trackGlass.setBounds(0, 0, getWidth(), (int) h);
+            trackGlass.setRadius(h / 2f);
+            trackGlass.draw(canvas);
+        } else {
+            rect.set(0, 0, getWidth(), h);
+            canvas.drawRoundRect(rect, h / 2f, h / 2f, backgroundPaint);
+        }
         canvas.drawLine(trackLeft(), cy, trackRight(), cy, trackPaint);
 
         final float thumbX = positionOf(zoom);
@@ -177,9 +219,19 @@ public class RoundZoomSlider extends View {
             canvas.drawText(format(stop).replace("×", ""), x, cy + dp(4), labelPaint);
         }
 
-        rect.set(thumbX - thumbHalf, cy - dp(13), thumbX + thumbHalf, cy + dp(13));
-        canvas.drawRoundRect(rect, dp(13), dp(13), thumbPaint);
-        canvas.drawText(format(zoom), thumbX, cy + dp(4.5f), valuePaint);
+        if (thumbGlass != null) {
+            // a glass drop, swelling while held
+            final float halfWidth = thumbHalf * (1f + 0.16f * press);
+            final float halfHeight = dp(13) * (1f + 0.3f * press);
+            thumbGlass.setBounds((int) (thumbX - halfWidth), (int) (cy - halfHeight), (int) (thumbX + halfWidth), (int) (cy + halfHeight));
+            thumbGlass.setRadius(halfHeight);
+            thumbGlass.draw(canvas);
+            canvas.drawText(format(zoom), thumbX, cy + dp(4.5f), valuePaint);
+        } else {
+            rect.set(thumbX - thumbHalf, cy - dp(13), thumbX + thumbHalf, cy + dp(13));
+            canvas.drawRoundRect(rect, dp(13), dp(13), thumbPaint);
+            canvas.drawText(format(zoom), thumbX, cy + dp(4.5f), valuePaint);
+        }
     }
 
     private float[] stopsInRange() {
@@ -209,6 +261,7 @@ public class RoundZoomSlider extends View {
                 }
                 lastStop = -1;
                 finishPending = false;
+                animatePress(true);
                 // fall through
             case MotionEvent.ACTION_MOVE: {
                 if (!dragging) return false;
@@ -233,6 +286,7 @@ public class RoundZoomSlider extends View {
             case MotionEvent.ACTION_CANCEL:
                 if (!dragging) return false;
                 dragging = false;
+                animatePress(false);
                 if (gliding) {
                     // reported as finished once the zoom gets there
                     finishPending = true;

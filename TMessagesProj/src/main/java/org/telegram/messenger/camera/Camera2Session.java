@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
@@ -89,13 +90,24 @@ public class Camera2Session {
     private boolean optionsSet, optionFps60, optionWide;
     private int optionStabilization;
     private volatile long frameMiddle = 10_000_000L;
+    // glassGram: a camera of the ultra-wide lens alone (Huawei), switched to below 1x while the main
+    // camera serves 1x and up; its zoom is the main camera's times lensRatio
+    private volatile String lensId;
+    private String mainId;
+    private float lensRatio = 1f;
+    private volatile boolean onLens;
+    private boolean switchingLens;
     // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
     private volatile boolean frameSeen;
     private static final long HIDDEN_CAMERA_TIMEOUT = 2000;
     private final Runnable hiddenCameraWatchdog = () -> {
         if (!frameSeen && !isClosed && hiddenCameraIds.contains(cameraId)) {
             FileLog.d("Camera2Session camera #" + cameraId + " sent no frames");
-            tryNextCamera(true);
+            if (onLens) {
+                lensFailed(true);
+            } else {
+                tryNextCamera(true);
+            }
         }
     };
     private float focalPerWidth;
@@ -139,14 +151,19 @@ public class Camera2Session {
         if (choice == null) {
             return null;
         }
-        return new Camera2Session(context, front, choice.ids, choice.hiddenIds, choice.size);
+        return new Camera2Session(context, front, choice);
     }
 
-    /** glassGram: the cameras to try in turn, the ones the phone hides among them, and the preview size. */
+    /**
+     * glassGram: the cameras to try in turn, the ones the phone hides among them, the preview size,
+     * and a camera of the ultra-wide lens alone to switch to below 1x, if any.
+     */
     static class Choice {
         final ArrayList<String> ids = new ArrayList<>();
         final ArrayList<String> hiddenIds = new ArrayList<>();
         Size size;
+        String lensId;
+        float lensRatio = 1f;
     }
 
     private static final String UNAVAILABLE_KEY = "glassgram_camera_unavailable";
@@ -172,9 +189,6 @@ public class Camera2Session {
         float bestAspectRatio = 0;
         Size bestSize = null;
         String cameraId = null;
-        float wideField = 0;
-        Size wideSize = null;
-        String wideId = null;
         try {
             String[] cameraIds = cameraManager.getCameraIdList();
             for (int i = 0; i < cameraIds.length; ++i) {
@@ -202,21 +216,6 @@ public class Camera2Session {
                 } else {
 
                 }
-                if (preferWide && !front && confMap != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isBackwardCompatible(characteristics)) {
-                    final float field = widestField(characteristics);
-                    if (field > wideField) {
-                        Size size = chooseSize(characteristics, confMap, viewWidth, viewHeight, fps60);
-                        if (size != null) {
-                            wideField = field;
-                            wideId = id;
-                            wideSize = size;
-                        }
-                    }
-                }
-            }
-            if (wideId != null && cameraId != null && !wideId.equals(cameraId) && wideField > widestField(cameraManager.getCameraCharacteristics(cameraId)) * 1.15f) {
-                cameraId = wideId;
-                bestSize = wideSize;
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -228,29 +227,38 @@ public class Camera2Session {
         final Choice choice = new Choice();
         choice.size = bestSize;
         if (preferWide && !front) {
-            addHiddenWideCameras(cameraManager, cameraId, bestSize, choice);
+            findWideLens(cameraManager, cameraId, bestSize, choice);
         }
         choice.ids.add(cameraId);
         return choice;
     }
 
     /**
-     * glassGram: some phones (vivo) keep the camera that zooms out onto the ultra-wide lens out of
-     * the list apps see, yet answer for its id. Those that see wider than the chosen camera and can
-     * stream its preview size go first, widest first; the chosen camera stays as the fallback.
+     * glassGram: how the back camera gets to its ultra-wide lens when the chosen camera doesn't zoom
+     * out onto it itself. A camera that does (a logical one, which some phones such as vivo keep out
+     * of the list apps see, yet answer for by id) is tried first, widest first, the chosen camera
+     * staying the fallback. Else a camera of the ultra-wide lens alone (Huawei) is switched to below
+     * 1x, the chosen one serving 1x and up. Either has to stream the chosen preview size.
      */
-    private static void addHiddenWideCameras(CameraManager cameraManager, String cameraId, Size size, Choice choice) {
+    private static void findWideLens(CameraManager manager, String cameraId, Size size, Choice choice) {
         try {
-            final float field = widestField(cameraManager.getCameraCharacteristics(cameraId));
-            final List<String> listed = Arrays.asList(cameraManager.getCameraIdList());
-            final ArrayList<String> ids = new ArrayList<>();
-            final ArrayList<Float> fields = new ArrayList<>();
+            final float mainField = widestField(manager.getCameraCharacteristics(cameraId));
+            final List<String> listed = Arrays.asList(manager.getCameraIdList());
+            final LinkedHashSet<String> ids = new LinkedHashSet<>(listed);
             for (int i = 0; i < 16; ++i) {
-                final String id = String.valueOf(i);
-                if (listed.contains(id) || isUnavailable(id)) continue;
+                ids.add(String.valueOf(i));
+            }
+            final ArrayList<String> zooming = new ArrayList<>();
+            final ArrayList<Float> zoomingFields = new ArrayList<>();
+            String lens = null;
+            float lensField = 0;
+            for (String id : ids) {
+                if (id.equals(cameraId)) continue;
+                final boolean hidden = !listed.contains(id);
+                if (hidden && isUnavailable(id)) continue;
                 final CameraCharacteristics characteristics;
                 try {
-                    characteristics = cameraManager.getCameraCharacteristics(id);
+                    characteristics = manager.getCameraCharacteristics(id);
                 } catch (Exception e) {
                     continue;
                 }
@@ -259,18 +267,38 @@ public class Camera2Session {
                 final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 final Size[] sizes = map == null ? null : map.getOutputSizes(SurfaceTexture.class);
                 if (sizes == null || !Arrays.asList(sizes).contains(size)) continue;
-                final float wideness = widestField(characteristics);
-                if (wideness <= field * 1.15f) continue;
-                int index = 0;
-                while (index < fields.size() && fields.get(index) >= wideness) index++;
-                ids.add(index, id);
-                fields.add(index, wideness);
+                final float field = widestField(characteristics);
+                if (field <= mainField * 1.15f) continue;
+                if (zoomsOut(characteristics)) {
+                    int index = 0;
+                    while (index < zoomingFields.size() && zoomingFields.get(index) >= field) index++;
+                    zooming.add(index, id);
+                    zoomingFields.add(index, field);
+                } else if (field > lensField) {
+                    lens = id;
+                    lensField = field;
+                }
             }
-            choice.ids.addAll(ids);
-            choice.hiddenIds.addAll(ids);
+            if (!zooming.isEmpty()) {
+                choice.ids.addAll(zooming);
+                for (String id : zooming) {
+                    if (!listed.contains(id)) choice.hiddenIds.add(id);
+                }
+            } else if (lens != null) {
+                choice.lensId = lens;
+                choice.lensRatio = mainField / lensField;
+                if (!listed.contains(lens)) choice.hiddenIds.add(lens);
+            }
         } catch (Exception e) {
             FileLog.e(e);
         }
+    }
+
+    /** Whether the camera zooms out below 1x, onto an ultra-wide lens of its own. */
+    private static boolean zoomsOut(CameraCharacteristics characteristics) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false;
+        final Range<Float> range = characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
+        return range != null && range.getLower() > 0 && range.getLower() < 0.99f;
     }
 
     /** The preview size; with fps60, one of those the camera keeps at 60 frames a second, if any. */
@@ -336,10 +364,14 @@ public class Camera2Session {
         return false;
     }
 
-    private Camera2Session(Context context, boolean isFront, List<String> cameraIds, List<String> hiddenIds, Size size) {
+    private Camera2Session(Context context, boolean isFront, Choice choice) {
+        final List<String> cameraIds = choice.ids;
+        final Size size = choice.size;
         final String cameraId = cameraIds.get(0);
         nextCameraIds.addAll(cameraIds.subList(1, cameraIds.size()));
-        hiddenCameraIds.addAll(hiddenIds);
+        hiddenCameraIds.addAll(choice.hiddenIds);
+        lensId = choice.lensId;
+        lensRatio = choice.lensRatio;
         thread = new HandlerThread("tg_camera2");
         thread.start();
         handler = new Handler(thread.getLooper());
@@ -357,6 +389,10 @@ public class Camera2Session {
             public void onDisconnected(@NonNull CameraDevice camera) {
                 Camera2Session.this.cameraDevice = camera;
                 FileLog.d("Camera2Session camera #" + Camera2Session.this.cameraId + " disconnected");
+                if (!configured && onLens) {
+                    lensFailed(false);
+                    return;
+                }
                 if (!configured && tryNextCamera(false)) return;
             }
 
@@ -364,6 +400,10 @@ public class Camera2Session {
             public void onError(@NonNull CameraDevice camera, int error) {
                 Camera2Session.this.cameraDevice = camera;
                 FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " received " + error + " error");
+                if (!configured && onLens) {
+                    lensFailed(false);
+                    return;
+                }
                 if (!configured && tryNextCamera(false)) return;
                 AndroidUtilities.runOnUIThread(() -> {
                     isError = true;
@@ -396,6 +436,10 @@ public class Camera2Session {
             public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                 captureSession = session;
                 FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " capture session failed to configure");
+                if (onLens) {
+                    lensFailed(true);
+                    return;
+                }
                 if (tryNextCamera(true)) return;
                 AndroidUtilities.runOnUIThread(() -> {
                     isError = true;
@@ -426,13 +470,86 @@ public class Camera2Session {
         cameraId = id;
         cameraCharacteristics = cameraManager.getCameraCharacteristics(id);
         sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
-        final Float value = cameraCharacteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
-        maxZoom = (value == null || value < 1f) ? 1f : value;
+        if (!switchingLens) {
+            final Float value = cameraCharacteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
+            maxZoom = (value == null || value < 1f) ? 1f : value;
+        }
         final Integer timestampSource = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
         realtimeTimestamps = timestampSource != null && timestampSource == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
         focalPerWidth = 0;
         if (optionsSet) {
             applyVideoOptions();
+        }
+    }
+
+    /** glassGram: closes the camera, keeping the preview surface for the next one. */
+    private void closeCamera() {
+        try {
+            if (captureSession != null) captureSession.close();
+        } catch (Exception ignore) {}
+        try {
+            if (cameraDevice != null) cameraDevice.close();
+        } catch (Exception ignore) {}
+        captureSession = null;
+        cameraDevice = null;
+        opened = false;
+        configured = false;
+        handler.removeCallbacks(hiddenCameraWatchdog);
+    }
+
+    /**
+     * glassGram: moves between the main camera and the ultra-wide lens camera, keeping the zoom,
+     * the preview surface and the options; the picture stops for a moment in between.
+     */
+    private void switchLens(boolean toLens) {
+        onLens = toLens;
+        handler.post(() -> {
+            if (isClosed || lensId == null) return;
+            final String id = toLens ? lensId : mainId;
+            if (id == null || id.equals(cameraId)) return;
+            if (toLens) {
+                mainId = cameraId;
+            }
+            closeCamera();
+            switchingLens = true;
+            try {
+                loadCamera(id);
+                cameraManager.openCamera(id, cameraStateCallback, handler);
+                watchHiddenCamera();
+            } catch (Exception e) {
+                FileLog.e(e);
+                if (toLens) {
+                    switchingLens = false;
+                    lensFailed(e instanceof IllegalArgumentException || e instanceof SecurityException);
+                }
+            } finally {
+                switchingLens = false;
+            }
+        });
+    }
+
+    /** glassGram: the ultra-wide lens camera didn't open or stream: back to the main camera, without the lens. */
+    private void lensFailed(boolean refused) {
+        final String failed = lensId;
+        if (refused && failed != null && hiddenCameraIds.contains(failed)) {
+            markUnavailable(failed);
+        }
+        lensId = null;
+        onLens = false;
+        minZoom = 1f;
+        defaultZoom = Math.max(1f, defaultZoom);
+        currentZoom = Math.max(1f, currentZoom);
+        if (mainId == null || isClosed) return;
+        closeCamera();
+        switchingLens = true;
+        try {
+            loadCamera(mainId);
+            cameraManager.openCamera(mainId, cameraStateCallback, handler);
+        } catch (Exception e) {
+            FileLog.e(e);
+            AndroidUtilities.runOnUIThread(() -> isError = true);
+        } finally {
+            switchingLens = false;
         }
     }
 
@@ -508,7 +625,13 @@ public class Camera2Session {
         opticalStabilizationOff = false;
         gyroStabilization = false;
         useZoomRatio = false;
-        minZoom = defaultZoom = currentZoom = 1f;
+        if (!switchingLens) {
+            minZoom = defaultZoom = currentZoom = 1f;
+            // with a camera of the ultra-wide lens alone, the zoom goes below 1x by switching to it
+            if (wide && lensId != null) {
+                minZoom = Math.min(1f, Math.max(0.3f, lensRatio));
+            }
+        }
         final CameraCharacteristics characteristics = cameraCharacteristics;
         if (characteristics == null) return;
         try {
@@ -674,7 +797,7 @@ public class Camera2Session {
             ArrayList<Surface> surfaces = new ArrayList<>();
             surfaces.add(surface);
             // video messages take no photos, and a camera the phone hides may not stream the extra size
-            if (!hiddenCameraIds.contains(cameraId)) {
+            if (!hiddenCameraIds.contains(cameraId) && !onLens) {
                 surfaces.add(imageReader.getSurface());
             }
             cameraDevice.createCaptureSession(surfaces, captureStateCallback, null);
@@ -783,10 +906,26 @@ public class Camera2Session {
     private final Rect cropRegion = new Rect();
     public void setZoom(float value) {
         if (!isInitiated()) return;
-        if (captureRequestBuilder == null || cameraDevice == null || sensorSize == null) return;
-
         currentZoom = Utilities.clamp(value, maxZoom, minZoom);
+        // glassGram: below 1x on the ultra-wide lens camera, from 1x on the main one, with a little
+        // room between so the zoom doesn't flip between them right at 1x
+        if (lensId != null && optionWide) {
+            final boolean toLens = onLens ? currentZoom < 1f : currentZoom < 0.97f;
+            if (toLens != onLens) {
+                switchLens(toLens);
+                return;
+            }
+        }
+        if (captureRequestBuilder == null || cameraDevice == null || sensorSize == null) return;
         updateCaptureRequest();
+    }
+
+    /** glassGram: the zoom of the camera's own picture: on the ultra-wide lens camera, the zoom over its ratio. */
+    public float getStreamZoom() {
+        if (onLens) {
+            return Math.max(1f, currentZoom / lensRatio);
+        }
+        return useZoomRatio ? currentZoom : Math.max(1f, currentZoom);
     }
 
     /** glassGram: repeats the request, watching its frames when that's needed. */
@@ -956,13 +1095,14 @@ public class Camera2Session {
                 captureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF);
             }
 
+            final float streamZoom = getStreamZoom();
             if (useZoomRatio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_ZOOM_RATIO, currentZoom);
-            } else if (sensorSize != null && Math.abs(currentZoom - 1f) >= 0.01f) {
+            } else if (sensorSize != null && Math.abs(streamZoom - 1f) >= 0.01f) {
                 final int centerX = sensorSize.width() / 2;
                 final int centerY = sensorSize.height() / 2;
-                final int deltaX = (int) ((0.5f * sensorSize.width()) / currentZoom);
-                final int deltaY = (int) ((0.5f * sensorSize.height()) / currentZoom);
+                final int deltaX = (int) ((0.5f * sensorSize.width()) / streamZoom);
+                final int deltaY = (int) ((0.5f * sensorSize.height()) / streamZoom);
                 cropRegion.set(
                         centerX - deltaX,
                         centerY - deltaY,

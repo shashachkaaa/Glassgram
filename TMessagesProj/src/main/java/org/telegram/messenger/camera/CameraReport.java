@@ -114,7 +114,13 @@ public class CameraReport {
                 }
                 if (!front && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     final Range<Float> zoom = c.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
-                    sb.append(", ultra-wide: ").append(zoom != null && zoom.getLower() < 0.99f ? "zoom " + fmt(zoom.getLower()) + "x" : "no zoom below 1x");
+                    if (zoom != null && zoom.getLower() < 0.99f) {
+                        sb.append(", ultra-wide: zoom ").append(fmt(zoom.getLower())).append("x");
+                    } else if (choice.lensId != null) {
+                        sb.append(", ultra-wide: camera ").append(choice.lensId).append(" below 1x, from ").append(fmt(choice.lensRatio)).append("x");
+                    } else {
+                        sb.append(", ultra-wide: none");
+                    }
                 }
             } catch (Exception e) {
                 sb.append(", ").append(e);
