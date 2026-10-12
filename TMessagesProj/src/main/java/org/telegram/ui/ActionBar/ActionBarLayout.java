@@ -68,6 +68,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
@@ -622,6 +623,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private static final float GLASSGRAM_PARALLAX = 0.3f;
     private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
     private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView, glassgramLayerTop;
+    private boolean glassgramHeavyPaused;
     // The display frame's time, for the slide's next step
     private long glassgramFrameTimeMs;
     private float glassgramSlideCover;
@@ -1765,6 +1767,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             glassgramLayerTop.setLayerType(LAYER_TYPE_NONE, null);
             glassgramLayerTop = null;
         }
+        if (glassgramHeavyPaused) {
+            glassgramHeavyPaused = false;
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.startAllHeavyOperations, 512);
+        }
         if (glassgramSlideTop != null) {
             glassgramSlideTop = glassgramSlideUnder = null;
             containerView.setTranslationX(0);
@@ -1873,10 +1879,15 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 }
                 long newTime = iosSlide ? glassgramFrameTimeMs : System.nanoTime() / 1000000;
                 long dt = Math.max(0, newTime - lastFrameTime);
-                if (dt > 40 && first) {
+                if (iosSlide && first) {
+                    // glassGram: the first frame only draws both pages into their layers (the page
+                    // coming back was just attached and laid out); the slide moves from the next one
                     dt = 0;
-                } else if (dt > (iosSlide ? 34 : 18)) {
-                    dt = iosSlide ? 34 : 18;
+                } else if (dt > 40 && first) {
+                    dt = 0;
+                } else if (dt > (iosSlide ? 20 : 18)) {
+                    // After a slow frame the slide slows down for a moment rather than jumping ahead
+                    dt = iosSlide ? 20 : 18;
                 }
                 lastFrameTime = newTime;
                 float duration = iosSlide ? 420.0f : preview && open ? 190.0f : 150.0f;
@@ -1947,6 +1958,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         if (top.getLayerType() == LAYER_TYPE_NONE) {
                             top.setLayerType(LAYER_TYPE_HARDWARE, null);
                             glassgramLayerTop = top;
+                        }
+                        // Animated emoji, stickers and avatars wait, as they do while a sheet opens,
+                        // so they do not redraw the pages' layers every frame of the slide
+                        if (!glassgramHeavyPaused) {
+                            glassgramHeavyPaused = true;
+                            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 512);
                         }
                     }
                     glassgramSlideTop = top;
