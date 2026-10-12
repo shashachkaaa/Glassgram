@@ -214,6 +214,10 @@ public class ApplicationLoader extends Application {
 
                     boolean isSlow = isConnectionSlow();
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                        // glassGram: not starting the network of an unused slot
+                        if (!ConnectionsManager.isInstanceCreated(a)) {
+                            continue;
+                        }
                         ConnectionsManager.getInstance(a).checkConnection();
                         FileLoader.getInstance(a).onNetworkChanged(isSlow);
                     }
@@ -248,6 +252,10 @@ public class ApplicationLoader extends Application {
         SharedPrefsHelper.init(applicationContext);
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();
+            if (a >= UserConfig.TELEGRAM_ACCOUNT_SLOTS && !UserConfig.getInstance(a).isClientActivated()) {
+                // glassGram: the extra slots start when an account is logged in there
+                continue;
+            }
             MessagesController.getInstance(a);
             if (a == 0) {
                 SharedConfig.pushStringStatus = "__FIREBASE_GENERATING_SINCE_" + ConnectionsManager.getInstance(a).getCurrentTime() + "__";
@@ -269,6 +277,9 @@ public class ApplicationLoader extends Application {
 
         MediaController.getInstance();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
+            if (a >= UserConfig.TELEGRAM_ACCOUNT_SLOTS && !UserConfig.getInstance(a).isClientActivated()) {
+                continue;
+            }
             ContactsController.getInstance(a).checkAppAccount();
             DownloadController.getInstance(a);
         }

@@ -20,6 +20,7 @@
 #include <string>
 #include <cinttypes>
 #include "ConnectionsManager.h"
+#include <mutex>
 #include "FileLog.h"
 #include "EventObject.h"
 #include "MTProtoScheme.h"
@@ -136,24 +137,24 @@ ConnectionsManager::~ConnectionsManager() {
 }
 
 ConnectionsManager& ConnectionsManager::getInstance(int32_t instanceNum) {
-    switch (instanceNum) {
-        case 0:
-            static ConnectionsManager instance0(0);
-            return instance0;
-        case 1:
-            static ConnectionsManager instance1(1);
-            return instance1;
-        case 2:
-            static ConnectionsManager instance2(2);
-            return instance2;
-        case 3:
-            static ConnectionsManager instance3(3);
-            return instance3;
-        case 4:
-        default:
-            static ConnectionsManager instance4(4);
-            return instance4;
+    // glassGram: one instance per account slot, as many as MAX_ACCOUNT_COUNT (there were five,
+    // and every slot from 4 on shared the last one). Made once, lazily, never destroyed, like
+    // the function statics they replace.
+    static ConnectionsManager *instances[MAX_ACCOUNT_COUNT] = {};
+    static std::mutex instancesMutex;
+    if (instanceNum < 0 || instanceNum >= MAX_ACCOUNT_COUNT) {
+        instanceNum = MAX_ACCOUNT_COUNT - 1;
     }
+    ConnectionsManager *instance = __atomic_load_n(&instances[instanceNum], __ATOMIC_ACQUIRE);
+    if (instance == nullptr) {
+        std::lock_guard<std::mutex> lock(instancesMutex);
+        instance = instances[instanceNum];
+        if (instance == nullptr) {
+            instance = new ConnectionsManager(instanceNum);
+            __atomic_store_n(&instances[instanceNum], instance, __ATOMIC_RELEASE);
+        }
+    }
+    return *instance;
 }
 
 int ConnectionsManager::callEvents(int64_t now) {

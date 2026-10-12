@@ -24,8 +24,13 @@ import java.util.Arrays;
 public class UserConfig extends BaseController {
 
     public static int selectedAccount;
-    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 3;
-    public final static int MAX_ACCOUNT_COUNT = 4;
+    // glassGram: 16 accounts, with or without Premium (Telegram: 3, or 4 with Premium). The
+    // native side has one slot more (tgnet/Defines.h); slots past Telegram's first four start
+    // nothing until an account is logged in there (ApplicationLoader).
+    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 16;
+    public final static int MAX_ACCOUNT_COUNT = 16;
+    /** The slots Telegram itself has; the app starts their controllers eagerly, as Telegram does. */
+    public final static int TELEGRAM_ACCOUNT_SLOTS = 4;
 
     private final Object sync = new Object();
     private volatile boolean configLoaded;
@@ -122,7 +127,7 @@ public class UserConfig extends BaseController {
     }
 
     public static int getMaxAccountCount() {
-        return hasPremiumOnAccounts() ? 5 : 3;
+        return MAX_ACCOUNT_COUNT;
     }
 
     public int getNewMessageId() {

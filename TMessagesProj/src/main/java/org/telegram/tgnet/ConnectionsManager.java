@@ -190,6 +190,11 @@ public class ConnectionsManager extends BaseController {
     private static int lastClassGuid = 1;
     
     private static final ConnectionsManager[] Instance = new ConnectionsManager[UserConfig.MAX_ACCOUNT_COUNT];
+    /** glassGram: whether the account slot's connection exists, without making it. */
+    public static boolean isInstanceCreated(int num) {
+        return num >= 0 && num < Instance.length && Instance[num] != null;
+    }
+
     public static ConnectionsManager getInstance(int num) {
         ConnectionsManager localInstance = Instance[num];
         if (localInstance == null) {
