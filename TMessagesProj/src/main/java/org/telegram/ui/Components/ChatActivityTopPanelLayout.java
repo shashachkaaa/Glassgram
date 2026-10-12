@@ -6,6 +6,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
@@ -55,8 +56,40 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        return super.dispatchTouchEvent(ev)
-                || ev.getAction() == MotionEvent.ACTION_DOWN && backgroundDrawable != null && backgroundDrawable.getBounds().contains((int) ev.getX(), (int) ev.getY());
+        final boolean handled = super.dispatchTouchEvent(ev)
+                || ev.getAction() == MotionEvent.ACTION_DOWN && backgroundDrawable != null && bgBounds.contains((int) ev.getX(), (int) ev.getY());
+        glassTouch(ev, handled);
+        return handled;
+    }
+
+    // glassGram: the card is Liquid Glass like the bar above it: pressed, it swells, leans towards
+    // the finger and stretches with a drag, its panels with it
+    private LiquidPressEffect press;
+    private boolean pressTracking;
+    private final Rect bgBounds = new Rect();
+    private final Rect bgPadding = new Rect();
+    private final RectF glassRect = new RectF();
+    private final RectF glassMovedRect = new RectF();
+    private float glassRadius;
+
+    private void glassTouch(MotionEvent ev, boolean handled) {
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            pressTracking = handled && backgroundDrawable != null && getMetadata().getTotalVisibility() > 0
+                && glassRect.contains(ev.getX(), ev.getY());
+            if (pressTracking && press == null) {
+                press = new LiquidPressEffect(this);
+                // It swells past the layout, whose parent must not cut it
+                press.setUnclipParents(1);
+            }
+        }
+        if (!pressTracking) {
+            return;
+        }
+        press.onTouch(action, ev.getX() - glassRect.left, ev.getY() - glassRect.top);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pressTracking = false;
+        }
     }
 
     // glassGram: rounder, like iOS: a single panel becomes a capsule
@@ -77,8 +110,12 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         if (backgroundDrawable != null) {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
-            backgroundDrawable.setBounds(getPaddingLeft() - dp(7), 0, getMeasuredWidth() - getPaddingRight() + dp(7), getPaddingTop() + getPaddingBottom() + (int) bgHeight);
-            backgroundDrawable.setRadius(Math.min(dp(GLASSGRAM_RADIUS), bgHeight / 2));
+            bgBounds.set(getPaddingLeft() - dp(7), 0, getMeasuredWidth() - getPaddingRight() + dp(7), getPaddingTop() + getPaddingBottom() + (int) bgHeight);
+            backgroundDrawable.setBounds(bgBounds);
+            glassRadius = Math.min(dp(GLASSGRAM_RADIUS), bgHeight / 2);
+            backgroundDrawable.setRadius(glassRadius);
+            backgroundDrawable.getPadding(bgPadding);
+            glassRect.set(bgBounds.left + bgPadding.left, bgBounds.top + bgPadding.top, bgBounds.right - bgPadding.right, bgBounds.bottom - bgPadding.bottom);
         }
     }
 
@@ -109,8 +146,37 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (getMetadata().getTotalVisibility() == 0) return;
 
+        final boolean pressed = backgroundDrawable != null && press != null && press.isActive()
+            && glassRect.width() > 0 && glassRect.height() > 0;
         if (backgroundDrawable != null) {
+            float radiusScale = 1f;
+            if (pressed) {
+                // The glass goes where the press moved it and blurs what is there, its corners
+                // growing with it; the bounds stay until the next frame sets them again
+                press.mapRect(glassRect.left, glassRect.top, glassRect.right, glassRect.bottom, glassMovedRect);
+                radiusScale = LiquidPressEffect.radiusScale(glassRect.width(), glassRect.height(), glassMovedRect);
+                backgroundDrawable.setBounds(
+                    Math.round(glassMovedRect.left) - bgPadding.left, Math.round(glassMovedRect.top) - bgPadding.top,
+                    Math.round(glassMovedRect.right) + bgPadding.right, Math.round(glassMovedRect.bottom) + bgPadding.bottom);
+            } else {
+                backgroundDrawable.setBounds(bgBounds);
+            }
+            backgroundDrawable.setRadiusScale(radiusScale);
             backgroundDrawable.draw(canvas);
+            if (pressed) {
+                canvas.save();
+                canvas.translate(glassMovedRect.left, glassMovedRect.top);
+                press.drawGlow(canvas, glassMovedRect.width(), glassMovedRect.height(), glassRadius * radiusScale);
+                canvas.restore();
+            }
+        }
+
+        // The panels follow the glass under them
+        canvas.save();
+        if (pressed) {
+            canvas.translate(glassRect.left, glassRect.top);
+            press.transform(canvas, glassRect.width(), glassRect.height());
+            canvas.translate(-glassRect.left, -glassRect.top);
         }
 
         boolean callDrawn = false;
@@ -172,6 +238,7 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
         }
 
         super.dispatchDraw(canvas);
+        canvas.restore();
         canvas.restore();
     }
 }
