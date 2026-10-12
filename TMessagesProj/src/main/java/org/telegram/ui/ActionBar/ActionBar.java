@@ -351,6 +351,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             if (backButtonImageView != null) {
                 backButtonImageView.setPadding(dp(1), 0, touchExtra, 0);
             }
+            // The chat's pill has less room beside the wider back glass, and its name is cut sooner
+            if (chatAvatarContainer != null) {
+                chatAvatarContainer.requestLayout();
+                checkAvatarContainerWidth(animated);
+            }
             requestLayout();
         }
         invalidate();
@@ -2752,9 +2757,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
-    /** The widest the chat's title pill gets: the bar between the back button and the end button. */
+    /**
+     * The widest the chat's title pill gets: the bar between the back button and the end button,
+     * less what the back button's glass widens for the unread badge. A long name was measured for
+     * the whole bar and ran out of the pill, badges and all, when the badge took part of it.
+     */
     public int getAvatarContainerMaxWidth() {
-        return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6);
+        final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
+        return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6) - (hasBackButton ? glassBackCounterTouchExtra : 0);
     }
 
     public void checkAvatarContainerWidth(boolean animated) {
