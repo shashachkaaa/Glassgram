@@ -710,7 +710,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 GlassgramConfig.putBoolean("roundStabilization", value); break;
             case ID_ROUND_WIDE:
                 value = GlassgramConfig.roundWideCamera = !GlassgramConfig.roundWideCamera;
-                GlassgramConfig.putBoolean("roundWideCamera", value); break;
+                GlassgramConfig.putBoolean("roundWideCamera", value);
+                if (value) {
+                    // a hidden lens that failed before gets another try
+                    org.telegram.messenger.camera.Camera2Session.resetUnavailableCameras();
+                }
+                break;
             case ID_ROUND_KEEP_ZOOM:
                 value = GlassgramConfig.roundKeepZoom = !GlassgramConfig.roundKeepZoom;
                 GlassgramConfig.putBoolean("roundKeepZoom", value); break;

@@ -104,14 +104,11 @@ public class CameraReport {
                 final CameraCharacteristics c = manager.getCameraCharacteristics(id);
                 final StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 final Range<Integer> range = Camera2Session.find60FpsRange(c, map, size);
-                final Range<Integer> highSpeed = Camera2Session.findHighSpeedRange(map, size);
                 sb.append(", 60 FPS: ");
                 if (range != null) {
                     sb.append("yes ").append(range);
-                } else if (highSpeed != null) {
-                    sb.append("high-speed ").append(highSpeed).append(", every ").append(highSpeed.getUpper() / 60).append(highSpeed.getUpper() / 60 == 2 ? "nd" : "th").append(" frame");
                 } else if (Camera2Session.find60FpsRange(c, null, null) == null) {
-                    sb.append("no, the camera has no 60 FPS range");
+                    sb.append("no, the camera has no 60 FPS range for apps");
                 } else {
                     sb.append("no, not at this size");
                 }

@@ -86,11 +86,18 @@ public class Camera2Session {
     private boolean opticalStabilization;
     private boolean opticalStabilizationOff;
     private boolean gyroStabilization;
-    // 60 frames a second through a high-speed session, for cameras that only run that fast there
-    private Range<Integer> highSpeedRange;
     private boolean optionsSet, optionFps60, optionWide;
     private int optionStabilization;
     private volatile long frameMiddle = 10_000_000L;
+    // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
+    private volatile boolean frameSeen;
+    private static final long HIDDEN_CAMERA_TIMEOUT = 2000;
+    private final Runnable hiddenCameraWatchdog = () -> {
+        if (!frameSeen && !isClosed && hiddenCameraIds.contains(cameraId)) {
+            FileLog.d("Camera2Session camera #" + cameraId + " sent no frames");
+            tryNextCamera(true);
+        }
+    };
     private float focalPerWidth;
 
     public static final int STABILIZATION_OFF = 0;
@@ -103,6 +110,7 @@ public class Camera2Session {
     private final CameraCaptureSession.CaptureCallback frameCallback = new CameraCaptureSession.CaptureCallback() {
         @Override
         public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            frameSeen = true;
             final Long exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME);
             final Long skew = result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW);
             frameMiddle = (exposure != null ? exposure / 2 : 5_000_000L) + (skew != null ? skew / 2 : 8_000_000L);
@@ -279,43 +287,8 @@ public class Camera2Session {
             if (!fast.isEmpty()) {
                 return chooseOptimalSize(fast.toArray(new Size[0]), viewWidth, viewHeight, false);
             }
-        } else if (fps60 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // no 60 in the regular ranges: the smallest size big enough that runs in a high-speed session
-            Size best = null;
-            for (Size size : sizes) {
-                if (Math.min(size.getWidth(), size.getHeight()) < Math.min(viewWidth, viewHeight)) continue;
-                if (findHighSpeedRange(map, size) == null) continue;
-                if (best == null || (long) size.getWidth() * size.getHeight() < (long) best.getWidth() * best.getHeight()) {
-                    best = size;
-                }
-            }
-            if (best != null) {
-                return best;
-            }
         }
         return chooseOptimalSize(sizes, viewWidth, viewHeight, false);
-    }
-
-    /**
-     * glassGram: a steady high-speed frame rate for the size, the lowest of them, which video
-     * messages take every second or fourth frame of for 60; null if the size has none.
-     */
-    static Range<Integer> findHighSpeedRange(StreamConfigurationMap map, Size size) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || map == null || size == null) return null;
-        try {
-            Range<Integer> best = null;
-            for (Size highSpeedSize : map.getHighSpeedVideoSizes()) {
-                if (!highSpeedSize.equals(size)) continue;
-                for (Range<Integer> range : map.getHighSpeedVideoFpsRangesFor(size)) {
-                    final int fps = range.getUpper();
-                    if (!range.getLower().equals(range.getUpper()) || fps % 60 != 0) continue;
-                    if (best == null || fps < best.getUpper()) best = range;
-                }
-            }
-            return best;
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     static boolean keeps60Fps(StreamConfigurationMap map, Size size) {
@@ -423,13 +396,6 @@ public class Camera2Session {
             public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                 captureSession = session;
                 FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " capture session failed to configure");
-                if (highSpeedRange != null) {
-                    // glassGram: no high-speed session after all, so 30 frames a second
-                    highSpeedRange = null;
-                    opened = false;
-                    checkOpen();
-                    return;
-                }
                 if (tryNextCamera(true)) return;
                 AndroidUtilities.runOnUIThread(() -> {
                     isError = true;
@@ -446,6 +412,7 @@ public class Camera2Session {
         try {
             loadCamera(cameraId);
             cameraManager.openCamera(cameraId, cameraStateCallback, handler);
+            watchHiddenCamera();
         } catch (Exception e) {
             FileLog.e(e);
             if (tryNextCamera(e instanceof IllegalArgumentException || e instanceof SecurityException)) return;
@@ -487,12 +454,15 @@ public class Camera2Session {
         captureSession = null;
         cameraDevice = null;
         opened = false;
+        configured = false;
+        handler.removeCallbacks(hiddenCameraWatchdog);
         while (!nextCameraIds.isEmpty()) {
             final String id = nextCameraIds.remove(0);
             FileLog.d("Camera2Session camera #" + cameraId + " failed, trying #" + id);
             try {
                 loadCamera(id);
                 cameraManager.openCamera(id, cameraStateCallback, handler);
+                watchHiddenCamera();
                 return true;
             } catch (Exception e) {
                 FileLog.e(e);
@@ -502,6 +472,19 @@ public class Camera2Session {
             }
         }
         return false;
+    }
+
+    private void watchHiddenCamera() {
+        if (hiddenCameraIds.contains(cameraId)) {
+            frameSeen = false;
+            handler.removeCallbacks(hiddenCameraWatchdog);
+            handler.postDelayed(hiddenCameraWatchdog, HIDDEN_CAMERA_TIMEOUT);
+        }
+    }
+
+    /** glassGram: lets hidden cameras that refused be tried again, as when the ultra-wide option is turned on. */
+    public static void resetUnavailableCameras() {
+        org.telegram.messenger.MessagesController.getGlobalMainSettings().edit().remove(UNAVAILABLE_KEY).apply();
     }
 
     /**
@@ -520,7 +503,6 @@ public class Camera2Session {
         final boolean fps60 = optionFps60, wide = optionWide;
         final int stabilization = optionStabilization;
         fpsRange = null;
-        highSpeedRange = null;
         videoStabilizationMode = -1;
         opticalStabilization = false;
         opticalStabilizationOff = false;
@@ -533,9 +515,6 @@ public class Camera2Session {
             if (fps60) {
                 final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 fpsRange = find60FpsRange(characteristics, map, previewSize);
-                if (fpsRange == null) {
-                    highSpeedRange = findHighSpeedRange(map, previewSize);
-                }
             }
             if (stabilization == STABILIZATION_GYRO) {
                 // the picture is stabilized by the gyroscope, which only works on a picture the camera
@@ -657,13 +636,7 @@ public class Camera2Session {
 
     /** glassGram: whether the camera was set to record 60 frames a second. */
     public boolean isFps60() {
-        return fpsRange != null || highSpeedRange != null;
-    }
-
-    /** glassGram: with a high-speed session, the camera's frame rate, of which video messages keep 60; else 0. */
-    public int getHighSpeedFps() {
-        final Range<Integer> range = highSpeedRange;
-        return range != null && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession ? range.getUpper() : 0;
+        return fpsRange != null;
     }
 
     private Runnable doneCallback;
@@ -699,11 +672,6 @@ public class Camera2Session {
         try {
             ArrayList<Surface> surfaces = new ArrayList<>();
             surfaces.add(surface);
-            if (highSpeedRange != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // glassGram: a high-speed session takes the preview alone
-                cameraDevice.createConstrainedHighSpeedCaptureSession(surfaces, captureStateCallback, null);
-                return;
-            }
             // video messages take no photos, and a camera the phone hides may not stream the extra size
             if (!hiddenCameraIds.contains(cameraId)) {
                 surfaces.add(imageReader.getSurface());
@@ -820,15 +788,11 @@ public class Camera2Session {
         updateCaptureRequest();
     }
 
-    /** glassGram: repeats the request, as a burst in a high-speed session. */
+    /** glassGram: repeats the request, watching its frames when that's needed. */
     private void setRepeating(CaptureRequest request) throws Exception {
-        final CameraCaptureSession.CaptureCallback callback = gyroStabilization ? frameCallback : null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
-            final List<CaptureRequest> burst = ((android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) captureSession).createHighSpeedRequestList(request);
-            captureSession.setRepeatingBurst(burst, callback, handler);
-        } else {
-            captureSession.setRepeatingRequest(request, callback, handler);
-        }
+        // the frame callback also tells a hidden camera that streams from one that doesn't
+        final CameraCaptureSession.CaptureCallback callback = gyroStabilization || hiddenCameraIds.contains(cameraId) ? frameCallback : null;
+        captureSession.setRepeatingRequest(request, callback, handler);
     }
 
     private boolean flashing;
@@ -974,10 +938,6 @@ public class Camera2Session {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
             } else if (fpsRange != null) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
-            }
-            if (highSpeedRange != null && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
-                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, highSpeedRange);
-                captureRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
             }
             if (videoStabilizationMode >= 0) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, videoStabilizationMode);
