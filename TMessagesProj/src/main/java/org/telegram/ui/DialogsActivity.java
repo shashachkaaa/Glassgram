@@ -3048,7 +3048,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (org.telegram.messenger.GlassgramConfig.getTitle().length() > HEADER_BADGE_MAX_TITLE) {
             badge = null;
         }
-        org.telegram.messenger.GlassgramBadges.applyTo(title, badge, false);
+        org.telegram.messenger.GlassgramBadges.applyTo(title, badge);
         final org.telegram.messenger.GlassgramBadges.Badge clicked = badge;
         title.setRightDrawable2OnClick(badge == null || TextUtils.isEmpty(badge.getText()) ? null : v -> {
             if (dialogStoriesCellVisible && dialogStoriesCell != null && !dialogStoriesCell.isExpanded()) {

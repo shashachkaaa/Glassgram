@@ -524,7 +524,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private float onlineX;
     private float onlineY;
     private float expandProgress;
-    private org.telegram.ui.Components.GlassgramProfileEffectView glassgramEffectView;
     private float listViewVelocityY;
     private ValueAnimator expandAnimator;
     private float currentExpandAnimatorValue;
@@ -5357,26 +5356,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         avatarGooey = new ProfileGooeyView(context);
         avatarGooey.addView(avatarContainer, LayoutHelper.createFrame(100, 100, Gravity.TOP | Gravity.LEFT));
         avatarContainer2.addView(avatarGooey, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        // glassGram: a badge holder's own effect, behind the avatar
-        glassgramEffectView = new org.telegram.ui.Components.GlassgramProfileEffectView(context, new org.telegram.ui.Components.GlassgramProfileEffectView.Target() {
-            @Override
-            public boolean getAvatarBounds(RectF out) {
-                if (avatarContainer == null || avatarGooey == null || avatarContainer.getWidth() <= 0) {
-                    return false;
-                }
-                final float x = avatarGooey.getX() + avatarContainer.getX();
-                final float y = avatarGooey.getY() + avatarContainer.getY();
-                out.set(x, y, x + avatarContainer.getWidth() * avatarContainer.getScaleX(), y + avatarContainer.getHeight() * avatarContainer.getScaleY());
-                return true;
-            }
-
-            @Override
-            public float getEffectVisibility() {
-                return Math.max(0, 1f - expandProgress * 3f) * (avatarContainer != null ? avatarContainer.getAlpha() : 0);
-            }
-        });
-        glassgramEffectView.setVisibility(View.GONE);
-        avatarContainer2.addView(glassgramEffectView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 //        avatarContainer2.addView(avatarContainer, LayoutHelper.createFrame(100, 100, Gravity.TOP | Gravity.LEFT, 64, 0, 0, 0));
         avatarImage = new AvatarImageView(context) {
             @Override
@@ -11178,9 +11157,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         for (int i = 0; i < nameTextView.length; i++) {
             org.telegram.messenger.GlassgramBadges.applyTo(nameTextView[i], badge);
-        }
-        if (glassgramEffectView != null) {
-            glassgramEffectView.setBadge(badge);
         }
         if (badge == null || TextUtils.isEmpty(badge.getText())) {
             nameTextView[1].setOnClickListener(null);
