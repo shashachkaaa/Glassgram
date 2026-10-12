@@ -1538,6 +1538,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         private final float[] stabilizedSTMatrix = new float[16];
         private float textureHalfWidth = 0.5f;
         private float textureHalfHeight = 0.5f;
+        private long lastKeptFrameTime;
 
         public CameraGLThread(SurfaceTexture surface, int surfaceWidth, int surfaceHeight) {
             super("CameraGLThread");
@@ -1868,6 +1869,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 updateFlash();
             }
 
+            if (skipHighSpeedFrame()) {
+                return;
+            }
             updateTextureMatrix();
 
             if (videoEncoder != null && (surfaceIndex == 0 && updateTexImage1 || surfaceIndex == 1 && updateTexImage2)) {
@@ -1908,6 +1912,19 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     firstFrameThumb = textureView.getBitmap();
                 });
             }
+        }
+
+        /** glassGram: a camera in a high-speed session runs at 120 or 240 frames a second, of which 60 are kept. */
+        private boolean skipHighSpeedFrame() {
+            if (!useCamera2 || bothCameras || !(currentSession instanceof Camera2Session) || ((Camera2Session) currentSession).getHighSpeedFps() <= 60) {
+                return false;
+            }
+            final long time = cameraSurface[surfaceIndex].getTimestamp();
+            if (lastKeptFrameTime != 0 && time > lastKeptFrameTime && time - lastKeptFrameTime < 13_000_000L) {
+                return true;
+            }
+            lastKeptFrameTime = time;
+            return false;
         }
 
         /** glassGram: the camera texture's matrix, stabilized by the gyroscope when the camera asks for it. */

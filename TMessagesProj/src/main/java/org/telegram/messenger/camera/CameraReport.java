@@ -60,7 +60,7 @@ public class CameraReport {
         for (String id : physical) {
             try {
                 sb.append('\n');
-                describe(sb, id, manager.getCameraCharacteristics(id), "physical, part of a listed camera", false);
+                describe(sb, id, manager.getCameraCharacteristics(id), "physical, part of a listed camera", true);
             } catch (Exception e) {
                 sb.append("\nPhysical camera ").append(id).append(": ").append(e).append('\n');
             }
@@ -75,7 +75,7 @@ public class CameraReport {
                 if (c == null) continue;
                 hidden.add(id);
                 sb.append('\n');
-                describe(sb, id, c, "hidden, not listed", false);
+                describe(sb, id, c, "hidden, not listed", true);
             } catch (Exception ignore) {
 
             }
@@ -84,25 +84,32 @@ public class CameraReport {
             sb.append("\nHidden cameras: none answer by id\n");
         }
 
+        final String refused = org.telegram.messenger.MessagesController.getGlobalMainSettings().getString("glassgram_camera_unavailable", "");
+        if (!refused.isEmpty()) {
+            sb.append("\nHidden cameras that refused to open: ").append(refused).append('\n');
+        }
         sb.append("\nVideo messages with the current settings:\n");
         for (int a = 0; a < 2; ++a) {
             final boolean front = a == 0;
-            final Object[] choice = Camera2Session.choose(front, GlassgramConfig.roundWideCamera && !front, GlassgramConfig.roundFps60, roundVideoSize, roundVideoSize);
+            final Camera2Session.Choice choice = Camera2Session.choose(front, GlassgramConfig.roundWideCamera && !front, GlassgramConfig.roundFps60, roundVideoSize, roundVideoSize);
             sb.append(front ? "  front: " : "  back: ");
             if (choice == null) {
                 sb.append("no camera\n");
                 continue;
             }
-            final String id = (String) choice[0];
-            final Size size = (Size) choice[1];
-            sb.append("camera ").append(id).append(", preview ").append(size);
+            final String id = choice.ids.get(0);
+            final Size size = choice.size;
+            sb.append("camera ").append(TextUtils.join(", then ", choice.ids)).append(", preview ").append(size);
             try {
                 final CameraCharacteristics c = manager.getCameraCharacteristics(id);
                 final StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 final Range<Integer> range = Camera2Session.find60FpsRange(c, map, size);
+                final Range<Integer> highSpeed = Camera2Session.findHighSpeedRange(map, size);
                 sb.append(", 60 FPS: ");
                 if (range != null) {
                     sb.append("yes ").append(range);
+                } else if (highSpeed != null) {
+                    sb.append("high-speed ").append(highSpeed).append(", every ").append(highSpeed.getUpper() / 60).append(highSpeed.getUpper() / 60 == 2 ? "nd" : "th").append(" frame");
                 } else if (Camera2Session.find60FpsRange(c, null, null) == null) {
                     sb.append("no, the camera has no 60 FPS range");
                 } else {

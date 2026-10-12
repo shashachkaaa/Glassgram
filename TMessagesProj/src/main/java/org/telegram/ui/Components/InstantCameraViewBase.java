@@ -48,7 +48,9 @@ public abstract class InstantCameraViewBase extends FrameLayout {
             Theme.ResourcesProvider resourcesProvider,
             boolean isNewDesign
     ) {
-        return SharedSettings.roundVideoCamera2Enabled.get()
+        // glassGram: the video message options in glassGram settings live in the first recorder
+        final boolean glassgramOptions = org.telegram.messenger.GlassgramConfig.roundCameraTweaks() || org.telegram.messenger.GlassgramConfig.roundKeepZoom;
+        return SharedSettings.roundVideoCamera2Enabled.get() && !glassgramOptions
                 ? new InstantCameraView2(context, delegate, resourcesProvider, isNewDesign)
                 : new InstantCameraView(context, delegate, resourcesProvider, isNewDesign);
     }

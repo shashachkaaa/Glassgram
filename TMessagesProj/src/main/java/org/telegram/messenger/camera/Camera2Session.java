@@ -56,8 +56,12 @@ public class Camera2Session {
 
     private final CameraManager cameraManager;
     private final boolean isFront;
-    public final String cameraId;
+    public volatile String cameraId;
     private CameraCharacteristics cameraCharacteristics;
+    // glassGram: cameras to try next when this one doesn't open or stream, and those the phone hides
+    private final ArrayList<String> nextCameraIds = new ArrayList<>();
+    private final ArrayList<String> hiddenCameraIds = new ArrayList<>();
+    private boolean configured;
 
     private HandlerThread thread;
     private Handler handler;
@@ -82,6 +86,10 @@ public class Camera2Session {
     private boolean opticalStabilization;
     private boolean opticalStabilizationOff;
     private boolean gyroStabilization;
+    // 60 frames a second through a high-speed session, for cameras that only run that fast there
+    private Range<Integer> highSpeedRange;
+    private boolean optionsSet, optionFps60, optionWide;
+    private int optionStabilization;
     private volatile long frameMiddle = 10_000_000L;
     private float focalPerWidth;
 
@@ -119,15 +127,37 @@ public class Camera2Session {
      */
     public static Camera2Session create(boolean front, boolean preferWide, boolean fps60, int viewWidth, int viewHeight) {
         final Context context = ApplicationLoader.applicationContext;
-        final Object[] choice = choose(front, preferWide, fps60, viewWidth, viewHeight);
+        final Choice choice = choose(front, preferWide, fps60, viewWidth, viewHeight);
         if (choice == null) {
             return null;
         }
-        return new Camera2Session(context, front, (String) choice[0], (Size) choice[1]);
+        return new Camera2Session(context, front, choice.ids, choice.hiddenIds, choice.size);
     }
 
-    /** The camera id and preview size {@link #create} would take, or null. */
-    static Object[] choose(boolean front, boolean preferWide, boolean fps60, int viewWidth, int viewHeight) {
+    /** glassGram: the cameras to try in turn, the ones the phone hides among them, and the preview size. */
+    static class Choice {
+        final ArrayList<String> ids = new ArrayList<>();
+        final ArrayList<String> hiddenIds = new ArrayList<>();
+        Size size;
+    }
+
+    private static final String UNAVAILABLE_KEY = "glassgram_camera_unavailable";
+
+    /** glassGram: hidden cameras that refused to open or stream, not to be tried again. */
+    private static boolean isUnavailable(String id) {
+        final String ids = org.telegram.messenger.MessagesController.getGlobalMainSettings().getString(UNAVAILABLE_KEY, "");
+        return ("," + ids + ",").contains("," + id + ",");
+    }
+
+    private static void markUnavailable(String id) {
+        if (isUnavailable(id)) return;
+        final android.content.SharedPreferences preferences = org.telegram.messenger.MessagesController.getGlobalMainSettings();
+        final String ids = preferences.getString(UNAVAILABLE_KEY, "");
+        preferences.edit().putString(UNAVAILABLE_KEY, ids.isEmpty() ? id : ids + "," + id).apply();
+    }
+
+    /** The cameras and preview size {@link #create} would take, or null. */
+    static Choice choose(boolean front, boolean preferWide, boolean fps60, int viewWidth, int viewHeight) {
         final Context context = ApplicationLoader.applicationContext;
         final CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
 
@@ -187,7 +217,52 @@ public class Camera2Session {
         if (cameraId == null || bestSize == null) {
             return null;
         }
-        return new Object[] { cameraId, bestSize };
+        final Choice choice = new Choice();
+        choice.size = bestSize;
+        if (preferWide && !front) {
+            addHiddenWideCameras(cameraManager, cameraId, bestSize, choice);
+        }
+        choice.ids.add(cameraId);
+        return choice;
+    }
+
+    /**
+     * glassGram: some phones (vivo) keep the camera that zooms out onto the ultra-wide lens out of
+     * the list apps see, yet answer for its id. Those that see wider than the chosen camera and can
+     * stream its preview size go first, widest first; the chosen camera stays as the fallback.
+     */
+    private static void addHiddenWideCameras(CameraManager cameraManager, String cameraId, Size size, Choice choice) {
+        try {
+            final float field = widestField(cameraManager.getCameraCharacteristics(cameraId));
+            final List<String> listed = Arrays.asList(cameraManager.getCameraIdList());
+            final ArrayList<String> ids = new ArrayList<>();
+            final ArrayList<Float> fields = new ArrayList<>();
+            for (int i = 0; i < 16; ++i) {
+                final String id = String.valueOf(i);
+                if (listed.contains(id) || isUnavailable(id)) continue;
+                final CameraCharacteristics characteristics;
+                try {
+                    characteristics = cameraManager.getCameraCharacteristics(id);
+                } catch (Exception e) {
+                    continue;
+                }
+                final Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing == null || facing != CameraCharacteristics.LENS_FACING_BACK || !isBackwardCompatible(characteristics)) continue;
+                final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                final Size[] sizes = map == null ? null : map.getOutputSizes(SurfaceTexture.class);
+                if (sizes == null || !Arrays.asList(sizes).contains(size)) continue;
+                final float wideness = widestField(characteristics);
+                if (wideness <= field * 1.15f) continue;
+                int index = 0;
+                while (index < fields.size() && fields.get(index) >= wideness) index++;
+                ids.add(index, id);
+                fields.add(index, wideness);
+            }
+            choice.ids.addAll(ids);
+            choice.hiddenIds.addAll(ids);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 
     /** The preview size; with fps60, one of those the camera keeps at 60 frames a second, if any. */
@@ -204,8 +279,43 @@ public class Camera2Session {
             if (!fast.isEmpty()) {
                 return chooseOptimalSize(fast.toArray(new Size[0]), viewWidth, viewHeight, false);
             }
+        } else if (fps60 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // no 60 in the regular ranges: the smallest size big enough that runs in a high-speed session
+            Size best = null;
+            for (Size size : sizes) {
+                if (Math.min(size.getWidth(), size.getHeight()) < Math.min(viewWidth, viewHeight)) continue;
+                if (findHighSpeedRange(map, size) == null) continue;
+                if (best == null || (long) size.getWidth() * size.getHeight() < (long) best.getWidth() * best.getHeight()) {
+                    best = size;
+                }
+            }
+            if (best != null) {
+                return best;
+            }
         }
         return chooseOptimalSize(sizes, viewWidth, viewHeight, false);
+    }
+
+    /**
+     * glassGram: a steady high-speed frame rate for the size, the lowest of them, which video
+     * messages take every second or fourth frame of for 60; null if the size has none.
+     */
+    static Range<Integer> findHighSpeedRange(StreamConfigurationMap map, Size size) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || map == null || size == null) return null;
+        try {
+            Range<Integer> best = null;
+            for (Size highSpeedSize : map.getHighSpeedVideoSizes()) {
+                if (!highSpeedSize.equals(size)) continue;
+                for (Range<Integer> range : map.getHighSpeedVideoFpsRangesFor(size)) {
+                    final int fps = range.getUpper();
+                    if (!range.getLower().equals(range.getUpper()) || fps % 60 != 0) continue;
+                    if (best == null || fps < best.getUpper()) best = range;
+                }
+            }
+            return best;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     static boolean keeps60Fps(StreamConfigurationMap map, Size size) {
@@ -253,7 +363,10 @@ public class Camera2Session {
         return false;
     }
 
-    private Camera2Session(Context context, boolean isFront, String cameraId, Size size) {
+    private Camera2Session(Context context, boolean isFront, List<String> cameraIds, List<String> hiddenIds, Size size) {
+        final String cameraId = cameraIds.get(0);
+        nextCameraIds.addAll(cameraIds.subList(1, cameraIds.size()));
+        hiddenCameraIds.addAll(hiddenIds);
         thread = new HandlerThread("tg_camera2");
         thread.start();
         handler = new Handler(thread.getLooper());
@@ -263,20 +376,22 @@ public class Camera2Session {
             public void onOpened(@NonNull CameraDevice camera) {
                 Camera2Session.this.cameraDevice = camera;
                 Camera2Session.this.lastTime = System.currentTimeMillis();
-                FileLog.d("Camera2Session camera #" + cameraId + " opened");
+                FileLog.d("Camera2Session camera #" + Camera2Session.this.cameraId + " opened");
                 checkOpen();
             }
 
             @Override
             public void onDisconnected(@NonNull CameraDevice camera) {
                 Camera2Session.this.cameraDevice = camera;
-                FileLog.d("Camera2Session camera #" + cameraId + " disconnected");
+                FileLog.d("Camera2Session camera #" + Camera2Session.this.cameraId + " disconnected");
+                if (!configured && tryNextCamera(false)) return;
             }
 
             @Override
             public void onError(@NonNull CameraDevice camera, int error) {
                 Camera2Session.this.cameraDevice = camera;
-                FileLog.e("Camera2Session camera #" + cameraId + " received " + error + " error");
+                FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " received " + error + " error");
+                if (!configured && tryNextCamera(false)) return;
                 AndroidUtilities.runOnUIThread(() -> {
                     isError = true;
                 });
@@ -287,7 +402,8 @@ public class Camera2Session {
             @Override
             public void onConfigured(@NonNull CameraCaptureSession session) {
                 captureSession = session;
-                FileLog.e("Camera2Session camera #" + cameraId + " capture session configured");
+                configured = true;
+                FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " capture session configured");
                 Camera2Session.this.lastTime = System.currentTimeMillis();
                 try {
                     updateCaptureRequest();
@@ -306,7 +422,15 @@ public class Camera2Session {
             @Override
             public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                 captureSession = session;
-                FileLog.e("Camera2Session camera #" + cameraId + " capture session failed to configure");
+                FileLog.e("Camera2Session camera #" + Camera2Session.this.cameraId + " capture session failed to configure");
+                if (highSpeedRange != null) {
+                    // glassGram: no high-speed session after all, so 30 frames a second
+                    highSpeedRange = null;
+                    opened = false;
+                    checkOpen();
+                    return;
+                }
+                if (tryNextCamera(true)) return;
                 AndroidUtilities.runOnUIThread(() -> {
                     isError = true;
                 });
@@ -320,19 +444,64 @@ public class Camera2Session {
         this.imageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(), ImageFormat.JPEG, 1);
         cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
-            cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
-            sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
-            final Float value = cameraCharacteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
-            maxZoom = (value == null || value < 1f) ? 1f : value;
-            final Integer timestampSource = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
-            realtimeTimestamps = timestampSource != null && timestampSource == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
+            loadCamera(cameraId);
             cameraManager.openCamera(cameraId, cameraStateCallback, handler);
         } catch (Exception e) {
             FileLog.e(e);
+            if (tryNextCamera(e instanceof IllegalArgumentException || e instanceof SecurityException)) return;
             AndroidUtilities.runOnUIThread(() -> {
                 isError = true;
             });
         }
+    }
+
+    private void loadCamera(String id) throws Exception {
+        cameraId = id;
+        cameraCharacteristics = cameraManager.getCameraCharacteristics(id);
+        sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+        final Float value = cameraCharacteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
+        maxZoom = (value == null || value < 1f) ? 1f : value;
+        final Integer timestampSource = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
+        realtimeTimestamps = timestampSource != null && timestampSource == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME;
+        focalPerWidth = 0;
+        if (optionsSet) {
+            applyVideoOptions();
+        }
+    }
+
+    /**
+     * glassGram: moves on to the next camera when this one didn't open or stream, as a camera the
+     * phone hides may refuse apps. A hidden one that refused for good isn't tried again.
+     */
+    private boolean tryNextCamera(boolean refused) {
+        if (isClosed || nextCameraIds.isEmpty()) return false;
+        if (refused && hiddenCameraIds.contains(cameraId)) {
+            markUnavailable(cameraId);
+        }
+        try {
+            if (captureSession != null) captureSession.close();
+        } catch (Exception ignore) {}
+        try {
+            if (cameraDevice != null) cameraDevice.close();
+        } catch (Exception ignore) {}
+        captureSession = null;
+        cameraDevice = null;
+        opened = false;
+        while (!nextCameraIds.isEmpty()) {
+            final String id = nextCameraIds.remove(0);
+            FileLog.d("Camera2Session camera #" + cameraId + " failed, trying #" + id);
+            try {
+                loadCamera(id);
+                cameraManager.openCamera(id, cameraStateCallback, handler);
+                return true;
+            } catch (Exception e) {
+                FileLog.e(e);
+                if (hiddenCameraIds.contains(id) && (e instanceof IllegalArgumentException || e instanceof SecurityException)) {
+                    markUnavailable(id);
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -340,11 +509,33 @@ public class Camera2Session {
      * session opens; an option the camera can't do stays off.
      */
     public void setVideoOptions(boolean fps60, int stabilization, boolean wide) {
+        optionFps60 = fps60;
+        optionStabilization = stabilization;
+        optionWide = wide;
+        optionsSet = true;
+        applyVideoOptions();
+    }
+
+    private void applyVideoOptions() {
+        final boolean fps60 = optionFps60, wide = optionWide;
+        final int stabilization = optionStabilization;
+        fpsRange = null;
+        highSpeedRange = null;
+        videoStabilizationMode = -1;
+        opticalStabilization = false;
+        opticalStabilizationOff = false;
+        gyroStabilization = false;
+        useZoomRatio = false;
+        minZoom = defaultZoom = currentZoom = 1f;
         final CameraCharacteristics characteristics = cameraCharacteristics;
         if (characteristics == null) return;
         try {
             if (fps60) {
-                fpsRange = find60FpsRange(characteristics, characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP), previewSize);
+                final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                fpsRange = find60FpsRange(characteristics, map, previewSize);
+                if (fpsRange == null) {
+                    highSpeedRange = findHighSpeedRange(map, previewSize);
+                }
             }
             if (stabilization == STABILIZATION_GYRO) {
                 // the picture is stabilized by the gyroscope, which only works on a picture the camera
@@ -466,7 +657,13 @@ public class Camera2Session {
 
     /** glassGram: whether the camera was set to record 60 frames a second. */
     public boolean isFps60() {
-        return fpsRange != null;
+        return fpsRange != null || highSpeedRange != null;
+    }
+
+    /** glassGram: with a high-speed session, the camera's frame rate, of which video messages keep 60; else 0. */
+    public int getHighSpeedFps() {
+        final Range<Integer> range = highSpeedRange;
+        return range != null && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession ? range.getUpper() : 0;
     }
 
     private Runnable doneCallback;
@@ -495,12 +692,22 @@ public class Camera2Session {
         if (surfaceTexture == null || cameraDevice == null) return;
         opened = true;
 
-        surface = new Surface(surfaceTexture);
+        if (surface == null) {
+            surface = new Surface(surfaceTexture);
+        }
 
         try {
             ArrayList<Surface> surfaces = new ArrayList<>();
             surfaces.add(surface);
-            surfaces.add(imageReader.getSurface());
+            if (highSpeedRange != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // glassGram: a high-speed session takes the preview alone
+                cameraDevice.createConstrainedHighSpeedCaptureSession(surfaces, captureStateCallback, null);
+                return;
+            }
+            // video messages take no photos, and a camera the phone hides may not stream the extra size
+            if (!hiddenCameraIds.contains(cameraId)) {
+                surfaces.add(imageReader.getSurface());
+            }
             cameraDevice.createCaptureSession(surfaces, captureStateCallback, null);
         } catch (Exception e) {
             FileLog.e(e);
@@ -611,11 +818,16 @@ public class Camera2Session {
 
         currentZoom = Utilities.clamp(value, maxZoom, minZoom);
         updateCaptureRequest();
+    }
 
-        try {
-            captureSession.setRepeatingRequest(captureRequestBuilder.build(), gyroStabilization ? frameCallback : null, handler);
-        } catch (Exception e) {
-            FileLog.e(e);
+    /** glassGram: repeats the request, as a burst in a high-speed session. */
+    private void setRepeating(CaptureRequest request) throws Exception {
+        final CameraCaptureSession.CaptureCallback callback = gyroStabilization ? frameCallback : null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
+            final List<CaptureRequest> burst = ((android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) captureSession).createHighSpeedRequestList(request);
+            captureSession.setRepeatingBurst(burst, callback, handler);
+        } else {
+            captureSession.setRepeatingRequest(request, callback, handler);
         }
     }
 
@@ -763,6 +975,10 @@ public class Camera2Session {
             } else if (fpsRange != null) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
             }
+            if (highSpeedRange != null && captureSession instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, highSpeedRange);
+                captureRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
+            }
             if (videoStabilizationMode >= 0) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, videoStabilizationMode);
             }
@@ -789,7 +1005,7 @@ public class Camera2Session {
             }
 
             captureRequestBuilder.addTarget(surface);
-            captureSession.setRepeatingRequest(captureRequestBuilder.build(), gyroStabilization ? frameCallback : null, handler);
+            setRepeating(captureRequestBuilder.build());
         } catch (Exception e) {
             FileLog.e("Camera2Sessions setRepeatingRequest error in updateCaptureRequest", e);
         }
