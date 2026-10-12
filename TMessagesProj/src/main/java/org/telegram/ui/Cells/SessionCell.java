@@ -15,12 +15,16 @@ import static org.telegram.messenger.LocaleController.getString;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
 import android.graphics.Shader;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
@@ -37,6 +41,7 @@ import androidx.core.content.ContextCompat;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -53,6 +58,7 @@ import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.DotDividerSpan;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.LauncherIconController;
 
 public class SessionCell extends FrameLayout {
 
@@ -317,6 +323,10 @@ public class SessionCell extends FrameLayout {
     }
 
     public static CombinedDrawable createDrawable(int sz, TLRPC.TL_authorization session) {
+        if (isGlassgramSession(session)) {
+            // glassGram's api_id is registered as an iOS app, so its sessions showed an apple
+            return new CombinedDrawable(new GlassgramIconDrawable(dp(sz)), new ColorDrawable(Color.TRANSPARENT));
+        }
         String platform = session.platform.toLowerCase();
         if (platform.isEmpty()) {
             platform = session.system_version.toLowerCase();
@@ -409,6 +419,82 @@ public class SessionCell extends FrameLayout {
             drawable.setIconSize((int) (iconDrawable.getIntrinsicWidth() / 44.0f * sz), (int) (iconDrawable.getIntrinsicHeight() / 44.0f * sz));
         }
         return drawable;
+    }
+
+    /** A session of glassGram: our own api_id (not Telegram's public one), or an app with our name. */
+    private static boolean isGlassgramSession(TLRPC.TL_authorization session) {
+        if (BuildVars.APP_ID != 4 && session.api_id == BuildVars.APP_ID) {
+            return true;
+        }
+        return session.app_name != null && session.app_name.toLowerCase().contains("glassgram");
+    }
+
+    /**
+     * glassGram's icon, the one chosen in the settings, as a circle: the middle 72dp of its 108dp
+     * adaptive layers, which is what a launcher shows.
+     */
+    private static class GlassgramIconDrawable extends Drawable {
+
+        private final Drawable background, foreground;
+        private final Path clip = new Path();
+        private final int size;
+
+        GlassgramIconDrawable(int size) {
+            this.size = size;
+            LauncherIconController.LauncherIcon current = LauncherIconController.LauncherIcon.DEFAULT;
+            for (LauncherIconController.LauncherIcon icon : LauncherIconController.LauncherIcon.values()) {
+                if (LauncherIconController.isEnabled(icon)) {
+                    current = icon;
+                    break;
+                }
+            }
+            background = ContextCompat.getDrawable(ApplicationLoader.applicationContext, current.background).mutate();
+            foreground = ContextCompat.getDrawable(ApplicationLoader.applicationContext, current.foreground).mutate();
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas) {
+            final Rect b = getBounds();
+            final int side = Math.min(b.width(), b.height());
+            if (side <= 0) {
+                return;
+            }
+            canvas.save();
+            clip.rewind();
+            clip.addCircle(b.exactCenterX(), b.exactCenterY(), side / 2f, Path.Direction.CW);
+            canvas.clipPath(clip);
+            final int full = Math.round(side * 108f / 72f);
+            final int l = b.centerX() - full / 2, t = b.centerY() - full / 2;
+            background.setBounds(l, t, l + full, t + full);
+            background.draw(canvas);
+            foreground.setBounds(l, t, l + full, t + full);
+            foreground.draw(canvas);
+            canvas.restore();
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            background.setAlpha(alpha);
+            foreground.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(@Nullable ColorFilter colorFilter) {}
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.TRANSLUCENT;
+        }
+
+        @Override
+        public int getIntrinsicWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIntrinsicHeight() {
+            return size;
+        }
     }
 
     public static class CircleGradientDrawable extends Drawable {
