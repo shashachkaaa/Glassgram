@@ -488,8 +488,8 @@
     <string name="GlassgramRound60FpsInfo">Плавнее кружки, если камера умеет 60 кадров в секунду</string>
     <string name="GlassgramRoundStabilization">Стабилизация</string>
     <string name="GlassgramRoundStabilizationInfo">Сглаживает тряску по гироскопу; кадр приближается на 20%, а оптическая стабилизация на время записи выключается</string>
-    <string name="GlassgramRoundWide">Широкоугольная камера</string>
-    <string name="GlassgramRoundWideInfo">Задняя камера начинает с ширика; разведите пальцы во время записи, чтобы приблизить</string>
+    <string name="GlassgramRoundWide">Начинать с ширика</string>
+    <string name="GlassgramRoundWideInfo">Запись всегда начинается с заднего широкоугольного модуля. Без этого — с того, чем закончился прошлый кружок: фронталка, ширик или основная камера</string>
     <string name="GlassgramRoundKeepZoom">Сохранять зум</string>
     <string name="GlassgramRoundKeepZoomInfo">Зум остаётся, когда отпускаешь пальцы</string>
     <string name="GlassgramRoundCameraInfo">Возможности камеры</string>

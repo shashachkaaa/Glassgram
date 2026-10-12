@@ -97,6 +97,9 @@ public class GlassgramConfig {
     public static boolean roundStabilization;
     public static boolean roundWideCamera;
     public static boolean roundKeepZoom;
+    // the camera the last video message ended on: front, or back on its ultra-wide or main lens
+    public static boolean roundLastFront = true;
+    public static boolean roundLastWide;
 
     /** Whether video messages use the camera options above, which only Camera2 has. */
     public static boolean roundCameraTweaks() {
@@ -234,6 +237,8 @@ public class GlassgramConfig {
         roundStabilization = p.getBoolean("roundStabilization", false);
         roundWideCamera = p.getBoolean("roundWideCamera", false);
         roundKeepZoom = p.getBoolean("roundKeepZoom", false);
+        roundLastFront = p.getBoolean("roundLastFront", true);
+        roundLastWide = p.getBoolean("roundLastWide", false);
         if (STORE_BUILD) {
             ghostMode = false;
             spySaveDeletedMessages = false;

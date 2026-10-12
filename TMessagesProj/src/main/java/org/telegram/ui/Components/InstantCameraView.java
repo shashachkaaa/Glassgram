@@ -138,6 +138,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private Paint paint;
     private RectF rect;
     private final FlashViews.ImageViewInvertable switchCameraButton;
+    // glassGram: the zoom slider under the circle
+    private final RoundZoomSlider zoomSlider;
     private final FlashViews.ImageViewInvertable flashButton;
     private final FlashViews flashViews;
     private RLottieDrawable flashOnDrawable, flashOffDrawable;
@@ -196,7 +198,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private Camera2Session createCamera2Session(boolean front) {
         final int size = MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize;
         // both cameras at once only promise to work together as they are, so keep the usual back one then
-        final Camera2Session session = Camera2Session.create(front, GlassgramConfig.roundWideCamera && !bothCameras, GlassgramConfig.roundFps60, size, size);
+        // the back camera is the one that can zoom out onto the ultra-wide lens, wherever it has one
+        final Camera2Session session = Camera2Session.create(front, !front && !bothCameras, GlassgramConfig.roundFps60, size, size);
         if (session != null) {
             final int stabilization;
             if (!GlassgramConfig.roundStabilization) {
@@ -207,9 +210,25 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             } else {
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
-            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, GlassgramConfig.roundWideCamera && !front);
+            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, !front, !front && (GlassgramConfig.roundWideCamera || GlassgramConfig.roundLastWide));
         }
         return session;
+    }
+
+    /** glassGram: the camera and lens the video message is on now, for the next one to start on. */
+    private void rememberCameraMode() {
+        if (!useCamera2) return;
+        if (GlassgramConfig.roundLastFront != isFrontface) {
+            GlassgramConfig.roundLastFront = isFrontface;
+            GlassgramConfig.putBoolean("roundLastFront", isFrontface);
+        }
+        if (!isFrontface && camera2SessionCurrent != null) {
+            final boolean wide = camera2SessionCurrent.getDefaultZoom() < 0.99f;
+            if (GlassgramConfig.roundLastWide != wide) {
+                GlassgramConfig.roundLastWide = wide;
+                GlassgramConfig.putBoolean("roundLastWide", wide);
+            }
+        }
     }
 
     private boolean isCameraSessionInitiated() {
@@ -431,6 +450,22 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         muteImageView.setAlpha(0.0f);
         addView(muteImageView, LayoutHelper.createFrame(48, 48, Gravity.CENTER));
 
+        zoomSlider = new RoundZoomSlider(context);
+        zoomSlider.setAlpha(0.0f);
+        zoomSlider.setListener((zoom, finished) -> {
+            if (!useCamera2 || camera2SessionCurrent == null) return;
+            if (finishZoomTransition != null) {
+                finishZoomTransition.cancel();
+            }
+            camera2SessionCurrent.setZoom(zoom);
+            // the slider's zoom is the one a pinch comes back to
+            camera2SessionCurrent.setDefaultZoom(zoom);
+            if (finished) {
+                rememberCameraMode();
+            }
+        });
+        addView(zoomSlider, LayoutHelper.createFrame(236, 36, Gravity.CENTER));
+
         Paint blackoutPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         blackoutPaint.setColor(ColorUtils.setAlphaComponent(Color.BLACK, 40));
         textureOverlayView = new BackupImageView(getContext()) {
@@ -551,6 +586,17 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             updateTextureViewSize = false;
         }
 
+        // glassGram: the zoom slider just under the circle, or over its bottom edge when there's no room
+        final int area = MeasureSpec.getSize(heightMeasureSpec) - getPaddingTop() - getPaddingBottom();
+        int sliderOffset = textureViewSize / 2 + dp(16 + 18);
+        if ((area - textureViewSize) / 2 < dp(16 + 36 + 6)) {
+            sliderOffset = textureViewSize / 2 - dp(14 + 18);
+        }
+        final LayoutParams sliderParams = (LayoutParams) zoomSlider.getLayoutParams();
+        if (sliderParams.topMargin != sliderOffset) {
+            sliderParams.topMargin = sliderOffset;
+        }
+
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         final int flashWidthSpec = MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY);
@@ -636,6 +682,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (useCamera2 && camera2SessionCurrent != null) {
+            // glassGram: the slider follows the camera's zoom, from a pinch or a change of camera too
+            zoomSlider.update(camera2SessionCurrent.getMinZoom(), camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getZoom());
+        }
         float x = cameraContainer.getX();
         float y = cameraContainer.getY();
         rect.set(x - dp(8), y - dp(8), x + cameraContainer.getMeasuredWidth() + dp(8), y + cameraContainer.getMeasuredHeight() + dp(8));
@@ -661,6 +711,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         super.setVisibility(visibility);
 
         buttonsLayout.setAlpha(0.0f);
+        zoomSlider.setAlpha(0.0f);
         cameraContainer.setAlpha(0.0f);
         textureOverlayView.setAlpha(0.0f);
         muteImageView.setAlpha(0.0f);
@@ -758,6 +809,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         if (!fromPaused) {
             if (!useCamera2) {
                 isFrontface = true;
+            } else {
+                // glassGram: start where the last video message ended, or on the back ultra-wide lens when asked
+                isFrontface = !GlassgramConfig.roundWideCamera && GlassgramConfig.roundLastFront;
             }
             updateFlash();
             recordedTime = 0;
@@ -801,9 +855,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
 
         if (useCamera2) {
-            // glassGram: both cameras at once run at what they can do together, so 60 FPS and the
-            // ultra-wide camera take one camera at a time
-            bothCameras = DualCameraView.roundDualAvailableStatic(getContext()) && !GlassgramConfig.roundFps60 && !GlassgramConfig.roundWideCamera;
+            // glassGram: one camera at a time. Both at once only run at what they can do together, so
+            // the back one couldn't be the camera with the ultra-wide lens, nor run 60 FPS
+            bothCameras = false;
             if (bothCameras) {
                 for (int a = 0; a < 2; ++a) {
                     if (camera2Sessions[a] == null) {
@@ -927,6 +981,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         });
         animatorSet.playTogether(
                 ObjectAnimator.ofFloat(buttonsLayout, View.ALPHA, open ? 1.0f : 0.0f),
+                ObjectAnimator.ofFloat(zoomSlider, View.ALPHA, open && useCamera2 ? 1.0f : 0.0f),
                 ObjectAnimator.ofFloat(muteImageView, View.ALPHA, 0.0f),
                 ObjectAnimator.ofInt(paint, AnimationProperties.PAINT_ALPHA, open ? 255 : 0),
                 ObjectAnimator.ofFloat(cameraContainer, View.ALPHA, open ? 1.0f : 0.0f),
@@ -961,6 +1016,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private void updateTranslationY() {
         textureOverlayView.setTranslationY(animationTranslationY + panTranslationY);
         cameraContainer.setTranslationY(animationTranslationY + panTranslationY);
+        zoomSlider.setTranslationY(animationTranslationY + panTranslationY);
     }
 
     public RectF getCameraRect() {
@@ -1185,6 +1241,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 camera2SessionCurrent.setRecordingVideo(true);
                 previewSize[0] = new Size(camera2SessionCurrent.getPreviewWidth(), camera2SessionCurrent.getPreviewHeight());
                 cameraThread.setCurrentSession(camera2SessionCurrent);
+                rememberCameraMode();
             }
         } else {
             if (cameraSession != null) {
@@ -2928,6 +2985,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             AnimatorSet animatorSet = new AnimatorSet();
             animatorSet.playTogether(
                     ObjectAnimator.ofFloat(buttonsLayout, View.ALPHA, 0.0f),
+                    ObjectAnimator.ofFloat(zoomSlider, View.ALPHA, 0.0f),
                     ObjectAnimator.ofInt(paint, AnimationProperties.PAINT_ALPHA, 0),
                     ObjectAnimator.ofFloat(muteImageView, View.ALPHA, 1.0f));
             animatorSet.setDuration(180);
@@ -3898,7 +3956,15 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     ValueAnimator finishZoomTransition;
 
     public void finishZoom() {
-        if (finishZoomTransition != null || GlassgramConfig.roundKeepZoom) {
+        if (finishZoomTransition != null) {
+            return;
+        }
+        if (GlassgramConfig.roundKeepZoom) {
+            // glassGram: the zoom stays, and is the one to come back to
+            if (useCamera2 && camera2SessionCurrent != null) {
+                camera2SessionCurrent.setDefaultZoom(camera2SessionCurrent.getZoom());
+                rememberCameraMode();
+            }
             return;
         }
 

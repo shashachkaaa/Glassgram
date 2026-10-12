@@ -91,7 +91,7 @@ public class CameraReport {
         sb.append("\nVideo messages with the current settings:\n");
         for (int a = 0; a < 2; ++a) {
             final boolean front = a == 0;
-            final Camera2Session.Choice choice = Camera2Session.choose(front, GlassgramConfig.roundWideCamera && !front, GlassgramConfig.roundFps60, roundVideoSize, roundVideoSize);
+            final Camera2Session.Choice choice = Camera2Session.choose(front, !front, GlassgramConfig.roundFps60, roundVideoSize, roundVideoSize);
             sb.append(front ? "  front: " : "  back: ");
             if (choice == null) {
                 sb.append("no camera\n");
