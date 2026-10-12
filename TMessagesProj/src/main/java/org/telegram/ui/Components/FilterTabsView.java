@@ -41,6 +41,7 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -54,8 +55,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.liquidglass.LiquidTabBarView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Emoji;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
@@ -67,9 +70,11 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 import org.telegram.ui.Stories.recorder.HintView2;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 
 @SuppressLint("ViewConstructor")
@@ -743,6 +748,15 @@ public class FilterTabsView extends FrameLayout {
             }
         }
 
+        @Override
+        public void invalidate() {
+            super.invalidate();
+            // On the liquid bar the tab is painted into its slot, which has to be painted again
+            if (liquidTabsUsed && liquidTabs != null) {
+                liquidTabs.invalidateTabs();
+            }
+        }
+
         public void clearTransitionParams() {
             animateChange = false;
             animateTabCounter = false;
@@ -1159,7 +1173,8 @@ public class FilterTabsView extends FrameLayout {
     BlurredBackgroundDrawable blurredBackgroundDrawable;
 
     public void setBlurredBackground(BlurredBackgroundDrawable drawable) {
-        setBackground(blurredBackgroundDrawable = drawable);
+        blurredBackgroundDrawable = drawable;
+        setBackground(liquidTabsUsed ? null : drawable);
     }
 
     public void scrollToTab(Tab tab, int position) {
@@ -1389,7 +1404,7 @@ public class FilterTabsView extends FrameLayout {
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (child == listView) {
+        if (child == listView && !liquidTabsUsed) {
             drawSelector(canvas);
         }
         long newTime = SystemClock.elapsedRealtime();
@@ -1526,6 +1541,12 @@ public class FilterTabsView extends FrameLayout {
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        if (liquidTabsUsed) {
+            // The drop swells past the list's rounded clip as it is pressed
+            liquidTabs.setSelectedIndex(currentPosition);
+            super.dispatchDraw(canvas);
+            return;
+        }
         canvas.save();
         canvas.clipPath(clipPath);
         super.dispatchDraw(canvas);
@@ -1536,7 +1557,184 @@ public class FilterTabsView extends FrameLayout {
         if (blurredBackgroundDrawable != null) {
             blurredBackgroundDrawable.updateColors();
         }
+        updateLiquidTabsColors();
         invalidate();
+    }
+
+    /*
+     * glassGram: the folders as the bottom bar's Liquid Glass tabs (LiquidBottomTabs from the
+     * Kyant0/AndroidLiquidGlass catalog): a glass capsule with a drop that rides between the tabs,
+     * swells under the finger, can be dragged and refracts the tabs it passes over. The tabs stay
+     * this view's (titles, counters, emoji): laid out but not drawn in the list, and painted into
+     * the bar's slots, which are of one width. Folders that do not fit side by side, and editing,
+     * keep the scrolling list.
+     */
+    private static final int LIQUID_TABS_MAX = 5;
+    private static final float LIQUID_TABS_INSET_DP = 6.666f;
+
+    private LiquidTabBarView liquidTabs;
+    private boolean liquidTabsUsed;
+    private final ArrayList<View> liquidTabViews = new ArrayList<>();
+    private final ArrayList<View> liquidTabViewsTmp = new ArrayList<>();
+    private final int[] liquidTabsLocation = new int[2];
+    private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
+    private ViewTreeObserver liquidTabsTree;
+    private final ViewTreeObserver.OnPreDrawListener liquidTabsWatcher = () -> {
+        // What is behind the glass is a RenderNode and updates by itself; only a move of the bar
+        // (it scrolls away with the list) needs the backdrop recorded again
+        if (liquidTabsUsed && liquidTabs != null) {
+            liquidTabs.getLocationInWindow(liquidTabsLocation);
+            if (liquidTabsLocation[0] != liquidTabsLastX || liquidTabsLocation[1] != liquidTabsLastY) {
+                liquidTabsLastX = liquidTabsLocation[0];
+                liquidTabsLastY = liquidTabsLocation[1];
+                liquidTabs.invalidateBackdrop();
+            }
+        }
+        return true;
+    };
+
+    /**
+     * Makes the tabs Liquid Glass where they fit; source draws what is behind them, in the
+     * coordinates of sourceView.
+     */
+    public void setLiquidGlass(View sourceView, BlurredBackgroundSource source) {
+        if (liquidTabs != null || sourceView == null || source == null || !LiquidTabBarView.isSupported()) {
+            return;
+        }
+        liquidTabs = new LiquidTabBarView(getContext());
+        liquidTabs.setSource(new LiquidTabBarView.Source() {
+            @Override
+            public View getSourceView() {
+                return sourceView;
+            }
+
+            @Override
+            public void draw(Canvas canvas) {
+                source.draw(canvas, 0, 0, sourceView.getWidth(), sourceView.getHeight());
+            }
+        });
+        liquidTabs.setListener(new LiquidTabBarView.Listener() {
+            @Override
+            public void onTabSelected(int index) {
+                onLiquidTabSelected(index);
+            }
+
+            @Override
+            public void onTabLongPress(int index) {
+                if (index < 0 || index >= liquidTabViews.size() || delegate == null || isEditing || !delegate.canPerformActions()) {
+                    return;
+                }
+                delegate.didSelectTab((TabView) liquidTabViews.get(index), index == currentPosition);
+            }
+        });
+        liquidTabs.setReselectListener(index -> {
+            if (delegate != null && !isEditing && delegate.canPerformActions()) {
+                delegate.onSamePageSelected();
+            }
+        });
+        // The glass background was padded by this much around the capsule
+        liquidTabs.setInset(dp(LIQUID_TABS_INSET_DP));
+        liquidTabs.setVisibility(View.GONE);
+        addView(liquidTabs, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        updateLiquidTabsColors();
+        if (isAttachedToWindow()) {
+            watchLiquidTabs(true);
+        }
+        requestLayout();
+    }
+
+    private void onLiquidTabSelected(int index) {
+        if (index == currentPosition) {
+            return;
+        }
+        if (index < 0 || index >= tabs.size() || delegate == null || isEditing || !delegate.canPerformActions()) {
+            liquidTabs.resetSelectedIndex();
+            return;
+        }
+        scrollToTab(tabs.get(index), index);
+        if (currentPosition != index) {
+            // A locked folder: the screen says why instead of opening it, and the drop goes back
+            liquidTabs.resetSelectedIndex();
+        }
+    }
+
+    private void updateLiquidTabsColors() {
+        if (liquidTabs == null) {
+            return;
+        }
+        liquidTabs.setAccentColor(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider));
+        liquidTabs.setLight(!Theme.isCurrentThemeDark());
+        liquidTabs.invalidateTabs();
+    }
+
+    private void watchLiquidTabs(boolean watch) {
+        if (liquidTabsTree != null && liquidTabsTree.isAlive()) {
+            liquidTabsTree.removeOnPreDrawListener(liquidTabsWatcher);
+        }
+        liquidTabsTree = null;
+        if (watch && liquidTabs != null) {
+            liquidTabsTree = getViewTreeObserver();
+            liquidTabsTree.addOnPreDrawListener(liquidTabsWatcher);
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        watchLiquidTabs(true);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        watchLiquidTabs(false);
+        super.onDetachedFromWindow();
+    }
+
+    /** Puts the tabs on the liquid bar when they all fit side by side, or back in the list. */
+    private void checkLiquidTabs() {
+        if (liquidTabs == null) {
+            return;
+        }
+        liquidTabViewsTmp.clear();
+        for (int a = 0, N = listView.getChildCount(); a < N; a++) {
+            final View child = listView.getChildAt(a);
+            if (child instanceof TabView && listView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION) {
+                liquidTabViewsTmp.add(child);
+            }
+        }
+        Collections.sort(liquidTabViewsTmp, (a, b) -> Integer.compare(listView.getChildAdapterPosition(a), listView.getChildAdapterPosition(b)));
+
+        final int count = tabs.size();
+        boolean use = LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) && !isEditing && count >= 2 && count <= LIQUID_TABS_MAX
+            && liquidTabViewsTmp.size() == count && getMeasuredWidth() > 0;
+        if (use) {
+            // Each tab gets the same slot; a title (with its counter) wider than that keeps the list
+            final float slot = (getMeasuredWidth() - dp(LIQUID_TABS_INSET_DP) * 2 - dp(8)) / count;
+            for (int a = 0; a < count; a++) {
+                if (tabs.get(a).getWidth(false) + dp(20) > slot) {
+                    use = false;
+                    break;
+                }
+            }
+        }
+        if (use) {
+            if (!liquidTabViewsTmp.equals(liquidTabViews)) {
+                liquidTabViews.clear();
+                liquidTabViews.addAll(liquidTabViewsTmp);
+                liquidTabs.setTabs(liquidTabViews);
+            }
+            liquidTabs.setSelectedIndex(currentPosition);
+        }
+        liquidTabViewsTmp.clear();
+        if (liquidTabsUsed != use) {
+            liquidTabsUsed = use;
+            liquidTabs.setVisibility(use ? View.VISIBLE : View.GONE);
+            // The list stays laid out for its tabs, which the bar paints; the bar has its own glass
+            listView.setAlpha(use ? 0f : 1f);
+            setBackground(use ? null : blurredBackgroundDrawable);
+            invalidate();
+        }
+        liquidTabs.invalidateTabs();
     }
 
     @Override
@@ -1565,6 +1763,11 @@ public class FilterTabsView extends FrameLayout {
             }
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        if (liquidTabs != null) {
+            liquidTabs.measure(
+                MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+        }
     }
 
     private Tab findDefaultTab() {
@@ -1595,6 +1798,10 @@ public class FilterTabsView extends FrameLayout {
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
+        if (liquidTabs != null) {
+            liquidTabs.layout(0, 0, r - l, b - t);
+            checkLiquidTabs();
+        }
 
         if (prevLayoutWidth != r - l) {
             prevLayoutWidth = r - l;
@@ -1683,6 +1890,8 @@ public class FilterTabsView extends FrameLayout {
         listView.invalidate();
         adapter.notifyDataSetChanged();
         invalidate();
+        // Folders are reordered and deleted in the list
+        checkLiquidTabs();
         if (!isEditing && orderChanged) {
             MessagesStorage.getInstance(UserConfig.selectedAccount).saveDialogFiltersOrder();
             TLRPC.TL_messages_updateDialogFiltersOrder req = new TLRPC.TL_messages_updateDialogFiltersOrder();

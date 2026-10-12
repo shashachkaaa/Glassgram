@@ -5290,6 +5290,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             filterTabsViewBackground.setPadding(dp(6.666f));
             filterTabsView.setPadding(0, dp(7), 0, dp(7));
             filterTabsView.setBlurredBackground(filterTabsViewBackground);
+            // glassGram: folders that fit side by side are the bottom bar's Liquid Glass tabs
+            if (iBlur3SourceGlass != null && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+                filterTabsView.setLiquidGlass(contentView, iBlur3SourceGlass);
+            }
             contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.TOP, 4, 0, 4, 0));
         }
 

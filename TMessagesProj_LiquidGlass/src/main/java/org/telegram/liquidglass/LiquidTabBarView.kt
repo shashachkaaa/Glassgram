@@ -69,8 +69,14 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
         fun onTabLongPress(index: Int)
     }
 
+    /** A tap on the tab that is already selected (the chats list scrolls to the top on it). */
+    fun interface ReselectListener {
+        fun onTabReselected(index: Int)
+    }
+
     private var source: Source? = null
     private var listener: Listener? = null
+    private var reselectListener: ReselectListener? = null
 
     private var tabsState by mutableStateOf<List<View>>(emptyList())
     private var selectedIndexState by mutableIntStateOf(0)
@@ -80,6 +86,7 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
     private var insetPx by mutableFloatStateOf(0f)
     private var tabsTick by mutableIntStateOf(0)
     private var backdropTick by mutableIntStateOf(0)
+    private var resetTick by mutableIntStateOf(0)
 
     private val sourceLocation = IntArray(2)
 
@@ -111,6 +118,18 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
 
     fun setListener(listener: Listener?) {
         this.listener = listener
+    }
+
+    fun setReselectListener(listener: ReselectListener?) {
+        reselectListener = listener
+    }
+
+    /**
+     * Puts the drop back on the selected tab, after the screen turned a choice down (a locked
+     * folder): the selection did not change, so nothing else would move it back.
+     */
+    fun resetSelectedIndex() {
+        resetTick++
     }
 
     fun setTabs(tabs: List<View>) {
@@ -181,8 +200,9 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
             val barHeight = maxHeight
             key(tabs.size) {
                 val external = selectedIndexState.coerceIn(0, tabs.size - 1)
+                val reset = resetTick
                 var shown by remember { mutableIntStateOf(external) }
-                LaunchedEffect(external) { shown = external }
+                LaunchedEffect(external, reset) { shown = external }
                 val shownState = rememberUpdatedState(shown)
                 val selectedTabIndex = remember { { shownState.value } }
                 val externalState = rememberUpdatedState(external)
@@ -209,7 +229,13 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                     tabs.forEachIndexed { index, view ->
                         ViewTab(
                             view = view,
-                            onClick = { shown = index },
+                            onClick = {
+                                if (shown == index) {
+                                    reselectListener?.onTabReselected(index)
+                                } else {
+                                    shown = index
+                                }
+                            },
                             onLongClick = { listener?.onTabLongPress(index) }
                         )
                     }
