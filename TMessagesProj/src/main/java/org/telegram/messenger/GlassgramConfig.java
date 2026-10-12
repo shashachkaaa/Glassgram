@@ -92,6 +92,15 @@ public class GlassgramConfig {
     public static boolean autoPauseVideo = true;
     public static boolean autoPauseVoice;
     public static boolean autoPauseRound;
+    // Video messages, recorded through Camera2 when any of these is on
+    public static boolean roundFps60;
+    public static boolean roundStabilization;
+    public static boolean roundWideCamera;
+
+    /** Whether video messages use the camera options above, which only Camera2 has. */
+    public static boolean roundCameraTweaks() {
+        return roundFps60 || roundStabilization || roundWideCamera;
+    }
 
     /** Whether reactions are hidden in this chat: channels, groups, or private chats and bots. */
     public static boolean hidesReactions(boolean channel, boolean group) {
@@ -220,6 +229,9 @@ public class GlassgramConfig {
         autoPauseVideo = p.getBoolean("autoPauseVideo", true);
         autoPauseVoice = p.getBoolean("autoPauseVoice", false);
         autoPauseRound = p.getBoolean("autoPauseRound", false);
+        roundFps60 = p.getBoolean("roundFps60", false);
+        roundStabilization = p.getBoolean("roundStabilization", false);
+        roundWideCamera = p.getBoolean("roundWideCamera", false);
         if (STORE_BUILD) {
             ghostMode = false;
             spySaveDeletedMessages = false;

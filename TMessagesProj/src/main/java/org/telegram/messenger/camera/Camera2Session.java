@@ -73,6 +73,13 @@ public class Camera2Session {
     private Rect sensorSize;
     private float maxZoom = 1f;
     private float currentZoom = 1f;
+    // glassGram: video message options, see setVideoOptions
+    private float minZoom = 1f;
+    private float defaultZoom = 1f;
+    private boolean useZoomRatio;
+    private Range<Integer> fpsRange;
+    private int videoStabilizationMode = -1;
+    private boolean opticalStabilization;
 
     private final Size previewSize;
 
@@ -81,12 +88,23 @@ public class Camera2Session {
     private long lastTime;
 
     public static Camera2Session create(boolean front, int viewWidth, int viewHeight) {
+        return create(front, false, viewWidth, viewHeight);
+    }
+
+    /**
+     * glassGram: with preferWide the back camera is the one that sees widest: a camera that zooms
+     * out below 1x onto its ultra-wide lens, or else an ultra-wide camera of its own.
+     */
+    public static Camera2Session create(boolean front, boolean preferWide, int viewWidth, int viewHeight) {
         final Context context = ApplicationLoader.applicationContext;
         final CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
 
         float bestAspectRatio = 0;
         Size bestSize = null;
         String cameraId = null;
+        float wideField = 0;
+        Size wideSize = null;
+        String wideId = null;
         try {
             String[] cameraIds = cameraManager.getCameraIdList();
             for (int i = 0; i < cameraIds.length; ++i) {
@@ -114,6 +132,21 @@ public class Camera2Session {
                 } else {
 
                 }
+                if (preferWide && !front && confMap != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isBackwardCompatible(characteristics)) {
+                    final float field = widestField(characteristics);
+                    if (field > wideField) {
+                        Size size = chooseOptimalSize(confMap.getOutputSizes(SurfaceTexture.class), viewWidth, viewHeight, false);
+                        if (size != null) {
+                            wideField = field;
+                            wideId = id;
+                            wideSize = size;
+                        }
+                    }
+                }
+            }
+            if (wideId != null && cameraId != null && !wideId.equals(cameraId) && wideField > widestField(cameraManager.getCameraCharacteristics(cameraId)) * 1.15f) {
+                cameraId = wideId;
+                bestSize = wideSize;
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -123,6 +156,42 @@ public class Camera2Session {
             return null;
         }
         return new Camera2Session(context, front, cameraId, bestSize);
+    }
+
+    private static boolean isBackwardCompatible(CameraCharacteristics characteristics) {
+        final int[] capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+        return capabilities != null && contains(capabilities, CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
+    }
+
+    /** How wide the camera sees at its smallest zoom: sensor width over focal length, in no particular unit. */
+    private static float widestField(CameraCharacteristics characteristics) {
+        final SizeF physicalSize = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+        final float[] focalLengths = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+        if (physicalSize == null || focalLengths == null || focalLengths.length == 0) {
+            return 0;
+        }
+        float focalLength = Float.MAX_VALUE;
+        for (float f : focalLengths) {
+            if (f > 0) focalLength = Math.min(focalLength, f);
+        }
+        if (focalLength == Float.MAX_VALUE) {
+            return 0;
+        }
+        float field = physicalSize.getWidth() / focalLength;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            final Range<Float> zoomRange = characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
+            if (zoomRange != null && zoomRange.getLower() > 0 && zoomRange.getLower() < 1f) {
+                field /= zoomRange.getLower();
+            }
+        }
+        return field;
+    }
+
+    private static boolean contains(int[] values, int value) {
+        for (int v : values) {
+            if (v == value) return true;
+        }
+        return false;
     }
 
     private Camera2Session(Context context, boolean isFront, String cameraId, Size size) {
@@ -203,6 +272,76 @@ public class Camera2Session {
                 isError = true;
             });
         }
+    }
+
+    /**
+     * glassGram: camera options for video messages. Called right after {@link #create}, before the
+     * session opens; an option the camera can't do stays off.
+     */
+    public void setVideoOptions(boolean fps60, boolean stabilization, boolean wide) {
+        final CameraCharacteristics characteristics = cameraCharacteristics;
+        if (characteristics == null) return;
+        try {
+            if (fps60) {
+                fpsRange = find60FpsRange(characteristics);
+            }
+            if (stabilization) {
+                final int[] modes = characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+                if (modes != null) {
+                    // the video is recorded from the preview stream, so stabilize that where the camera can
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && contains(modes, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION)) {
+                        videoStabilizationMode = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION;
+                    } else if (contains(modes, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON)) {
+                        videoStabilizationMode = CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON;
+                    }
+                }
+                // Camera2 advises against forcing both at once: with video stabilization on, the camera
+                // keeps its own optical stabilization setting
+                if (videoStabilizationMode < 0) {
+                    final int[] optical = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);
+                    opticalStabilization = optical != null && contains(optical, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON);
+                }
+            }
+            if (wide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                final Range<Float> zoomRange = characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
+                if (zoomRange != null && zoomRange.getLower() > 0 && zoomRange.getLower() < 0.99f) {
+                    useZoomRatio = true;
+                    minZoom = zoomRange.getLower();
+                    maxZoom = Math.max(1f, Math.min(zoomRange.getUpper(), 10f));
+                    defaultZoom = currentZoom = minZoom;
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private Range<Integer> find60FpsRange(CameraCharacteristics characteristics) {
+        final Range<Integer>[] ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+        if (ranges == null) return null;
+        // the preview stream has to keep up with 60 frames a second at its size
+        final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        if (map != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                if (map.getOutputMinFrameDuration(SurfaceTexture.class, previewSize) > 17_000_000L) return null;
+            } catch (Exception e) {
+                FileLog.e(e);
+                return null;
+            }
+        }
+        Range<Integer> best = null;
+        for (Range<Integer> range : ranges) {
+            if (range == null || range.getUpper() != 60) continue;
+            if (best == null || range.getLower() > best.getLower()) {
+                best = range;
+            }
+        }
+        return best;
+    }
+
+    /** glassGram: whether the camera was set to record 60 frames a second. */
+    public boolean isFps60() {
+        return fpsRange != null;
     }
 
     private Runnable doneCallback;
@@ -345,7 +484,7 @@ public class Camera2Session {
         if (!isInitiated()) return;
         if (captureRequestBuilder == null || cameraDevice == null || sensorSize == null) return;
 
-        currentZoom = Utilities.clamp(value, maxZoom, 1f);
+        currentZoom = Utilities.clamp(value, maxZoom, minZoom);
         updateCaptureRequest();
 
         try {
@@ -375,8 +514,12 @@ public class Camera2Session {
     }
 
     public float getMinZoom() {
-        // TODO: support wide zoom camera switching
-        return 1f;
+        return minZoom;
+    }
+
+    /** glassGram: the zoom the camera starts at and goes back to after a pinch. */
+    public float getDefaultZoom() {
+        return defaultZoom;
     }
 
     public int getPreviewWidth() {
@@ -490,11 +633,21 @@ public class Camera2Session {
             captureRequestBuilder.set(CaptureRequest.FLASH_MODE, flashing ? (recordingVideo ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_SINGLE) : CaptureRequest.FLASH_MODE_OFF);
 
             if (recordingVideo) {
-                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<Integer>(30, 60));
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange != null ? fpsRange : new Range<Integer>(30, 60));
                 captureRequestBuilder.set(CaptureRequest.CONTROL_CAPTURE_INTENT, CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
+            } else if (fpsRange != null) {
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
+            }
+            if (videoStabilizationMode >= 0) {
+                captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, videoStabilizationMode);
+            }
+            if (opticalStabilization) {
+                captureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON);
             }
 
-            if (sensorSize != null && Math.abs(currentZoom - 1f) >= 0.01f) {
+            if (useZoomRatio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                captureRequestBuilder.set(CaptureRequest.CONTROL_ZOOM_RATIO, currentZoom);
+            } else if (sensorSize != null && Math.abs(currentZoom - 1f) >= 0.01f) {
                 final int centerX = sensorSize.width() / 2;
                 final int centerY = sensorSize.height() / 2;
                 final int deltaX = (int) ((0.5f * sensorSize.width()) / currentZoom);

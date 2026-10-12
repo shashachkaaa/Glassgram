@@ -148,6 +148,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_ZALGO = 115;
     private static final int ID_SAVE_FOLDER = 116;
     private static final int ID_SHOW_DC = 117;
+    private static final int ID_ROUND_60FPS = 120;
+    private static final int ID_ROUND_STABILIZATION = 121;
+    private static final int ID_ROUND_WIDE = 122;
 
     private final int page;
     private boolean ghostExpanded;
@@ -302,6 +305,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asRoundCheckbox(ID_AUTO_PAUSE_ROUND, getString(R.string.GlassgramAutoPauseRound)).setChecked(GlassgramConfig.autoPauseRound).setPad(1));
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramAutoPauseInfo)));
+                items.add(header(getString(R.string.GlassgramRoundVideos)));
+                items.add(UItem.asButtonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
+                items.add(UItem.asButtonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
+                items.add(UItem.asButtonCheck(ID_ROUND_WIDE, getString(R.string.GlassgramRoundWide), getString(R.string.GlassgramRoundWideInfo)).setChecked(GlassgramConfig.roundWideCamera));
+                items.add(UItem.asShadow(getString(R.string.GlassgramRoundVideosInfo)));
                 break;
             }
             case PAGE_GHOST: {
@@ -687,6 +695,15 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_AUTO_PAUSE_ROUND:
                 value = GlassgramConfig.autoPauseRound = !GlassgramConfig.autoPauseRound;
                 GlassgramConfig.putBoolean("autoPauseRound", value); break;
+            case ID_ROUND_60FPS:
+                value = GlassgramConfig.roundFps60 = !GlassgramConfig.roundFps60;
+                GlassgramConfig.putBoolean("roundFps60", value); break;
+            case ID_ROUND_STABILIZATION:
+                value = GlassgramConfig.roundStabilization = !GlassgramConfig.roundStabilization;
+                GlassgramConfig.putBoolean("roundStabilization", value); break;
+            case ID_ROUND_WIDE:
+                value = GlassgramConfig.roundWideCamera = !GlassgramConfig.roundWideCamera;
+                GlassgramConfig.putBoolean("roundWideCamera", value); break;
             case ID_ALWAYS_HD:
                 // Telegram's own default for the HD toggle in the photo viewer
                 value = org.telegram.messenger.SharedConfig.photoHighQualityDefault = !org.telegram.messenger.SharedConfig.photoHighQualityDefault;

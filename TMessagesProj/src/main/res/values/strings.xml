@@ -11451,6 +11451,14 @@
     <string name="GlassgramAutoPauseVoice">Voice</string>
     <string name="GlassgramAutoPauseRound">Round</string>
     <string name="GlassgramAutoPauseInfo">Pauses media playback when the device is locked or glassGram is minimized.</string>
+    <string name="GlassgramRoundVideos">Video messages</string>
+    <string name="GlassgramRound60Fps">60 FPS</string>
+    <string name="GlassgramRound60FpsInfo">Smoother video messages, where the camera can do 60 frames a second</string>
+    <string name="GlassgramRoundStabilization">Stabilization</string>
+    <string name="GlassgramRoundStabilizationInfo">Optical and video stabilization, where the camera has them</string>
+    <string name="GlassgramRoundWide">Wide-angle camera</string>
+    <string name="GlassgramRoundWideInfo">The back camera starts on the ultra-wide lens; spread two fingers while recording to zoom in</string>
+    <string name="GlassgramRoundVideosInfo">With any of these on, video messages are recorded through Camera2. Each works where the camera can do it: the ultra-wide lens needs the phone to share it with apps, and stabilization crops the picture a little.</string>
     <string name="GlassgramProtectedInfo">Self-destructing media can be saved to the gallery and forwarded, and screenshots are allowed. With protection ignored, messages from chats where forwarding is restricted are sent as copies: albums stay albums, and captions of photos and files are left out.</string>
     <string name="GlassgramKeepForMe">Keep for me</string>
     <string name="GlassgramChannel">Channel</string>

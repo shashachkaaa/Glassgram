@@ -76,6 +76,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.DispatchQueue;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
@@ -182,12 +183,24 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private Size aspectRatio = SharedConfig.roundCamera16to9 ? new Size(16, 9) : new Size(4, 3);
     private TextureView textureView;
     private BackupImageView textureOverlayView;
-    private final boolean useCamera2 = SharedConfig.isUsingCamera2(currentAccount);
+    // glassGram: the video message options in glassGram settings need Camera2
+    private final boolean useCamera2 = SharedConfig.isUsingCamera2(currentAccount) || GlassgramConfig.roundCameraTweaks();
     private CameraSession cameraSession;
     private boolean bothCameras;
     private Camera2Session[] camera2Sessions = new Camera2Session[2];
     private Camera2Session camera2SessionCurrent;
     private boolean needDrawFlickerStub;
+
+    /** glassGram: a Camera2 session with the video message options from glassGram settings. */
+    private Camera2Session createCamera2Session(boolean front) {
+        final int size = MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize;
+        // both cameras at once only promise to work together as they are, so keep the usual back one then
+        final Camera2Session session = Camera2Session.create(front, GlassgramConfig.roundWideCamera && !bothCameras, size, size);
+        if (session != null) {
+            session.setVideoOptions(GlassgramConfig.roundFps60, GlassgramConfig.roundStabilization, GlassgramConfig.roundWideCamera && !front);
+        }
+        return session;
+    }
 
     private boolean isCameraSessionInitiated() {
         if (useCamera2) {
@@ -779,7 +792,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             if (bothCameras) {
                 for (int a = 0; a < 2; ++a) {
                     if (camera2Sessions[a] == null) {
-                        camera2Sessions[a] = Camera2Session.create(a == 0, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize);
+                        camera2Sessions[a] = createCamera2Session(a == 0);
                         if (camera2Sessions[a] != null) {
                             camera2Sessions[a].setRecordingVideo(true);
                             previewSize[a] = new Size(camera2Sessions[a].getPreviewWidth(), camera2Sessions[a].getPreviewHeight());
@@ -793,7 +806,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
                 if (camera2SessionCurrent == null) return;
             } else {
-                camera2SessionCurrent = camera2Sessions[isFrontface ? 0 : 1] = Camera2Session.create(isFrontface, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize);
+                camera2SessionCurrent = camera2Sessions[isFrontface ? 0 : 1] = createCamera2Session(isFrontface);
                 if (camera2SessionCurrent == null) return;
                 camera2SessionCurrent.setRecordingVideo(true);
                 previewSize[0] = new Size(camera2SessionCurrent.getPreviewWidth(), camera2SessionCurrent.getPreviewHeight());
@@ -1152,7 +1165,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     camera2SessionCurrent = null;
                     camera2Sessions[isFrontface ? 1 : 0] = null;
                 }
-                camera2SessionCurrent = camera2Sessions[isFrontface ? 0 : 1] = Camera2Session.create(isFrontface, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize, MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize);
+                camera2SessionCurrent = camera2Sessions[isFrontface ? 0 : 1] = createCamera2Session(isFrontface);
                 if (camera2SessionCurrent == null) return;
                 camera2SessionCurrent.setRecordingVideo(true);
                 previewSize[0] = new Size(camera2SessionCurrent.getPreviewWidth(), camera2SessionCurrent.getPreviewHeight());
@@ -2116,7 +2129,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
         private static final String VIDEO_MIME_TYPE = "video/avc";
         private static final String AUDIO_MIME_TYPE = "audio/mp4a-latm";
-        private static final int FRAME_RATE = 30;
+        private int frameRate = 30;
         private static final int IFRAME_INTERVAL = 1;
 
         private File videoFile;
@@ -2322,6 +2335,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             started = true;
             int resolution = MessagesController.getInstance(currentAccount).roundVideoSize;
             int bitrate = MessagesController.getInstance(currentAccount).roundVideoBitrate * 1024;
+            // glassGram: 60 FPS when the camera was set to it, with more bits for the extra frames
+            final Camera2Session session = camera2SessionCurrent;
+            frameRate = useCamera2 && session != null && session.isFps60() ? 60 : 30;
+            if (frameRate > 30) {
+                bitrate = bitrate * 3 / 2;
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 512);
             });
@@ -3213,7 +3232,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
                 format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
                 format.setInteger(MediaFormat.KEY_BIT_RATE, videoBitrate);
-                format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
+                format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate);
                 format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
 
                 videoEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -3796,7 +3815,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             pinchScale = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1)) / pinchStartDistance;
             if (useCamera2) {
                 if (camera2SessionCurrent != null) {
-                    float zoom = Utilities.clamp(pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
+                    float zoom = Utilities.clamp(camera2SessionCurrent.getDefaultZoom() * pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
                     camera2SessionCurrent.setZoom(zoom);
                 }
             } else {
@@ -3818,15 +3837,18 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
 
         float zoom;
+        float baseZoom = 0f;
         if (useCamera2) {
             if (camera2SessionCurrent == null) return;
-            zoom = Utilities.clamp(pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
+            // glassGram: back to the zoom the camera started at, the ultra-wide one included
+            baseZoom = camera2SessionCurrent.getDefaultZoom();
+            zoom = Utilities.clamp(baseZoom * pinchScale, camera2SessionCurrent.getMaxZoom(), camera2SessionCurrent.getMinZoom());
         } else {
             zoom = Math.min(1f, Math.max(0, pinchScale - 1f));
         }
 
-        if (zoom > 0f) {
-            finishZoomTransition = ValueAnimator.ofFloat(zoom, 0);
+        if (zoom > baseZoom) {
+            finishZoomTransition = ValueAnimator.ofFloat(zoom, baseZoom);
             finishZoomTransition.addUpdateListener(valueAnimator -> {
                 if (useCamera2) {
                     if (camera2SessionCurrent != null) {
