@@ -198,8 +198,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private Camera2Session createCamera2Session(boolean front) {
         final int size = MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize;
         // both cameras at once only promise to work together as they are, so keep the usual back one then
-        // the back camera is the one that can zoom out onto the ultra-wide lens, wherever it has one
-        final Camera2Session session = Camera2Session.create(front, !front && !bothCameras, GlassgramConfig.roundFps60, size, size);
+        // with the ultra-wide option, the back camera is the one that can zoom out onto the ultra-wide lens
+        final boolean wide = !front && GlassgramConfig.roundWideCamera;
+        final Camera2Session session = Camera2Session.create(front, wide && !bothCameras, GlassgramConfig.roundFps60, size, size);
         if (session != null) {
             final int stabilization;
             if (!GlassgramConfig.roundStabilization) {
@@ -210,7 +211,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             } else {
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
-            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, !front, !front && (GlassgramConfig.roundWideCamera || GlassgramConfig.roundLastWide));
+            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide, wide && GlassgramConfig.roundLastWide);
         }
         return session;
     }
@@ -810,8 +811,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             if (!useCamera2) {
                 isFrontface = true;
             } else {
-                // glassGram: start where the last video message ended, or on the back ultra-wide lens when asked
-                isFrontface = !GlassgramConfig.roundWideCamera && GlassgramConfig.roundLastFront;
+                // glassGram: start where the last video message ended
+                isFrontface = GlassgramConfig.roundLastFront;
             }
             updateFlash();
             recordedTime = 0;
@@ -855,9 +856,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
 
         if (useCamera2) {
-            // glassGram: one camera at a time. Both at once only run at what they can do together, so
-            // the back one couldn't be the camera with the ultra-wide lens, nor run 60 FPS
-            bothCameras = false;
+            // glassGram: both cameras at once only run at what they can do together, so with 60 FPS or the
+            // ultra-wide lens it's one camera at a time
+            bothCameras = DualCameraView.roundDualAvailableStatic(getContext()) && !GlassgramConfig.roundFps60 && !GlassgramConfig.roundWideCamera;
             if (bothCameras) {
                 for (int a = 0; a < 2; ++a) {
                     if (camera2Sessions[a] == null) {

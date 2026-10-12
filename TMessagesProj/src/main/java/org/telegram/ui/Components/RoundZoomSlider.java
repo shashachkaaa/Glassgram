@@ -6,6 +6,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.text.TextPaint;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -18,7 +19,8 @@ import java.util.Locale;
 
 /**
  * glassGram: the zoom slider under the video message camera. The scale is logarithmic, so the
- * ultra-wide lens, 1x and 2x get as much room as 5x and 10x; it snaps to the marked stops.
+ * ultra-wide lens, 1x and 2x get as much room as 5x and 10x; it snaps to the marked stops, and the
+ * zoom glides after the finger.
  */
 public class RoundZoomSlider extends View {
 
@@ -41,6 +43,11 @@ public class RoundZoomSlider extends View {
     private Listener listener;
     private boolean dragging;
     private float lastStop = -1;
+    // the zoom glides to where the finger points, so the picture doesn't jump between steps and stops
+    private static final float GLIDE_TIME = 0.09f;
+    private float targetZoom = 1f;
+    private boolean gliding, finishPending;
+    private long lastGlideTime;
 
     public RoundZoomSlider(Context context) {
         super(context);
@@ -80,8 +87,8 @@ public class RoundZoomSlider extends View {
             maxZoom = Math.max(min, max);
             changed = true;
         }
-        if (!dragging && Math.abs(current - zoom) > 0.001f) {
-            zoom = current;
+        if (!dragging && !gliding && Math.abs(current - zoom) > 0.001f) {
+            zoom = targetZoom = current;
             changed = true;
         }
         if (changed) {
@@ -116,9 +123,43 @@ public class RoundZoomSlider extends View {
         return String.format(Locale.US, "%.1f×", rounded);
     }
 
+    /** Moves the zoom a frame's way toward the target, on a logarithmic scale, and reports it. */
+    private void glide() {
+        final long now = SystemClock.uptimeMillis();
+        final float dt = Math.min(50, now - lastGlideTime) / 1000f;
+        lastGlideTime = now;
+        final double from = Math.log(zoom), to = Math.log(targetZoom);
+        if (Math.abs(to - from) < 0.002) {
+            zoom = targetZoom;
+            gliding = false;
+        } else {
+            zoom = (float) Math.exp(from + (to - from) * (1 - Math.exp(-dt / GLIDE_TIME)));
+        }
+        if (listener != null) {
+            listener.onZoom(zoom, !gliding && finishPending);
+        }
+        if (!gliding) {
+            finishPending = false;
+        } else {
+            postInvalidateOnAnimation();
+        }
+    }
+
+    private void glideTo(float z) {
+        targetZoom = z;
+        if (!gliding) {
+            gliding = true;
+            lastGlideTime = SystemClock.uptimeMillis();
+        }
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (!hasRange()) return;
+        if (gliding) {
+            glide();
+        }
         final float h = getHeight(), cy = h / 2f;
         rect.set(0, 0, getWidth(), h);
         canvas.drawRoundRect(rect, h / 2f, h / 2f, backgroundPaint);
@@ -167,6 +208,7 @@ public class RoundZoomSlider extends View {
                     getParent().requestDisallowInterceptTouchEvent(true);
                 }
                 lastStop = -1;
+                finishPending = false;
                 // fall through
             case MotionEvent.ACTION_MOVE: {
                 if (!dragging) return false;
@@ -184,18 +226,17 @@ public class RoundZoomSlider extends View {
                         break;
                     }
                 }
-                zoom = z;
-                invalidate();
-                if (listener != null) {
-                    listener.onZoom(zoom, false);
-                }
+                glideTo(z);
                 return true;
             }
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (!dragging) return false;
                 dragging = false;
-                if (listener != null) {
+                if (gliding) {
+                    // reported as finished once the zoom gets there
+                    finishPending = true;
+                } else if (listener != null) {
                     listener.onZoom(zoom, true);
                 }
                 return true;
