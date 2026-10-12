@@ -71,6 +71,14 @@ fun LiquidBottomTabs(
     containerColor: Color = Color.Unspecified,
     isLightTheme: Boolean = !isSystemInDarkTheme(),
     barHeight: Dp = 64f.dp,
+    // How much wider the bar gets under the finger
+    barGrowth: Dp = 16f.dp,
+    // How much the pressed drop grows on each axis; unspecified is the catalog's 78/56 scale,
+    // made for icons: a drop as wide as a word would grow by tens of dp sideways
+    dropGrowth: Dp = Dp.Unspecified,
+    dropLensHeight: Dp = 10f.dp,
+    dropLensAmount: Dp = 14f.dp,
+    dropChromaticAberration: Boolean = true,
     content: @Composable RowScope.() -> Unit
 ) {
     val indicatorHeight = barHeight - 8f.dp
@@ -126,7 +134,7 @@ fun LiquidBottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 78f / 56f,
+                pressedScale = DROP_PRESSED_SCALE,
                 stiffness = stiffness,
                 onDragStarted = {},
                 onDragStopped = {
@@ -207,7 +215,7 @@ fun LiquidBottomTabs(
                     },
                     layerBlock = {
                         val progress = dampedDragAnimation.pressProgress
-                        val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
+                        val scale = lerp(1f, 1f + barGrowth.toPx() / size.width, progress)
                         scaleX = scale
                         scaleY = scale
                     },
@@ -288,9 +296,9 @@ fun LiquidBottomTabs(
                         if (refracts) {
                             val progress = dampedDragAnimation.pressProgress
                             lens(
-                                10f.dp.toPx() * progress,
-                                14f.dp.toPx() * progress,
-                                chromaticAberration = true
+                                dropLensHeight.toPx() * progress,
+                                dropLensAmount.toPx() * progress,
+                                chromaticAberration = dropChromaticAberration
                             )
                         }
                     },
@@ -310,8 +318,15 @@ fun LiquidBottomTabs(
                         )
                     },
                     layerBlock = {
-                        scaleX = dampedDragAnimation.scaleX
-                        scaleY = dampedDragAnimation.scaleY
+                        if (!dropGrowth.value.isNaN()) {
+                            // The same springs, turned into a growth in dp on each side
+                            val growth = dropGrowth.toPx()
+                            scaleX = 1f + growth / size.width * (dampedDragAnimation.scaleX - 1f) / (DROP_PRESSED_SCALE - 1f)
+                            scaleY = 1f + growth / size.height * (dampedDragAnimation.scaleY - 1f) / (DROP_PRESSED_SCALE - 1f)
+                        } else {
+                            scaleX = dampedDragAnimation.scaleX
+                            scaleY = dampedDragAnimation.scaleY
+                        }
                         val velocity = dampedDragAnimation.velocity / 10f
                         scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                         scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
@@ -331,3 +346,5 @@ fun LiquidBottomTabs(
         )
     }
 }
+
+private const val DROP_PRESSED_SCALE = 78f / 56f

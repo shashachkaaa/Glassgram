@@ -1632,6 +1632,7 @@ public class FilterTabsView extends FrameLayout {
                 delegate.onSamePageSelected();
             }
         });
+        liquidTabs.setTextTabs(true);
         // The glass background was padded by this much around the capsule
         liquidTabs.setInset(dp(LIQUID_TABS_INSET_DP));
         liquidTabs.setVisibility(View.GONE);
@@ -1641,6 +1642,44 @@ public class FilterTabsView extends FrameLayout {
             watchLiquidTabs(true);
         }
         requestLayout();
+    }
+
+    // Pressed, the bar and its drop grow and lean past this view: it and its parent stop cutting
+    // them off until they have settled
+    private ViewGroup liquidUnclippedParent;
+    private boolean liquidUnclippedSelf;
+    private final Runnable liquidRestoreClip = () -> {
+        if (liquidUnclippedParent != null) {
+            liquidUnclippedParent.setClipChildren(true);
+            liquidUnclippedParent.invalidate();
+            liquidUnclippedParent = null;
+        }
+        if (liquidUnclippedSelf) {
+            setClipChildren(true);
+            liquidUnclippedSelf = false;
+        }
+    };
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (liquidTabsUsed) {
+            final int action = ev.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                AndroidUtilities.cancelRunOnUIThread(liquidRestoreClip);
+                if (getClipChildren()) {
+                    setClipChildren(false);
+                    liquidUnclippedSelf = true;
+                }
+                if (liquidUnclippedParent == null && getParent() instanceof ViewGroup && ((ViewGroup) getParent()).getClipChildren()) {
+                    liquidUnclippedParent = (ViewGroup) getParent();
+                    liquidUnclippedParent.setClipChildren(false);
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                AndroidUtilities.cancelRunOnUIThread(liquidRestoreClip);
+                AndroidUtilities.runOnUIThread(liquidRestoreClip, 1000);
+            }
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     private void onLiquidTabSelected(int index) {
@@ -1687,6 +1726,8 @@ public class FilterTabsView extends FrameLayout {
     @Override
     protected void onDetachedFromWindow() {
         watchLiquidTabs(false);
+        AndroidUtilities.cancelRunOnUIThread(liquidRestoreClip);
+        liquidRestoreClip.run();
         super.onDetachedFromWindow();
     }
 

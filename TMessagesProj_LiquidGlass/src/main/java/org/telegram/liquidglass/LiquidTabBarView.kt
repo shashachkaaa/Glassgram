@@ -40,6 +40,8 @@ import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.Capsule
 import org.telegram.liquidglass.catalog.LiquidBottomTabs
@@ -87,6 +89,7 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
     private var tabsTick by mutableIntStateOf(0)
     private var backdropTick by mutableIntStateOf(0)
     private var resetTick by mutableIntStateOf(0)
+    private var textTabsState by mutableStateOf(false)
 
     private val sourceLocation = IntArray(2)
 
@@ -153,6 +156,15 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
 
     fun setLight(light: Boolean) {
         lightState = light
+    }
+
+    /**
+     * Tabs that are words, not icons (the chats list's folders): a wide drop, so it grows by a few
+     * dp instead of the icons' third, the bar grows less, and the drop's lens is gentler and
+     * without the rainbow fringe, which smeared the letters at its edges.
+     */
+    fun setTextTabs(textTabs: Boolean) {
+        textTabsState = textTabs
     }
 
     /** Space between this view's edges and the capsule, px. */
@@ -224,7 +236,12 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                     refracts = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                     containerColor = if (containerColorState != 0) Color(containerColorState) else Color.Unspecified,
                     isLightTheme = lightState,
-                    barHeight = barHeight
+                    barHeight = barHeight,
+                    barGrowth = if (textTabsState) 8f.dp else 16f.dp,
+                    dropGrowth = if (textTabsState) 12f.dp else Dp.Unspecified,
+                    dropLensHeight = if (textTabsState) 6f.dp else 10f.dp,
+                    dropLensAmount = if (textTabsState) 8f.dp else 14f.dp,
+                    dropChromaticAberration = !textTabsState
                 ) {
                     tabs.forEachIndexed { index, view ->
                         ViewTab(
