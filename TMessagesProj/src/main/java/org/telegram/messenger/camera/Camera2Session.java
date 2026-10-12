@@ -86,7 +86,7 @@ public class Camera2Session {
     private boolean opticalStabilization;
     private boolean opticalStabilizationOff;
     private boolean gyroStabilization;
-    private boolean optionsSet, optionFps60, optionWide, optionStartWide;
+    private boolean optionsSet, optionFps60, optionWide;
     private int optionStabilization;
     private volatile long frameMiddle = 10_000_000L;
     // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
@@ -491,11 +491,10 @@ public class Camera2Session {
      * glassGram: camera options for video messages. Called right after {@link #create}, before the
      * session opens; an option the camera can't do stays off.
      */
-    public void setVideoOptions(boolean fps60, int stabilization, boolean wide, boolean startWide) {
+    public void setVideoOptions(boolean fps60, int stabilization, boolean wide) {
         optionFps60 = fps60;
         optionStabilization = stabilization;
         optionWide = wide;
-        optionStartWide = startWide;
         optionsSet = true;
         applyVideoOptions();
     }
@@ -547,8 +546,8 @@ public class Camera2Session {
                     useZoomRatio = true;
                     minZoom = zoomRange.getLower();
                     maxZoom = Math.max(1f, Math.min(zoomRange.getUpper(), 10f));
-                    // the ultra-wide lens when asked to start on it, else the main one at 1x
-                    defaultZoom = currentZoom = optionStartWide ? minZoom : 1f;
+                    // the ultra-wide lens is a zoom away; the camera starts on the main one at 1x
+                    defaultZoom = currentZoom = 1f;
                 }
             }
         } catch (Exception e) {
@@ -830,10 +829,7 @@ public class Camera2Session {
         defaultZoom = Utilities.clamp(zoom, maxZoom, minZoom);
     }
 
-    /** glassGram: whether the camera shows its ultra-wide lens now, zoomed out below 1x. */
-    public boolean isUltraWide() {
-        return useZoomRatio && currentZoom < 0.99f;
-    }
+
 
     public int getPreviewWidth() {
         return previewSize.getWidth();

@@ -11457,7 +11457,7 @@
     <string name="GlassgramRoundStabilization">Stabilization</string>
     <string name="GlassgramRoundStabilizationInfo">Smooths out shake by the gyroscope; the picture zooms in by 20% and optical stabilization is off while recording</string>
     <string name="GlassgramRoundWide">Ultra-wide camera</string>
-    <string name="GlassgramRoundWideInfo">The back camera can zoom out onto the ultra-wide lens, with the slider or a pinch. A video message starts on the lens the last one ended on</string>
+    <string name="GlassgramRoundWideInfo">The back camera can zoom out onto the ultra-wide lens, with the slider or a pinch. Video messages still start on the main or front camera, whichever was used last</string>
     <string name="GlassgramRoundKeepZoom">Keep zoom</string>
     <string name="GlassgramRoundKeepZoomInfo">The zoom stays where it is when you lift your fingers</string>
     <string name="GlassgramRoundCameraInfo">Camera capabilities</string>

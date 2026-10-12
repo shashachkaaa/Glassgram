@@ -211,24 +211,16 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             } else {
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
-            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide, wide && GlassgramConfig.roundLastWide);
+            session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide);
         }
         return session;
     }
 
-    /** glassGram: the camera and lens the video message is on now, for the next one to start on. */
-    private void rememberCameraMode() {
-        if (!useCamera2) return;
-        if (GlassgramConfig.roundLastFront != isFrontface) {
+    /** glassGram: the camera the video message is on now, front or back, for the next one to start on. */
+    private void rememberCamera() {
+        if (useCamera2 && GlassgramConfig.roundLastFront != isFrontface) {
             GlassgramConfig.roundLastFront = isFrontface;
             GlassgramConfig.putBoolean("roundLastFront", isFrontface);
-        }
-        if (!isFrontface && camera2SessionCurrent != null) {
-            final boolean wide = camera2SessionCurrent.getDefaultZoom() < 0.99f;
-            if (GlassgramConfig.roundLastWide != wide) {
-                GlassgramConfig.roundLastWide = wide;
-                GlassgramConfig.putBoolean("roundLastWide", wide);
-            }
         }
     }
 
@@ -461,9 +453,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             camera2SessionCurrent.setZoom(zoom);
             // the slider's zoom is the one a pinch comes back to
             camera2SessionCurrent.setDefaultZoom(zoom);
-            if (finished) {
-                rememberCameraMode();
-            }
         });
         addView(zoomSlider, LayoutHelper.createFrame(236, 36, Gravity.CENTER));
 
@@ -1242,7 +1231,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 camera2SessionCurrent.setRecordingVideo(true);
                 previewSize[0] = new Size(camera2SessionCurrent.getPreviewWidth(), camera2SessionCurrent.getPreviewHeight());
                 cameraThread.setCurrentSession(camera2SessionCurrent);
-                rememberCameraMode();
+                rememberCamera();
             }
         } else {
             if (cameraSession != null) {
@@ -3964,7 +3953,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             // glassGram: the zoom stays, and is the one to come back to
             if (useCamera2 && camera2SessionCurrent != null) {
                 camera2SessionCurrent.setDefaultZoom(camera2SessionCurrent.getZoom());
-                rememberCameraMode();
             }
             return;
         }

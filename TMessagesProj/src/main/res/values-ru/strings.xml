@@ -489,7 +489,7 @@
     <string name="GlassgramRoundStabilization">Стабилизация</string>
     <string name="GlassgramRoundStabilizationInfo">Сглаживает тряску по гироскопу; кадр приближается на 20%, а оптическая стабилизация на время записи выключается</string>
     <string name="GlassgramRoundWide">Широкоугольная камера</string>
-    <string name="GlassgramRoundWideInfo">Задняя камера может уходить зумом на ширик — ползунком или щипком. Кружок начинается с того модуля, которым закончился прошлый</string>
+    <string name="GlassgramRoundWideInfo">Задняя камера может уходить зумом на ширик — ползунком или щипком. Кружок всё равно начинается с основной камеры или фронталки — той, что была последней</string>
     <string name="GlassgramRoundKeepZoom">Сохранять зум</string>
     <string name="GlassgramRoundKeepZoomInfo">Зум остаётся, когда отпускаешь пальцы</string>
     <string name="GlassgramRoundCameraInfo">Возможности камеры</string>
