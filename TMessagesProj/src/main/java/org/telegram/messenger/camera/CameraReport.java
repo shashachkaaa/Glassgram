@@ -1,6 +1,7 @@
 package org.telegram.messenger.camera;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
@@ -207,6 +208,26 @@ public class CameraReport {
         }
         final Integer timestamps = c.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE);
         sb.append(", timestamps ").append(timestamps != null && timestamps == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME ? "realtime" : "unknown").append('\n');
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // whether the lens's bending can be left in for a wider picture, and how much its correction cuts off
+            final int[] distortion = c.get(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES);
+            sb.append("  distortion correction: ");
+            if (distortion == null || distortion.length == 0) {
+                sb.append("none");
+            } else {
+                for (int i = 0; i < distortion.length; ++i) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(distortion[i] == 0 ? "off" : distortion[i] == 1 ? "fast" : distortion[i] == 2 ? "high quality" : String.valueOf(distortion[i]));
+                }
+            }
+            final Rect active = c.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+            final Rect uncorrected = c.get(CameraCharacteristics.SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
+            if (active != null && uncorrected != null && (active.width() != uncorrected.width() || active.height() != uncorrected.height())) {
+                sb.append(", corrected ").append(active.width()).append('x').append(active.height())
+                        .append(" of ").append(uncorrected.width()).append('x').append(uncorrected.height());
+            }
+            sb.append('\n');
+        }
     }
 
     private static String levelName(Integer level) {

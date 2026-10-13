@@ -29,8 +29,19 @@ import java.nio.FloatBuffer;
  */
 public class GyroStabilizer implements SensorEventListener {
 
-    /** How much the picture is enlarged to leave a margin for the shifts. */
+    /** How much the picture is enlarged to leave a margin for the shifts, from 1x up. */
     public static final float MARGIN_ZOOM = 1.2f;
+
+    /**
+     * The margin at a zoom. A turn of the phone moves the picture in proportion to the focal
+     * length, so below 1x, on the ultra-wide lens, the same turns need less of a margin: it shrinks
+     * with the zoom, leaving the stabilization as much room to turn as at 1x, and the ultra-wide
+     * lens its width.
+     */
+    public static float marginFor(float zoom) {
+        if (zoom >= 1f) return MARGIN_ZOOM;
+        return 1f / (1f - (1f - 1f / MARGIN_ZOOM) * Math.max(zoom, 0.1f));
+    }
     /** The most the picture turns around its center, in radians. The video is round, so turning costs no margin. */
     private static final float MAX_ROLL = 0.2f;
     /** The virtual camera: a critically damped follower that keeps a steady pan without lag. */
@@ -184,8 +195,9 @@ public class GyroStabilizer implements SensorEventListener {
      * @param focal the focal length in units of the drawn square's half width
      * @param front whether the frame is from the front camera, mirrored like the preview
      * @param halfWidth the drawn square is {@code 0.5 ± halfWidth, 0.5 ± halfHeight} of the upright texture
+     * @param margin how much the picture is enlarged for the shifts, see {@link #marginFor}
      */
-    public Mesh apply(Object source, long exposureStart, long exposure, long skew, int readout, float focal, boolean front, float halfWidth, float halfHeight) {
+    public Mesh apply(Object source, long exposureStart, long exposure, long skew, int readout, float focal, boolean front, float halfWidth, float halfHeight, float margin) {
         final long frameTime = exposureStart + exposure / 2 + skew / 2;
         if (!orientationAt(frameTime, real)) {
             return null;
@@ -206,7 +218,7 @@ public class GyroStabilizer implements SensorEventListener {
 
         // how far the real phone is turned from the virtual camera in the middle of the frame, kept inside the margin
         relative(virtual, real, rel);
-        final float maxTurn = (1f - 1f / MARGIN_ZOOM) / Math.max(focal, 0.1f);
+        final float maxTurn = (1f - 1f / margin) / Math.max(focal, 0.1f);
         final float turn = (float) Math.hypot(rel[0], rel[1]);
         boolean clamped = false;
         if (turn > maxTurn) {
@@ -256,7 +268,7 @@ public class GyroStabilizer implements SensorEventListener {
                 mesh.positions.put(vertex * 3, x);
                 mesh.positions.put(vertex * 3 + 1, y);
                 mesh.positions.put(vertex * 3 + 2, 0f);
-                final float qx = x / MARGIN_ZOOM, qy = y / MARGIN_ZOOM;
+                final float qx = x / margin, qy = y / margin;
                 mesh.textureCoords.put(vertex * 2, 0.5f + halfWidth * (shiftX + cos * qx - sin * qy));
                 mesh.textureCoords.put(vertex * 2 + 1, 0.5f + halfHeight * (shiftY + sin * qx + cos * qy));
             }

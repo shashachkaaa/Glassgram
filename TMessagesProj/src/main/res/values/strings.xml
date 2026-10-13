@@ -11455,7 +11455,7 @@
     <string name="GlassgramRound60Fps">60 FPS</string>
     <string name="GlassgramRound60FpsInfo">Smoother video messages, where the camera can do 60 frames a second</string>
     <string name="GlassgramRoundStabilization">Stabilization</string>
-    <string name="GlassgramRoundStabilizationInfo">Smooths out shake by the gyroscope; the picture zooms in by 20% and optical stabilization is off while recording</string>
+    <string name="GlassgramRoundStabilizationInfo">Smooths out shake by the gyroscope; the picture zooms in by 20% (about 10% on the ultra-wide) and optical stabilization is off while recording</string>
     <string name="GlassgramRoundWide">Ultra-wide camera</string>
     <string name="GlassgramRoundWideInfo">The back camera can zoom out onto the ultra-wide lens, with the slider or a pinch. Video messages still start on the main or front camera, whichever was used last</string>
     <string name="GlassgramRoundKeepZoom">Keep zoom</string>

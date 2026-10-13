@@ -2003,7 +2003,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             // the mesh carries the stabilization; the SurfaceTexture's own matrix goes after it
             final float focal = session.getFocalPerWidth() * session.getStreamZoom() / textureHalfWidth;
             stabilizedMesh = stabilizer.apply(session, session.toSensorClock(texture.getTimestamp()), session.getFrameExposure(), session.getFrameSkew(),
-                    session.getReadoutEdge(), focal, session.isFront(), textureHalfWidth, textureHalfHeight);
+                    session.getReadoutEdge(), focal, session.isFront(), textureHalfWidth, textureHalfHeight, GyroStabilizer.marginFor(session.getZoom()));
         }
 
         @Override
