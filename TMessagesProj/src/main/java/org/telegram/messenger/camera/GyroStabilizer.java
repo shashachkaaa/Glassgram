@@ -29,7 +29,9 @@ import java.nio.FloatBuffer;
  *
  * With the horizon kept level, the turn of the picture around its center follows gravity instead
  * of the virtual camera: the picture turns against the phone's tilt, by any angle, as a round
- * video can turn without losing anything to the margin.
+ * video can turn without losing anything to the margin. Level is the way the phone was held when
+ * recording began, to the nearest quarter turn: started upright, the picture stays upright; started
+ * on its side, it stays as the phone on its side sees it.
  */
 public class GyroStabilizer implements SensorEventListener {
 
@@ -76,6 +78,8 @@ public class GyroStabilizer implements SensorEventListener {
     private final float[] lowPass = new float[3];
     private boolean horizon;
     private float displayRoll;
+    // the quarter turn the phone was held at when recording began, the horizon's level; NaN until known
+    private float horizonReference = Float.NaN;
     private final float[] up = new float[3];
 
     // the virtual camera, used only from the thread that draws
@@ -350,7 +354,14 @@ public class GyroStabilizer implements SensorEventListener {
                 final float inScreen = (float) Math.hypot(up[0], up[1]) / length;
                 final float weight = Math.max(0f, Math.min(1f, (inScreen - 0.35f) / 0.3f));
                 final float tilt = wrap((float) Math.atan2(up[0], up[1]) - displayRoll);
-                roll = rel[2] + wrap(tilt - rel[2]) * weight;
+                if (Float.isNaN(horizonReference) && inScreen > 0.7f) {
+                    // taken once the phone is held clearly enough to tell, not while it lies flat
+                    final float quarter = (float) (Math.PI / 2);
+                    horizonReference = Math.round(tilt / quarter) * quarter;
+                }
+                if (!Float.isNaN(horizonReference)) {
+                    roll = rel[2] + wrap(wrap(tilt - horizonReference) - rel[2]) * weight;
+                }
             }
         }
 
