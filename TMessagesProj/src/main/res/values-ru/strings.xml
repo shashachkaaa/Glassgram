@@ -525,6 +525,7 @@
     <string name="GlassgramPluginUpdate">Обновить</string>
     <string name="GlassgramPluginTrustWarning">У плагина будет полный доступ к приложению и вашему аккаунту. Устанавливайте его, только если доверяете автору.</string>
     <string name="GlassgramPluginInstallFailed">Не удалось установить плагин: %1$s</string>
+    <string name="GlassgramPluginLoadFailed">%1$s установлен, но не запустился: %2$s</string>
     <string name="GlassgramPluginInstalledToast">%1$s успешно установлен.</string>
     <string name="GlassgramPluginEnableAfterInstall">Включить после установки</string>
 </resources>

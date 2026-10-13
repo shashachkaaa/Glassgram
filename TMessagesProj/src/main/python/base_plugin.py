@@ -281,6 +281,35 @@ class BaseHook(MethodHook):
             self.after(param)
 
 
+class _PluginState:
+    """What the engine keeps for a plugin. It lives apart from the plugin's own attributes, so a plugin
+    that keeps a _hooks or _menu_items of its own can't overwrite it."""
+
+    __slots__ = ("hooks", "send_message_priority", "menu_items", "unhooks", "xposed_handlers", "file_hooks",
+                 "intent_hooks")
+
+    def __init__(self):
+        self.hooks = {}
+        self.send_message_priority = None
+        self.menu_items = []
+        self.unhooks = []
+        self.xposed_handlers = []
+        self.file_hooks = []
+        self.intent_hooks = []
+
+
+def _state(plugin) -> _PluginState:
+    state = plugin.__dict__.get("_glassgram_state")
+    if not isinstance(state, _PluginState):
+        state = _PluginState()
+        plugin.__dict__["_glassgram_state"] = state
+    return state
+
+
+def _report_error(plugin, where: str, trace: str):
+    _PluginsController.log(getattr(plugin, "id", None) or "plugin", "%s failed:\n%s" % (where, trace))
+
+
 class _XposedBridgeHandler:
     """Called from Java for each hooked call; applies filters and keeps plugin errors contained."""
 
@@ -297,20 +326,20 @@ class _XposedBridgeHandler:
             if _passes(self._method_filters("before_hooked_method"), param):
                 self.handler.before_hooked_method(param)
         except Exception:
-            self.plugin._report_error("before_hooked_method", traceback.format_exc())
+            _report_error(self.plugin, "before_hooked_method", traceback.format_exc())
 
     def after(self, param):
         try:
             if _passes(self._method_filters("after_hooked_method"), param):
                 self.handler.after_hooked_method(param)
         except Exception:
-            self.plugin._report_error("after_hooked_method", traceback.format_exc())
+            _report_error(self.plugin, "after_hooked_method", traceback.format_exc())
 
     def replace(self, param):
         try:
             return self.handler.replace_hooked_method(param)
         except Exception:
-            self.plugin._report_error("replace_hooked_method", traceback.format_exc())
+            _report_error(self.plugin, "replace_hooked_method", traceback.format_exc())
             return None
 
 
@@ -335,8 +364,27 @@ def _make_java_hook(plugin, xposed_hook, priority, before, after, before_filters
     handler = _XposedBridgeHandler(plugin, xposed_hook)
     java_hook_class = jclass("org.telegram.messenger.plugins.PluginXposedHook")
     java_hook = java_hook_class(handler, int(priority if priority is not None else 50), bool(replacement))
-    plugin._xposed_handlers.append(handler)
+    _state(plugin).xposed_handlers.append(handler)
     return java_hook
+
+
+def _init_base(plugin):
+    """The metadata and the engine's state, once, before the plugin's own __init__ runs."""
+    if plugin.__dict__.get("_glassgram_ready"):
+        return
+    plugin.__dict__["_glassgram_ready"] = True
+    plugin.id = ""
+    plugin.name = ""
+    plugin.description = ""
+    plugin.author = ""
+    plugin.min_version = ""
+    plugin.version = "1.0"
+    plugin.requirements = []
+    plugin.icon = None
+    plugin.error_message = None
+    plugin.enabled = False
+    plugin.initialized = False
+    _state(plugin)
 
 
 class BasePlugin:
@@ -344,37 +392,14 @@ class BasePlugin:
 
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
-        instance._init_base()
+        _init_base(instance)
         return instance
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
 
-    def _init_base(self):
-        if getattr(self, "_base_ready", False):
-            return
-        self._base_ready = True
-        self.id = ""
-        self.name = ""
-        self.description = ""
-        self.author = ""
-        self.min_version = ""
-        self.version = "1.0"
-        self.requirements = []
-        self.icon = None
-        self.error_message = None
-        self.enabled = False
-        self.initialized = False
-        self._hooks = {}
-        self._send_message_hook_priority = None
-        self._menu_items = []
-        self._unhooks = []
-        self._xposed_handlers = []
-        self._file_hooks = []
-        self._intent_hooks = []
-
     def __init__(self) -> None:
-        self._init_base()
+        _init_base(self)
 
     # Lifecycle, overridden by plugins
 
@@ -408,32 +433,33 @@ class BasePlugin:
     # Hook registration
 
     def add_hook(self, name: str, match_substring: bool = False, priority: int = 0):
-        self._hooks[str(name)] = (bool(match_substring), int(priority))
+        _state(self).hooks[str(name)] = (bool(match_substring), int(priority))
         _engine().hooks_changed()
 
     def add_on_send_message_hook(self, priority: int = 0):
-        self._send_message_hook_priority = int(priority)
+        _state(self).send_message_priority = int(priority)
         _engine().hooks_changed()
 
     def remove_hook(self, name: str):
         if name == "on_send_message_hook":
-            self._send_message_hook_priority = None
+            _state(self).send_message_priority = None
         else:
-            self._hooks.pop(str(name), None)
+            _state(self).hooks.pop(str(name), None)
         _engine().hooks_changed()
 
     def add_file_hook(self, file_info):
         from file_utils import FilesController
 
         secret = FilesController.register(file_info)
-        self._file_hooks.append((file_info.ext, secret))
+        _state(self).file_hooks.append((file_info.ext, secret))
         return secret
 
     def remove_file_hook(self, ext, secret) -> None:
         from file_utils import FilesController
 
         FilesController.unregister(ext, secret)
-        self._file_hooks = [h for h in self._file_hooks if h != (ext, secret)]
+        state = _state(self)
+        state.file_hooks = [h for h in state.file_hooks if h != (ext, secret)]
 
     def add_intent_hook(self, info, type: IntentHookType):
         from intents import IntentsManager
@@ -442,7 +468,7 @@ class BasePlugin:
             handle = IntentsManager.new_global_after_handler(info)
         else:
             handle = IntentsManager.new_global_before_handler(info)
-        self._intent_hooks.append(handle.handler_id)
+        _state(self).intent_hooks.append(handle.handler_id)
         return handle
 
     def remove_intent_hook(self, handler_id):
@@ -450,8 +476,9 @@ class BasePlugin:
 
         handler_id = getattr(handler_id, "handler_id", handler_id)
         IntentsManager.unhandle(handler_id)
-        if handler_id in self._intent_hooks:
-            self._intent_hooks.remove(handler_id)
+        state = _state(self)
+        if handler_id in state.intent_hooks:
+            state.intent_hooks.remove(handler_id)
 
     # Settings
 
@@ -480,10 +507,10 @@ class BasePlugin:
             java_hook = _make_java_hook(self, xposed_hook, priority, before, after, before_filters, after_filters)
             unhook = _xposed_bridge().hookMethod(method_or_constructor, java_hook)
         except Exception:
-            self._report_error("hook_method", traceback.format_exc())
+            _report_error(self, "hook_method", traceback.format_exc())
             return None
         if unhook is not None:
-            self._unhooks.append(unhook)
+            _state(self).unhooks.append(unhook)
         return unhook
 
     def hook_all_methods(self, hook_class, method_name: str, xposed_hook: Any = None, priority: Optional[int] = None,
@@ -493,9 +520,9 @@ class BasePlugin:
             java_hook = _make_java_hook(self, xposed_hook, priority, before, after, before_filters, after_filters)
             unhooks = list(_xposed_bridge().hookAllMethods(hook_class, method_name, java_hook).toArray())
         except Exception:
-            self._report_error("hook_all_methods", traceback.format_exc())
+            _report_error(self, "hook_all_methods", traceback.format_exc())
             return None
-        self._unhooks.extend(unhooks)
+        _state(self).unhooks.extend(unhooks)
         return unhooks
 
     def hook_all_constructors(self, hook_class, xposed_hook: Any = None, priority: Optional[int] = None, *,
@@ -505,18 +532,19 @@ class BasePlugin:
             java_hook = _make_java_hook(self, xposed_hook, priority, before, after, before_filters, after_filters)
             unhooks = list(_xposed_bridge().hookAllConstructors(hook_class, java_hook).toArray())
         except Exception:
-            self._report_error("hook_all_constructors", traceback.format_exc())
+            _report_error(self, "hook_all_constructors", traceback.format_exc())
             return None
-        self._unhooks.extend(unhooks)
+        _state(self).unhooks.extend(unhooks)
         return unhooks
 
     def unhook_method(self, unhook):
         try:
             unhook.unhook()
         except Exception:
-            self._report_error("unhook_method", traceback.format_exc())
-        if unhook in self._unhooks:
-            self._unhooks.remove(unhook)
+            _report_error(self, "unhook_method", traceback.format_exc())
+        state = _state(self)
+        if unhook in state.unhooks:
+            state.unhooks.remove(unhook)
 
     # Misc
 
@@ -543,50 +571,50 @@ class BasePlugin:
             try:
                 data.on_click(context)
             except Exception:
-                plugin._report_error("menu item", traceback.format_exc())
+                _report_error(plugin, "menu item", traceback.format_exc())
 
         menu_type = data.menu_type.value if isinstance(data.menu_type, MenuItemType) else int(data.menu_type)
         _PluginsController.addMenuItem(
             self.id, item_id, int(menu_type), str(data.text), None if data.subtext is None else str(data.subtext),
             data.icon, int(data.priority or 0), data.condition, on_click)
-        self._menu_items.append(item_id)
+        _state(self).menu_items.append(item_id)
         return item_id
 
     def remove_menu_item(self, item_id: str) -> bool:
-        if item_id in self._menu_items:
-            self._menu_items.remove(item_id)
+        state = _state(self)
+        if item_id in state.menu_items:
+            state.menu_items.remove(item_id)
         return bool(_PluginsController.removeMenuItem(self.id, item_id))
 
-    def _report_error(self, where: str, trace: str):
-        _PluginsController.log(self.id or "plugin", "%s failed:\n%s" % (where, trace))
 
-    def _cleanup(self):
-        """Removes everything the plugin registered; called by the engine on unload."""
-        for unhook in list(self._unhooks):
-            try:
-                unhook.unhook()
-            except Exception:
-                pass
-        self._unhooks.clear()
-        self._xposed_handlers.clear()
-        for item_id in list(self._menu_items):
-            try:
-                _PluginsController.removeMenuItem(self.id, item_id)
-            except Exception:
-                pass
-        self._menu_items.clear()
-        for ext, secret in list(self._file_hooks):
-            try:
-                self.remove_file_hook(ext, secret)
-            except Exception:
-                pass
-        for handler_id in list(self._intent_hooks):
-            try:
-                self.remove_intent_hook(handler_id)
-            except Exception:
-                pass
-        self._hooks.clear()
-        self._send_message_hook_priority = None
+def _cleanup(plugin):
+    """Removes everything the plugin registered; called by the engine on unload."""
+    state = _state(plugin)
+    for unhook in list(state.unhooks):
+        try:
+            unhook.unhook()
+        except Exception:
+            pass
+    state.unhooks.clear()
+    state.xposed_handlers.clear()
+    for item_id in list(state.menu_items):
+        try:
+            _PluginsController.removeMenuItem(plugin.id, item_id)
+        except Exception:
+            pass
+    state.menu_items.clear()
+    for ext, secret in list(state.file_hooks):
+        try:
+            BasePlugin.remove_file_hook(plugin, ext, secret)
+        except Exception:
+            pass
+    for handler_id in list(state.intent_hooks):
+        try:
+            BasePlugin.remove_intent_hook(plugin, handler_id)
+        except Exception:
+            pass
+    state.hooks.clear()
+    state.send_message_priority = None
 
 
 def _engine():

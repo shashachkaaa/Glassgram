@@ -240,7 +240,7 @@ def _load(record: _Record) -> bool:
         _log(record.id, "Failed to load:\n" + record.error)
         if record.instance is not None:
             try:
-                record.instance._cleanup()
+                _base()._cleanup(record.instance)
             except Exception:
                 pass
         record.instance = None
@@ -271,7 +271,7 @@ def _unload(record: _Record):
     except Exception:
         _log(record.id, "on_plugin_unload failed:\n" + traceback.format_exc())
     try:
-        instance._cleanup()
+        _base()._cleanup(instance)
     except Exception:
         _log(record.id, traceback.format_exc())
     instance.enabled = False
@@ -451,9 +451,9 @@ def hooks_changed():
     send_message = False
     for record in _loaded():
         instance = record.instance
-        for name, (match_substring, _priority) in instance._hooks.items():
+        for name, (match_substring, _priority) in _base()._state(instance).hooks.items():
             (substrings if match_substring else exact).add(name)
-        if instance._send_message_hook_priority is not None:
+        if _base()._state(instance).send_message_priority is not None:
             send_message = True
     _PluginsController.setHooks(
         jarray(jclass("java.lang.String"))(sorted(exact)),
@@ -466,7 +466,7 @@ def _hooked(name: str):
     result = []
     for record in _loaded():
         instance = record.instance
-        for hook_name, (match_substring, priority) in instance._hooks.items():
+        for hook_name, (match_substring, priority) in _base()._state(instance).hooks.items():
             if hook_name == name or (match_substring and hook_name in name):
                 result.append((priority, record.id, instance))
                 break
@@ -554,7 +554,7 @@ def on_updates(name: str, account: int, updates):
 def on_send_message(account: int, params):
     hooked = []
     for record in _loaded():
-        priority = record.instance._send_message_hook_priority
+        priority = _base()._state(record.instance).send_message_priority
         if priority is not None:
             hooked.append((priority, record.id, record.instance))
     hooked.sort(key=lambda x: -x[0])

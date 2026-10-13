@@ -40,6 +40,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CombinedDrawable;
@@ -129,8 +130,9 @@ public final class GlassgramPluginInstaller {
                 meta = PluginsController.readPluginFile(file);
             } catch (Throwable e) {
                 FileLog.e(e);
-                String reason = PluginsController.startError != null ? PluginsController.startError : getString(R.string.GlassgramPluginBadFile);
-                AndroidUtilities.runOnUIThread(() -> showError(fragment, reason));
+                final String details = PluginsController.startError != null ? PluginsController.startError : e.getMessage() != null ? e.getMessage() : e.toString();
+                final String reason = PluginsController.startError != null ? firstLine(PluginsController.startError) : getString(R.string.GlassgramPluginBadFile);
+                AndroidUtilities.runOnUIThread(() -> showError(fragment, reason, details));
                 return;
             }
             AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, meta));
@@ -168,7 +170,9 @@ public final class GlassgramPluginInstaller {
             PluginsController.installPlugin(file, enableAfter[0], (id, error) -> {
                 sheet.dismiss();
                 if (error != null) {
-                    showError(fragment, formatString(R.string.GlassgramPluginInstallFailed, firstLine(error)));
+                    // installed, yet its code failed on loading; either way the whole error can be copied
+                    showError(fragment, id != null ? formatString(R.string.GlassgramPluginLoadFailed, name, firstLine(error))
+                            : formatString(R.string.GlassgramPluginInstallFailed, firstLine(error)), error);
                 } else if (id != null) {
                     BulletinFactory.of(fragment).createSimpleBulletin(R.raw.contact_check,
                             formatString(R.string.GlassgramPluginInstalledToast, name), getString(R.string.Settings),
@@ -290,8 +294,22 @@ public final class GlassgramPluginInstaller {
     }
 
     private static void showError(BaseFragment fragment, String text) {
+        showError(fragment, text, null);
+    }
+
+    /** An error, with a button to copy its details (a Python traceback) when there are any. */
+    private static void showError(BaseFragment fragment, String text, String details) {
         if (fragment != null && fragment.getParentActivity() != null) {
-            BulletinFactory.of(fragment).createErrorBulletin(text).show();
+            if (details == null || details.trim().isEmpty()) {
+                BulletinFactory.of(fragment).createErrorBulletin(text).show();
+                return;
+            }
+            BulletinFactory.of(fragment).createSimpleBulletin(R.raw.chats_infotip, text, getString(R.string.Copy), Bulletin.DURATION_PROLONG, () -> {
+                AndroidUtilities.addToClipboard(details.trim());
+                if (fragment.getParentActivity() != null) {
+                    BulletinFactory.of(fragment).createCopyBulletin(getString(R.string.TextCopied)).show();
+                }
+            }).show();
         } else {
             Toast.makeText(ApplicationLoader.applicationContext, text, Toast.LENGTH_LONG).show();
         }
