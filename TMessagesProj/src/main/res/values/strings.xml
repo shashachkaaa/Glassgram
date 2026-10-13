@@ -11461,7 +11461,7 @@
     <string name="GlassgramRoundKeepZoom">Keep zoom</string>
     <string name="GlassgramRoundKeepZoomInfo">The zoom stays where it is when you lift your fingers</string>
     <string name="GlassgramRoundHorizon">Level horizon</string>
-    <string name="GlassgramRoundHorizonInfo">The video turns against the phone\'s tilt, keeping the horizon level even when the phone is held askew</string>
+    <string name="GlassgramRoundHorizonInfo">The video turns against the phone\'s tilt, keeping the horizon level even when the phone is held askew. Level is the way the phone was held when recording began: started upright, the video stays upright; started sideways, it stays sideways</string>
     <string name="GlassgramRoundHighQuality">High quality</string>
     <string name="GlassgramRoundHighQualityInfo">Video messages at 640×640 instead of 384×384 with a higher bitrate: much sharper, with files about twice as large</string>
     <string name="GlassgramRoundCameraInfo">Camera capabilities</string>

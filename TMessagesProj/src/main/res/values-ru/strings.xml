@@ -493,7 +493,7 @@
     <string name="GlassgramRoundKeepZoom">Сохранять зум</string>
     <string name="GlassgramRoundKeepZoomInfo">Зум остаётся, когда отпускаешь пальцы</string>
     <string name="GlassgramRoundHorizon">Ровный горизонт</string>
-    <string name="GlassgramRoundHorizonInfo">Кружок поворачивается против наклона телефона, и горизонт остаётся ровным, даже если держать телефон криво</string>
+    <string name="GlassgramRoundHorizonInfo">Кружок поворачивается против наклона телефона, и горизонт остаётся ровным, даже если держать телефон криво. Ровным считается то, как телефон держали в начале записи: начал вертикально — кружок вертикальный, начал горизонтально — горизонтальный</string>
     <string name="GlassgramRoundHighQuality">Высокое качество</string>
     <string name="GlassgramRoundHighQualityInfo">Кружки в 640×640 вместо 384×384 и с битрейтом выше — заметно чётче, но файлы тяжелее примерно вдвое</string>
     <string name="GlassgramRoundCameraInfo">Возможности камеры</string>
