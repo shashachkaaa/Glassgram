@@ -489,9 +489,13 @@
     <string name="GlassgramRoundStabilization">Стабилизация</string>
     <string name="GlassgramRoundStabilizationInfo">Сглаживает тряску по гироскопу; кадр приближается на 20% (на ширике — около 10%), а оптическая стабилизация на время записи выключается</string>
     <string name="GlassgramRoundWide">Широкоугольная камера</string>
-    <string name="GlassgramRoundWideInfo">Задняя камера может уходить зумом на ширик — ползунком или щипком. Кружок всё равно начинается с основной камеры или фронталки — той, что была последней</string>
+    <string name="GlassgramRoundWideInfo">Задняя камера может уходить зумом на ширик — ползунком или щипком. Кружок всё равно начинается с основной камеры или фронталки — той, что была последней. Где камера позволяет, ширик снимает без выпрямления: шире, но линии у краёв чуть изогнуты</string>
     <string name="GlassgramRoundKeepZoom">Сохранять зум</string>
     <string name="GlassgramRoundKeepZoomInfo">Зум остаётся, когда отпускаешь пальцы</string>
+    <string name="GlassgramRoundHorizon">Ровный горизонт</string>
+    <string name="GlassgramRoundHorizonInfo">Кружок поворачивается против наклона телефона, и горизонт остаётся ровным, даже если держать телефон криво</string>
+    <string name="GlassgramRoundHighQuality">Высокое качество</string>
+    <string name="GlassgramRoundHighQualityInfo">Кружки в 640×640 вместо 384×384 и с битрейтом выше — заметно чётче, но файлы тяжелее примерно вдвое</string>
     <string name="GlassgramRoundCameraInfo">Возможности камеры</string>
     <string name="GlassgramRoundVideosInfo">Когда что-то из этого включено, кружки записываются через Camera2. Каждая опция работает, если её умеет камера: ширик нужен открытый для приложений, а стабилизация немного обрезает кадр.</string>
     <string name="GlassgramProtectedInfo">Самоуничтожающиеся медиа можно сохранить в галерею и переслать, скриншоты разрешены. Если защита контента игнорируется, сообщения из чатов с запретом пересылки отправляются копией: альбомы остаются альбомами, а подписи к фото и файлам не переносятся.</string>

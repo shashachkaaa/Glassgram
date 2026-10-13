@@ -89,10 +89,10 @@ public class CameraReport {
         if (!refused.isEmpty()) {
             sb.append("\nHidden cameras that refused to open: ").append(refused).append('\n');
         }
-        sb.append("\nVideo messages with the current settings:\n");
+        sb.append("\nVideo messages with the current settings, recorded at ").append(roundVideoSize).append('x').append(roundVideoSize).append(":\n");
         for (int a = 0; a < 2; ++a) {
             final boolean front = a == 0;
-            final Camera2Session.Choice choice = Camera2Session.choose(front, !front && GlassgramConfig.roundWideCamera, GlassgramConfig.roundFps60, roundVideoSize, roundVideoSize);
+            final Camera2Session.Choice choice = Camera2Session.chooseForRound(front, !front && GlassgramConfig.roundWideCamera, GlassgramConfig.roundFps60, roundVideoSize);
             sb.append(front ? "  front: " : "  back: ");
             if (choice == null) {
                 sb.append("no camera\n");
@@ -119,8 +119,14 @@ public class CameraReport {
                     final Range<Float> zoom = c.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
                     if (zoom != null && zoom.getLower() < 0.99f) {
                         sb.append(", ultra-wide: zoom ").append(fmt(zoom.getLower())).append("x");
+                        if (Camera2Session.leavesDistortion(c)) {
+                            sb.append(", without distortion correction");
+                        }
                     } else if (choice.lensId != null) {
                         sb.append(", ultra-wide: camera ").append(choice.lensId).append(" below 1x, from ").append(fmt(choice.lensRatio)).append("x");
+                        if (Camera2Session.leavesDistortion(manager.getCameraCharacteristics(choice.lensId))) {
+                            sb.append(", without distortion correction");
+                        }
                     } else {
                         sb.append(", ultra-wide: none");
                     }

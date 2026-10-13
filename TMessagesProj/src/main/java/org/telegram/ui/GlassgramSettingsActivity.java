@@ -153,6 +153,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_ROUND_WIDE = 122;
     private static final int ID_ROUND_KEEP_ZOOM = 123;
     private static final int ID_ROUND_CAMERA_INFO = 124;
+    private static final int ID_ROUND_HORIZON = 125;
+    private static final int ID_ROUND_HIGH_QUALITY = 126;
 
     private final int page;
     private boolean ghostExpanded;
@@ -310,6 +312,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramRoundVideos)));
                 items.add(UItem.asButtonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
                 items.add(UItem.asButtonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
+                if (GlassgramConfig.roundStabilization) {
+                    items.add(UItem.asButtonCheck(ID_ROUND_HORIZON, getString(R.string.GlassgramRoundHorizon), getString(R.string.GlassgramRoundHorizonInfo)).setChecked(GlassgramConfig.roundHorizon));
+                }
+                items.add(UItem.asButtonCheck(ID_ROUND_HIGH_QUALITY, getString(R.string.GlassgramRoundHighQuality), getString(R.string.GlassgramRoundHighQualityInfo)).setChecked(GlassgramConfig.roundHighQuality));
                 items.add(UItem.asButtonCheck(ID_ROUND_WIDE, getString(R.string.GlassgramRoundWide), getString(R.string.GlassgramRoundWideInfo)).setChecked(GlassgramConfig.roundWideCamera));
                 items.add(UItem.asButtonCheck(ID_ROUND_KEEP_ZOOM, getString(R.string.GlassgramRoundKeepZoom), getString(R.string.GlassgramRoundKeepZoomInfo)).setChecked(GlassgramConfig.roundKeepZoom));
                 items.add(UItem.asButton(ID_ROUND_CAMERA_INFO, getString(R.string.GlassgramRoundCameraInfo)));
@@ -708,6 +714,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_ROUND_STABILIZATION:
                 value = GlassgramConfig.roundStabilization = !GlassgramConfig.roundStabilization;
                 GlassgramConfig.putBoolean("roundStabilization", value); break;
+            case ID_ROUND_HORIZON:
+                value = GlassgramConfig.roundHorizon = !GlassgramConfig.roundHorizon;
+                GlassgramConfig.putBoolean("roundHorizon", value); break;
+            case ID_ROUND_HIGH_QUALITY:
+                value = GlassgramConfig.roundHighQuality = !GlassgramConfig.roundHighQuality;
+                GlassgramConfig.putBoolean("roundHighQuality", value); break;
             case ID_ROUND_WIDE:
                 value = GlassgramConfig.roundWideCamera = !GlassgramConfig.roundWideCamera;
                 GlassgramConfig.putBoolean("roundWideCamera", value);
@@ -739,7 +751,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         }
         if (page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH
                 || item.id == ID_HIDE_REACTIONS_CHANNELS || item.id == ID_HIDE_REACTIONS_GROUPS || item.id == ID_HIDE_REACTIONS_PRIVATE
-                || item.id == ID_AUTO_PAUSE_VIDEO || item.id == ID_AUTO_PAUSE_VOICE || item.id == ID_AUTO_PAUSE_ROUND) {
+                || item.id == ID_AUTO_PAUSE_VIDEO || item.id == ID_AUTO_PAUSE_VOICE || item.id == ID_AUTO_PAUSE_ROUND
+                || item.id == ID_ROUND_STABILIZATION) {
             // The Ghost Mode counter and the mark colors row follow these switches
             if (listView != null) listView.adapter.update(true);
         }
@@ -1192,7 +1205,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private void showCameraReport() {
         final Context context = getParentActivity();
         if (context == null) return;
-        final int size = MessagesController.getInstance(currentAccount).roundVideoSize;
+        final int size = GlassgramConfig.roundVideoSize(MessagesController.getInstance(currentAccount).roundVideoSize);
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final String report = org.telegram.messenger.camera.CameraReport.build(context.getApplicationContext(), size);
             AndroidUtilities.runOnUIThread(() -> {

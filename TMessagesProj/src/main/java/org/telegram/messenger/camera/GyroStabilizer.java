@@ -26,6 +26,10 @@ import java.nio.FloatBuffer;
  *
  * Coordinates: the phone's sensor axes (x right, y up, z out of the screen in its natural
  * orientation), and the picture as shown upright in that orientation, x right and y up.
+ *
+ * With the horizon kept level, the turn of the picture around its center follows gravity instead
+ * of the virtual camera: the picture turns against the phone's tilt, by any angle, as a round
+ * video can turn without losing anything to the margin.
  */
 public class GyroStabilizer implements SensorEventListener {
 
@@ -62,6 +66,18 @@ public class GyroStabilizer implements SensorEventListener {
     private final Sensor gyroscope;
     private HandlerThread thread;
 
+    // gravity for the level horizon: a ring of (time, up vector in the phone's axes) samples
+    private static final int GRAVITY_HISTORY = 256;
+    private final long[] gravityTimes = new long[GRAVITY_HISTORY];
+    private final float[] gravityValues = new float[GRAVITY_HISTORY * 3];
+    private int gravityCount, gravityHead;
+    private Sensor gravity;
+    private boolean gravityFromAccelerometer;
+    private final float[] lowPass = new float[3];
+    private boolean horizon;
+    private float displayRoll;
+    private final float[] up = new float[3];
+
     // the virtual camera, used only from the thread that draws
     private final float[] virtual = {1, 0, 0, 0};
     private final float[] virtualRate = new float[3];
@@ -81,15 +97,41 @@ public class GyroStabilizer implements SensorEventListener {
         return manager != null && manager.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null;
     }
 
+    /**
+     * Keeps the horizon level, see the class comment; before {@link #start}. The display rotation
+     * is the screen's from the phone's natural orientation, in degrees, as the picture is upright
+     * on the screen.
+     */
+    public void setHorizon(boolean enabled, int displayDegrees) {
+        horizon = enabled;
+        displayRoll = (float) Math.toRadians(displayDegrees);
+    }
+
     public void start() {
         if (gyroscope == null || thread != null) return;
         thread = new HandlerThread("glassgram_gyro");
         thread.start();
+        final Handler handler = new Handler(thread.getLooper());
         try {
             // 200 times a second: the most apps get without asking for more
-            sensorManager.registerListener(this, gyroscope, 5000, new Handler(thread.getLooper()));
+            sensorManager.registerListener(this, gyroscope, 5000, handler);
         } catch (Exception e) {
             FileLog.e(e);
+        }
+        if (horizon) {
+            // the fused gravity is steady through shake; the raw accelerometer is smoothed when it's all there is
+            gravity = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+            gravityFromAccelerometer = gravity == null;
+            if (gravity == null) {
+                gravity = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            }
+            if (gravity != null) {
+                try {
+                    sensorManager.registerListener(this, gravity, 10000, handler);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
         }
     }
 
@@ -107,6 +149,10 @@ public class GyroStabilizer implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         final long time = event.timestamp;
+        if (event.sensor != gyroscope) {
+            onGravity(time, event.values);
+            return;
+        }
         synchronized (this) {
             if (lastSensorTime != 0) {
                 final float dt = (time - lastSensorTime) / 1e9f;
@@ -129,6 +175,63 @@ public class GyroStabilizer implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
+    }
+
+    private synchronized void onGravity(long time, float[] values) {
+        float x = values[0], y = values[1], z = values[2];
+        if (gravityFromAccelerometer) {
+            if (gravityCount == 0) {
+                lowPass[0] = x;
+                lowPass[1] = y;
+                lowPass[2] = z;
+            } else {
+                lowPass[0] += (x - lowPass[0]) * 0.15f;
+                lowPass[1] += (y - lowPass[1]) * 0.15f;
+                lowPass[2] += (z - lowPass[2]) * 0.15f;
+            }
+            x = lowPass[0];
+            y = lowPass[1];
+            z = lowPass[2];
+        }
+        gravityTimes[gravityHead] = time;
+        gravityValues[gravityHead * 3] = x;
+        gravityValues[gravityHead * 3 + 1] = y;
+        gravityValues[gravityHead * 3 + 2] = z;
+        gravityHead = (gravityHead + 1) % GRAVITY_HISTORY;
+        if (gravityCount < GRAVITY_HISTORY) gravityCount++;
+    }
+
+    /**
+     * Which way is up at a moment, in the phone's axes, not normalized; false before the first
+     * samples. At rest the sensors read up, against gravity: (0, g, 0) held upright.
+     */
+    private synchronized boolean upAt(long time, float[] out) {
+        if (gravityCount == 0) return false;
+        final int newest = (gravityHead - 1 + GRAVITY_HISTORY) % GRAVITY_HISTORY;
+        int index = newest;
+        if (time < gravityTimes[newest]) {
+            for (int i = 1; i < gravityCount; ++i) {
+                final int previous = (newest - i + GRAVITY_HISTORY) % GRAVITY_HISTORY;
+                if (gravityTimes[previous] <= time) {
+                    final int next = (previous + 1) % GRAVITY_HISTORY;
+                    final float t = (time - gravityTimes[previous]) / (float) Math.max(1, gravityTimes[next] - gravityTimes[previous]);
+                    for (int k = 0; k < 3; ++k) {
+                        out[k] = gravityValues[previous * 3 + k] * (1 - t) + gravityValues[next * 3 + k] * t;
+                    }
+                    return true;
+                }
+                index = previous;
+            }
+        }
+        System.arraycopy(gravityValues, index * 3, out, 0, 3);
+        return true;
+    }
+
+    /** An angle brought to -pi..pi. */
+    private static float wrap(float angle) {
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
     }
 
     /** The real orientation at a moment in the gyroscope's clock; false before the first samples. */
@@ -236,6 +339,21 @@ public class GyroStabilizer implements SensorEventListener {
             rotate(virtual, -rel[0], -rel[1], -rel[2]);
         }
 
+        // The turn of the picture: the virtual camera's, or with the level horizon, the phone's tilt on
+        // the screen from upright, the angle of up within the screen. Both are turns of the real phone
+        // around z, so either counters itself. Looking straight up or down there's no horizon to keep,
+        // and the turn goes back to the virtual camera's.
+        float roll = rel[2];
+        if (horizon && upAt(frameTime, up)) {
+            final float length = (float) Math.sqrt(up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+            if (length > 0) {
+                final float inScreen = (float) Math.hypot(up[0], up[1]) / length;
+                final float weight = Math.max(0f, Math.min(1f, (inScreen - 0.35f) / 0.3f));
+                final float tilt = wrap((float) Math.atan2(up[0], up[1]) - displayRoll);
+                roll = rel[2] + wrap(tilt - rel[2]) * weight;
+            }
+        }
+
         meshIndex = (meshIndex + 1) % meshes.length;
         final Mesh mesh = meshes[meshIndex];
         final boolean across = readout == READOUT_LEFT || readout == READOUT_RIGHT;
@@ -259,7 +377,9 @@ public class GyroStabilizer implements SensorEventListener {
                 shiftX = -shiftX;
                 shiftY = -shiftY;
             }
-            final float cos = (float) Math.cos(-rowRel[2]), sin = (float) Math.sin(-rowRel[2]);
+            // each strip's own turn over the frame's, from the rolling shutter, on top of the picture's
+            final float rowRoll = roll + rowRel[2] - rel[2];
+            final float cos = (float) Math.cos(-rowRoll), sin = (float) Math.sin(-rowRoll);
             for (int side = 0; side < 2; ++side) {
                 final float other = side == 0 ? -1f : 1f;
                 final float x = across ? along : other;

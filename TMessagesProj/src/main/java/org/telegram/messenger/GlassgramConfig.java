@@ -95,14 +95,35 @@ public class GlassgramConfig {
     // Video messages, recorded through Camera2 when any of these is on
     public static boolean roundFps60;
     public static boolean roundStabilization;
+    // with the stabilization: the picture turned against the phone's tilt, so the horizon stays level
+    public static boolean roundHorizon;
     public static boolean roundWideCamera;
     public static boolean roundKeepZoom;
+    public static boolean roundHighQuality;
     // whether the last video message ended on the front camera, for the next one to start on
     public static boolean roundLastFront = true;
 
+    /** The size video messages are recorded at with high quality. */
+    public static final int ROUND_HIGH_QUALITY_SIZE = 640;
+
     /** Whether video messages use the camera options above, which only Camera2 has. */
     public static boolean roundCameraTweaks() {
-        return roundFps60 || roundStabilization || roundWideCamera;
+        return roundFps60 || roundStabilization || roundWideCamera || roundHighQuality;
+    }
+
+    /** The size video messages are recorded at: the server's, or larger with high quality. */
+    public static int roundVideoSize(int serverSize) {
+        return roundHighQuality ? Math.max(serverSize, ROUND_HIGH_QUALITY_SIZE) : serverSize;
+    }
+
+    /**
+     * The video bitrate for video messages, in bits a second: the server's, or with high quality
+     * raised with the size, a little less than its area as larger pictures compress better.
+     */
+    public static int roundVideoBitrate(int serverSize, int serverBitrate) {
+        final int size = roundVideoSize(serverSize);
+        if (size <= serverSize || serverSize <= 0) return serverBitrate;
+        return (int) (serverBitrate * Math.pow(size / (double) serverSize, 1.5));
     }
 
     /** Whether reactions are hidden in this chat: channels, groups, or private chats and bots. */
@@ -234,6 +255,8 @@ public class GlassgramConfig {
         autoPauseRound = p.getBoolean("autoPauseRound", false);
         roundFps60 = p.getBoolean("roundFps60", false);
         roundStabilization = p.getBoolean("roundStabilization", false);
+        roundHorizon = p.getBoolean("roundHorizon", false);
+        roundHighQuality = p.getBoolean("roundHighQuality", false);
         roundWideCamera = p.getBoolean("roundWideCamera", false);
         roundKeepZoom = p.getBoolean("roundKeepZoom", false);
         roundLastFront = p.getBoolean("roundLastFront", true);

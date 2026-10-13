@@ -33,6 +33,7 @@ import androidx.annotation.RequiresApi;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
@@ -146,6 +147,22 @@ public class Camera2Session {
     private float focalPerWidth;
     // read once per camera, as it's asked for every frame
     private int sensorOrientation = 90;
+    // glassGram: the ultra-wide lens without the camera's distortion correction, which straightens the
+    // lens's bulge by cutting off its edges; where the camera lets it be turned off
+    private boolean distortionOffAvailable;
+    private Rect uncorrectedArray;
+
+    /** glassGram: whether the camera can leave its picture uncorrected, which it otherwise corrects. */
+    static boolean leavesDistortion(CameraCharacteristics characteristics) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false;
+        final int[] modes = characteristics.get(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES);
+        return modes != null && modes.length > 1 && contains(modes, CameraMetadata.DISTORTION_CORRECTION_MODE_OFF);
+    }
+
+    /** glassGram: whether the picture is on the ultra-wide lens now, and left uncorrected for its full width. */
+    private boolean uncorrectedWide() {
+        return distortionOffAvailable && optionWide && (onLens || useZoomRatio && currentZoom < 1f);
+    }
 
     public static final int STABILIZATION_OFF = 0;
     /** The camera's own stabilization, where it has one. */
@@ -212,6 +229,45 @@ public class Camera2Session {
         Size size;
         String lensId;
         float lensRatio = 1f;
+
+        /** Whether the back camera can get to an ultra-wide lens, by its own zoom or by a camera of the lens. */
+        boolean hasWideLens() {
+            return lensId != null || ids.size() > 1;
+        }
+    }
+
+    /**
+     * glassGram: the preview size to ask for, for a video message of a size: with the stabilization,
+     * enough for the picture to stay sharp once its margin is cropped off.
+     */
+    public static int previewSizeFor(int videoSize) {
+        return GlassgramConfig.roundStabilization ? (int) Math.ceil(videoSize * GyroStabilizer.MARGIN_ZOOM) : videoSize;
+    }
+
+    /**
+     * glassGram: the cameras for a video message of a size, with a preview of {@link #previewSizeFor}.
+     * An ultra-wide lens has to stream the same size, and may not stream the larger one, so it's
+     * worth falling back to the size of the video itself.
+     */
+    static Choice chooseForRound(boolean front, boolean preferWide, boolean fps60, int videoSize) {
+        final int target = previewSizeFor(videoSize);
+        final Choice choice = choose(front, preferWide, fps60, target, target);
+        if (choice != null && preferWide && !front && !choice.hasWideLens() && target > videoSize) {
+            final Choice smaller = choose(front, true, fps60, videoSize, videoSize);
+            if (smaller != null && smaller.hasWideLens()) {
+                return smaller;
+            }
+        }
+        return choice;
+    }
+
+    /** glassGram: a session for a video message of a size, see {@link #chooseForRound}. */
+    public static Camera2Session createForRound(boolean front, boolean preferWide, boolean fps60, int videoSize) {
+        final Choice choice = chooseForRound(front, preferWide, fps60, videoSize);
+        if (choice == null) {
+            return null;
+        }
+        return new Camera2Session(ApplicationLoader.applicationContext, front, choice);
     }
 
     private static final String UNAVAILABLE_KEY = "glassgram_camera_unavailable";
@@ -681,6 +737,8 @@ public class Camera2Session {
         opticalStabilizationOff = false;
         gyroStabilization = false;
         useZoomRatio = false;
+        distortionOffAvailable = false;
+        uncorrectedArray = null;
         if (!switchingLens) {
             minZoom = defaultZoom = currentZoom = 1f;
             // with a camera of the ultra-wide lens alone, the zoom goes below 1x by switching to it
@@ -718,6 +776,10 @@ public class Camera2Session {
                     final int[] optical = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);
                     opticalStabilization = optical != null && contains(optical, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON);
                 }
+            }
+            if (wide && leavesDistortion(characteristics)) {
+                distortionOffAvailable = true;
+                uncorrectedArray = characteristics.get(CameraCharacteristics.SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
             }
             if (wide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 final Range<Float> zoomRange = characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
@@ -1203,14 +1265,21 @@ public class Camera2Session {
                 captureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF);
             }
 
+            // glassGram: on the ultra-wide lens, its full width, with the lines near the edges bent as the lens sees them
+            final boolean uncorrected = uncorrectedWide();
+            if (uncorrected && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                captureRequestBuilder.set(CaptureRequest.DISTORTION_CORRECTION_MODE, CameraMetadata.DISTORTION_CORRECTION_MODE_OFF);
+            }
+            // without the correction, the crop is in the uncorrected sensor area
+            final Rect cropArea = uncorrected && uncorrectedArray != null ? uncorrectedArray : sensorSize;
             final float streamZoom = getStreamZoom();
             if (useZoomRatio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 captureRequestBuilder.set(CaptureRequest.CONTROL_ZOOM_RATIO, currentZoom);
-            } else if (sensorSize != null && Math.abs(streamZoom - 1f) >= 0.01f) {
-                final int centerX = sensorSize.width() / 2;
-                final int centerY = sensorSize.height() / 2;
-                final int deltaX = (int) ((0.5f * sensorSize.width()) / streamZoom);
-                final int deltaY = (int) ((0.5f * sensorSize.height()) / streamZoom);
+            } else if (cropArea != null && Math.abs(streamZoom - 1f) >= 0.01f) {
+                final int centerX = cropArea.width() / 2;
+                final int centerY = cropArea.height() / 2;
+                final int deltaX = (int) ((0.5f * cropArea.width()) / streamZoom);
+                final int deltaY = (int) ((0.5f * cropArea.height()) / streamZoom);
                 cropRegion.set(
                         centerX - deltaX,
                         centerY - deltaY,

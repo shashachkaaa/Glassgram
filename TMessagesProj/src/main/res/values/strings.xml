@@ -11457,9 +11457,13 @@
     <string name="GlassgramRoundStabilization">Stabilization</string>
     <string name="GlassgramRoundStabilizationInfo">Smooths out shake by the gyroscope; the picture zooms in by 20% (about 10% on the ultra-wide) and optical stabilization is off while recording</string>
     <string name="GlassgramRoundWide">Ultra-wide camera</string>
-    <string name="GlassgramRoundWideInfo">The back camera can zoom out onto the ultra-wide lens, with the slider or a pinch. Video messages still start on the main or front camera, whichever was used last</string>
+    <string name="GlassgramRoundWideInfo">The back camera can zoom out onto the ultra-wide lens, with the slider or a pinch. Video messages still start on the main or front camera, whichever was used last. Where the camera allows, the ultra-wide lens is left uncorrected: wider, with lines near the edges slightly bent</string>
     <string name="GlassgramRoundKeepZoom">Keep zoom</string>
     <string name="GlassgramRoundKeepZoomInfo">The zoom stays where it is when you lift your fingers</string>
+    <string name="GlassgramRoundHorizon">Level horizon</string>
+    <string name="GlassgramRoundHorizonInfo">The video turns against the phone\'s tilt, keeping the horizon level even when the phone is held askew</string>
+    <string name="GlassgramRoundHighQuality">High quality</string>
+    <string name="GlassgramRoundHighQualityInfo">Video messages at 640×640 instead of 384×384 with a higher bitrate: much sharper, with files about twice as large</string>
     <string name="GlassgramRoundCameraInfo">Camera capabilities</string>
     <string name="GlassgramRoundVideosInfo">With any of these on, video messages are recorded through Camera2. Each works where the camera can do it: the ultra-wide lens needs the phone to share it with apps, and stabilization crops the picture a little.</string>
     <string name="GlassgramProtectedInfo">Self-destructing media can be saved to the gallery and forwarded, and screenshots are allowed. With protection ignored, messages from chats where forwarding is restricted are sent as copies: albums stay albums, and captions of photos and files are left out.</string>

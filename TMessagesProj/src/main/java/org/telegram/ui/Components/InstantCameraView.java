@@ -49,6 +49,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -197,11 +198,11 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
 
     /** glassGram: a Camera2 session with the video message options from glassGram settings. */
     private Camera2Session createCamera2Session(boolean front) {
-        final int size = MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize;
+        final int size = GlassgramConfig.roundVideoSize(MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize);
         // both cameras at once only promise to work together as they are, so keep the usual back one then
         // with the ultra-wide option, the back camera is the one that can zoom out onto the ultra-wide lens
         final boolean wide = !front && GlassgramConfig.roundWideCamera;
-        final Camera2Session session = Camera2Session.create(front, wide && !bothCameras, GlassgramConfig.roundFps60, size, size);
+        final Camera2Session session = Camera2Session.createForRound(front, wide && !bothCameras, GlassgramConfig.roundFps60, size);
         if (session != null) {
             final int stabilization;
             if (!GlassgramConfig.roundStabilization) {
@@ -1887,6 +1888,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     return;
                 }
             }
+            if ((updateTexImage1 || updateTexImage2) && videoEncoder != null) {
+                // glassGram: not while the encoder still draws the frame in the texture
+                videoEncoder.waitForFrameDrawn();
+            }
             if (updateTexImage1) {
                 cameraSurface[0].updateTexImage();
             }
@@ -1998,6 +2003,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             }
             if (stabilizer == null) {
                 stabilizer = new GyroStabilizer(ApplicationLoader.applicationContext);
+                // the screen is locked in its orientation while the camera is open
+                stabilizer.setHorizon(GlassgramConfig.roundHorizon, session.getDisplayOrientation());
                 stabilizer.start();
             }
             // the mesh carries the stabilization; the SurfaceTexture's own matrix goes after it
@@ -2204,7 +2211,11 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 case MSG_VIDEOFRAME_AVAILABLE: {
                     long timestamp = (((long) inputMessage.arg1) << 32) | (((long) inputMessage.arg2) & 0xffffffffL);
                     Integer cameraId = (Integer) inputMessage.obj;
-                    encoder.handleVideoFrameAvailable(timestamp, cameraId);
+                    try {
+                        encoder.handleVideoFrameAvailable(timestamp, cameraId);
+                    } finally {
+                        encoder.frameDrawn();
+                    }
                     break;
                 }
                 case MSG_AUDIOFRAME_AVAILABLE: {
@@ -2463,8 +2474,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             }
 
             started = true;
-            int resolution = MessagesController.getInstance(currentAccount).roundVideoSize;
-            int bitrate = MessagesController.getInstance(currentAccount).roundVideoBitrate * 1024;
+            // glassGram: larger, with more bits, for high quality
+            final MessagesController messagesController = MessagesController.getInstance(currentAccount);
+            int resolution = GlassgramConfig.roundVideoSize(messagesController.roundVideoSize);
+            int bitrate = GlassgramConfig.roundVideoBitrate(messagesController.roundVideoSize, messagesController.roundVideoBitrate) * 1024;
             // glassGram: 60 FPS when the camera was set to it, with more bits for the extra frames
             final Camera2Session session = camera2SessionCurrent;
             frameRate = useCamera2 && session != null && session.isFps60() ? 60 : 30;
@@ -2528,6 +2541,41 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             handler.sendMessage(handler.obtainMessage(MSG_RESUME_RECORDING));
         }
 
+        // glassGram: the encoder draws the camera's texture a little after the preview, from its own
+        // thread. Were the next camera frame taken into the texture before that, the encoder would
+        // draw it under this frame's time, then again under its own, and the video would stutter.
+        // So the camera thread waits for the encoder to be done with a frame before taking the next.
+        private static final long FRAME_WAIT_TIMEOUT = 50;
+        private final Object frameLock = new Object();
+        private boolean framePending;
+
+        /** Called from the camera thread before it takes the next frame into the texture. */
+        public void waitForFrameDrawn() {
+            synchronized (frameLock) {
+                final long deadline = SystemClock.uptimeMillis() + FRAME_WAIT_TIMEOUT;
+                while (framePending) {
+                    final long left = deadline - SystemClock.uptimeMillis();
+                    if (left <= 0) {
+                        // an encoder that fell far behind isn't waited for any longer than this
+                        framePending = false;
+                        break;
+                    }
+                    try {
+                        frameLock.wait(left);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private void frameDrawn() {
+            synchronized (frameLock) {
+                framePending = false;
+                frameLock.notifyAll();
+            }
+        }
+
         long prevTimestamp;
         public void frameAvailable(SurfaceTexture st, Integer cameraId, long timestampInternal) {
             synchronized (sync) {
@@ -2551,7 +2599,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 zeroTimeStamps = 0;
             }
             prevTimestamp = timestamp;
-            handler.sendMessage(handler.obtainMessage(MSG_VIDEOFRAME_AVAILABLE, (int) (timestamp >> 32), (int) timestamp, cameraId));
+            synchronized (frameLock) {
+                framePending = true;
+            }
+            if (!handler.sendMessage(handler.obtainMessage(MSG_VIDEOFRAME_AVAILABLE, (int) (timestamp >> 32), (int) timestamp, cameraId))) {
+                frameDrawn();
+            }
         }
 
         @Override
@@ -2845,6 +2898,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
             }
 
+            // glassGram: done reading the camera's texture, so the camera thread may take the next frame into it
+            GLES20.glFinish();
+            frameDrawn();
+
             EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, currentTimestamp);
             EGL14.eglSwapBuffers(eglDisplay, eglSurface);
 
@@ -2968,13 +3025,18 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 videoEditedInfo.iv = iv;
                 videoEditedInfo.estimatedSize = Math.max(1, size);
                 videoEditedInfo.framerate = 25;
-                videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = 360;
-                videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = 360;
+                videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = sentSize();
+                videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = sentSize();
                 videoEditedInfo.originalPath = previewFile.getAbsolutePath();
                 setupVideoPlayer(previewFile);
                 videoEditedInfo.estimatedDuration = recordedTime;
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.audioDidSent, recordingGuid, videoEditedInfo, previewFile.getAbsolutePath(), keyframeThumbs);
             });
+        }
+
+        /** The size the message says, and a trim re-encodes to: Telegram's 360, or the recorded size with high quality. */
+        private int sentSize() {
+            return GlassgramConfig.roundHighQuality && videoWidth > 360 ? videoWidth : 360;
         }
 
         private void handleResumeRecording() {
@@ -3065,8 +3127,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         videoEditedInfo.key = key;
                         videoEditedInfo.iv = iv;
                         videoEditedInfo.framerate = 25;
-                        videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = 360;
-                        videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = 360;
+                        videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = sentSize();
+                        videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = sentSize();
                         videoEditedInfo.originalPath = videoFile.getAbsolutePath();
                         videoEditedInfo.notReadyYet = true;
                         videoEditedInfo.thumb = firstFrameThumb;
@@ -3217,8 +3279,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         videoEditedInfo.key = key;
                         videoEditedInfo.iv = iv;
                         videoEditedInfo.framerate = 25;
-                        videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = 360;
-                        videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = 360;
+                        videoEditedInfo.resultWidth = videoEditedInfo.originalWidth = sentSize();
+                        videoEditedInfo.resultHeight = videoEditedInfo.originalHeight = sentSize();
                         videoEditedInfo.originalPath = videoFile.getAbsolutePath();
                         final VideoEditedInfo info = videoEditedInfo;
                         if (send == ENCODER_SEND_SEND) {
@@ -3758,7 +3820,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     }
 
     private String createFragmentShader(Size previewSize) {
-        if (SharedConfig.deviceIsLow() || !allowBigSizeCamera() || previewSize != null && Math.max(previewSize.getHeight(), previewSize.getWidth()) * 0.7f < MessagesController.getInstance(currentAccount).roundVideoSize) {
+        if (SharedConfig.deviceIsLow() || !allowBigSizeCamera() || previewSize != null && Math.max(previewSize.getHeight(), previewSize.getWidth()) * 0.7f < GlassgramConfig.roundVideoSize(MessagesController.getInstance(currentAccount).roundVideoSize)) {
             return "#extension GL_OES_EGL_image_external : require\n" +
                     "precision highp float;\n" +
                     "varying vec2 vTextureCoord;\n" +
@@ -3814,7 +3876,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     }
 
     private String createFragmentShaderV2(Size previewSize) {
-        if (SharedConfig.deviceIsLow() || !allowBigSizeCamera() || previewSize != null && Math.max(previewSize.getHeight(), previewSize.getWidth()) * 0.7f < MessagesController.getInstance(currentAccount).roundVideoSize) {
+        if (SharedConfig.deviceIsLow() || !allowBigSizeCamera() || previewSize != null && Math.max(previewSize.getHeight(), previewSize.getWidth()) * 0.7f < GlassgramConfig.roundVideoSize(MessagesController.getInstance(currentAccount).roundVideoSize)) {
             return "#extension GL_OES_EGL_image_external : require\n" +
                     "precision highp float;\n" +
                     "varying vec2 vTextureCoord;\n" +
