@@ -979,6 +979,28 @@ public class Camera2Session {
         return !isError && isSuccess && !isClosed;
     }
 
+    /**
+     * glassGram: the screen's rotation from the phone's natural orientation, in degrees, without
+     * the camera's own orientation that {@link #getDisplayOrientation} adds for the preview.
+     */
+    public int getDisplayRotation() {
+        try {
+            final Context context = ApplicationLoader.applicationContext;
+            if (context == null) {
+                return 0;
+            }
+            switch (((WindowManager) context.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRotation()) {
+                case Surface.ROTATION_90: return 90;
+                case Surface.ROTATION_180: return 180;
+                case Surface.ROTATION_270: return 270;
+                default: return 0;
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+            return 0;
+        }
+    }
+
     public int getDisplayOrientation() {
         try {
             Context context = ApplicationLoader.applicationContext;
