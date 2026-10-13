@@ -2004,7 +2004,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             if (stabilizer == null) {
                 stabilizer = new GyroStabilizer(ApplicationLoader.applicationContext);
                 // the screen is locked in its orientation while the camera is open
-                stabilizer.setHorizon(GlassgramConfig.roundHorizon, session.getDisplayOrientation());
+                stabilizer.setHorizon(GlassgramConfig.roundHorizon, session.getDisplayRotation());
                 stabilizer.start();
             }
             // the mesh carries the stabilization; the SurfaceTexture's own matrix goes after it
