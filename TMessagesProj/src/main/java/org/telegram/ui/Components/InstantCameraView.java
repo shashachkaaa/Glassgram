@@ -1982,7 +1982,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             updateTextureMatrix();
 
             if (videoEncoder != null && (surfaceIndex == 0 && updateTexImage1 || surfaceIndex == 1 && updateTexImage2)) {
-                videoEncoder.frameAvailable(cameraSurface[surfaceIndex], bothCameras ? surfaceIndex : cameraId, System.nanoTime());
+                // glassGram: a frame without its own time gets one in the camera's clock (the realtime one on some phones)
+                videoEncoder.frameAvailable(cameraSurface[surfaceIndex], bothCameras ? surfaceIndex : cameraId,
+                        currentSession instanceof Camera2Session ? ((Camera2Session) currentSession).frameClockNow() : System.nanoTime());
             }
 
             GLES20.glUseProgram(drawProgram);
@@ -2426,6 +2428,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 boolean done = false;
                 AudioTimestamp audioTimestamp = new AudioTimestamp();
                 boolean shouldUseTimestamp = true;
+                // glassGram: where the next buffer should be by the samples read so far, and how many
+                // buffers in a row the recorder's clock has been off it
+                long expectedTimeUs = -1;
+                int clockJumps = 0;
 
                 while (!done) {
                     if ((!running || pauseRecorder) && audioRecorder.getRecordingState() != AudioRecord.RECORDSTATE_STOPPED) {
@@ -2482,6 +2488,14 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                             try {
                                 audioRecorder.getTimestamp(audioTimestamp, AudioTimestamp.TIMEBASE_MONOTONIC);
                                 timestamp = audioTimestamp.nanoTime / 1000;
+                                // glassGram: some recorders' clocks jump (seen as the recording stops), which
+                                // would stretch the sound, and the video's last frame with it: a jump is
+                                // replaced by the count of the samples, while a clock that stays off is followed
+                                if (expectedTimeUs >= 0 && Math.abs(timestamp - expectedTimeUs) > MAX_AUDIO_CLOCK_JUMP && ++clockJumps <= 10) {
+                                    timestamp = expectedTimeUs;
+                                } else {
+                                    clockJumps = 0;
+                                }
                             } catch (Exception e) {
                                 FileLog.e(e);
                                 shouldUseTimestamp = false;
@@ -2497,6 +2511,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         if (!shouldUseTimestamp) {
                             audioPresentationTimeUs += bufferDurationUs;
                         }
+                        expectedTimeUs = timestamp + bufferDurationUs;
                     }
                     if (buffer.results >= 0 || buffer.last) {
                         if (!running && buffer.results < AudioBufferInfo.MAX_SAMPLES) {
@@ -2607,6 +2622,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         // draw it under this frame's time, then again under its own, and the video would stutter.
         // So the camera thread waits for the encoder to be done with a frame before taking the next.
         private static final long FRAME_WAIT_TIMEOUT = 50;
+        /** A frame's time ahead of the time that really passed by more than this is a jump of the camera's clock, ns. */
+        private static final long MAX_FRAME_CLOCK_JUMP = 250_000_000L;
+        /** A recorder's time off the count of its samples by more than this is a jump of its clock, us. */
+        private static final long MAX_AUDIO_CLOCK_JUMP = 200_000L;
+        /** Sound kept past the video's last frame when the recording stops, us. */
+        private static final long MAX_AUDIO_TAIL = 300_000L;
         private final Object frameLock = new Object();
         private boolean framePending;
 
@@ -2762,7 +2783,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         for (int a = input.lastWroteBuffer; a <= input.results; a++) {
                             if (a < input.results) {
                                 long totalTime = input.offset[a] - audioStartTime;
-                                if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= 60_000000)) {
+                                // glassGram: as it stops, no sound past the video's last frame, which would hold it frozen
+                                final boolean pastVideo = totalTime + Math.max(0, prevAudioLast) > currentTimestamp / 1000 + MAX_AUDIO_TAIL;
+                                if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= 60_000000 || pastVideo)) {
                                     if (BuildVars.LOGS_ENABLED) {
                                         if (totalTime >= 60_000000) {
                                             FileLog.d("InstantCamera stop audio encoding because recorded time more than 60s");
@@ -2855,7 +2878,18 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
                 lastTimestamp = timestampNanos;
             } else {
-                alphaDt = dt = (timestampNanos - lastTimestamp);
+                dt = timestampNanos - lastTimestamp;
+                // glassGram: a camera's clock may jump, forward or back (another lens of the camera, a frame
+                // stamped by another clock): the jump would hold the frame before it for its whole length,
+                // seen as a video message going on frozen. The time that really passed is used instead.
+                final long dtReal = (System.currentTimeMillis() - lastCommitedFrameTime) * 1000000;
+                if (lastCommitedFrameTime != 0 && (dt < 0 || dt > dtReal + MAX_FRAME_CLOCK_JUMP)) {
+                    if (BuildVars.LOGS_ENABLED) {
+                        FileLog.d("InstantCamera frame clock jumped by " + dt + " in " + dtReal);
+                    }
+                    dt = Math.max(0, dtReal);
+                }
+                alphaDt = dt;
                 lastTimestamp = timestampNanos;
             }
             firstVideoFrameSincePause = false;

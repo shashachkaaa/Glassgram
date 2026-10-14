@@ -128,7 +128,7 @@ public class Camera2Session {
     }
 
     /** glassGram: now, in the clock of the frame timestamps. */
-    private long frameClockNow() {
+    public long frameClockNow() {
         return realtimeTimestamps ? android.os.SystemClock.elapsedRealtimeNanos() : System.nanoTime();
     }
     // a hidden camera that opens but sends no frames (vivo) gives way to the next camera
