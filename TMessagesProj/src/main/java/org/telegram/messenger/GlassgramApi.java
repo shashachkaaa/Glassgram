@@ -360,7 +360,8 @@ public final class GlassgramApi {
         }
     }
 
-    public static final long BANS_REFRESH = 10 * 60 * 1000L;
+    /** How old the list may be when the app opens; the server keeps it for a minute too. */
+    public static final long BANS_REFRESH = 60 * 1000L;
     private static long bansLoadedAt;
     private static boolean bansLoading;
 
