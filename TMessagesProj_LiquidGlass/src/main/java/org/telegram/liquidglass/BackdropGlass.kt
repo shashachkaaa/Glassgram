@@ -197,7 +197,7 @@ class BackdropGlass {
      *   `drawBackdrop` uses unless told otherwise, as on the catalog's LiquidButton)
      */
     fun drawHighlight(canvas: android.graphics.Canvas, alpha: Float, widthScale: Float, ambient: Boolean) {
-        if (!built || width <= 0f || height <= 0f || alpha <= 0f) return
+        if (!built || width <= 0f || height <= 0f || alpha <= 0f || !canvas.isHardwareAccelerated) return
         val base = if (ambient) Highlight.Ambient else Highlight.Default
         val highlight = base.copy(
             width = base.width * widthScale,

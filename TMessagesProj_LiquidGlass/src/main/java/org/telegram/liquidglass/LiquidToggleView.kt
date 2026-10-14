@@ -1,6 +1,7 @@
 package org.telegram.liquidglass
 
 import android.content.Context
+import android.graphics.Canvas
 import android.os.Build
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,6 +67,16 @@ class LiquidToggleView(context: Context) : AbstractComposeView(context) {
     override fun onAttachedToWindow() {
         ComposeOwners.install(this)
         super.onAttachedToWindow()
+    }
+
+    /**
+     * A software canvas (a picture of the screen, like the chats list's blur under a chat's
+     * preview) can't take the glass's shaders, so the glass is left out of it.
+     */
+    override fun dispatchDraw(canvas: Canvas) {
+        if (canvas.isHardwareAccelerated) {
+            super.dispatchDraw(canvas)
+        }
     }
 
     @Composable

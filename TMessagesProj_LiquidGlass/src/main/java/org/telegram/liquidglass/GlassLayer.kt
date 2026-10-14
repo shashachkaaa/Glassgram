@@ -62,7 +62,8 @@ class GlassLayer {
         highlightAlpha: Float,
         highlightScale: Float
     ) {
-        if (width <= 0f || height <= 0f) return
+        // a software canvas (a picture of the screen) can't take the glass's shaders
+        if (width <= 0f || height <= 0f || !canvas.isHardwareAccelerated) return
         val r = min(cornerRadius, min(width, height) / 2f)
         radii.fill(r)
         if (glass.updateEffect(

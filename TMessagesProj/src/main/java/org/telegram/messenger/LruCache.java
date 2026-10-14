@@ -74,9 +74,11 @@ public class LruCache<T> {
     }
 
     public void moveToFront(String key) {
-        T value = map.remove(key);
-        if (value != null) {
-            map.put(key, value);
+        synchronized (this) {
+            T value = map.remove(key);
+            if (value != null) {
+                map.put(key, value);
+            }
         }
     }
 
@@ -125,6 +127,10 @@ public class LruCache<T> {
      *     to evict even 0-sized elements.
      */
     private void trimToSize(int maxSize, String justAdded) {
+        // glassGram: entryRemoved runs after the walk over the map, as it may use the cache
+        // (an eviction during it threw ConcurrentModificationException)
+        ArrayList<String> removedKeys = null;
+        ArrayList<T> removedValues = null;
         synchronized (this) {
             Iterator<HashMap.Entry<String, T>> iterator = map.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -152,7 +158,17 @@ public class LruCache<T> {
                     }
                 }
 
-                entryRemoved(true, key, value, null);
+                if (removedKeys == null) {
+                    removedKeys = new ArrayList<>();
+                    removedValues = new ArrayList<>();
+                }
+                removedKeys.add(key);
+                removedValues.add(value);
+            }
+        }
+        if (removedKeys != null) {
+            for (int i = 0; i < removedKeys.size(); i++) {
+                entryRemoved(true, removedKeys.get(i), removedValues.get(i), null);
             }
         }
     }
@@ -194,7 +210,9 @@ public class LruCache<T> {
     }
     
     public boolean contains(String key){
-    	return map.containsKey(key);
+        synchronized (this) {
+            return map.containsKey(key);
+        }
     }
 
     /**
