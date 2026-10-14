@@ -7037,6 +7037,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 org.telegram.messenger.GlassgramCrashReporter.showIfNeeded(this);
                 // Like the badges, every open looks for a new release with an APK
                 org.telegram.messenger.GlassgramUpdates.checkOnOpen(this);
+                // and sends the day's anonymous statistics, if due
+                org.telegram.messenger.GlassgramStats.onOpen();
             }
         }, 1500);
         pipActivityHandler.onResume();

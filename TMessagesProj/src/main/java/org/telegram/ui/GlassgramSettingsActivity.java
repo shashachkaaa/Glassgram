@@ -155,6 +155,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_ROUND_CAMERA_INFO = 124;
     private static final int ID_ROUND_HORIZON = 125;
     private static final int ID_ROUND_HIGH_QUALITY = 126;
+    private static final int ID_SEND_STATS = 127;
+    private static final int ID_SEND_REPORT = 128;
+    private static final int ID_TEAM = 129;
 
     private final int page;
     private boolean ghostExpanded;
@@ -413,6 +416,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramLinks)));
                 items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
                 items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
+                items.add(header(getString(R.string.GlassgramDeveloperSection)));
+                items.add(UItem.asButtonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
+                items.add(UItem.asButton(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
+                items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -444,6 +451,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_PLUGINS:
                 presentFragment(new GlassgramPluginsActivity());
+                return;
+            case ID_SEND_REPORT:
+                GlassgramApiUi.sendReport(this);
+                return;
+            case ID_TEAM:
+                presentFragment(new GlassgramDeveloperActivity());
                 return;
             case ID_CHANNEL:
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/glassgramdev");
@@ -663,6 +676,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_SHOW_DC:
                 value = GlassgramConfig.showDc = !GlassgramConfig.showDc;
                 GlassgramConfig.putBoolean("showDc", value); break;
+            case ID_SEND_STATS:
+                value = GlassgramConfig.sendStats = !GlassgramConfig.sendStats;
+                GlassgramConfig.putBoolean("sendStats", value); break;
             case ID_HIDE_REACTIONS_CHANNELS:
                 value = GlassgramConfig.hideReactionsChannels = !GlassgramConfig.hideReactionsChannels;
                 GlassgramConfig.putBoolean("hideReactionsChannels", value); break;

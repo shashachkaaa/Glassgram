@@ -83,6 +83,8 @@ public final class GlassgramCrashReporter {
         if (report == null || report.isEmpty()) {
             return;
         }
+        // to glassGram's server too, with the anonymous statistics, unless they're off
+        GlassgramStats.sendCrash(report);
         final String text = report;
         try {
             AlertDialog.Builder builder = new AlertDialog.Builder(activity);

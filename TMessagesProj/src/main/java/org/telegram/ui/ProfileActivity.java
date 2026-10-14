@@ -602,6 +602,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int enable_no_forwards = 46;
     private final static int disable_no_forwards = 47;
     private final static int send_money = 48;
+    private final static int glassgram_badge = 950;
+    private final static int glassgram_reports = 951;
 
     private Rect rect = new Rect();
 
@@ -2751,6 +2753,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     presentFragment(fragment);
                 } else if (id == share) {
                     onShareClicked();
+                } else if (id == glassgram_badge) {
+                    GlassgramApiUi.editBadge(ProfileActivity.this, GlassgramApiUi.holderOf(userId, chatId != 0 ? getMessagesController().getChat(chatId) : null),
+                            DialogObject.getName(getDialogId()));
+                } else if (id == glassgram_reports) {
+                    GlassgramApiUi.showReports(ProfileActivity.this, userId);
                 } else if (id == add_shortcut) {
                     try {
                         long did;
@@ -12511,6 +12518,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         if (selfUser && !myProfile) {
             otherItem.addSubItem(logout, R.drawable.msg_leave, LocaleController.getString(R.string.LogOut));
+        }
+        // glassGram's team: the badge and the support reports, as the bot's admin level allows
+        if ((userId != 0 || chatId != 0) && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_BADGES)) {
+            otherItem.addSubItem(glassgram_badge, R.drawable.msg_premium_badge, LocaleController.getString(R.string.GlassgramApiBadgeMenu));
+        }
+        if (userId != 0 && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_SUPPORT)) {
+            otherItem.addSubItem(glassgram_reports, R.drawable.msg_log, LocaleController.getString(R.string.GlassgramApiReportsMenu));
         }
         addChatHeaderMenuItems();
         if (!isPulledDown) {

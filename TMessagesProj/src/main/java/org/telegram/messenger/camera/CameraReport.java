@@ -27,6 +27,52 @@ import java.util.Set;
  */
 public class CameraReport {
 
+    /**
+     * glassGram: what the cameras can do for video messages, in short, for the anonymous statistics:
+     * the gyroscope, and for each side whether it records at 60 FPS, how the back one gets to an
+     * ultra-wide lens ("zoom" by its own zoom, "lens" by a camera of the lens, or "none"), and the
+     * preview size. Whatever the settings are, it asks for all of them.
+     */
+    public static org.json.JSONObject summary(Context context, int roundVideoSize) {
+        final org.json.JSONObject result = new org.json.JSONObject();
+        try {
+            result.put("gyroscope", GyroStabilizer.isAvailable(context));
+            final CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+            if (manager == null) {
+                return result;
+            }
+            for (int a = 0; a < 2; ++a) {
+                final boolean front = a == 0;
+                final Camera2Session.Choice choice = Camera2Session.chooseForRound(front, !front, true, roundVideoSize);
+                if (choice == null) {
+                    continue;
+                }
+                final org.json.JSONObject side = new org.json.JSONObject();
+                final String id = choice.ids.get(0);
+                side.put("camera", id);
+                side.put("preview", choice.size.getWidth() + "x" + choice.size.getHeight());
+                try {
+                    final CameraCharacteristics c = manager.getCameraCharacteristics(id);
+                    final StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                    side.put("fps60", Camera2Session.find60FpsRange(c, map, choice.size) != null);
+                    final int[] video = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+                    side.put("eis", video != null && contains(video, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON));
+                    final int[] optical = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);
+                    side.put("ois", optical != null && contains(optical, CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON));
+                } catch (Exception ignore) {
+                }
+                if (!front) {
+                    side.put("wide", choice.lensId != null ? "lens" : choice.ids.size() > 1 ? "zoom" : "none");
+                    side.put("hidden", !choice.hiddenIds.isEmpty());
+                }
+                result.put(front ? "front" : "back", side);
+            }
+        } catch (Exception e) {
+            org.telegram.messenger.FileLog.e(e, false);
+        }
+        return result;
+    }
+
     public static String build(Context context, int roundVideoSize) {
         final StringBuilder sb = new StringBuilder();
         sb.append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
