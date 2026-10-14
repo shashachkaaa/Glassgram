@@ -1603,9 +1603,9 @@ public class ArticleViewer extends IArticleViewer implements NotificationCenter.
 
         if (popupLayout == null) {
             popupRect = new android.graphics.Rect();
-            popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(parentActivity);
+            // glassGram: the copy menu's own shape, drawn as Liquid Glass like the other menus
+            popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(parentActivity, R.drawable.menu_copy, null);
             popupLayout.setPadding(dp(1), dp(1), dp(1), dp(1));
-            popupLayout.setBackgroundDrawable(parentActivity.getResources().getDrawable(R.drawable.menu_copy));
             popupLayout.setAnimationEnabled(false);
             popupLayout.setOnTouchListener((v, event) -> {
                 if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {

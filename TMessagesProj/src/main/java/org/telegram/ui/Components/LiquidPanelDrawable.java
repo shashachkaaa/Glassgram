@@ -103,7 +103,9 @@ public class LiquidPanelDrawable extends Drawable {
 
     /** Whether panels are glass at all; when not, they keep the opaque fill. */
     public static boolean isSupported() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
+        // glassGram's own switch (Appearance → Glass menus and windows), which the team's rules may also turn off
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)
+                && org.telegram.messenger.GlassgramConfig.glassPanels;
     }
 
     /**

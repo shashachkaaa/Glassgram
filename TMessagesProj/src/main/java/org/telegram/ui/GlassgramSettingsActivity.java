@@ -9,6 +9,7 @@ import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Paint;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -23,6 +24,7 @@ import android.widget.FrameLayout;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramRemoteConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
@@ -105,6 +107,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
 
     private static final int REQUEST_SPY_EXPORT = 9001;
     private static final int REQUEST_SPY_IMPORT = 9002;
+    private static final int REQUEST_BACKUP_EXPORT = 9003;
+    private static final int REQUEST_BACKUP_RESTORE = 9004;
 
     private static final int ID_NUMBER_ROUNDING = 10;
     private static final int ID_SECONDS = 11;
@@ -119,6 +123,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_HIDE_STORIES = 21;
     private static final int ID_HEADER_BADGE = 91;
     private static final int ID_GLASS_HEADER = 92;
+    private static final int ID_GLASS_PANELS = 93;
     private static final int ID_HIDE_FAB = 22;
     private static final int ID_SPLIT_INPUT = 118;
     private static final int ID_IOS_TRANSITIONS = 119;
@@ -160,6 +165,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SEND_STATS = 127;
     private static final int ID_SEND_REPORT = 128;
     private static final int ID_TEAM = 129;
+    private static final int ID_BACKUP_EXPORT = 131;
+    private static final int ID_BACKUP_RESTORE = 132;
 
     private final int page;
     private boolean ghostExpanded;
@@ -283,6 +290,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
                 items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
+                items.add(UItem.asCheck(ID_GLASS_PANELS, getString(R.string.GlassgramGlassPanels)).setChecked(GlassgramConfig.glassPanels));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
                 items.add(header(getString(R.string.GlassgramAnimations)));
                 items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
@@ -452,13 +460,47 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam),
                             session != null && session.isStaff() ? session.levelName : null));
                 }
+                items.add(header(getString(R.string.GlassgramBackup)));
+                items.add(UItem.asButton(ID_BACKUP_EXPORT, R.drawable.msg_shareout, getString(R.string.GlassgramBackupExport)));
+                items.add(UItem.asButton(ID_BACKUP_RESTORE, R.drawable.msg_archive, getString(R.string.GlassgramBackupRestore)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
     }
 
+    /** The option a row turns, for the team's rules that may turn it off on a phone (GlassgramRemoteConfig). */
+    private static String featureOf(int id) {
+        switch (id) {
+            case ID_ROUND_60FPS: return "roundFps60";
+            case ID_ROUND_STABILIZATION: return "roundStabilization";
+            case ID_ROUND_HORIZON: return "roundHorizon";
+            case ID_ROUND_WIDE: return "roundWideCamera";
+            case ID_ROUND_KEEP_ZOOM: return "roundKeepZoom";
+            case ID_ROUND_HIGH_QUALITY: return "roundHighQuality";
+            case ID_GLASS_HEADER: return "glassHeader";
+            case ID_GLASS_PANELS: return "glassPanels";
+            case ID_SPLIT_INPUT: return "splitInput";
+            case ID_IOS_TRANSITIONS: return "iosTransitions";
+            case ID_UPLOAD_BOOST: return "uploadBoost";
+            case ID_DOWNLOAD_BOOST: return "downloadBoost";
+            default: return null;
+        }
+    }
+
+    /** Says why an option can't be turned on here: the team turned it off for this phone. */
+    static void showForcedOff(org.telegram.ui.ActionBar.BaseFragment fragment, String feature) {
+        final String note = GlassgramRemoteConfig.note(feature);
+        BulletinFactory.of(fragment).createErrorBulletin(TextUtils.isEmpty(note) ? getString(R.string.GlassgramForcedOff)
+                : LocaleController.formatString(R.string.GlassgramForcedOffNote, note)).show();
+    }
+
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
+        final String feature = featureOf(item.id);
+        if (feature != null && GlassgramRemoteConfig.isForced(feature)) {
+            showForcedOff(this, feature);
+            return;
+        }
         switch (item.id) {
             case ID_GENERAL:
                 presentFragment(new GlassgramSettingsActivity(PAGE_GENERAL));
@@ -486,6 +528,20 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_SEND_REPORT:
                 GlassgramApiUi.sendReport(this);
+                return;
+            case ID_BACKUP_EXPORT:
+                startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json")
+                        .putExtra(Intent.EXTRA_TITLE, "glassgram_settings.json"), REQUEST_BACKUP_EXPORT);
+                return;
+            case ID_BACKUP_RESTORE:
+                new AlertDialog.Builder(getParentActivity())
+                        .setTitle(getString(R.string.GlassgramBackupRestore))
+                        .setMessage(getString(R.string.GlassgramBackupRestoreConfirm))
+                        .setPositiveButton(getString(R.string.GlassgramBackupChooseFile), (d, w) ->
+                                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*")
+                                        .addCategory(Intent.CATEGORY_OPENABLE), REQUEST_BACKUP_RESTORE))
+                        .setNegativeButton(getString(R.string.Cancel), null)
+                        .show();
                 return;
             case ID_TEAM: {
                 final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
@@ -633,6 +689,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_GLASS_HEADER:
                 value = GlassgramConfig.glassHeader = !GlassgramConfig.glassHeader;
                 GlassgramConfig.putBoolean("glassHeader", value);
+                break;
+            case ID_GLASS_PANELS:
+                value = GlassgramConfig.glassPanels = !GlassgramConfig.glassPanels;
+                GlassgramConfig.putBoolean("glassPanels", value);
                 break;
             case ID_HEADER_BADGE:
                 value = GlassgramConfig.headerBadge = !GlassgramConfig.headerBadge;
@@ -1377,6 +1437,23 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
         super.onActivityResultFragment(requestCode, resultCode, data);
         if (resultCode != android.app.Activity.RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        if (requestCode == REQUEST_BACKUP_EXPORT || requestCode == REQUEST_BACKUP_RESTORE) {
+            final boolean export = requestCode == REQUEST_BACKUP_EXPORT;
+            final int count = export ? org.telegram.messenger.GlassgramBackup.export(data.getData())
+                    : org.telegram.messenger.GlassgramBackup.restore(data.getData());
+            if (count < 0) {
+                BulletinFactory.of(this).createErrorBulletin(getString(export ? R.string.GlassgramBackupExportFailed : R.string.GlassgramBackupBadFile)).show();
+                return;
+            }
+            BulletinFactory.of(this).createSuccessBulletin(LocaleController.formatString(
+                    export ? R.string.GlassgramBackupExported : R.string.GlassgramBackupRestored, count)).show();
+            if (!export) {
+                // every screen shows the restored settings; some take a restart
+                if (listView != null) listView.adapter.update(true);
+                if (parentLayout != null) parentLayout.rebuildAllFragmentViews(false, false);
+            }
             return;
         }
         boolean ok = false;

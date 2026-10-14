@@ -108,6 +108,11 @@ public final class GlassgramApiUi {
 
     /** A long text in a scrollable dialog, with a button that copies it. */
     static void showText(BaseFragment fragment, CharSequence title, String text) {
+        showText(fragment, title, text, null, null);
+    }
+
+    /** The same, with one more button. */
+    static void showText(BaseFragment fragment, CharSequence title, String text, CharSequence extra, Runnable extraAction) {
         final Activity context = fragment.getParentActivity();
         if (context == null) {
             return;
@@ -123,12 +128,15 @@ public final class GlassgramApiUi {
         scroll.addView(view);
         final FrameLayout container = new FrameLayout(context);
         container.addView(scroll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, (int) (AndroidUtilities.displaySize.y * 0.55f)));
-        new AlertDialog.Builder(context)
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setTitle(title)
                 .setView(container)
                 .setPositiveButton(getString(R.string.Copy), (d, w) -> AndroidUtilities.addToClipboard(text))
-                .setNegativeButton(getString(R.string.Close), null)
-                .show();
+                .setNegativeButton(getString(R.string.Close), null);
+        if (extra != null && extraAction != null) {
+            builder.setNeutralButton(extra, (d, w) -> extraAction.run());
+        }
+        builder.show();
     }
 
     static String date(long seconds) {
@@ -650,6 +658,291 @@ public final class GlassgramApiUi {
                     .setNegativeButton(getString(R.string.Close), null)
                     .show();
         });
+    }
+
+    // --- Rules for devices ------------------------------------------------------------------------
+
+    /** What an option a rule may turn off is called in the settings. */
+    static String featureLabel(String feature) {
+        switch (feature) {
+            case "roundFps60": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRound60Fps));
+            case "roundStabilization": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRoundStabilization));
+            case "roundHorizon": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRoundHorizon));
+            case "roundWideCamera": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRoundWide));
+            case "roundKeepZoom": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRoundKeepZoom));
+            case "roundHighQuality": return formatString(R.string.GlassgramApiRuleRound, getString(R.string.GlassgramRoundHighQuality));
+            case "glassHeader": return getString(R.string.GlassgramGlassHeader);
+            case "glassPanels": return getString(R.string.GlassgramGlassPanels);
+            case "splitInput": return getString(R.string.GlassgramSplitInput);
+            case "iosTransitions": return getString(R.string.GlassgramIosTransitions);
+            case "uploadBoost": return getString(R.string.GlassgramUploadBoost);
+            case "downloadBoost": return getString(R.string.GlassgramDownloadBoost);
+            case "pluginsEngine": return getString(R.string.GlassgramPluginsEnable);
+            default: return feature;
+        }
+    }
+
+    /** The keys a rule matches by, in the editor's order, with their hints. */
+    private static final String[] MATCH_KEYS = {"model", "manufacturer", "brand", "device", "soc", "sdk_min", "sdk_max", "version_min", "version_max"};
+    private static final int[] MATCH_HINTS = {
+            R.string.GlassgramApiRuleModel, R.string.GlassgramApiRuleManufacturer, R.string.GlassgramApiRuleBrand,
+            R.string.GlassgramApiRuleDevice, R.string.GlassgramApiRuleSoc, R.string.GlassgramApiRuleSdkMin,
+            R.string.GlassgramApiRuleSdkMax, R.string.GlassgramApiRuleVersionMin, R.string.GlassgramApiRuleVersionMax};
+
+    static String matchText(JSONObject match) {
+        if (match == null || match.length() == 0) {
+            return getString(R.string.GlassgramApiRuleAllPhones);
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (String key : MATCH_KEYS) {
+            if (!match.has(key)) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            switch (key) {
+                case "sdk_min": sb.append("SDK ≥ ").append(match.opt(key)); break;
+                case "sdk_max": sb.append("SDK ≤ ").append(match.opt(key)); break;
+                case "version_min": sb.append("glassGram ≥ ").append(match.opt(key)); break;
+                case "version_max": sb.append("glassGram ≤ ").append(match.opt(key)); break;
+                default: sb.append(key).append(' ').append(match.opt(key));
+            }
+        }
+        if (match.has("edition")) {
+            sb.append(sb.length() > 0 ? ", " : "").append(match.opt("edition"));
+        }
+        return sb.toString();
+    }
+
+    private static String offText(JSONArray off) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; off != null && i < off.length(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(featureLabel(off.optString(i)));
+        }
+        return sb.toString();
+    }
+
+    /** The team's rules for devices: each with how many installs it matches, and a new one. */
+    public static void showRules(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/config/rules", null, response -> {
+            progress.dismiss();
+            if (!response.ok()) {
+                showError(fragment, response);
+                return;
+            }
+            final JSONArray rules = response.json.optJSONArray("rules");
+            final int count = rules != null ? rules.length() : 0;
+            final CharSequence[] items = new CharSequence[count + 1];
+            for (int i = 0; i < count; i++) {
+                final JSONObject rule = rules.optJSONObject(i);
+                items[i] = (rule.optBoolean("enabled", true) ? "" : "⏸ ") + "#" + rule.optLong("id") + " · " + matchText(rule.optJSONObject("match"))
+                        + "\n" + offText(rule.optJSONArray("off")) + " · " + formatString(R.string.GlassgramApiInstallsCount, rule.optInt("installs"));
+            }
+            items[count] = "＋ " + getString(R.string.GlassgramApiRuleNew);
+            if (fragment.getParentActivity() == null) {
+                return;
+            }
+            new AlertDialog.Builder(fragment.getParentActivity())
+                    .setTitle(getString(R.string.GlassgramApiRules))
+                    .setItems(items, (d, which) -> {
+                        if (which == count) {
+                            editRule(fragment, null, null);
+                        } else {
+                            ruleActions(fragment, rules.optJSONObject(which));
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.Close), null)
+                    .show();
+        });
+    }
+
+    private static void ruleActions(BaseFragment fragment, JSONObject rule) {
+        if (fragment.getParentActivity() == null || rule == null) {
+            return;
+        }
+        final boolean enabled = rule.optBoolean("enabled", true);
+        final long id = rule.optLong("id");
+        final String note = rule.optString("note");
+        new AlertDialog.Builder(fragment.getParentActivity())
+                .setTitle("#" + id + " · " + matchText(rule.optJSONObject("match")))
+                .setMessage(offText(rule.optJSONArray("off")) + (TextUtils.isEmpty(note) ? "" : "\n\n" + note))
+                .setItems(new CharSequence[]{
+                        getString(R.string.GlassgramApiRuleEdit),
+                        getString(enabled ? R.string.GlassgramApiRulePause : R.string.GlassgramApiRuleResume),
+                        getString(R.string.GlassgramApiRuleDelete)}, (d, which) -> {
+                    final int account = fragment.getCurrentAccount();
+                    final GlassgramApi.Callback done = response -> {
+                        if (response.ok()) {
+                            showDone(fragment, getString(R.string.GlassgramApiSaved));
+                            showRules(fragment);
+                        } else {
+                            showError(fragment, response);
+                        }
+                    };
+                    if (which == 0) {
+                        editRule(fragment, rule, null);
+                    } else if (which == 1) {
+                        GlassgramApi.call(account, "PUT", "/config/rules/" + id, GlassgramApi.json("match", rule.optJSONObject("match"),
+                                "off", rule.optJSONArray("off"), "note", note, "enabled", !enabled), done);
+                    } else {
+                        GlassgramApi.call(account, "DELETE", "/config/rules/" + id, null, done);
+                    }
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** Adds a rule, or changes one; for a model, from its phones, the model is filled in. */
+    public static void editRule(BaseFragment fragment, JSONObject rule, String model) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final JSONObject match = rule != null ? rule.optJSONObject("match") : null;
+        final JSONArray off = rule != null ? rule.optJSONArray("off") : null;
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        final EditTextBoldCursor[] fields = new EditTextBoldCursor[MATCH_KEYS.length];
+        for (int i = 0; i < MATCH_KEYS.length; i++) {
+            final boolean number = MATCH_KEYS[i].startsWith("sdk_");
+            fields[i] = field(context, getString(MATCH_HINTS[i]), number, false);
+            if (MATCH_KEYS[i].startsWith("version_")) {
+                fields[i].setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                fields[i].setKeyListener(android.text.method.DigitsKeyListener.getInstance("0123456789."));
+            }
+            if (match != null && match.has(MATCH_KEYS[i])) {
+                fields[i].setText(String.valueOf(match.opt(MATCH_KEYS[i])));
+            } else if ("model".equals(MATCH_KEYS[i]) && model != null) {
+                fields[i].setText(model);
+            }
+            layout.addView(fields[i], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 4, 24, 0));
+        }
+        final TextView offHeader = new TextView(context);
+        offHeader.setText(getString(R.string.GlassgramApiRuleOff));
+        offHeader.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        offHeader.setTypeface(AndroidUtilities.bold());
+        offHeader.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        layout.addView(offHeader, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 16, 24, 4));
+        final String[] features = org.telegram.messenger.GlassgramRemoteConfig.FEATURES;
+        final org.telegram.ui.Cells.CheckBoxCell[] checks = new org.telegram.ui.Cells.CheckBoxCell[features.length];
+        for (int i = 0; i < features.length; i++) {
+            boolean checked = false;
+            for (int j = 0; off != null && j < off.length(); j++) {
+                checked |= features[i].equals(off.optString(j));
+            }
+            final org.telegram.ui.Cells.CheckBoxCell check = new org.telegram.ui.Cells.CheckBoxCell(context, 1);
+            check.setBackground(Theme.getSelectorDrawable(false));
+            check.setText(featureLabel(features[i]), "", checked, false);
+            check.setOnClickListener(v -> check.setChecked(!check.isChecked(), true));
+            checks[i] = check;
+            layout.addView(check, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        }
+        final EditTextBoldCursor note = field(context, getString(R.string.GlassgramApiRuleNote), false, true);
+        if (rule != null) {
+            note.setText(rule.optString("note"));
+        }
+        layout.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 8, 24, 8));
+        final TextView info = new TextView(context);
+        info.setText(getString(R.string.GlassgramApiRuleInfo));
+        info.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        info.setTextColor(Theme.getColor(Theme.key_dialogTextGray3));
+        layout.addView(info, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 0, 24, 8));
+        final ScrollView scroll = new ScrollView(context);
+        scroll.addView(layout);
+
+        final AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle(getString(rule != null ? R.string.GlassgramApiRuleEdit : R.string.GlassgramApiRuleNew))
+                .setView(scroll)
+                .setPositiveButton(getString(R.string.Save), null)
+                .setNeutralButton(getString(R.string.GlassgramApiRuleCheck), null)
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .create();
+        final int account = fragment.getCurrentAccount();
+        final Utilities.Callback<JSONObject> collect = target -> {
+            for (int i = 0; i < MATCH_KEYS.length; i++) {
+                final String value = fields[i].getText().toString().trim();
+                if (value.isEmpty()) {
+                    continue;
+                }
+                try {
+                    if (MATCH_KEYS[i].startsWith("sdk_")) {
+                        target.put(MATCH_KEYS[i], Utilities.parseInt(value));
+                    } else {
+                        target.put(MATCH_KEYS[i], value);
+                    }
+                } catch (Exception ignore) {
+                }
+            }
+        };
+        dialog.show();
+        final View check = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
+        if (check != null) {
+            check.setOnClickListener(v -> {
+                final JSONObject newMatch = new JSONObject();
+                collect.run(newMatch);
+                GlassgramApi.call(account, "POST", "/config/preview", GlassgramApi.json("match", newMatch), response -> {
+                    if (!response.ok()) {
+                        Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    final JSONArray models = response.json.optJSONArray("models");
+                    final StringBuilder text = new StringBuilder(formatString(R.string.GlassgramApiRulePreview, response.json.optInt("installs")));
+                    for (int i = 0; models != null && i < Math.min(5, models.length()); i++) {
+                        final JSONArray row = models.optJSONArray(i);
+                        text.append(i == 0 ? ": " : ", ").append(row.optString(0)).append(" (").append(row.optInt(1)).append(')');
+                    }
+                    Toast.makeText(context, text, Toast.LENGTH_LONG).show();
+                });
+            });
+        }
+        final View save = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (save != null) {
+            save.setOnClickListener(v -> {
+                final JSONObject newMatch = new JSONObject();
+                collect.run(newMatch);
+                final JSONArray newOff = new JSONArray();
+                for (int i = 0; i < features.length; i++) {
+                    if (checks[i].isChecked()) {
+                        newOff.put(features[i]);
+                    }
+                }
+                if (newOff.length() == 0) {
+                    AndroidUtilities.shakeViewSpring(offHeader);
+                    Toast.makeText(context, getString(R.string.GlassgramApiRuleNothingOff), Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                final JSONObject body = GlassgramApi.json("match", newMatch, "off", newOff, "note", note.getText().toString().trim(),
+                        "enabled", rule == null || rule.optBoolean("enabled", true));
+                final Runnable send = () -> GlassgramApi.call(account, rule == null ? "POST" : "PUT",
+                        rule == null ? "/config/rules" : "/config/rules/" + rule.optLong("id"), body, response -> {
+                            if (response.ok()) {
+                                dialog.dismiss();
+                                showDone(fragment, getString(R.string.GlassgramApiSaved));
+                            } else {
+                                Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show();
+                            }
+                        });
+                if (newMatch.length() == 0) {
+                    // every phone: worth a second look
+                    new AlertDialog.Builder(context)
+                            .setTitle(getString(R.string.GlassgramApiRuleAllPhones))
+                            .setMessage(getString(R.string.GlassgramApiRuleAllPhonesConfirm))
+                            .setPositiveButton(getString(R.string.Save), (d2, w2) -> send.run())
+                            .setNegativeButton(getString(R.string.Cancel), null)
+                            .show();
+                } else {
+                    send.run();
+                }
+            });
+        }
     }
 
     // --- Admins -----------------------------------------------------------------------------------

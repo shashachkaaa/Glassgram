@@ -33,6 +33,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     private static final int ID_INSTALL = 2;
     private static final int ID_BROWSE = 3;
     private static final int ID_LOGS = 4;
+    private static final int ID_CATALOG = 5;
     private static final int ID_PLUGIN = 1000;
 
     private static final int REQUEST_PICK_PLUGIN = 9101;
@@ -42,6 +43,12 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     @Override
     public boolean onFragmentCreate() {
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        // the catalog's new versions of installed plugins, for its row
+        org.telegram.messenger.GlassgramPluginCatalog.load(false, error -> {
+            if (listView != null) {
+                listView.adapter.update(true);
+            }
+        });
         return super.onFragmentCreate();
     }
 
@@ -76,6 +83,13 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
             info = formatString(R.string.GlassgramPluginsStartFailed, PluginsController.startError);
         }
         items.add(UItem.asShadow(info));
+        if (PluginsController.isSupported()) {
+            // the team's catalog, also with the engine off: installing from it turns the engine on
+            final int updates = org.telegram.messenger.GlassgramPluginCatalog.updates().size();
+            items.add(UItem.asButton(ID_CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog),
+                    updates > 0 ? formatString(R.string.GlassgramCatalogUpdatesCount, updates) : null));
+            items.add(UItem.asShadow(null));
+        }
 
         shownPlugins.clear();
         if (GlassgramConfig.pluginsEngine && PluginsController.isStarted()) {
@@ -111,6 +125,10 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
                 BulletinFactory.of(this).createErrorBulletin(getString(R.string.GlassgramPluginsUnsupported)).show();
                 return;
             }
+            if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
+                GlassgramSettingsActivity.showForcedOff(this, "pluginsEngine");
+                return;
+            }
             boolean value = !GlassgramConfig.pluginsEngine;
             PluginsController.setEngineEnabled(value);
             if (view instanceof TextCheckCell) {
@@ -124,6 +142,8 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
             } catch (Exception e) {
                 BulletinFactory.of(this).createErrorBulletin(e.toString()).show();
             }
+        } else if (item.id == ID_CATALOG) {
+            presentFragment(new GlassgramPluginCatalogActivity());
         } else if (item.id == ID_BROWSE) {
             org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/exteraPlugins");
         } else if (item.id == ID_LOGS) {

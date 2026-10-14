@@ -550,9 +550,9 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 if (!movingHandle && isInSelectionMode() && canShowActions()) {
                     if (popupLayout == null) {
                         popupRect = new android.graphics.Rect();
-                        popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(textSelectionOverlay.getContext());
+                        // glassGram: the copy menu's own shape, drawn as Liquid Glass like the other menus
+                        popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(textSelectionOverlay.getContext(), R.drawable.menu_copy, null);
                         popupLayout.setPadding(dp(1), dp(1), dp(1), dp(1));
-                        popupLayout.setBackgroundDrawable(textSelectionOverlay.getContext().getResources().getDrawable(R.drawable.menu_copy));
                         popupLayout.setAnimationEnabled(false);
                         popupLayout.setOnTouchListener((v, event) -> {
                             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {

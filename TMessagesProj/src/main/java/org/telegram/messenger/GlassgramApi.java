@@ -41,6 +41,8 @@ public final class GlassgramApi {
     public static final String RIGHT_SUPPORT = "support";
     public static final String RIGHT_STATS = "stats";
     public static final String RIGHT_USERS = "users";
+    public static final String RIGHT_CONFIG = "config";
+    public static final String RIGHT_PLUGINS = "plugins";
     public static final String RIGHT_ADMINS = "admins";
 
     private static final String PREFS = "glassgram_api";
@@ -129,6 +131,39 @@ public final class GlassgramApi {
         } catch (Exception e) {
             FileLog.e(e, false);
             return new Response(0, new JSONObject());
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    /** A file from the server, up to maxBytes, on the calling thread (not the main one); null when it failed. */
+    public static byte[] download(String path, int maxBytes) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(BASE_URL + path).openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+            connection.setRequestProperty("User-Agent", "glassGram/" + BuildVars.GLASSGRAM_VERSION + " (Android " + Build.VERSION.SDK_INT + ")");
+            if (connection.getResponseCode() != 200) {
+                return null;
+            }
+            try (InputStream in = connection.getInputStream()) {
+                final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                final byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, read);
+                    if (out.size() > maxBytes) {
+                        return null;
+                    }
+                }
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            FileLog.e(e, false);
+            return null;
         } finally {
             if (connection != null) {
                 connection.disconnect();

@@ -51,6 +51,8 @@ public class GlassgramConfig {
     public static boolean hideStories;
     public static boolean headerBadge = true;
     public static boolean glassHeader = true;
+    /** Menus, dialogs and sheets drawn as Liquid Glass (LiquidPanelDrawable), where the phone can. */
+    public static boolean glassPanels = true;
     /** The message input split into glass pieces: attach circle, field, send circle (and the bots' menu). */
     public static boolean splitInput = true;
     /** Pages slide in over each other the whole width, like on iOS, instead of Android's short fade. */
@@ -204,6 +206,7 @@ public class GlassgramConfig {
         hideStories = p.getBoolean("hideStories", false);
         headerBadge = p.getBoolean("headerBadge", true);
         glassHeader = p.getBoolean("glassHeader", true);
+        glassPanels = p.getBoolean("glassPanels", true);
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
@@ -279,6 +282,19 @@ public class GlassgramConfig {
             ignoreContentProtection = false;
         }
         loaded = true;
+        // options the team turned off for this phone (GlassgramRemoteConfig)
+        GlassgramRemoteConfig.applyKept();
+    }
+
+    /** Reads the stored choices again, as after restoring them from a file. */
+    public static synchronized void reload() {
+        loaded = false;
+        load();
+    }
+
+    /** All of glassGram's stored choices, for a backup (GlassgramBackup). */
+    static SharedPreferences preferences() {
+        return prefs();
     }
 
     private static SharedPreferences prefs() {

@@ -120,6 +120,10 @@ public final class GlassgramPluginInstaller {
             showError(fragment, getString(R.string.GlassgramPluginsUnsupported));
             return;
         }
+        if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
+            GlassgramSettingsActivity.showForcedOff(fragment, "pluginsEngine");
+            return;
+        }
         if (!PluginsController.isStarted()) {
             // The engine starts on the same queue, so reading the file waits for it
             PluginsController.setEngineEnabled(true);

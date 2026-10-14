@@ -43,6 +43,8 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_REPORTS = 12;
     private static final int ID_ADMINS = 13;
     private static final int ID_ACCOUNTS = 14;
+    private static final int ID_RULES = 15;
+    private static final int ID_CATALOG = 16;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -136,11 +138,19 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
         final boolean badges = session.can(GlassgramApi.RIGHT_BADGES);
         final boolean support = session.can(GlassgramApi.RIGHT_SUPPORT);
         final boolean admins = session.can(GlassgramApi.RIGHT_ADMINS);
-        if (stats || badges || support || admins) {
+        final boolean rules = session.can(GlassgramApi.RIGHT_CONFIG);
+        final boolean catalog = session.can(GlassgramApi.RIGHT_PLUGINS);
+        if (stats || badges || support || admins || rules || catalog) {
             items.add(UItem.asHeader(getString(R.string.GlassgramApiTools)));
             if (stats) {
                 items.add(UItem.asButton(ID_FIND_MODEL, R.drawable.msg_search, getString(R.string.GlassgramApiFindModel)));
                 items.add(UItem.asButton(ID_CRASHES, R.drawable.msg_report, getString(R.string.GlassgramApiCrashes)));
+            }
+            if (rules) {
+                items.add(UItem.asButton(ID_RULES, R.drawable.msg_settings, getString(R.string.GlassgramApiRules)));
+            }
+            if (catalog) {
+                items.add(UItem.asButton(ID_CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog)));
             }
             if (badges) {
                 items.add(UItem.asButton(ID_GIVE_BADGE, R.drawable.msg_premium_badge, getString(R.string.GlassgramApiGiveBadge)));
@@ -195,6 +205,12 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 return;
             case ID_ADMINS:
                 GlassgramApiUi.showAdmins(this);
+                return;
+            case ID_RULES:
+                GlassgramApiUi.showRules(this);
+                return;
+            case ID_CATALOG:
+                presentFragment(new GlassgramPluginCatalogActivity());
                 return;
         }
         if (item.id >= ID_BREAKDOWN && item.id - ID_BREAKDOWN < BREAKDOWNS.length) {
@@ -408,7 +424,10 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 text.append("\n— ").append(formatString(R.string.GlassgramApiModelReport, i + 1)).append('\n')
                         .append(GlassgramApiUi.pretty(report, "  "));
             }
-            GlassgramApiUi.showText(this, model, text.toString());
+            // a rule for this model, from its phones
+            final boolean rules = GlassgramApi.can(currentAccount, GlassgramApi.RIGHT_CONFIG);
+            GlassgramApiUi.showText(this, model, text.toString(), rules ? getString(R.string.GlassgramApiRuleForModel) : null,
+                    rules ? () -> GlassgramApiUi.editRule(this, null, model) : null);
         });
     }
 }
