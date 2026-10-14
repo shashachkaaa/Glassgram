@@ -231,6 +231,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 });
             }
         }
+        // the team's rules for this phone as they are now, before an option they turn off is tapped
+        GlassgramRemoteConfig.refresh(GlassgramRemoteConfig.REFRESH_SETTINGS, () -> {
+            if (listView != null) listView.adapter.update(true);
+        });
         return super.onFragmentCreate();
     }
 

@@ -11611,7 +11611,7 @@
     <string name="GlassgramApiRuleVersionMax">glassGram up to</string>
     <string name="GlassgramApiRuleOff">Turn off</string>
     <string name="GlassgramApiRuleNote">Why (shown to people)</string>
-    <string name="GlassgramApiRuleInfo">Empty fields match every phone. * is any text, | separates alternatives. The app matches the rules itself and applies them on its next start or within half an hour.</string>
+    <string name="GlassgramApiRuleInfo">Empty fields match every phone. * is any text, | separates alternatives. The app matches the rules itself: on its start, when glassGram\'s settings open, and every 10 minutes. On this phone, right after saving.</string>
     <string name="GlassgramApiRuleCheck">Check</string>
     <string name="GlassgramApiRulePreview">Matches %1$d installs</string>
     <string name="GlassgramApiRuleNothingOff">Choose what to turn off</string>

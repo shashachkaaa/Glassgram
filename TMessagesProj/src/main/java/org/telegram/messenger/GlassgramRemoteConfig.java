@@ -31,13 +31,18 @@ public final class GlassgramRemoteConfig {
             "glassHeader", "glassPanels", "splitInput", "iosTransitions", "uploadBoost", "downloadBoost", "pluginsEngine"};
 
     private static final String PREFS = "glassgram_remote";
-    private static final long REFRESH = 30 * 60 * 1000L;
+    /** How often the app's opening asks again; every start of the app asks once at any rate. */
+    public static final long REFRESH = 10 * 60 * 1000L;
+    /** The settings ask again when opened after this. */
+    public static final long REFRESH_SETTINGS = 60 * 1000L;
 
     /** The options turned off now, with the note of the rule that did it. */
     private static HashMap<String, String> forced = new HashMap<>();
     /** The person's own values of the options turned off, to give back when the rule goes. */
     private static final HashMap<String, Object> ownValues = new HashMap<>();
     private static boolean loading;
+    /** When the rules were last downloaded in this run of the app: 0, so each start asks. */
+    private static long loadedAt;
 
     private GlassgramRemoteConfig() {
     }
@@ -71,10 +76,17 @@ public final class GlassgramRemoteConfig {
         }
     }
 
-    /** Downloads the rules when the app opens, unless lately. */
+    /** Downloads the rules when the app opens: at its start, then every REFRESH. */
     public static void refresh() {
-        final SharedPreferences prefs = prefs();
-        if (loading || System.currentTimeMillis() - prefs.getLong("loaded", 0) < REFRESH) {
+        refresh(REFRESH, null);
+    }
+
+    /**
+     * Downloads the rules unless they were downloaded within maxAge (0: now, as after the team
+     * changed one); onChanged runs when what is turned off here changed.
+     */
+    public static void refresh(long maxAge, Runnable onChanged) {
+        if (loading || loadedAt != 0 && System.currentTimeMillis() - loadedAt < maxAge) {
             return;
         }
         loading = true;
@@ -84,14 +96,19 @@ public final class GlassgramRemoteConfig {
             if (!response.ok() || rules == null) {
                 return;
             }
-            prefs.edit().putString("rules", rules.toString()).putLong("loaded", System.currentTimeMillis()).apply();
-            // screens show the change when they are next built
-            apply(rules);
+            loadedAt = System.currentTimeMillis();
+            prefs().edit().putString("rules", rules.toString()).apply();
+            if (apply(rules) && onChanged != null) {
+                onChanged.run();
+            }
         });
     }
 
-    /** Turns off what the rules matching this phone say, and gives back what no rule holds now. */
-    private static synchronized void apply(JSONArray rules) {
+    /**
+     * Turns off what the rules matching this phone say, and gives back what no rule holds now;
+     * whether what is turned off, or why, changed.
+     */
+    private static synchronized boolean apply(JSONArray rules) {
         final HashMap<String, String> now = new HashMap<>();
         for (int i = 0; i < rules.length(); i++) {
             final JSONObject rule = rules.optJSONObject(i);
@@ -119,7 +136,9 @@ public final class GlassgramRemoteConfig {
                 }
             }
         }
+        final boolean changed = !now.equals(forced);
         forced = now;
+        return changed;
     }
 
     private static boolean isFeature(String feature) {

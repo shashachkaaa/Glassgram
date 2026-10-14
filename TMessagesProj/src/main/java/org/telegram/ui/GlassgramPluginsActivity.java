@@ -49,6 +49,12 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
                 listView.adapter.update(true);
             }
         });
+        // and whether the team turned the engine off on this phone
+        org.telegram.messenger.GlassgramRemoteConfig.refresh(org.telegram.messenger.GlassgramRemoteConfig.REFRESH_SETTINGS, () -> {
+            if (listView != null) {
+                listView.adapter.update(true);
+            }
+        });
         return super.onFragmentCreate();
     }
 

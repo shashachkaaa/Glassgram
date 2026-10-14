@@ -610,7 +610,7 @@
     <string name="GlassgramApiRuleVersionMax">glassGram до</string>
     <string name="GlassgramApiRuleOff">Выключить</string>
     <string name="GlassgramApiRuleNote">Почему (увидят пользователи)</string>
-    <string name="GlassgramApiRuleInfo">Пустые поля подходят любому телефону. * — любой текст, | разделяет варианты. Приложение само сверяет правила и применяет их при следующем запуске или в течение получаса.</string>
+    <string name="GlassgramApiRuleInfo">Пустые поля подходят любому телефону. * — любой текст, | разделяет варианты. Приложение само сверяет правила: при запуске, при открытии настроек glassGram и каждые 10 минут. На этом телефоне — сразу после сохранения.</string>
     <string name="GlassgramApiRuleCheck">Проверить</string>
     <string name="GlassgramApiRulePreview">Затронет установок: %1$d</string>
     <string name="GlassgramApiRuleNothingOff">Выберите, что выключить</string>

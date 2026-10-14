@@ -782,6 +782,8 @@ public final class GlassgramApiUi {
                     final GlassgramApi.Callback done = response -> {
                         if (response.ok()) {
                             showDone(fragment, getString(R.string.GlassgramApiSaved));
+                            // this phone follows the change at once
+                            org.telegram.messenger.GlassgramRemoteConfig.refresh(0, null);
                             showRules(fragment);
                         } else {
                             showError(fragment, response);
@@ -926,6 +928,8 @@ public final class GlassgramApiUi {
                             if (response.ok()) {
                                 dialog.dismiss();
                                 showDone(fragment, getString(R.string.GlassgramApiSaved));
+                                // this phone follows the change at once
+                                org.telegram.messenger.GlassgramRemoteConfig.refresh(0, null);
                             } else {
                                 Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show();
                             }
