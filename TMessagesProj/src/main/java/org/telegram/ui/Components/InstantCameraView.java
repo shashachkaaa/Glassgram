@@ -2672,6 +2672,41 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             return timestamp - cameraClockOffset;
         }
 
+        // glassGram: some cameras' timestamps don't keep time: on a Huawei at 60 FPS a frame's time
+        // stepped by 1/60 s while frames came slower, so the picture ran 12% fast, ended early and held
+        // its last frame while the sound went on. Measured against when the frames arrive here, a
+        // camera whose time drifts away is left for the arrival times, counted from its first frame.
+        private static final long CAMERA_DRIFT_CHECK_AFTER = 1_500_000_000L;
+        private static final long CAMERA_DRIFT_MIN = 100_000_000L;
+        private long firstCameraTime = -1;
+        private long firstArrivalTime;
+        private long lastArrivalTime;
+        private volatile boolean cameraTimeDrifts;
+        private long cameraDriftAtSwitch;
+        private int framesArrived;
+
+        private long keepCameraTime(long timestamp, long arrival) {
+            framesArrived++;
+            lastArrivalTime = arrival;
+            if (firstCameraTime < 0) {
+                firstCameraTime = timestamp;
+                firstArrivalTime = arrival;
+                return timestamp;
+            }
+            if (!cameraTimeDrifts) {
+                final long arrivalSpan = arrival - firstArrivalTime;
+                final long drift = arrivalSpan - (timestamp - firstCameraTime);
+                if (arrivalSpan >= CAMERA_DRIFT_CHECK_AFTER && Math.abs(drift) > Math.max(arrivalSpan / 20, CAMERA_DRIFT_MIN)) {
+                    cameraTimeDrifts = true;
+                    cameraDriftAtSwitch = drift;
+                    if (BuildVars.LOGS_ENABLED) {
+                        FileLog.d("InstantCamera camera time drifts by " + drift + " in " + arrivalSpan + ", frames are timed by arrival");
+                    }
+                }
+            }
+            return cameraTimeDrifts ? firstCameraTime + (arrival - firstArrivalTime) : timestamp;
+        }
+
         // glassGram: how the last recording went, for a report to the developer
         private int zeroTimestampFrames;
         private int videoClockJumps;
@@ -2701,7 +2736,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
             } else {
                 zeroTimeStamps = 0;
-                timestamp = toSoundClock(timestamp);
+                // timestampInternal is now in the sound's clock: when the frame arrived here
+                timestamp = keepCameraTime(toSoundClock(timestamp), timestampInternal);
             }
             prevTimestamp = timestamp;
             synchronized (frameLock) {
@@ -3330,9 +3366,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 FileLog.d("InstantCamera handleStopRecording finish muxer");
                 // glassGram: how it went, sent with a report to the developer
                 org.telegram.messenger.GlassgramStats.setLastRound(String.format(java.util.Locale.US,
-                        "camera2=%b fps=%d size=%d cameraClock=%s zeroTimestampFrames=%d videoClockJumps=%d (max %d ms) "
-                                + "audioClockJumps=%d desync=%d ms video=%d ms audio=%d ms audioCutAtVideo=%b",
+                        "camera2=%b fps=%d size=%d cameraClock=%s cameraTimeDrifts=%b (by %d ms) frames=%d in %d ms zeroTimestampFrames=%d "
+                                + "videoClockJumps=%d (max %d ms) audioClockJumps=%d desync=%d ms video=%d ms audio=%d ms audioCutAtVideo=%b",
                         useCamera2, frameRate, sentSize(), cameraClockOffset == Long.MIN_VALUE ? "?" : cameraClockOffset != 0 ? "realtime" : "monotonic",
+                        cameraTimeDrifts, cameraDriftAtSwitch / 1_000_000, framesArrived, (lastArrivalTime - firstArrivalTime) / 1_000_000,
                         zeroTimestampFrames, videoClockJumps, maxVideoClockJump / 1_000_000, audioClockJumps, desyncTime / 1000,
                         currentTimestamp / 1_000_000, audioLast / 1000, audioCutAtVideo));
                 if (writingToDifferentFile) {
@@ -3537,6 +3574,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
                 // the camera's clock is told again: the phone may have slept since
                 cameraClockOffset = Long.MIN_VALUE;
+                firstCameraTime = -1;
+                cameraTimeDrifts = false;
+                cameraDriftAtSwitch = 0;
+                framesArrived = 0;
                 lastTimestamp = -1;
                 lastCommitedFrameTime = 0;
                 audioStartTime = -1;
