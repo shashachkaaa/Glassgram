@@ -15,13 +15,13 @@ import org.json.JSONObject;
 import java.util.UUID;
 
 /**
- * glassGram: anonymous statistics for adapting the app to every phone, sent to glassGram's server
- * (see GlassgramApi) once a day: the device, the app's version, what the cameras can do for video
- * messages, which options are on, and how many accounts. Crashes go there too, on the next start.
+ * glassGram: statistics for adapting the app to every phone, sent to glassGram's server (see
+ * GlassgramApi) once a day: the device, the app's version, what the cameras can do for video
+ * messages, which options are on, and the ids of the Telegram accounts on it, for the team to see
+ * in a profile that someone uses glassGram. Crashes go there too, on the next start, anonymously.
  * <p>
- * Nothing names the person: an install is a random id made on install, never a Telegram account,
- * and no number, name or message leaves the phone. "Anonymous statistics" in the settings turns
- * all of it off.
+ * An install is a random id made on install. No number, name, contact or message leaves the
+ * phone. "Usage statistics" in the settings turns all of it off.
  */
 public final class GlassgramStats {
 
@@ -57,7 +57,10 @@ public final class GlassgramStats {
         }
         final SharedPreferences prefs = prefs();
         final long now = System.currentTimeMillis();
-        if (now < prefs.getLong("next", 0) || now - prefs.getLong("tried", 0) < RETRY) {
+        // a new version or another set of accounts is told at once, not the next day
+        final String state = BuildVars.GLASSGRAM_VERSION + " " + users();
+        final boolean changed = !state.equals(prefs.getString("reported", null));
+        if (!changed && now < prefs.getLong("next", 0) || now - prefs.getLong("tried", 0) < RETRY) {
             return;
         }
         prefs.edit().putLong("tried", now).apply();
@@ -66,7 +69,7 @@ public final class GlassgramStats {
             final GlassgramApi.Response response = GlassgramApi.execute("POST", "/stats/report", report, null);
             if (response.ok()) {
                 final long next = Math.max(60 * 60, response.json.optLong("next", DAY / 1000)) * 1000L;
-                prefs.edit().putLong("next", System.currentTimeMillis() + next).apply();
+                prefs.edit().putLong("next", System.currentTimeMillis() + next).putString("reported", state).apply();
             }
         });
     }
@@ -94,6 +97,7 @@ public final class GlassgramStats {
                 "device", device(),
                 "features", features(),
                 "accounts", UserConfig.getActivatedAccountsCount(),
+                "users", users(),
                 "language", LocaleController.getInstance().getCurrentLocale() != null
                         ? LocaleController.getInstance().getCurrentLocale().getLanguage() : "");
         try {
@@ -101,6 +105,18 @@ public final class GlassgramStats {
         } catch (JSONException ignore) {
         }
         return report;
+    }
+
+    /** The Telegram accounts signed in here, for the team to see in a profile that they use glassGram. */
+    private static JSONArray users() {
+        final JSONArray users = new JSONArray();
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            final UserConfig config = UserConfig.getInstance(a);
+            if (config.isClientActivated() && config.getClientUserId() != 0) {
+                users.put(config.getClientUserId());
+            }
+        }
+        return users;
     }
 
     public static JSONObject app() {

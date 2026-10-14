@@ -658,6 +658,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int phoneRow;
     private int noteRow;
     private int idRow = -1;
+    private int glassgramRow = -1;
+    // what glassGram's server says of this user, for the team (GlassgramApi.userInfo)
+    private org.telegram.messenger.GlassgramApi.Response glassgramUser;
+    private boolean glassgramUserLoading;
     private int locationRow;
     private int userInfoRow;
     private int channelInfoRow;
@@ -4512,6 +4516,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 onMemberClick(participant, false, view);
             } else if (position == addMemberRow) {
                 openAddMember();
+            } else if (position == glassgramRow) {
+                GlassgramApiUi.showUserInfo(this, userId, glassgramUser);
             } else if (position == idRow) {
                 AndroidUtilities.addToClipboard(org.telegram.messenger.GlassgramConfig.showId != 0 ? glassgramIdText() : glassgramDcText(glassgramDcId()));
                 BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.TextCopied)).show();
@@ -10535,6 +10541,25 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return "DC " + dc + (location != null ? " (" + location + ")" : "");
     }
 
+    /** For the team: whether this user uses glassGram, from the server; asked once the row is shown. */
+    private boolean glassgramHasUserRow(TLRPC.User user) {
+        if (user == null || user.bot || UserObject.isDeleted(user) || UserObject.isReplyUser(user) || UserObject.isService(user.id)
+                || !org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_USERS)) {
+            return false;
+        }
+        if (glassgramUser == null && !glassgramUserLoading) {
+            glassgramUserLoading = true;
+            org.telegram.messenger.GlassgramApi.userInfo(currentAccount, user.id, response -> {
+                glassgramUserLoading = false;
+                glassgramUser = response;
+                if (listAdapter != null && glassgramRow >= 0) {
+                    listAdapter.notifyItemChanged(glassgramRow);
+                }
+            });
+        }
+        return true;
+    }
+
     /** The ID row shows the ID, the data center, or both. */
     private boolean glassgramHasIdRow() {
         return org.telegram.messenger.GlassgramConfig.showId != 0 || glassgramDcId() > 0;
@@ -10616,6 +10641,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         phoneRow = -1;
         noteRow = -1;
         idRow = -1;
+        glassgramRow = -1;
         userInfoRow = -1;
         locationRow = -1;
         channelInfoRow = -1;
@@ -10814,6 +10840,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (user != null && glassgramHasIdRow()) {
                     idRow = rowCount++;
+                }
+                if (glassgramHasUserRow(user)) {
+                    glassgramRow = rowCount++;
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -13672,6 +13701,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
                             containsGift = !myProfile && today && !getMessagesController().premiumPurchaseBlocked();
                         }
+                    } else if (position == glassgramRow) {
+                        detailCell.setTextAndValue(GlassgramApiUi.userInfoLine(glassgramUser), "glassGram", false);
                     } else if (position == idRow) {
                         final int dc = glassgramDcId();
                         if (org.telegram.messenger.GlassgramConfig.showId == 0) {
@@ -14512,7 +14543,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == idRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == idRow || position == glassgramRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -15913,6 +15944,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, phoneRow, sparseIntArray);
             put(++pointer, noteRow, sparseIntArray);
             put(++pointer, idRow, sparseIntArray);
+            put(++pointer, glassgramRow, sparseIntArray);
             put(++pointer, locationRow, sparseIntArray);
             put(++pointer, userInfoRow, sparseIntArray);
             put(++pointer, channelInfoRow, sparseIntArray);

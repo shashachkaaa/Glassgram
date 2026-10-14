@@ -533,8 +533,8 @@
     <string name="GlassgramPluginInstalledToast">%1$s успешно установлен.</string>
     <string name="GlassgramPluginEnableAfterInstall">Включить после установки</string>
     <string name="GlassgramDeveloperSection">Разработчику</string>
-    <string name="GlassgramSendStats">Анонимная статистика</string>
-    <string name="GlassgramSendStatsInfo">Модель телефона, версия Android, возможности камер и какие настройки включены — раз в день и без вашего аккаунта. Помогает адаптировать glassGram под все телефоны</string>
+    <string name="GlassgramSendStats">Статистика использования</string>
+    <string name="GlassgramSendStatsInfo">Раз в день: модель телефона, версия Android, возможности камер, включённые настройки и ID ваших аккаунтов Telegram — команда glassGram видит в профиле, что вы пользуетесь glassGram и на каком телефоне. Сообщения, контакты и номер не отправляются</string>
     <string name="GlassgramSendReport">Отправить отчёт разработчику</string>
     <string name="GlassgramApiTeam">Команда glassGram</string>
     <string name="GlassgramApiTeamInfo">Значки, статистика телефонов, вылеты и отчёты для команды glassGram. Вход через ваш аккаунт Telegram; права выдаются в %1$s.</string>
@@ -554,6 +554,13 @@
     <string name="GlassgramApiRetry">Загрузить ещё раз</string>
     <string name="GlassgramApiActive">Активные: день / неделя / месяц</string>
     <string name="GlassgramApiInstalls">Всего установок</string>
+    <string name="GlassgramApiAccounts">Аккаунтов за 30 дней</string>
+    <string name="GlassgramApiUserChecking">Проверяю…</string>
+    <string name="GlassgramApiUserUnknown">Не удалось узнать</string>
+    <string name="GlassgramApiUserNo">Не пользуется</string>
+    <string name="GlassgramApiUserNoInfo">Не пользуется glassGram — или выключил статистику, или у него версия до 1.8.1.\n\nОтчётов разработчику: %1$d</string>
+    <string name="GlassgramApiUserYesInfo">Пользуется glassGram, последний раз — %1$s.\nОтчётов разработчику: %2$d</string>
+    <string name="GlassgramApiUserInstall">%1$s, %2$s\nglassGram %3$s (Telegram %4$s, %5$s)\nС %6$s, последний раз — %7$s</string>
     <string name="GlassgramApiVersions">Версии glassGram</string>
     <string name="GlassgramApiTelegramVersions">Версии Telegram</string>
     <string name="GlassgramApiEditions">Сборки</string>

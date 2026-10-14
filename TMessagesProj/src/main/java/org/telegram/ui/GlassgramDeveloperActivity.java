@@ -42,6 +42,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_GIVE_BADGE = 11;
     private static final int ID_REPORTS = 12;
     private static final int ID_ADMINS = 13;
+    private static final int ID_ACCOUNTS = 14;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -120,6 +121,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_ACTIVE, getString(R.string.GlassgramApiActive), active == null ? "—"
                         : active.optInt("day") + " / " + active.optInt("week") + " / " + active.optInt("month")));
                 items.add(UItem.asButton(ID_INSTALLS, getString(R.string.GlassgramApiInstalls), String.valueOf(summary.optInt("installs"))));
+                items.add(UItem.asButton(ID_ACCOUNTS, getString(R.string.GlassgramApiAccounts), String.valueOf(summary.optInt("users"))));
                 for (int i = 0; i < BREAKDOWNS.length; i++) {
                     final JSONArray list = summary.optJSONArray(BREAKDOWNS[i]);
                     final JSONArray top = list != null ? list.optJSONArray(0) : null;
@@ -228,7 +230,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
         return String.valueOf(value);
     }
 
-    private static String androidName(int sdk) {
+    static String androidName(int sdk) {
         switch (sdk) {
             case 21: return "Android 5.0";
             case 22: return "Android 5.1";

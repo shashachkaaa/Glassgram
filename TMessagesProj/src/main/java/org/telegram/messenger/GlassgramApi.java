@@ -23,7 +23,8 @@ import java.util.Set;
 
 /**
  * glassGram's own API, served by the bot (glassgram-bot/API.md): signing in for the team's tools,
- * badges and admins from the app, anonymous statistics, crash reports and support reports.
+ * badges and admins from the app, usage statistics (with who uses glassGram), anonymous crash
+ * reports and support reports.
  * <p>
  * The app's source is open, so the server never takes the app's word for who is signing in:
  * Telegram vouches for it. The app asks Telegram for the bot's Mini App, whose launch data Telegram
@@ -39,6 +40,7 @@ public final class GlassgramApi {
     public static final String RIGHT_BADGES = "badges";
     public static final String RIGHT_SUPPORT = "support";
     public static final String RIGHT_STATS = "stats";
+    public static final String RIGHT_USERS = "users";
     public static final String RIGHT_ADMINS = "admins";
 
     private static final String PREFS = "glassgram_api";
@@ -279,6 +281,32 @@ public final class GlassgramApi {
         }
         forget(session.userId);
         request("POST", "/auth/logout", new JSONObject(), session.token, null);
+    }
+
+    // --- Who uses glassGram ------------------------------------------------------------------------
+
+    private static final long USER_INFO_KEEP = 5 * 60 * 1000L;
+    private static final java.util.HashMap<Long, Response> userInfo = new java.util.HashMap<>();
+    private static final java.util.HashMap<Long, Long> userInfoTime = new java.util.HashMap<>();
+
+    /**
+     * Whether a Telegram account uses glassGram and on what, as its app's daily reports said
+     * (GET /users/<id>), for the team; kept a few minutes, so profiles open without asking again.
+     */
+    public static void userInfo(int account, long userId, Callback callback) {
+        final Long time = userInfoTime.get(userId);
+        final Response cached = userInfo.get(userId);
+        if (cached != null && time != null && System.currentTimeMillis() - time < USER_INFO_KEEP) {
+            callback.onResponse(cached);
+            return;
+        }
+        call(account, "GET", "/users/" + userId, null, response -> {
+            if (response.ok()) {
+                userInfo.put(userId, response);
+                userInfoTime.put(userId, System.currentTimeMillis());
+            }
+            callback.onResponse(response);
+        });
     }
 
     // --- The team ---------------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramBadges;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramStats;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -380,6 +381,73 @@ public final class GlassgramApiUi {
                     .setNegativeButton(getString(R.string.Close), null)
                     .show();
         });
+    }
+
+    // --- Who uses glassGram ------------------------------------------------------------------------
+
+    /** The profile's glassGram row: the version, phone and last day, from GlassgramApi.userInfo. */
+    public static CharSequence userInfoLine(GlassgramApi.Response response) {
+        if (response == null) {
+            return getString(R.string.GlassgramApiUserChecking);
+        }
+        if (!response.ok()) {
+            return getString(R.string.GlassgramApiUserUnknown);
+        }
+        final JSONArray installs = response.json.optJSONArray("installs");
+        final JSONObject install = installs != null ? installs.optJSONObject(0) : null;
+        if (!response.json.optBoolean("uses") || install == null) {
+            return getString(R.string.GlassgramApiUserNo);
+        }
+        return install.optString("version") + " · " + deviceName(install) + " · "
+                + LocaleController.formatDate(install.optLong("last_seen"), true)
+                + (installs.length() > 1 ? " +" + (installs.length() - 1) : "");
+    }
+
+    private static String deviceName(JSONObject install) {
+        final String maker = install.optString("manufacturer");
+        final String model = install.optString("model");
+        if (maker.isEmpty() || model.toLowerCase().startsWith(maker.toLowerCase())) {
+            return model;
+        }
+        return Character.toUpperCase(maker.charAt(0)) + maker.substring(1) + " " + model;
+    }
+
+    /** What the profile's glassGram row knows, in full: each phone, its version and last report. */
+    public static void showUserInfo(BaseFragment fragment, long userId, GlassgramApi.Response response) {
+        if (response == null) {
+            return;
+        }
+        if (!response.ok()) {
+            showError(fragment, response);
+            return;
+        }
+        final JSONArray installs = response.json.optJSONArray("installs");
+        final int reports = response.json.optInt("support_reports");
+        final StringBuilder text = new StringBuilder();
+        if (!response.json.optBoolean("uses") || installs == null || installs.length() == 0) {
+            text.append(formatString(R.string.GlassgramApiUserNoInfo, reports));
+        } else {
+            text.append(formatString(R.string.GlassgramApiUserYesInfo,
+                    LocaleController.formatDate(response.json.optLong("last_seen"), true), reports));
+            for (int i = 0; i < installs.length(); i++) {
+                final JSONObject install = installs.optJSONObject(i);
+                if (install == null) {
+                    continue;
+                }
+                text.append("\n\n— ").append(formatString(R.string.GlassgramApiUserInstall,
+                        deviceName(install), GlassgramDeveloperActivity.androidName(install.optInt("sdk")),
+                        install.optString("version"), install.optString("telegram"), install.optString("edition"),
+                        LocaleController.formatDate(install.optLong("first_seen"), true),
+                        LocaleController.formatDate(install.optLong("last_seen"), true)));
+                final JSONObject report = install.optJSONObject("report");
+                if (report != null) {
+                    report.remove("app");
+                    report.remove("install");
+                    text.append('\n').append(pretty(report, "  "));
+                }
+            }
+        }
+        showText(fragment, "glassGram · " + userId, text.toString().trim());
     }
 
     // --- Badges -----------------------------------------------------------------------------------

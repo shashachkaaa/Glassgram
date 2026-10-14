@@ -102,7 +102,7 @@ public class GlassgramConfig {
     public static boolean roundHighQuality;
     // whether the last video message ended on the front camera, for the next one to start on
     public static boolean roundLastFront = true;
-    // Anonymous statistics of devices and versions, and crash reports, for glassGram's server (GlassgramStats)
+    // Statistics of devices, versions and the accounts on them, and crash reports, for glassGram's server (GlassgramStats)
     public static boolean sendStats = true;
 
     /** The size video messages are recorded at with high quality. */
