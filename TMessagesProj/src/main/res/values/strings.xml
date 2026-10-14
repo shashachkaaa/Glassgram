@@ -11538,7 +11538,6 @@
     <string name="GlassgramSendStatsInfo">The phone\'s model, Android version, what the cameras can do and which options are on, once a day and without your account: it helps adapt glassGram to every phone</string>
     <string name="GlassgramSendReport">Send a report to the developer</string>
     <string name="GlassgramApiTeam">glassGram team</string>
-    <string name="GlassgramApiTeamSignIn">glassGram team sign-in</string>
     <string name="GlassgramApiTeamInfo">Badges, phone statistics, crashes and reports for glassGram\'s team. Sign in with your Telegram account; rights are given in %1$s.</string>
     <string name="GlassgramApiSignIn">Sign in with Telegram</string>
     <string name="GlassgramApiSignInButton">Sign in</string>

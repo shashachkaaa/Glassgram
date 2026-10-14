@@ -281,6 +281,71 @@ public final class GlassgramApi {
         request("POST", "/auth/logout", new JSONObject(), session.token, null);
     }
 
+    // --- The team ---------------------------------------------------------------------------------
+
+    private static final long TEAM_REFRESH = 5 * 60 * 1000L;
+    private static boolean teamLoading;
+
+    /**
+     * Whether the account is on glassGram's team, known before signing in: the server lists the
+     * team's ids hashed, and the app looks itself up in the list, sending no id of its own.
+     * Signed in with rights counts too.
+     */
+    public static boolean isTeam(int account) {
+        final Session session = getSession(account);
+        if (session != null && session.isStaff()) {
+            return true;
+        }
+        final long userId = UserConfig.getInstance(account).getClientUserId();
+        final SharedPreferences prefs = prefs();
+        final String salt = prefs.getString("team_salt", null);
+        final String members = prefs.getString("team_members", null);
+        if (userId == 0 || salt == null || members == null) {
+            return false;
+        }
+        final String hash = Utilities.bytesToHex(Utilities.computeSHA256((salt + ":" + userId).getBytes(StandardCharsets.UTF_8))).toLowerCase();
+        for (String member : members.split(",")) {
+            if (member.equals(hash)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Downloads the team's list, unless it was lately; the callback runs if it changed. */
+    public static void loadTeam(Runnable onChanged) {
+        final SharedPreferences prefs = prefs();
+        if (teamLoading || System.currentTimeMillis() - prefs.getLong("team_loaded", 0) < TEAM_REFRESH) {
+            return;
+        }
+        teamLoading = true;
+        request("GET", "/team", null, null, response -> {
+            teamLoading = false;
+            final String salt = response.json.optString("salt", "");
+            final JSONArray list = response.json.optJSONArray("members");
+            if (!response.ok() || salt.isEmpty() || list == null) {
+                return;
+            }
+            final StringBuilder members = new StringBuilder();
+            for (int i = 0; i < list.length(); i++) {
+                if (i > 0) {
+                    members.append(',');
+                }
+                members.append(list.optString(i).toLowerCase());
+            }
+            final boolean changed = !salt.equals(prefs.getString("team_salt", null))
+                    || !members.toString().equals(prefs.getString("team_members", null));
+            prefs.edit()
+                    .putString("team_salt", salt)
+                    .putString("team_members", members.toString())
+                    .putLong("team_loaded", System.currentTimeMillis())
+                    .apply();
+            if (changed && onChanged != null) {
+                onChanged.run();
+            }
+        });
+    }
+
     // --- Signing in -------------------------------------------------------------------------------
 
     /** Keeps a session the server gave, if it is of this account's Telegram user. */

@@ -160,7 +160,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SEND_STATS = 127;
     private static final int ID_SEND_REPORT = 128;
     private static final int ID_TEAM = 129;
-    private static final int ID_TEAM_SIGN_IN = 130;
 
     private final int page;
     private boolean ghostExpanded;
@@ -214,11 +213,16 @@ public class GlassgramSettingsActivity extends UniversalFragment {
 
     @Override
     public boolean onFragmentCreate() {
-        if (page == PAGE_MAIN && GlassgramApi.getSession(currentAccount) != null) {
-            // rights change in the bot: the team's button follows them
-            GlassgramApi.refresh(currentAccount, response -> {
+        if (page == PAGE_MAIN) {
+            // the team changes in the bot: its button follows
+            GlassgramApi.loadTeam(() -> {
                 if (listView != null) listView.adapter.update(true);
             });
+            if (GlassgramApi.getSession(currentAccount) != null) {
+                GlassgramApi.refresh(currentAccount, response -> {
+                    if (listView != null) listView.adapter.update(true);
+                });
+            }
         }
         return super.onFragmentCreate();
     }
@@ -442,12 +446,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramDeveloperSection)));
                 items.add(UItem.asButtonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
                 items.add(UItem.asButton(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
-                // the team's screen only for those the bot gave rights; signing in is for anyone
-                final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
-                if (session != null && session.isStaff()) {
-                    items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam), session.levelName));
-                } else {
-                    items.add(UItem.asButton(ID_TEAM_SIGN_IN, R.drawable.msg_permissions, getString(R.string.GlassgramApiTeamSignIn)));
+                // the team's screen, with its sign-in, only for those on the team
+                if (GlassgramApi.isTeam(currentAccount)) {
+                    final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
+                    items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam),
+                            session != null && session.isStaff() ? session.levelName : null));
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
@@ -484,11 +487,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_SEND_REPORT:
                 GlassgramApiUi.sendReport(this);
                 return;
-            case ID_TEAM:
-                presentFragment(new GlassgramDeveloperActivity());
-                return;
-            case ID_TEAM_SIGN_IN:
-                if (GlassgramApi.getSession(currentAccount) == null) {
+            case ID_TEAM: {
+                final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
+                if (session != null && session.isStaff()) {
+                    presentFragment(new GlassgramDeveloperActivity());
+                } else if (session == null) {
                     GlassgramApiUi.signIn(this, this::onTeamSignedIn);
                 } else {
                     // signed in without rights: they may have been given since
@@ -503,6 +506,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     });
                 }
                 return;
+            }
             case ID_CHANNEL:
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/glassgramdev");
                 return;
