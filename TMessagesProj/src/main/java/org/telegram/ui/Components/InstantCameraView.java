@@ -2626,8 +2626,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         private static final long MAX_FRAME_CLOCK_JUMP = 250_000_000L;
         /** A recorder's time off the count of its samples by more than this is a jump of its clock, us. */
         private static final long MAX_AUDIO_CLOCK_JUMP = 200_000L;
-        /** Sound kept past the video's last frame when the recording stops, us. */
-        private static final long MAX_AUDIO_TAIL = 300_000L;
         private final Object frameLock = new Object();
         private boolean framePending;
 
@@ -2808,8 +2806,9 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         for (int a = input.lastWroteBuffer; a <= input.results; a++) {
                             if (a < input.results) {
                                 long totalTime = input.offset[a] - audioStartTime;
-                                // glassGram: as it stops, no sound past the video's last frame, which would hold it frozen
-                                final boolean pastVideo = totalTime + Math.max(0, prevAudioLast) > currentTimestamp / 1000 + MAX_AUDIO_TAIL;
+                                // glassGram: as it stops, no sound past the video's last frame, which would hold it
+                                // frozen: the camera goes as send is pressed, the microphone a moment later
+                                final boolean pastVideo = totalTime + Math.max(0, prevAudioLast) > currentTimestamp / 1000 + 1_000_000L / Math.max(1, frameRate);
                                 if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= 60_000000 || pastVideo)) {
                                     audioCutAtVideo |= pastVideo;
                                     if (BuildVars.LOGS_ENABLED) {
