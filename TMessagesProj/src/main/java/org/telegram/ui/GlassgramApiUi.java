@@ -328,7 +328,8 @@ public final class GlassgramApiUi {
                     "app", GlassgramStats.app(),
                     "device", GlassgramStats.device(),
                     "camera", org.telegram.messenger.camera.CameraReport.summary(context, size),
-                    "camera_report", org.telegram.messenger.camera.CameraReport.build(context, size));
+                    "camera_report", org.telegram.messenger.camera.CameraReport.build(context, size),
+                    "logs", GlassgramStats.lastRound());
             AndroidUtilities.runOnUIThread(() -> GlassgramApi.call(account, "POST", "/support/report", body, response -> {
                 progress.dismiss();
                 if (response.ok()) {

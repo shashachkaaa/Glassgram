@@ -1982,9 +1982,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             updateTextureMatrix();
 
             if (videoEncoder != null && (surfaceIndex == 0 && updateTexImage1 || surfaceIndex == 1 && updateTexImage2)) {
-                // glassGram: a frame without its own time gets one in the camera's clock (the realtime one on some phones)
-                videoEncoder.frameAvailable(cameraSurface[surfaceIndex], bothCameras ? surfaceIndex : cameraId,
-                        currentSession instanceof Camera2Session ? ((Camera2Session) currentSession).frameClockNow() : System.nanoTime());
+                // a frame without its own time gets the sound's clock, which the camera's frames are brought into
+                videoEncoder.frameAvailable(cameraSurface[surfaceIndex], bothCameras ? surfaceIndex : cameraId, System.nanoTime());
             }
 
             GLES20.glUseProgram(drawProgram);
@@ -2493,6 +2492,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                                 // replaced by the count of the samples, while a clock that stays off is followed
                                 if (expectedTimeUs >= 0 && Math.abs(timestamp - expectedTimeUs) > MAX_AUDIO_CLOCK_JUMP && ++clockJumps <= 10) {
                                     timestamp = expectedTimeUs;
+                                    audioClockJumps++;
                                 } else {
                                     clockJumps = 0;
                                 }
@@ -2658,6 +2658,29 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             }
         }
 
+        // glassGram: a camera's timestamps may be in the realtime clock (which counts the time the phone
+        // slept), the sound's are in the monotonic one, and frames without a timestamp get the monotonic
+        // time: with clocks apart, the sound is set against the picture by guesswork and goes out of
+        // step. Which clock the camera uses is told by its first frame, the nearer one, as phones don't
+        // always say it right; its frames are brought into the sound's clock.
+        private volatile long cameraClockOffset = Long.MIN_VALUE;
+
+        private long toSoundClock(long timestamp) {
+            if (cameraClockOffset == Long.MIN_VALUE) {
+                final long monotonic = System.nanoTime();
+                final long realtime = SystemClock.elapsedRealtimeNanos();
+                cameraClockOffset = Math.abs(timestamp - realtime) < Math.abs(timestamp - monotonic) ? realtime - monotonic : 0;
+            }
+            return timestamp - cameraClockOffset;
+        }
+
+        // glassGram: how the last recording went, for a report to the developer
+        private int zeroTimestampFrames;
+        private int videoClockJumps;
+        private long maxVideoClockJump;
+        private volatile int audioClockJumps;
+        private boolean audioCutAtVideo;
+
         long prevTimestamp;
         public void frameAvailable(SurfaceTexture st, Integer cameraId, long timestampInternal) {
             synchronized (sync) {
@@ -2669,6 +2692,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
             long timestamp = st.getTimestamp();
             if (timestamp == 0) {
                 zeroTimeStamps++;
+                zeroTimestampFrames++;
                 if (zeroTimeStamps > 1) {
                     if (BuildVars.LOGS_ENABLED) {
                         FileLog.d("InstantCamera fix timestamp enabled");
@@ -2679,6 +2703,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
             } else {
                 zeroTimeStamps = 0;
+                timestamp = toSoundClock(timestamp);
             }
             prevTimestamp = timestamp;
             synchronized (frameLock) {
@@ -2786,6 +2811,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                                 // glassGram: as it stops, no sound past the video's last frame, which would hold it frozen
                                 final boolean pastVideo = totalTime + Math.max(0, prevAudioLast) > currentTimestamp / 1000 + MAX_AUDIO_TAIL;
                                 if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= 60_000000 || pastVideo)) {
+                                    audioCutAtVideo |= pastVideo;
                                     if (BuildVars.LOGS_ENABLED) {
                                         if (totalTime >= 60_000000) {
                                             FileLog.d("InstantCamera stop audio encoding because recorded time more than 60s");
@@ -2887,6 +2913,8 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     if (BuildVars.LOGS_ENABLED) {
                         FileLog.d("InstantCamera frame clock jumped by " + dt + " in " + dtReal);
                     }
+                    videoClockJumps++;
+                    maxVideoClockJump = Math.max(maxVideoClockJump, Math.abs(dt));
                     dt = Math.max(0, dtReal);
                 }
                 alphaDt = dt;
@@ -3301,6 +3329,13 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     }
                 }
                 FileLog.d("InstantCamera handleStopRecording finish muxer");
+                // glassGram: how it went, sent with a report to the developer
+                org.telegram.messenger.GlassgramStats.setLastRound(String.format(java.util.Locale.US,
+                        "camera2=%b fps=%d size=%d cameraClock=%s zeroTimestampFrames=%d videoClockJumps=%d (max %d ms) "
+                                + "audioClockJumps=%d desync=%d ms video=%d ms audio=%d ms audioCutAtVideo=%b",
+                        useCamera2, frameRate, sentSize(), cameraClockOffset == Long.MIN_VALUE ? "?" : cameraClockOffset != 0 ? "realtime" : "monotonic",
+                        zeroTimestampFrames, videoClockJumps, maxVideoClockJump / 1_000_000, audioClockJumps, desyncTime / 1000,
+                        currentTimestamp / 1_000_000, audioLast / 1000, audioCutAtVideo));
                 if (writingToDifferentFile) {
                     if (videoFile.exists()) {
                         try {
@@ -3495,7 +3530,14 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                     prevVideoLast = -1;
                     prevAudioLast = -1;
                     currentTimestamp = 0;
+                    zeroTimestampFrames = 0;
+                    videoClockJumps = 0;
+                    maxVideoClockJump = 0;
+                    audioClockJumps = 0;
+                    audioCutAtVideo = false;
                 }
+                // the camera's clock is told again: the phone may have slept since
+                cameraClockOffset = Long.MIN_VALUE;
                 lastTimestamp = -1;
                 lastCommitedFrameTime = 0;
                 audioStartTime = -1;

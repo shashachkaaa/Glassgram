@@ -74,6 +74,22 @@ public final class GlassgramStats {
         });
     }
 
+    /** How the last video message's recording went (its clocks and their jumps), for a report to the developer. */
+    public static void setLastRound(String text) {
+        prefs().edit().putString("last_round", text).putLong("last_round_at", System.currentTimeMillis()).apply();
+    }
+
+    /** The last recording's account with when it was, or null. */
+    public static String lastRound() {
+        final SharedPreferences prefs = prefs();
+        final String text = prefs.getString("last_round", null);
+        if (text == null) {
+            return null;
+        }
+        final long at = prefs.getLong("last_round_at", 0);
+        return "Last video message (" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date(at)) + "): " + text;
+    }
+
     /** A crash the app saved, sent on the next start; the header is left out, the trace goes. */
     public static void sendCrash(String saved) {
         if (!GlassgramConfig.sendStats || saved == null) {
