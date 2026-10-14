@@ -356,9 +356,43 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 chatAvatarContainer.requestLayout();
                 checkAvatarContainerWidth(animated);
             }
+            updateGlassBackCounterFollower();
             requestLayout();
         }
         invalidate();
+    }
+
+    private View glassBackCounterFollower;
+    private int glassBackCounterFollowerMargin;
+
+    /**
+     * A title that sits beside the back button without being the bar's chat pill (a forum topic's):
+     * it moves right as the back glass widens for the badge, and ends as far from the right.
+     */
+    public void setGlassBackCounterFollower(View view) {
+        glassBackCounterFollower = view;
+        if (view != null && view.getLayoutParams() instanceof MarginLayoutParams) {
+            glassBackCounterFollowerMargin = ((MarginLayoutParams) view.getLayoutParams()).rightMargin;
+        }
+        updateGlassBackCounterFollower();
+    }
+
+    private void updateGlassBackCounterFollower() {
+        final View view = glassBackCounterFollower;
+        if (view == null || !(view.getLayoutParams() instanceof MarginLayoutParams)) {
+            return;
+        }
+        // as the chat pill, it is moved by dispatchDraw (with its width kept by the pill's own rules)
+        final boolean follows = view != chatAvatarContainer;
+        final MarginLayoutParams lp = (MarginLayoutParams) view.getLayoutParams();
+        final int margin = glassBackCounterFollowerMargin + (follows ? glassBackCounterTouchExtra : 0);
+        if (lp.rightMargin != margin) {
+            lp.rightMargin = margin;
+            view.requestLayout();
+        }
+        if (follows) {
+            invalidate();
+        }
     }
 
     /**
@@ -397,6 +431,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void setChatAvatarContainer(ChatAvatarContainer chatAvatarContainer) {
         this.chatAvatarContainer = chatAvatarContainer;
+        updateGlassBackCounterFollower();
     }
 
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colorProvider) {
@@ -2881,6 +2916,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         // The back glass widens for the unread badge, the chevron moving a little to the left
         final float counterProgress = glassMode && hasBackButton ? glassBackCounterProgress() : 0f;
         final int backExtra = (int) ((glassBackCounterWidth - dp(4)) * counterProgress);
+        if (glassBackCounterFollower != null && glassBackCounterFollower != chatAvatarContainer
+                && glassBackCounterFollower.getTranslationX() != backExtra) {
+            glassBackCounterFollower.setTranslationX(backExtra);
+        }
         if (glassMode && backButtonImageView != null) {
             // The arrow sits 2dp right of the circle's middle; the chevron, lighter to the eye on its
             // open side, a little left of it (with the badge it is left in the capsule anyway)

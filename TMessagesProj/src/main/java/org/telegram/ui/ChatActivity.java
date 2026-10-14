@@ -4284,6 +4284,8 @@ public class ChatActivity extends BaseFragment implements
         } else {
             actionBar.addView(avatarContainer, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, !inPreviewMode ? 52 : 0, 0, 52, 0));
             actionBar.createMenu().bringToFront();
+            // A forum topic's title, outside the chat pill, makes room for the back button's badge
+            actionBar.setGlassBackCounterFollower(avatarContainer);
         }
         actionBar.setOnActionModeFactorChangeListener(() -> {
             checkUi_avatarContainerVisibility();
