@@ -45,6 +45,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_ACCOUNTS = 14;
     private static final int ID_RULES = 15;
     private static final int ID_CATALOG = 16;
+    private static final int ID_BANS = 17;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -152,6 +153,9 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             if (catalog) {
                 items.add(UItem.asButton(ID_CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog)));
             }
+            if (session.can(GlassgramApi.RIGHT_BANS)) {
+                items.add(UItem.asButton(ID_BANS, R.drawable.msg_block, getString(R.string.GlassgramApiBans)));
+            }
             if (badges) {
                 items.add(UItem.asButton(ID_GIVE_BADGE, R.drawable.msg_premium_badge, getString(R.string.GlassgramApiGiveBadge)));
             }
@@ -211,6 +215,9 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 return;
             case ID_CATALOG:
                 presentFragment(new GlassgramPluginCatalogActivity());
+                return;
+            case ID_BANS:
+                GlassgramApiUi.showBans(this);
                 return;
         }
         if (item.id >= ID_BREAKDOWN && item.id - ID_BREAKDOWN < BREAKDOWNS.length) {

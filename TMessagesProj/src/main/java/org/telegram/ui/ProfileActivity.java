@@ -604,6 +604,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int send_money = 48;
     private final static int glassgram_badge = 950;
     private final static int glassgram_reports = 951;
+    private final static int glassgram_ban = 952;
 
     private Rect rect = new Rect();
 
@@ -2762,6 +2763,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             DialogObject.getName(getDialogId()));
                 } else if (id == glassgram_reports) {
                     GlassgramApiUi.showReports(ProfileActivity.this, userId);
+                } else if (id == glassgram_ban) {
+                    GlassgramApiUi.toggleBan(ProfileActivity.this, userId, DialogObject.getName(getDialogId()));
                 } else if (id == add_shortcut) {
                     try {
                         long did;
@@ -12554,6 +12557,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         if (userId != 0 && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_SUPPORT)) {
             otherItem.addSubItem(glassgram_reports, R.drawable.msg_log, LocaleController.getString(R.string.GlassgramApiReportsMenu));
+        }
+        if (userId != 0 && userId != getUserConfig().getClientUserId()
+                && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_BANS)) {
+            final boolean banned = org.telegram.messenger.GlassgramApi.banReason(userId) != null;
+            otherItem.addSubItem(glassgram_ban, R.drawable.msg_block, LocaleController.getString(banned ? R.string.GlassgramApiUnban : R.string.GlassgramApiBanMenu));
         }
         addChatHeaderMenuItems();
         if (!isPulledDown) {

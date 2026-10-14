@@ -43,6 +43,7 @@ public final class GlassgramApi {
     public static final String RIGHT_USERS = "users";
     public static final String RIGHT_CONFIG = "config";
     public static final String RIGHT_PLUGINS = "plugins";
+    public static final String RIGHT_BANS = "bans";
     public static final String RIGHT_ADMINS = "admins";
 
     private static final String PREFS = "glassgram_api";
@@ -342,6 +343,81 @@ public final class GlassgramApi {
             }
             callback.onResponse(response);
         });
+    }
+
+    // --- Bans -------------------------------------------------------------------------------------
+
+    /** An account on this phone banned from glassGram. */
+    public static final class Ban {
+        public final int account;
+        public final long userId;
+        public final String reason;
+
+        Ban(int account, long userId, String reason) {
+            this.account = account;
+            this.userId = userId;
+            this.reason = reason;
+        }
+    }
+
+    public static final long BANS_REFRESH = 10 * 60 * 1000L;
+    private static long bansLoadedAt;
+    private static boolean bansLoading;
+
+    /**
+     * Downloads the banned accounts (GET /bans/list), hashed like the team, unless lately; kept, so
+     * they hold from the app's start. onLoaded runs once they are in.
+     */
+    public static void loadBans(long maxAge, Runnable onLoaded) {
+        if (bansLoading || bansLoadedAt != 0 && System.currentTimeMillis() - bansLoadedAt < maxAge) {
+            return;
+        }
+        bansLoading = true;
+        request("GET", "/bans/list", null, null, response -> {
+            bansLoading = false;
+            final JSONObject bans = response.json.optJSONObject("bans");
+            final String salt = response.json.optString("salt", "");
+            if (!response.ok() || bans == null || salt.isEmpty()) {
+                return;
+            }
+            bansLoadedAt = System.currentTimeMillis();
+            prefs().edit().putString("bans_salt", salt).putString("bans", bans.toString()).apply();
+            if (onLoaded != null) {
+                onLoaded.run();
+            }
+        });
+    }
+
+    /** Why a Telegram account is banned from glassGram, by the kept list, or null when it isn't. */
+    public static String banReason(long userId) {
+        final SharedPreferences prefs = prefs();
+        final String salt = prefs.getString("bans_salt", null);
+        final String kept = prefs.getString("bans", null);
+        if (userId == 0 || salt == null || kept == null) {
+            return null;
+        }
+        try {
+            final JSONObject bans = new JSONObject(kept);
+            final String hash = Utilities.bytesToHex(Utilities.computeSHA256((salt + ":" + userId).getBytes(StandardCharsets.UTF_8))).toLowerCase();
+            return bans.has(hash) ? bans.optString(hash, "") : null;
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    /** The first account signed in on this phone that is banned, or null. */
+    public static Ban findBan() {
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            final UserConfig config = UserConfig.getInstance(a);
+            if (!config.isClientActivated()) {
+                continue;
+            }
+            final String reason = banReason(config.getClientUserId());
+            if (reason != null) {
+                return new Ban(a, config.getClientUserId(), reason);
+            }
+        }
+        return null;
     }
 
     // --- The team ---------------------------------------------------------------------------------

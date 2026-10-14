@@ -950,6 +950,117 @@ public final class GlassgramApiUi {
         }
     }
 
+    // --- Bans -------------------------------------------------------------------------------------
+
+    /** Bans a Telegram account from glassGram, asking why; or lifts its ban. */
+    public static void toggleBan(BaseFragment fragment, long userId, CharSequence name) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null || userId <= 0) {
+            return;
+        }
+        final int account = fragment.getCurrentAccount();
+        final GlassgramApi.Callback done = response -> {
+            if (response.ok()) {
+                showDone(fragment, getString(R.string.GlassgramApiSaved));
+                GlassgramApi.loadBans(0, null);
+            } else {
+                showError(fragment, response);
+            }
+        };
+        if (GlassgramApi.banReason(userId) != null) {
+            new AlertDialog.Builder(context)
+                    .setTitle(name)
+                    .setMessage(getString(R.string.GlassgramApiUnbanConfirm))
+                    .setPositiveButton(getString(R.string.GlassgramApiUnban), (d, w) -> GlassgramApi.call(account, "DELETE", "/bans/" + userId, null, done))
+                    .setNegativeButton(getString(R.string.Cancel), null)
+                    .show();
+            return;
+        }
+        final EditTextBoldCursor field = field(context, getString(R.string.GlassgramApiBanReasonHint), false, true);
+        new AlertDialog.Builder(context)
+                .setTitle(formatString(R.string.GlassgramApiBanTitle, name))
+                .setMessage(getString(R.string.GlassgramApiBanInfo))
+                .setView(wrap(context, field))
+                .setPositiveButton(getString(R.string.GlassgramApiBan), (d, w) -> GlassgramApi.call(account, "PUT", "/bans/" + userId,
+                        GlassgramApi.json("reason", field.getText().toString().trim()), done))
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** The banned accounts: tap one to lift its ban, or ban another by id or @username. */
+    public static void showBans(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/bans", null, response -> {
+            progress.dismiss();
+            if (!response.ok()) {
+                showError(fragment, response);
+                return;
+            }
+            final JSONArray bans = response.json.optJSONArray("bans");
+            final int count = bans != null ? bans.length() : 0;
+            final CharSequence[] items = new CharSequence[count + 1];
+            for (int i = 0; i < count; i++) {
+                final JSONObject ban = bans.optJSONObject(i);
+                final String reason = ban.optString("reason");
+                items[i] = ban.optLong("user_id") + " · " + date(ban.optLong("created_at")) + (TextUtils.isEmpty(reason) ? "" : "\n" + reason);
+            }
+            items[count] = "＋ " + getString(R.string.GlassgramApiBanByHolder);
+            if (fragment.getParentActivity() == null) {
+                return;
+            }
+            new AlertDialog.Builder(fragment.getParentActivity())
+                    .setTitle(getString(R.string.GlassgramApiBans))
+                    .setItems(items, (d, which) -> {
+                        if (which == count) {
+                            askBanTarget(fragment);
+                        } else {
+                            final long id = bans.optJSONObject(which).optLong("user_id");
+                            GlassgramApi.loadBans(0, () -> toggleBan(fragment, id, String.valueOf(id)));
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.Close), null)
+                    .show();
+        });
+    }
+
+    /** Asks who to ban: a Telegram id, or a @username found through Telegram. */
+    private static void askBanTarget(BaseFragment fragment) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor field = field(context, getString(R.string.GlassgramApiHolderHint), false, false);
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiBanByHolder))
+                .setView(wrap(context, field))
+                .setPositiveButton(getString(R.string.OK), (d, w) -> {
+                    final String text = field.getText().toString().trim().replace("https://t.me/", "").replace("t.me/", "");
+                    if (text.matches("\\d{1,15}")) {
+                        final long id = Long.parseLong(text);
+                        toggleBan(fragment, id, text);
+                        return;
+                    }
+                    final String username = text.startsWith("@") ? text.substring(1) : text;
+                    if (username.isEmpty()) {
+                        return;
+                    }
+                    MessagesController.getInstance(fragment.getCurrentAccount()).getUserNameResolver().resolve(username, id -> AndroidUtilities.runOnUIThread(() -> {
+                        if (id == null || id <= 0) {
+                            if (fragment.getParentActivity() != null) {
+                                BulletinFactory.of(fragment).createErrorBulletin(getString(R.string.GlassgramApiNoSuchUser)).show();
+                            }
+                        } else {
+                            toggleBan(fragment, id, "@" + username);
+                        }
+                    }));
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
     // --- Admins -----------------------------------------------------------------------------------
 
     public static void showAdmins(BaseFragment fragment) {
