@@ -21,6 +21,7 @@ import android.widget.Toast;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.LocaleController;
@@ -34,6 +35,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.GlassgramSettingsCells;
 import org.telegram.ui.Components.GlassgramWallpaperLayout;
@@ -158,6 +160,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SEND_STATS = 127;
     private static final int ID_SEND_REPORT = 128;
     private static final int ID_TEAM = 129;
+    private static final int ID_TEAM_SIGN_IN = 130;
 
     private final int page;
     private boolean ghostExpanded;
@@ -206,6 +209,26 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             default:
                 // The header below the action bar carries the name
                 return "";
+        }
+    }
+
+    @Override
+    public boolean onFragmentCreate() {
+        if (page == PAGE_MAIN && GlassgramApi.getSession(currentAccount) != null) {
+            // rights change in the bot: the team's button follows them
+            GlassgramApi.refresh(currentAccount, response -> {
+                if (listView != null) listView.adapter.update(true);
+            });
+        }
+        return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // back from the team's screen, maybe signed out there
+        if (page == PAGE_MAIN && listView != null) {
+            listView.adapter.update(true);
         }
     }
 
@@ -419,7 +442,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramDeveloperSection)));
                 items.add(UItem.asButtonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
                 items.add(UItem.asButton(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
-                items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam)));
+                // the team's screen only for those the bot gave rights; signing in is for anyone
+                final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
+                if (session != null && session.isStaff()) {
+                    items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam), session.levelName));
+                } else {
+                    items.add(UItem.asButton(ID_TEAM_SIGN_IN, R.drawable.msg_permissions, getString(R.string.GlassgramApiTeamSignIn)));
+                }
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -457,6 +486,22 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_TEAM:
                 presentFragment(new GlassgramDeveloperActivity());
+                return;
+            case ID_TEAM_SIGN_IN:
+                if (GlassgramApi.getSession(currentAccount) == null) {
+                    GlassgramApiUi.signIn(this, this::onTeamSignedIn);
+                } else {
+                    // signed in without rights: they may have been given since
+                    GlassgramApi.refresh(currentAccount, response -> {
+                        if (response.ok()) {
+                            onTeamSignedIn();
+                        } else if (response.status == 401) {
+                            GlassgramApiUi.signIn(this, this::onTeamSignedIn);
+                        } else {
+                            GlassgramApiUi.showError(this, response);
+                        }
+                    });
+                }
                 return;
             case ID_CHANNEL:
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/glassgramdev");
@@ -781,6 +826,21 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         // Screens below show the change when they are rebuilt
         if (parentLayout != null) {
             parentLayout.rebuildAllFragmentViews(false, false);
+        }
+    }
+
+    private void onTeamSignedIn() {
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+        final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
+        if (session == null) {
+            return;
+        }
+        if (session.isStaff()) {
+            presentFragment(new GlassgramDeveloperActivity());
+        } else if (getParentActivity() != null) {
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.formatString(R.string.GlassgramApiNoRights, "@" + GlassgramApi.BOT_USERNAME)).show();
         }
     }
 

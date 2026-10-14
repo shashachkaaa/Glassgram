@@ -537,6 +537,7 @@
     <string name="GlassgramSendStatsInfo">Модель телефона, версия Android, возможности камер и какие настройки включены — раз в день и без вашего аккаунта. Помогает адаптировать glassGram под все телефоны</string>
     <string name="GlassgramSendReport">Отправить отчёт разработчику</string>
     <string name="GlassgramApiTeam">Команда glassGram</string>
+    <string name="GlassgramApiTeamSignIn">Вход для команды glassGram</string>
     <string name="GlassgramApiTeamInfo">Значки, статистика телефонов, вылеты и отчёты для команды glassGram. Вход через ваш аккаунт Telegram; права выдаются в %1$s.</string>
     <string name="GlassgramApiSignIn">Войти через Telegram</string>
     <string name="GlassgramApiSignInButton">Войти</string>
