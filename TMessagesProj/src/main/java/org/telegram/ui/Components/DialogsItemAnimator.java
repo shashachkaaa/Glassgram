@@ -46,6 +46,27 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
     private final static int deleteDuration = 180;
     private final static int changeDuration = 180;
 
+    // glassGram: with iOS animations, rows move, leave and come in longer and on iOS's ease, all
+    // on the same curve so the rows closing a gap keep up with the one leaving it
+    private static final TimeInterpolator glassgramIosInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
+
+    private static boolean glassgramIos() {
+        return org.telegram.messenger.GlassgramConfig.iosTransitions;
+    }
+
+    private static int rowDuration() {
+        return glassgramIos() ? 320 : deleteDuration;
+    }
+
+    private static TimeInterpolator rowInterpolator() {
+        return glassgramIos() ? glassgramIosInterpolator : sDefaultInterpolator;
+    }
+
+    @Override
+    public long getMoveDuration() {
+        return rowDuration();
+    }
+
     private static class MoveInfo {
         public ViewHolder holder;
         public int fromX, fromY, toX, toY;
@@ -200,8 +221,8 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
                     dialogCell.setOutlineProvider(null);
                 }
                 final ObjectAnimator animator = ObjectAnimator.ofFloat(dialogCell, AnimationProperties.CLIP_DIALOG_CELL_PROGRESS, 1.0f)
-                        .setDuration(deleteDuration);
-                animator.setInterpolator(sDefaultInterpolator);
+                        .setDuration(rowDuration());
+                animator.setInterpolator(rowInterpolator());
                 animator.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationStart(Animator animator) {
@@ -222,8 +243,8 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
                 });
                 animator.start();
             } else {
-                final ObjectAnimator animator = ObjectAnimator.ofFloat(dialogCell, View.ALPHA, 1.0f).setDuration(deleteDuration);
-                animator.setInterpolator(sDefaultInterpolator);
+                final ObjectAnimator animator = ObjectAnimator.ofFloat(dialogCell, View.ALPHA, 1.0f).setDuration(rowDuration());
+                animator.setInterpolator(rowInterpolator());
                 animator.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationStart(Animator animator) {
@@ -246,7 +267,7 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
             }
         } else {
             final ViewPropertyAnimator animation = view.animate();
-            animation.setDuration(deleteDuration).alpha(0).setListener(
+            animation.setDuration(rowDuration()).alpha(0).setListener(
                     new AnimatorListenerAdapter() {
                         @Override
                         public void onAnimationStart(Animator animator) {
@@ -289,7 +310,7 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
         mAddAnimations.add(holder);
 
         final ViewPropertyAnimator animation = view.animate();
-        animation.alpha(1).setDuration(deleteDuration)
+        animation.alpha(1).setDuration(rowDuration())
                 .setListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationStart(Animator animator) {
@@ -389,7 +410,7 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
         // need listener functionality in VPACompat for this. Ick.
         final ViewPropertyAnimator animation = view.animate();
         mMoveAnimations.add(holder);
-        animation.setDuration(deleteDuration).setListener(new AnimatorListenerAdapter() {
+        animation.setDuration(rowDuration()).setListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationStart(Animator animator) {
                 dispatchMoveStarting(holder);
@@ -614,7 +635,7 @@ public class DialogsItemAnimator extends SimpleItemAnimator {
     }
 
     private void resetAnimation(ViewHolder holder) {
-        holder.itemView.animate().setInterpolator(sDefaultInterpolator);
+        holder.itemView.animate().setInterpolator(rowInterpolator());
         endAnimation(holder);
     }
 

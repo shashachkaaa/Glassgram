@@ -327,11 +327,52 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
 
     private long shownAt;
 
+    /** glassGram: dialogs come and go as iOS alerts, the spinner and the stars' screen aside. */
+    private boolean glassgramIosAlert() {
+        return org.telegram.messenger.GlassgramConfig.iosTransitions && progressViewStyle != ALERT_TYPE_SPINNER && !needStarsBalance;
+    }
+
+    private android.animation.ValueAnimator glassgramDimAnimator;
+
+    private void glassgramAnimateDim(float from, float to, long duration) {
+        final Window window = getWindow();
+        if (window == null || !dimEnabled || dimCustom) {
+            return;
+        }
+        if (glassgramDimAnimator != null) {
+            glassgramDimAnimator.cancel();
+        }
+        glassgramDimAnimator = android.animation.ValueAnimator.ofFloat(from, to);
+        glassgramDimAnimator.setDuration(duration);
+        glassgramDimAnimator.addUpdateListener(a -> {
+            try {
+                window.setDimAmount((float) a.getAnimatedValue());
+            } catch (Exception ignore) {
+            }
+        });
+        glassgramDimAnimator.start();
+    }
+
     @Override
     public void show() {
         if (!AndroidUtilities.isSafeToShow(getContext())) return;
         dismissed = false;
+        final boolean glassgramIos = glassgramIosAlert();
+        if (glassgramIos && getWindow() != null) {
+            // the system's own dialog animation would play under this one
+            getWindow().setWindowAnimations(R.style.DialogNoAnimation);
+        }
         super.show();
+        if (glassgramIos && containerView != null) {
+            // as an iOS alert: a little larger, coming to its size on a soft spring as it shows
+            containerView.setScaleX(1.12f);
+            containerView.setScaleY(1.12f);
+            containerView.setAlpha(0f);
+            containerView.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(380)
+                .setInterpolator(new org.telegram.ui.Components.GlassgramSpringInterpolator(0.86f))
+                .setListener(null).start();
+            glassgramAnimateDim(0f, dimAlpha, 250);
+        }
         if (progressViewContainer != null && progressViewStyle == ALERT_TYPE_SPINNER) {
             progressViewContainer.setScaleX(0);
             progressViewContainer.setScaleY(0);
@@ -1593,6 +1634,35 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         }
         if (cancelDialog != null) {
             cancelDialog.dismiss();
+        }
+        final android.app.Activity owner = AndroidUtilities.findActivity(getContext());
+        if (glassgramIosAlert() && containerView != null && containerView.isAttachedToWindow()
+                && (owner == null || !owner.isFinishing())) {
+            // glassGram: it fades and shrinks a little, and the window goes once it has
+            containerView.animate().cancel();
+            containerView.animate().alpha(0f).scaleX(0.94f).scaleY(0.94f).setDuration(180)
+                .setInterpolator(org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT)
+                .setListener(new android.animation.AnimatorListenerAdapter() {
+                    private boolean done;
+                    @Override
+                    public void onAnimationEnd(android.animation.Animator animation) {
+                        // shown again meanwhile: it stays
+                        if (!done && dismissed) {
+                            done = true;
+                            finishDismiss();
+                        }
+                    }
+                }).start();
+            glassgramAnimateDim(dimAlpha, 0f, 180);
+            return;
+        }
+        finishDismiss();
+    }
+
+    private void finishDismiss() {
+        if (glassgramDimAnimator != null) {
+            glassgramDimAnimator.cancel();
+            glassgramDimAnimator = null;
         }
         try {
             super.dismiss();

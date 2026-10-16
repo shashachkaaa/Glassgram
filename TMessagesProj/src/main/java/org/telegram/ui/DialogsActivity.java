@@ -7743,10 +7743,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
             animators.add(valueAnimator);
             searchAnimator.playTogether(animators);
-            searchAnimator.setDuration(show ? 200 : 180);
-            searchAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT);
+            if (org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                // glassGram: the list and the results move with the search field (350 ms,
+                // EASE_OUT_QUINT), not ahead of it on a shorter clock, as on iOS
+                searchAnimator.setDuration(350);
+                searchAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+            } else {
+                searchAnimator.setDuration(show ? 200 : 180);
+                searchAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT);
+            }
 
-            if (!show) {
+            if (!show && !org.telegram.messenger.GlassgramConfig.iosTransitions) {
                 searchAnimator.setStartDelay(20);
             }
             searchAnimator.addListener(new AnimatorListenerAdapter() {

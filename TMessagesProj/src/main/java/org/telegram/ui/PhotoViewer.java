@@ -17821,7 +17821,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             animators.add(ObjectAnimator.ofFloat(photoCropView, View.ALPHA, 0, 1.0f));
                         }
                         animatorSet.playTogether(animators);
-                        animatorSet.setDuration(200);
+                        if (org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                            // glassGram: out of its bubble at iOS's pace and ease
+                            animatorSet.setDuration(340);
+                            animatorSet.setInterpolator(glassgramIosEase);
+                        } else {
+                            animatorSet.setDuration(200);
+                        }
                         animatorSet.addListener(new AnimatorListenerAdapter() {
                             @Override
                             public void onAnimationEnd(Animator animation) {
@@ -18477,7 +18483,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     }
                 };
 
-                animatorSet.setDuration(200);
+                if (org.telegram.messenger.GlassgramConfig.iosTransitions) {
+                    // glassGram: back into its bubble at iOS's pace and ease
+                    animatorSet.setDuration(300);
+                    animatorSet.setInterpolator(glassgramIosEase);
+                } else {
+                    animatorSet.setDuration(200);
+                }
                 animatorSet.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
@@ -19309,6 +19321,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         toggleActionBar(true, true);
                         toggleCheckImageView(true);
                     }
+                    // glassGram: let go short of closing, the photo springs back as on iOS
+                    glassgramSpringBack = org.telegram.messenger.GlassgramConfig.iosTransitions;
                     animateTo(1, 0, 0, false);
                 }
                 draggingDown = false;
@@ -19414,6 +19428,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         animateTo(newScale, newTx, newTy, isZoom, 250);
     }
 
+    // glassGram: iOS animations for opening, closing and letting go of the photo
+    private static final CubicBezierInterpolator glassgramIosEase = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
+    private static final android.view.animation.Interpolator glassgramSpringBackInterpolator = new org.telegram.ui.Components.GlassgramSpringInterpolator(0.75f);
+    private boolean glassgramSpringBack;
+
     private void animateTo(float newScale, float newTx, float newTy, boolean isZoom, int duration) {
         if (scale == newScale && translationX == newTx && translationY == newTy) {
             return;
@@ -19427,8 +19446,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         imageMoveAnimation.playTogether(
                 ObjectAnimator.ofFloat(this, AnimationProperties.PHOTO_VIEWER_ANIMATION_VALUE, 0, 1)
         );
-        imageMoveAnimation.setInterpolator(interpolator);
-        imageMoveAnimation.setDuration(duration);
+        if (glassgramSpringBack) {
+            glassgramSpringBack = false;
+            imageMoveAnimation.setInterpolator(glassgramSpringBackInterpolator);
+            imageMoveAnimation.setDuration(460);
+        } else {
+            imageMoveAnimation.setInterpolator(interpolator);
+            imageMoveAnimation.setDuration(duration);
+        }
         imageMoveAnimation.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {

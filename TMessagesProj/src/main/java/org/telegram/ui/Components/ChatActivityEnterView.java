@@ -12790,6 +12790,11 @@ public class ChatActivityEnterView extends FrameLayout implements
             boolean samePannelWasVisible = false;
             int previousHeight = 0;
             if (contentType == POPUP_CONTENT_EMOJI_KEYBOARD) {
+                if (glassgramRemoveEmojiView != null) {
+                    // shown again before the keyboard covered it: it stays
+                    AndroidUtilities.cancelRunOnUIThread(glassgramRemoveEmojiView);
+                    glassgramRemoveEmojiView = null;
+                }
                 attachEmojiView();
                 samePannelWasVisible = emojiViewVisible && emojiView.getVisibility() == View.VISIBLE;
                 emojiView.setVisibility(VISIBLE);
@@ -12949,6 +12954,24 @@ public class ChatActivityEnterView extends FrameLayout implements
                         }
                         AndroidUtilities.runOnUIThread(runEmojiPanelAnimation, 50);
                         requestLayout();
+                    } else if (org.telegram.messenger.GlassgramConfig.iosTransitions && windowInsetsInAppController != null && keyboardVisible) {
+                        // glassGram: going from the emoji to the keyboard, the panel stays under the
+                        // keyboard rising over it and leaves once it is covered, not a frame before
+                        if (delegate != null) {
+                            delegate.bottomPanelTranslationYChanged(0);
+                        }
+                        emojiPadding = 0;
+                        emojiView.setShowing(false);
+                        final EmojiView leaving = emojiView;
+                        AndroidUtilities.cancelRunOnUIThread(glassgramRemoveEmojiView);
+                        glassgramRemoveEmojiView = () -> {
+                            glassgramRemoveEmojiView = null;
+                            if (emojiView == leaving && !emojiViewVisible && leaving.getParent() != null) {
+                                viewParentForEmojiView.removeView(leaving);
+                                leaving.setVisibility(GONE);
+                            }
+                        };
+                        AndroidUtilities.runOnUIThread(glassgramRemoveEmojiView, AdjustPanLayoutHelper.keyboardDuration + 120);
                     } else {
                         if (delegate != null) {
                             delegate.bottomPanelTranslationYChanged(0);
@@ -13029,6 +13052,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         updateFieldHint(false);
         checkBotMenu();
     }
+
+    private Runnable glassgramRemoveEmojiView;
 
     private void attachEmojiView() {
         if (emojiView.getParent() == null) {

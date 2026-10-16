@@ -10014,7 +10014,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             updateStar();
         }
         final AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.setDuration(playProfileAnimation == 2 ? 250 : 180);
+        // glassGram: with iOS animations, the avatar grows out of the chat's header and back
+        // at iOS's pace: a soft spring on the way in, its ease on the way out
+        final boolean glassgramIos = org.telegram.messenger.GlassgramConfig.iosTransitions;
+        animatorSet.setDuration(glassgramIos ? (isOpen ? 460 : 340) : playProfileAnimation == 2 ? 250 : 180);
         listView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         ActionBarMenu menu = actionBar.createMenu();
         if (menu.getItem(10) == null) {
@@ -10325,7 +10328,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 fragmentView.invalidate();
             }
         });
-        animatorSet.setInterpolator(playProfileAnimation == 2 ? CubicBezierInterpolator.DEFAULT : new DecelerateInterpolator());
+        if (glassgramIos) {
+            animatorSet.setInterpolator(isOpen ? new org.telegram.ui.Components.GlassgramSpringInterpolator(0.88f) : new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0));
+        } else {
+            animatorSet.setInterpolator(playProfileAnimation == 2 ? CubicBezierInterpolator.DEFAULT : new DecelerateInterpolator());
+        }
 
         AndroidUtilities.runOnUIThread(animatorSet::start, 50);
         return animatorSet;
