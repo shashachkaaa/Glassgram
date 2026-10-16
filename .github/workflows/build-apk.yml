@@ -74,11 +74,13 @@ jobs:
           fetch-depth: 1
 
       # The submodules come from several hosts (chromium.googlesource.com answers 502/503 at
-      # times): fetched with retries rather than failing the build on the first error
+      # times): fetched with retries rather than failing the build on the first error. --force
+      # checks every one out: a failed attempt leaves submodules cloned but not checked out, and
+      # without it a retry takes them as done and leaves them empty
       - name: Fetch submodules
         run: |
           for attempt in 1 2 3 4 5; do
-            if git submodule update --init --recursive --depth 1 --jobs 4; then
+            if git submodule update --init --recursive --depth 1 --jobs 4 --force; then
               exit 0
             fi
             echo "Submodules failed (attempt $attempt), retrying in $((attempt * 20)) s"
