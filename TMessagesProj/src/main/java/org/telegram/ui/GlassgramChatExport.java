@@ -1038,7 +1038,7 @@ public final class GlassgramChatExport {
                 sb.append("<div class=\"from\">").append(escape(m.optString("from"))).append("</div>");
             }
             if (m.has("forwarded_from")) {
-                sb.append("<div class=\"fwd\">").append(escape(getString(R.string.ForwardedMessage))).append(": ")
+                sb.append("<div class=\"fwd\">").append(escape(getString(R.string.ForwardedFrom))).append(" ")
                         .append(escape(m.isNull("forwarded_from") ? "?" : m.optString("forwarded_from"))).append("</div>");
             }
             if (m.has("reply_to_message_id")) {
