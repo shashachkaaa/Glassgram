@@ -219,7 +219,36 @@ jobs:
             -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dorg.gradle.workers.max=4
 
-      - name: Native build cache stats
+      # R8 renames the code of full builds, and their crashes read like j1.x.f(r8-map-id-…:75). The
+      # mapping goes to the "mappings" pre-release, named by the map id the traces carry, for
+      # glassGram's bot to read crashes back into the source's names (glassgram-bot/retrace.py)
+      - name: Publish the R8 mapping
+        if: steps.task.outputs.fast == 'false' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p r8-mappings
+          find . -path '*/build/outputs/mapping/*/mapping.txt' -not -path './r8-mappings/*' | while read -r file; do
+            id=$(sed -n 's/^# pg_map_id: \([0-9a-f]\{7,64\}\)$/\1/p' "$file" | head -1)
+            if [ -z "$id" ]; then
+              echo "::warning::No map id in $file"
+              continue
+            fi
+            gzip -9 -c "$file" > "r8-mappings/mapping-$id.txt.gz"
+          done
+          ls -lh r8-mappings
+          if ! ls r8-mappings/*.txt.gz > /dev/null 2>&1; then
+            echo "::warning::No R8 mapping found"
+            exit 0
+          fi
+          if ! gh release view mappings > /dev/null 2>&1; then
+            gh release create mappings --prerelease --target "$GITHUB_SHA" \
+              --title "R8 mappings" \
+              --notes "R8 mappings of glassGram's full builds, named by the map id in their stack traces (r8-map-id-…). Read by glassGram's bot to make crash reports readable; not an app release." \
+              || gh release view mappings > /dev/null
+          fi
+          gh release upload mappings r8-mappings/*.txt.gz --clobber
+
         if: always() && steps.build.outcome != 'skipped'
         run: ccache --show-stats || true
 
