@@ -16,6 +16,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
+import android.graphics.RecordingCanvas;
 import android.graphics.RectF;
 import android.graphics.RenderNode;
 import android.graphics.Shader;
@@ -35,12 +36,16 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RawRes;
+import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.math.MathUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.liquidglass.BackdropGlass;
+import org.telegram.liquidglass.GlassLayer;
 import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
@@ -295,7 +300,10 @@ public class ProfileActionsView extends View {
             return;
         }
 
-        if (!ignoreRect) {
+        glassDrawn = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && glassgramGlass(canvas);
+        if (glassDrawn) {
+            drawGlassButtons(canvas, r, alphaFraction1);
+        } else if (!ignoreRect) {
             for (int i = 0; i < c; i++) {
                 Action action = actions.get(i);
                 if (!action.isDeleted) {
@@ -328,13 +336,221 @@ public class ProfileActionsView extends View {
             }
         }
 
-        drawRenderNode(canvas);
+        if (!glassDrawn) {
+            drawRenderNode(canvas);
+        }
 
         float alphaFraction2 = Utilities.clamp01((fraction - 0.4f) / 0.6f);
         if (alphaFraction2 > 0f) {
             for (int i = 0; i < c; i++) {
                 drawAction(canvas, actions.get(i), fraction, alphaFraction2);
             }
+        }
+    }
+
+    // Liquid Glass buttons: each is glass made of what is under it, the header (its color, its
+    // pattern, the photo) blurred and refracted at the edges, like the bar's buttons above them
+    private View glassHeader;
+    private ViewBehindBackdrop glassBehind;
+    private Object glassBackdropNode;
+    private boolean glassDrawn, glassRecording, glassRefreshPosted;
+    private long glassRecordedAt;
+    private final float[] glassHeaderState = new float[8];
+    private final Paint glassShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path glassShadowClip = new Path();
+    private final RectF glassRect = new RectF();
+    private android.view.ViewTreeObserver glassTree;
+    // The glass is recorded when the buttons draw; when only what is under them changed (the
+    // gallery swiped, the header animating) they are redrawn, at most every GLASS_REFRESH_MS
+    private static final long GLASS_REFRESH_MS = 32;
+    private final android.view.ViewTreeObserver.OnPreDrawListener glassWatcher = () -> {
+        if (glassDrawn && !glassRefreshPosted && isGlassStale()) {
+            final long wait = GLASS_REFRESH_MS - (android.os.SystemClock.uptimeMillis() - glassRecordedAt);
+            if (wait <= 0) {
+                invalidate();
+            } else {
+                glassRefreshPosted = true;
+                postInvalidateDelayed(wait);
+            }
+        }
+        return true;
+    };
+
+    /** The header drawn under the buttons, a sibling of their parent, for their glass. */
+    public void setGlassHeader(View header) {
+        glassHeader = header;
+        if (glassBehind == null) {
+            glassBehind = new ViewBehindBackdrop(this);
+        }
+        watchGlass(isAttachedToWindow());
+        invalidate();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        watchGlass(true);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        watchGlass(false);
+    }
+
+    private void watchGlass(boolean watch) {
+        if (glassTree != null && glassTree.isAlive()) {
+            glassTree.removeOnPreDrawListener(glassWatcher);
+        }
+        glassTree = null;
+        if (watch && glassBehind != null) {
+            glassTree = getViewTreeObserver();
+            glassTree.addOnPreDrawListener(glassWatcher);
+        }
+    }
+
+    private boolean glassgramGlass(Canvas canvas) {
+        return glassBehind != null && !glassRecording
+            && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) && canvas.isHardwareAccelerated();
+    }
+
+    private boolean isGlassStale() {
+        if (glassBehind.isStale()) {
+            return true;
+        }
+        final View h = glassHeader;
+        if (h == null) {
+            return false;
+        }
+        if (h.isDirty()) {
+            return true;
+        }
+        final float[] s = glassHeaderState;
+        return s[0] != h.getLeft() || s[1] != h.getTop() || s[2] != h.getRight() || s[3] != h.getBottom()
+            || s[4] != h.getTranslationX() || s[5] != h.getTranslationY() || s[6] != h.getAlpha() || s[7] != h.getVisibility();
+    }
+
+    /** Whether the buttons' text and icons are white, over a colored header or a photo. */
+    private float whiteContent() {
+        final boolean light = isButtonColorLight();
+        float white = !light ? 1 : MathUtils.clamp((parentExpanded - 0.75f) / 0.25f, 0, 1);
+        if (light && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            white = 0f;
+        }
+        return white;
+    }
+
+    // What is under the view, with (0, 0) at its top-left corner: the header, then the siblings before it
+    private void drawGlassBehind(Canvas canvas) {
+        final View h = glassHeader;
+        if (h != null && h.getVisibility() == View.VISIBLE && h.getAlpha() > 0f && getParent() instanceof View) {
+            final View parent = (View) getParent();
+            final int restore = canvas.save();
+            canvas.translate(-(parent.getX() + getX()), -(parent.getY() + getY()));
+            canvas.translate(h.getLeft(), h.getTop());
+            canvas.concat(h.getMatrix());
+            if (h.getAlpha() < 1f) {
+                canvas.saveLayerAlpha(0, 0, h.getWidth(), h.getHeight(), (int) (255 * h.getAlpha()));
+            }
+            canvas.translate(-h.getScrollX(), -h.getScrollY());
+            h.draw(canvas);
+            canvas.restoreToCount(restore);
+        }
+        AndroidUtilities.rectTmp.set(0, 0, getWidth(), getHeight());
+        glassBehind.setArea(AndroidUtilities.rectTmp);
+        glassBehind.draw(canvas);
+        if (h != null) {
+            final float[] s = glassHeaderState;
+            s[0] = h.getLeft();
+            s[1] = h.getTop();
+            s[2] = h.getRight();
+            s[3] = h.getBottom();
+            s[4] = h.getTranslationX();
+            s[5] = h.getTranslationY();
+            s[6] = h.getAlpha();
+            s[7] = h.getVisibility();
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private void drawGlassButtons(Canvas canvas, float r, float alphaFraction) {
+        glassRefreshPosted = false;
+        glassRecordedAt = android.os.SystemClock.uptimeMillis();
+        final int w = getWidth(), h = getHeight();
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        // What is under the buttons is recorded once for all of them
+        if (glassBackdropNode == null) {
+            glassBackdropNode = new RenderNode("ProfileActionsGlass");
+        }
+        final RenderNode node = (RenderNode) glassBackdropNode;
+        node.setPosition(0, 0, w, h);
+        final RecordingCanvas recording = node.beginRecording(w, h);
+        glassRecording = true;
+        try {
+            drawGlassBehind(recording);
+        } finally {
+            glassRecording = false;
+            node.endRecording();
+        }
+
+        // Under white text it is a light veil that keeps the header's color, under dark text the frosted white of iOS
+        final float t = whiteContent();
+        final boolean veil = t >= 0.5f;
+        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
+        final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
+        final int frosted = ColorUtils.setAlphaComponent(surface, (int) (255 * BackdropGlass.tintAlpha(dark)));
+        final int tint = ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), t);
+        final float density = AndroidUtilities.density;
+        final float blur = (veil ? 4f : BackdropGlass.BlurRadius) * density;
+
+        for (int i = 0, c = actions.size(); i < c; i++) {
+            final Action action = actions.get(i);
+            if (action.isDeleted) {
+                continue;
+            }
+            final RectF rect = glassRect;
+            rect.set(action.rect);
+            rect.inset(
+                action.rect.width() / 2.0f * (1.0f - action.getScale()),
+                action.rect.height() / 2.0f * (1.0f - action.getScale())
+            );
+            final float alpha = action.getAlpha() * alphaFraction;
+            if (rect.isEmpty() || alpha <= 0f) {
+                continue;
+            }
+            final float radius = Math.min(r, Math.min(rect.width(), rect.height()) / 2f);
+            if (t < 1f) {
+                // A soft shadow around the frosted glass, outside it so it does not darken it
+                final float shadow = dpf2(10);
+                glassShadowPaint.setColor(Color.BLACK);
+                glassShadowPaint.setShadowLayer(shadow, 0, shadow / 5f, ColorUtils.setAlphaComponent(Color.BLACK, (int) (0x18 * (1f - t) * alpha)));
+                glassShadowClip.rewind();
+                glassShadowClip.addRoundRect(rect, radius, radius, Path.Direction.CW);
+                canvas.save();
+                canvas.clipOutPath(glassShadowClip);
+                canvas.drawRoundRect(rect, radius, radius, glassShadowPaint);
+                canvas.restore();
+            }
+            if (action.glass == null) {
+                action.glass = new GlassLayer();
+            }
+            final float left = rect.left, top = rect.top;
+            final int restore = alpha < 1f
+                ? canvas.saveLayerAlpha(rect.left, rect.top, rect.right, rect.bottom, (int) (255 * alpha))
+                : canvas.save();
+            canvas.translate(left, top);
+            ((GlassLayer) action.glass).draw(canvas, rect.width(), rect.height(), radius, density,
+                dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
+                blur, Math.max(1, Math.min(dp(12), Math.min(rect.width(), rect.height()) / 4)), dpf2(24),
+                false, true, dark,
+                backdrop -> {
+                    backdrop.translate(-left, -top);
+                    backdrop.drawRenderNode(node);
+                },
+                tint, veil ? 0.8f : 1f, 1f);
+            canvas.restoreToCount(restore);
         }
     }
 
@@ -409,11 +625,7 @@ public class ProfileActionsView extends View {
             return;
         }
 
-        final boolean isButtonColorLight = isButtonColorLight();
-        float useFilledWhiteIcon = !isButtonColorLight ? 1 : MathUtils.clamp((parentExpanded - 0.75f) / 0.25f, 0, 1);
-        if (isButtonColorLight && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            useFilledWhiteIcon = 0f;
-        }
+        final float useFilledWhiteIcon = whiteContent();
 
         final int textColor = ColorUtils.blendARGB(Color.BLACK, Color.WHITE, useFilledWhiteIcon);
         if (lastColorFilter == null || lastColorFilterColor != textColor) {
@@ -993,6 +1205,8 @@ public class ProfileActionsView extends View {
 
     private class Action {
         int key;
+        // The button's Liquid Glass, a GlassLayer; each button needs its own, it records its backdrop
+        Object glass;
 
         private final ButtonBounce bounce = new ButtonBounce(ProfileActionsView.this);
         final RectF prevRect = new RectF();

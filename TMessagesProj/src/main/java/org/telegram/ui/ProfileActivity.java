@@ -5537,6 +5537,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (actionsView != null) {
             avatarsBlurView.setActionsView(actionsView);
             avatarContainer2.addView(actionsView, LayoutHelper.createFrame(-1, -1));
+            actionsView.setGlassHeader(topView);
         }
         if (musicView != null) {
             avatarsBlurView.setMusicView(musicView);
