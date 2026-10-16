@@ -305,6 +305,13 @@
     <string name="GlassgramDonateStep3Text">Бот выдаст значок автоматически, в glassGram он появится через пару минут.</string>
     <string name="GlassgramDonateOpenBot">Открыть @%1$s</string>
     <string name="GlassgramHideFloatingButton">Скрыть плавающую кнопку</string>
+    <string name="GlassgramFontHeader">Шрифт</string>
+    <string name="GlassgramFont">Шрифт приложения</string>
+    <string name="GlassgramFontSystem">Стандартный</string>
+    <string name="GlassgramFontInfo">Шрифт всего текста в приложении: чатов, сообщений, меню. Стандартный — шрифт телефона с жирным начертанием Telegram. Применяется при запуске glassGram.</string>
+    <string name="GlassgramFontRestart">Новый шрифт применится при следующем запуске glassGram. Перезапустить сейчас?</string>
+    <string name="GlassgramFontRestartNow">Перезапустить</string>
+    <string name="GlassgramFontRestartLater">Позже</string>
     <string name="GlassgramAnimations">Анимации</string>
     <string name="GlassgramIosTransitions">Анимации как в iOS</string>
     <string name="GlassgramIosTransitionsInfo">Экраны выезжают справа поверх предыдущего, меню и шторки появляются на пружине, вкладки переключаются плавным затуханием, отправленные сообщения вылетают из поля ввода, а новые плавно появляются в чате, как на iPhone.</string>

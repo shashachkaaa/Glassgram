@@ -57,6 +57,8 @@ public class GlassgramConfig {
     public static boolean splitInput = true;
     /** Pages slide in over each other the whole width, like on iOS, instead of Android's short fade. */
     public static boolean iosTransitions = true;
+    /** The app's font (GlassgramFonts), taken at start. */
+    public static String font = GlassgramFonts.SYSTEM;
     public static boolean hideFloatingButton;
 
     // Chats
@@ -209,6 +211,7 @@ public class GlassgramConfig {
         glassPanels = p.getBoolean("glassPanels", true);
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
+        font = p.getString("font", GlassgramFonts.SYSTEM);
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);
         disableGreetingSticker = p.getBoolean("disableGreetingSticker", false);
@@ -311,6 +314,11 @@ public class GlassgramConfig {
 
     public static void putString(String key, String value) {
         prefs().edit().putString(key, value).apply();
+    }
+
+    /** Written before returning, for a value a restart is about to need. */
+    public static void putStringNow(String key, String value) {
+        prefs().edit().putString(key, value).commit();
     }
 
     public static void setTitleText(String text) {

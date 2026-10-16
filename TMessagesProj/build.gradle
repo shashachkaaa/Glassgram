@@ -44,6 +44,8 @@ configurations.all {
 
 dependencies {
     implementation project(':TMessagesProj_LiquidGlass')
+    // glassGram's fonts: the default typeface is set through a hidden API (GlassgramFonts)
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
     implementation 'androidx.core:core:1.16.0'
     implementation 'androidx.palette:palette:1.0.0'
     implementation 'androidx.exifinterface:exifinterface:1.3.6'

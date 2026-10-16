@@ -337,6 +337,8 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
         GlassgramConfig.load();
+        // the font chosen in glassGram's settings, before anything draws text
+        GlassgramFonts.apply();
 
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
 

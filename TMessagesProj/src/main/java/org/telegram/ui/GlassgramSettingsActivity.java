@@ -9,6 +9,8 @@ import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Paint;
 import android.text.InputType;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -24,6 +26,7 @@ import android.widget.FrameLayout;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramFonts;
 import org.telegram.messenger.GlassgramRemoteConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.LocaleController;
@@ -167,6 +170,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TEAM = 129;
     private static final int ID_BACKUP_EXPORT = 131;
     private static final int ID_BACKUP_RESTORE = 132;
+    private static final int ID_FONT = 133;
 
     private final int page;
     private boolean ghostExpanded;
@@ -296,6 +300,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
                 items.add(UItem.asCheck(ID_GLASS_PANELS, getString(R.string.GlassgramGlassPanels)).setChecked(GlassgramConfig.glassPanels));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
+                items.add(header(getString(R.string.GlassgramFontHeader)));
+                items.add(UItem.asButton(ID_FONT, getString(R.string.GlassgramFont), fontName(GlassgramConfig.font)));
+                items.add(UItem.asShadow(getString(R.string.GlassgramFontInfo)));
                 items.add(header(getString(R.string.GlassgramAnimations)));
                 items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
                 items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
@@ -631,6 +638,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     GlassgramConfig.showId = which;
                     GlassgramConfig.putInt("showId", which);
                 });
+                return;
+            case ID_FONT:
+                showFontChoice();
                 return;
         }
         final boolean value;
@@ -1396,6 +1406,71 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         builder.show();
+    }
+
+    private static String fontName(String id) {
+        final String name = GlassgramFonts.name(id);
+        return name != null ? name : getString(R.string.GlassgramFontSystem);
+    }
+
+    /** The fonts, each shown in itself; the chosen one is taken at the next start. */
+    private void showFontChoice() {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final String[] ids = GlassgramFonts.ids();
+        final CharSequence[] items = new CharSequence[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            final SpannableStringBuilder text = new SpannableStringBuilder(fontName(ids[i]));
+            final android.graphics.Typeface typeface = GlassgramFonts.preview(ids[i]);
+            if (typeface != null) {
+                text.setSpan(new org.telegram.ui.Components.TypefaceSpan(typeface), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            if (ids[i].equals(GlassgramConfig.font)) {
+                text.insert(0, "✓ ");
+            }
+            items[i] = text;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.GlassgramFont));
+        builder.setItems(items, (dialog, which) -> {
+            if (ids[which].equals(GlassgramConfig.font)) {
+                return;
+            }
+            GlassgramConfig.font = ids[which];
+            // written at once: the restart may follow right away
+            GlassgramConfig.putStringNow("font", ids[which]);
+            if (listView != null) {
+                listView.adapter.update(true);
+            }
+            askRestart(context);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        builder.show();
+    }
+
+    private void askRestart(Context context) {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.GlassgramFont));
+        builder.setMessage(getString(R.string.GlassgramFontRestart));
+        builder.setPositiveButton(getString(R.string.GlassgramFontRestartNow), (d, w) -> restartApp(context));
+        builder.setNegativeButton(getString(R.string.GlassgramFontRestartLater), null);
+        builder.show();
+    }
+
+    /** Starts the app anew: the font is set as the process starts. */
+    private static void restartApp(Context context) {
+        try {
+            final Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (launch == null || launch.getComponent() == null) {
+                return;
+            }
+            context.startActivity(Intent.makeRestartActivityTask(launch.getComponent()));
+            AndroidUtilities.runOnUIThread(() -> Runtime.getRuntime().exit(0), 300);
+        } catch (Exception e) {
+            org.telegram.messenger.FileLog.e(e);
+        }
     }
 
     private void showTitleTextDialog() {

@@ -11310,6 +11310,13 @@
     <string name="GlassgramDonateStep3Text">The bot gives you the badge automatically; it shows up in glassGram within a couple of minutes.</string>
     <string name="GlassgramDonateOpenBot">Open @%1$s</string>
     <string name="GlassgramHideFloatingButton">Hide Floating Button</string>
+    <string name="GlassgramFontHeader">Font</string>
+    <string name="GlassgramFont">App font</string>
+    <string name="GlassgramFontSystem">Standard</string>
+    <string name="GlassgramFontInfo">The font of all the app\'s text: chats, messages, menus. Standard is the phone\'s own with Telegram\'s bold. It is applied when glassGram starts.</string>
+    <string name="GlassgramFontRestart">The new font is applied when glassGram starts again. Restart now?</string>
+    <string name="GlassgramFontRestartNow">Restart</string>
+    <string name="GlassgramFontRestartLater">Later</string>
     <string name="GlassgramAnimations">Animations</string>
     <string name="GlassgramIosTransitions">iOS-style Animations</string>
     <string name="GlassgramIosTransitionsInfo">Screens slide in from the right over the previous one, menus and sheets come out on a spring, tabs switch with a quick fade, sent messages fly out of the field and new ones spring into the chat, like on iPhone.</string>
