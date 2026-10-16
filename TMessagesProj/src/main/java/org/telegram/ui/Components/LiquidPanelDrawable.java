@@ -227,6 +227,7 @@ public class LiquidPanelDrawable extends Drawable {
                 || now - backdropRecordedAt >= BACKDROP_REFRESH_MS) {
             backdropRecorded = true;
             backdropRecordedAt = now;
+            backdropVersion++;
             node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
             node.setClipToBounds(false);
             // The windows drawn here use the shared scratch rects too; a sheet that set one before drawing
@@ -252,19 +253,52 @@ public class LiquidPanelDrawable extends Drawable {
         backdropDy = decorLocation[1] - (hostLocation[1] + rect.top);
 
         // ward's glassPanel: the window is denser than in-screen glass so text stays readable
-        final int tint = ColorUtils.setAlphaComponent(baseColor, (int) (255 * (dark ? 0.62f : 0.68f) * alpha / 255f));
+        // The panel's alpha goes on the finished glass below, so fading doesn't redo it
+        final int tint = ColorUtils.setAlphaComponent(baseColor, (int) (255 * (dark ? 0.62f : 0.68f)));
 
+        // The finished glass is kept as a texture: the blur and the lens are worked out again only
+        // when the panel moved, the backdrop was recorded anew, or its shape or color changed, not
+        // whenever the sheet's content redraws (a gallery scrolling in it, a photo opening over it)
+        if (glassNode == null) {
+            glassNode = new RenderNode("LiquidPanelGlass");
+            ((RenderNode) glassNode).setUseCompositingLayer(true, null);
+        }
+        final RenderNode gn = (RenderNode) glassNode;
+        final int w = (int) Math.ceil(rect.width()), h = (int) Math.ceil(rect.height());
+        if (glassVersion != backdropVersion || gn.getWidth() != w || gn.getHeight() != h || glassRadius != radius
+                || glassTint != tint || glassDark != dark || glassDx != backdropDx || glassDy != backdropDy) {
+            glassVersion = backdropVersion;
+            glassRadius = radius;
+            glassTint = tint;
+            glassDark = dark;
+            glassDx = backdropDx;
+            glassDy = backdropDy;
+            gn.setPosition(0, 0, w, h);
+            final RecordingCanvas gc = gn.beginRecording(w, h);
+            try {
+                ((GlassLayer) glass).draw(gc, rect.width(), rect.height(), radius, AndroidUtilities.density,
+                    dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
+                    AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius),
+                    AndroidUtilities.dpf2(24), AndroidUtilities.dpf2(24),
+                    true, false, dark,
+                    backdrop, tint, dark ? 0.7f : 1f, 1f);
+            } finally {
+                gn.endRecording();
+            }
+        }
+        gn.setAlpha(alpha / 255f);
         canvas.save();
         canvas.translate(rect.left, rect.top);
-        ((GlassLayer) glass).draw(canvas, rect.width(), rect.height(), radius, AndroidUtilities.density,
-            dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
-            AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius),
-            AndroidUtilities.dpf2(24), AndroidUtilities.dpf2(24),
-            true, false, dark,
-            backdrop, tint, (dark ? 0.7f : 1f) * alpha / 255f, 1f);
+        canvas.drawRenderNode(gn);
         canvas.restore();
         return true;
     }
+
+    private Object glassNode;
+    private int backdropVersion, glassVersion = -1;
+    private float glassRadius = -1, glassDx = Float.NaN, glassDy = Float.NaN;
+    private int glassTint;
+    private boolean glassDark;
 
     // How old the recorded backdrop may get before a redraw of the panel records it again
     private static final long BACKDROP_REFRESH_MS = 250;
