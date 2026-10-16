@@ -124,6 +124,10 @@ public class ViewPagerFixed extends FrameLayout {
     }
 
     public float getPositionAnimated() {
+        // glassGram: in a crossfade both pages stay in place, so the position is how far the fade went
+        if (crossfading && viewPages[1] != null) {
+            return currentPosition + (nextPosition - currentPosition) * crossfadeProgress;
+        }
         float position = 0;
         if (viewPages[0] != null && viewPages[0].getVisibility() == View.VISIBLE) {
             final float t = Utilities.clamp(1f - Math.abs(viewPages[0].getTranslationX() / getAvailableTranslationX()), 1, 0);
@@ -218,6 +222,8 @@ public class ViewPagerFixed extends FrameLayout {
     }
 
     private ValueAnimator manualScrolling;
+    private boolean crossfading;
+    private float crossfadeProgress;
     public boolean scrollToPosition(int page) {
         if (page == currentPosition || (manualScrolling != null && nextPosition == page)) {
             return false;
@@ -241,6 +247,8 @@ public class ViewPagerFixed extends FrameLayout {
         final boolean fadingLayer = fading != null && fading.getLayerType() == LAYER_TYPE_NONE;
         // The page under it does not change either: a layer too, so a frame is two textures blended
         final boolean stillLayer = still != null && still.getLayerType() == LAYER_TYPE_NONE;
+        crossfading = crossfade;
+        crossfadeProgress = 0f;
         if (crossfade) {
             setTranslationX(viewPages[1], 0);
             if (fadingLayer) {
@@ -262,6 +270,7 @@ public class ViewPagerFixed extends FrameLayout {
                 return;
             }
             if (crossfade) {
+                crossfadeProgress = progress;
                 // glassGram: the page drawn on top fades in or out; the one under it stays put
                 if (indexOfChild(viewPages[1]) > indexOfChild(viewPages[0])) {
                     viewPages[1].setAlpha(progress);
@@ -287,6 +296,7 @@ public class ViewPagerFixed extends FrameLayout {
             @Override
             public void onAnimationEnd(Animator animation) {
                 if (crossfade) {
+                    crossfading = false;
                     for (View v : viewPages) {
                         if (v != null) {
                             v.setAlpha(1f);

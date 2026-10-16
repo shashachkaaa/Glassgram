@@ -5542,6 +5542,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (musicView != null) {
             avatarsBlurView.setMusicView(musicView);
             avatarContainer2.addView(musicView, LayoutHelper.createFrame(-1, -1));
+            musicView.setGlassHeader(topView);
         }
         avatarImage.setAvatarsViewPager(avatarsViewPager);
 
@@ -15785,6 +15786,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         super.onBecomeFullyVisible();
         writeButtonSetBackground();
         fullyVisible = true;
+        // A tab shown at once, without a transition (a tap on its button can skip one), is opened
+        // here: until then the list is not laid out for the avatar to expand
+        if (hasMainTabs && !fragmentOpened && fragmentView != null) {
+            fragmentOpened = true;
+            invalidateScroll = true;
+            fragmentView.requestLayout();
+        }
         createBirthdayEffect();
     }
 
