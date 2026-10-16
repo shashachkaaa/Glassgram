@@ -11313,7 +11313,10 @@
     <string name="GlassgramFontHeader">Font</string>
     <string name="GlassgramFont">App font</string>
     <string name="GlassgramFontSystem">Standard</string>
-    <string name="GlassgramFontInfo">The font of all the app\'s text: chats, messages, menus. Standard is the phone\'s own with Telegram\'s bold. It is applied when glassGram starts.</string>
+    <string name="GlassgramFontInfo">The font of all the app\'s text: chats, messages, menus. Standard is the phone\'s own with Telegram\'s bold. You can load your own font too: a .ttf or .otf file. It is applied when glassGram starts.</string>
+    <string name="GlassgramFontImport">+ Load my font (.ttf, .otf)</string>
+    <string name="GlassgramFontDelete">Delete a loaded font</string>
+    <string name="GlassgramFontBadFile">The file is not a font Android can use (.ttf or .otf, up to 30 MB)</string>
     <string name="GlassgramFontRestart">The new font is applied when glassGram starts again. Restart now?</string>
     <string name="GlassgramFontRestartNow">Restart</string>
     <string name="GlassgramFontRestartLater">Later</string>

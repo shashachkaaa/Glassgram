@@ -112,6 +112,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int REQUEST_SPY_IMPORT = 9002;
     private static final int REQUEST_BACKUP_EXPORT = 9003;
     private static final int REQUEST_BACKUP_RESTORE = 9004;
+    private static final int REQUEST_FONT_IMPORT = 9005;
 
     private static final int ID_NUMBER_ROUNDING = 10;
     private static final int ID_SECONDS = 11;
@@ -1413,14 +1414,18 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         return name != null ? name : getString(R.string.GlassgramFontSystem);
     }
 
-    /** The fonts, each shown in itself; the chosen one is taken at the next start. */
+    /**
+     * The fonts, each shown in itself, then loading one's own and deleting it; the chosen one is
+     * taken at the next start.
+     */
     private void showFontChoice() {
         final Context context = getParentActivity();
         if (context == null) {
             return;
         }
         final String[] ids = GlassgramFonts.ids();
-        final CharSequence[] items = new CharSequence[ids.length];
+        final boolean hasCustom = !GlassgramFonts.customIds().isEmpty();
+        final CharSequence[] items = new CharSequence[ids.length + (hasCustom ? 2 : 1)];
         for (int i = 0; i < ids.length; i++) {
             final SpannableStringBuilder text = new SpannableStringBuilder(fontName(ids[i]));
             final android.graphics.Typeface typeface = GlassgramFonts.preview(ids[i]);
@@ -1432,19 +1437,65 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             }
             items[i] = text;
         }
+        items[ids.length] = getString(R.string.GlassgramFontImport);
+        if (hasCustom) {
+            items[ids.length + 1] = getString(R.string.GlassgramFontDelete);
+        }
         final AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(getString(R.string.GlassgramFont));
         builder.setItems(items, (dialog, which) -> {
-            if (ids[which].equals(GlassgramConfig.font)) {
-                return;
+            if (which == ids.length) {
+                try {
+                    startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*")
+                            .addCategory(Intent.CATEGORY_OPENABLE), REQUEST_FONT_IMPORT);
+                } catch (Exception e) {
+                    org.telegram.messenger.FileLog.e(e);
+                }
+            } else if (which > ids.length) {
+                showFontDelete();
+            } else {
+                chooseFont(ids[which]);
             }
-            GlassgramConfig.font = ids[which];
-            // written at once: the restart may follow right away
-            GlassgramConfig.putStringNow("font", ids[which]);
-            if (listView != null) {
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        builder.show();
+    }
+
+    private void chooseFont(String id) {
+        final Context context = getParentActivity();
+        if (context == null || id.equals(GlassgramConfig.font)) {
+            return;
+        }
+        GlassgramConfig.font = id;
+        // written at once: the restart may follow right away
+        GlassgramConfig.putStringNow("font", id);
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+        askRestart(context);
+    }
+
+    private void showFontDelete() {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final java.util.ArrayList<String> ids = GlassgramFonts.customIds();
+        final CharSequence[] items = new CharSequence[ids.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = fontName(ids.get(i));
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.GlassgramFontDelete));
+        builder.setItems(items, (dialog, which) -> {
+            final String id = ids.get(which);
+            GlassgramFonts.deleteFont(id);
+            if (id.equals(GlassgramConfig.font)) {
+                // the deleted font is the one in use: back to the standard one at the next start
+                chooseFont(GlassgramFonts.SYSTEM);
+            } else if (listView != null) {
                 listView.adapter.update(true);
             }
-            askRestart(context);
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         builder.show();
@@ -1516,6 +1567,15 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
         super.onActivityResultFragment(requestCode, resultCode, data);
         if (resultCode != android.app.Activity.RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        if (requestCode == REQUEST_FONT_IMPORT) {
+            final String id = GlassgramFonts.importFont(data.getData());
+            if (id == null) {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.GlassgramFontBadFile)).show();
+            } else {
+                chooseFont(id);
+            }
             return;
         }
         if (requestCode == REQUEST_BACKUP_EXPORT || requestCode == REQUEST_BACKUP_RESTORE) {

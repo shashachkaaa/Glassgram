@@ -308,7 +308,10 @@
     <string name="GlassgramFontHeader">Шрифт</string>
     <string name="GlassgramFont">Шрифт приложения</string>
     <string name="GlassgramFontSystem">Стандартный</string>
-    <string name="GlassgramFontInfo">Шрифт всего текста в приложении: чатов, сообщений, меню. Стандартный — шрифт телефона с жирным начертанием Telegram. Применяется при запуске glassGram.</string>
+    <string name="GlassgramFontInfo">Шрифт всего текста в приложении: чатов, сообщений, меню. Стандартный — шрифт телефона с жирным начертанием Telegram. Можно загрузить и свой шрифт: файл .ttf или .otf. Применяется при запуске glassGram.</string>
+    <string name="GlassgramFontImport">+ Загрузить свой шрифт (.ttf, .otf)</string>
+    <string name="GlassgramFontDelete">Удалить загруженный шрифт</string>
+    <string name="GlassgramFontBadFile">Файл не похож на шрифт, который понимает Android (.ttf или .otf, до 30 МБ)</string>
     <string name="GlassgramFontRestart">Новый шрифт применится при следующем запуске glassGram. Перезапустить сейчас?</string>
     <string name="GlassgramFontRestartNow">Перезапустить</string>
     <string name="GlassgramFontRestartLater">Позже</string>
