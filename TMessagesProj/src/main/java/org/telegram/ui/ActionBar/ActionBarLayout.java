@@ -634,7 +634,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
     /** glassGram: during a swipe back, the page underneath comes out from under the top one. */
     private void glassgramUpdateBackParallax(float topX) {
-        if (glassgramIosTransitions() && (startedTracking || animationInProgress) && !predictiveBackInProgress && containerViewBack != null && containerView != null) {
+        if (glassgramIosTransitions() && (startedTracking || animationInProgress || predictiveBackInProgress) && containerViewBack != null && containerView != null) {
             containerViewBack.setTranslationX(-Math.max(0, containerView.getMeasuredWidth() - topX) * GLASSGRAM_PARALLAX);
         }
     }
@@ -1604,6 +1604,15 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
     public void onBackProgress(float t) {
         if (!predictiveInput) return;
+        if (glassgramIosTransitions()) {
+            // glassGram: the system's back gesture slides the page with the finger, as the
+            // app's own swipe does, instead of Android's shrinking card
+            final float x = containerView.getMeasuredWidth() * Utilities.clamp01(t);
+            predictiveBackHasProgress = t > 0;
+            containerView.setTranslationX(x);
+            setInnerTranslationX(x);
+            return;
+        }
         final float dx = dp(56) * CubicBezierInterpolator.StandardDecelerate.getInterpolation(t);
         predictiveBackHasProgress = t > 0;
         containerView.setTranslationX(dx);
@@ -1626,7 +1635,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     private boolean newBackTransitions() {
-        return predictiveBackInProgress && predictiveBackHasProgress;
+        return predictiveBackInProgress && predictiveBackHasProgress && !glassgramIosTransitions();
     }
 
     private boolean backAnimatorIsBack;
@@ -1640,7 +1649,19 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         float distToMove;
         boolean overrideTransition = currentFragment.shouldOverrideSlideTransition(false, backAnimation);
 
-        if (!backAnimation) {
+        if (glassgramIosTransitions() && !overrideTransition) {
+            // glassGram: the page goes on, or back, at the slide's own pace and curve, in a time
+            // fitting what is left of the way, not Android's short snap
+            final float width = Math.max(1, containerView.getMeasuredWidth());
+            distToMove = backAnimation ? x : Math.abs(width - x);
+            final int duration = (int) Utilities.clamp(380f * distToMove / width, 380f, 160f);
+            final float target = backAnimation ? 0 : width;
+            animatorSet.playTogether(
+                ObjectAnimator.ofFloat(containerView, View.TRANSLATION_X, target).setDuration(duration),
+                ObjectAnimator.ofFloat(this, "innerTranslationX", target).setDuration(duration)
+            );
+            animatorSet.setInterpolator(glassgramSlideInterpolator);
+        } else if (!backAnimation) {
             distToMove = Math.abs(containerView.getMeasuredWidth() - x);
             int duration = Math.max((int) (200.0f / containerView.getMeasuredWidth() * distToMove), newBackTransitions() ? 380 : 50);
             if (!overrideTransition) {
