@@ -86,6 +86,15 @@ public class ProfileHeaderGlass {
         view.invalidate();
     }
 
+    /**
+     * Leaves a sibling out of what the glass is made of: the gallery's blur, so over a photo the
+     * glass refracts the photo itself instead of a blur that leaves it nothing to bend.
+     */
+    public void setExcluded(View sibling) {
+        behind.setExcluded(sibling);
+        view.invalidate();
+    }
+
     /** Called from the view's onAttachedToWindow and onDetachedFromWindow. */
     public void watch(boolean watch) {
         if (tree != null && tree.isAlive()) {
