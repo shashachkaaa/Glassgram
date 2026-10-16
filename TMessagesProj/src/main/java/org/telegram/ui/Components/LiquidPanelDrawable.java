@@ -214,23 +214,34 @@ public class LiquidPanelDrawable extends Drawable {
         if (glass == null) {
             glass = new GlassLayer();
             decorNode = new RenderNode("LiquidPanelBackdrop");
+            // The backdrop is drawn once into a texture and blurred from it, not redrawn whole
+            // (the chat with its own glass) in every frame of the panel
+            ((RenderNode) decorNode).setUseCompositingLayer(true, null);
         }
         final RenderNode node = (RenderNode) decorNode;
-        node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
-        node.setClipToBounds(false);
         decor.getLocationOnScreen(decorLocation);
-        // The windows drawn here use the shared scratch rects too; a sheet that set one before drawing
-        // its panel and used it after (to clip its content) got the windows' rect and showed nothing
-        savedRectTmp.set(AndroidUtilities.rectTmp);
-        savedRectTmp2.set(AndroidUtilities.rectTmp2);
-        final RecordingCanvas rc = node.beginRecording(decor.getWidth(), decor.getHeight());
-        try {
-            decor.draw(rc);
-            drawWindowsBelow(rc, activity, decor, host.getRootView());
-        } finally {
-            node.endRecording();
-            AndroidUtilities.rectTmp.set(savedRectTmp);
-            AndroidUtilities.rectTmp2.set(savedRectTmp2);
+        // Recording the screen and the windows under the panel costs the UI thread a whole frame of
+        // their drawing; a panel sliding or fading over it doesn't need it anew in every frame
+        final long now = android.os.SystemClock.uptimeMillis();
+        if (!backdropRecorded || node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight()
+                || now - backdropRecordedAt >= BACKDROP_REFRESH_MS) {
+            backdropRecorded = true;
+            backdropRecordedAt = now;
+            node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
+            node.setClipToBounds(false);
+            // The windows drawn here use the shared scratch rects too; a sheet that set one before drawing
+            // its panel and used it after (to clip its content) got the windows' rect and showed nothing
+            savedRectTmp.set(AndroidUtilities.rectTmp);
+            savedRectTmp2.set(AndroidUtilities.rectTmp2);
+            final RecordingCanvas rc = node.beginRecording(decor.getWidth(), decor.getHeight());
+            try {
+                decor.draw(rc);
+                drawWindowsBelow(rc, activity, decor, host.getRootView());
+            } finally {
+                node.endRecording();
+                AndroidUtilities.rectTmp.set(savedRectTmp);
+                AndroidUtilities.rectTmp2.set(savedRectTmp2);
+            }
         }
 
         host.getLocationOnScreen(hostLocation);
@@ -254,6 +265,11 @@ public class LiquidPanelDrawable extends Drawable {
         canvas.restore();
         return true;
     }
+
+    // How old the recorded backdrop may get before a redraw of the panel records it again
+    private static final long BACKDROP_REFRESH_MS = 250;
+    private boolean backdropRecorded;
+    private long backdropRecordedAt;
 
     private final ArrayList<View> windowsBelow = new ArrayList<>();
     private final int[] windowLocation = new int[2];
