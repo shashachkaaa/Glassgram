@@ -220,6 +220,34 @@ public class ProfileMusicView extends View {
 
     private float currentHeight;
 
+    // The pill is Liquid Glass made of the header under it, as the action buttons above it
+    private ProfileHeaderGlass glass;
+    private final ProfileHeaderGlass.Piece glassPiece = new ProfileHeaderGlass.Piece();
+
+    /** The header drawn under the pill, a sibling of its parent, for its glass. */
+    public void setGlassHeader(View header) {
+        if (glass == null) {
+            glass = new ProfileHeaderGlass(this);
+        }
+        glass.setHeader(header);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (glass != null) {
+            glass.watch(true);
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (glass != null) {
+            glass.watch(false);
+        }
+    }
+
     public void updatePosition(float y, float newHeight) {
         currentHeight = newHeight;
         setTranslationY(y - dp(12));
@@ -273,27 +301,32 @@ public class ProfileMusicView extends View {
             (getWidth() + containerWidth) / 2f,
             dp(10) + dp(17) * alpha
         );
-        if (withShadows && SharedConfig.shadowsInSections) {
-            backgroundPaint.setShadowLayer(dpf2(2), 0, dpf2(0.33f), multAlpha(0x0a000000, alpha));
-            strokePaint.setShadowLayer(dpf2(0.33f), 0, 0, multAlpha(0x0c000000, alpha));
-            strokePaint.setColor(0);
+        final boolean glassDrawn = glass != null && glass.begin(canvas);
+        if (glassDrawn) {
+            glass.draw(canvas, glassPiece, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha);
         } else {
-            backgroundPaint.setShadowLayer(0, 0, 0, 0);
+            if (withShadows && SharedConfig.shadowsInSections) {
+                backgroundPaint.setShadowLayer(dpf2(2), 0, dpf2(0.33f), multAlpha(0x0a000000, alpha));
+                strokePaint.setShadowLayer(dpf2(0.33f), 0, 0, multAlpha(0x0c000000, alpha));
+                strokePaint.setColor(0);
+            } else {
+                backgroundPaint.setShadowLayer(0, 0, 0, 0);
+            }
+            int wasAlpha = backgroundPaint.getAlpha();
+            backgroundPaint.setAlpha((int) (wasAlpha * alpha));
+            if (withShadows && SharedConfig.shadowsInSections) {
+                canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, strokePaint);
+            }
+            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, backgroundPaint);
+            backgroundPaint.setAlpha(wasAlpha);
         }
-        int wasAlpha = backgroundPaint.getAlpha();
-        backgroundPaint.setAlpha((int) (wasAlpha * alpha));
-        if (withShadows && SharedConfig.shadowsInSections) {
-            canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, strokePaint);
-        }
-        canvas.drawRoundRect(rect, rect.height() / 2f, rect.height() / 2f, backgroundPaint);
-        backgroundPaint.setAlpha(wasAlpha);
 
         clipPath.rewind();
         clipPath.addRoundRect(rect, rect.height() / 2f, rect.height() / 2f, Path.Direction.CW);
 
         canvas.save();
         canvas.clipPath(clipPath);
-        if (!ignoreRect && renderNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated()) {
+        if (!glassDrawn && !ignoreRect && renderNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated()) {
             canvas.save();
             canvas.translate(0f, renderNodeTranslateY);
             canvas.scale(renderNodeScale, renderNodeScale);

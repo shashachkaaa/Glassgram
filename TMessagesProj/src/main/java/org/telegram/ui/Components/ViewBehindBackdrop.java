@@ -21,6 +21,8 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
     private final View view;
     private final RectF area = new RectF();
     private boolean drawing;
+    // Backdrops of any view being recorded right now, for glass drawn inside one to know it
+    private static int drawingDepth;
 
     // The siblings' place and look when the backdrop was last drawn
     private float[] drawnState = new float[0];
@@ -42,6 +44,11 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
      */
     public boolean isDrawing() {
         return drawing;
+    }
+
+    /** Whether any view's backdrop is being recorded right now: what draws now is drawn into it. */
+    public static boolean isAnyDrawing() {
+        return drawingDepth > 0;
     }
 
     /** Whether there is anything behind the view to make the glass of. */
@@ -74,6 +81,7 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
         }
         final ViewGroup parent = (ViewGroup) view.getParent();
         drawing = true;
+        drawingDepth++;
         final int restore = canvas.save();
         try {
             canvas.translate(-(view.getX() + area.left), -(view.getY() + area.top));
@@ -104,6 +112,7 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
         } finally {
             canvas.restoreToCount(restore);
             drawing = false;
+            drawingDepth--;
         }
         drawnStateLength = collectState(true);
     }
