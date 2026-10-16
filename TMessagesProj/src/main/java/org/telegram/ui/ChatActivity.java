@@ -1708,6 +1708,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int charge_fee = 72;
 
     private final static int chat_menu_topic_create = 73;
+    private final static int glassgram_export_chat = 950;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -3948,6 +3949,8 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else if (id == mute) {
                     toggleMute(false);
+                } else if (id == glassgram_export_chat) {
+                    GlassgramChatExport.showOptions(ChatActivity.this);
                 } else if (id == add_shortcut) {
                     try {
                         getMediaDataController().installShortcut(currentUser.id, MediaDataController.SHORTCUT_TYPE_USER_OR_CHAT);
@@ -4501,6 +4504,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (currentUser != null && currentUser.self && getDialogId() != UserObject.VERIFY) {
                 headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
+            }
+            // glassGram: the chat's history into a .zip, as Telegram Desktop exports it
+            if (GlassgramChatExport.canExport(this)) {
+                headerItem.lazilyAddSubItem(glassgram_export_chat, R.drawable.msg_download, LocaleController.getString(R.string.GlassgramExportTitle));
             }
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
                 clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
@@ -20504,6 +20511,9 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (GlassgramChatExport.onActivityResult(this, requestCode, resultCode, data)) {
+            return;
+        }
         if (resultCode == Activity.RESULT_OK) {
             if (requestCode == 0 || requestCode == 2) {
                 createChatAttachView();
