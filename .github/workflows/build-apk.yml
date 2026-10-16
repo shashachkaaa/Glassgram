@@ -249,6 +249,7 @@ jobs:
           fi
           gh release upload mappings r8-mappings/*.txt.gz --clobber
 
+      - name: Native build cache stats
         if: always() && steps.build.outcome != 'skipped'
         run: ccache --show-stats || true
 
