@@ -266,7 +266,9 @@ public class ProfileHeaderGlass {
         canvas.translate(left, top);
         ((GlassLayer) piece.layer).draw(canvas, rect.width(), rect.height(), radius, density,
             dark || photo >= 0.5f ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
-            (veil ? 4f : BackdropGlass.BlurRadius) * density,
+            // Over the photo the mirror under the glass is blurred more: sharp, it showed what the
+            // gallery's blur around hides, like the edge of a round picture on a white ground
+            AndroidUtilities.lerp(veil ? 4f : BackdropGlass.BlurRadius, 10f, photo) * density,
             Math.max(1, Math.min(dp(12), Math.min(rect.width(), rect.height()) / 4)), dpf2(24),
             false, true, dark,
             backdrop -> {
