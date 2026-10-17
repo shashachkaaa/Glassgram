@@ -64,6 +64,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public static final int PAGE_SPY = 5;
     public static final int PAGE_CUSTOMIZATION = 6;
     public static final int PAGE_FILTERS = 7;
+    public static final int PAGE_TABS = 8;
 
     private static final int ID_GENERAL = 1;
     private static final int ID_APPEARANCE = 2;
@@ -172,6 +173,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_BACKUP_EXPORT = 131;
     private static final int ID_BACKUP_RESTORE = 132;
     private static final int ID_FONT = 133;
+    private static final int ID_HIDE_ATTACH_CAMERA = 134;
+    private static final int ID_TABS = 135;
+    private static final int ID_TABS_RESET = 136;
+    private static final int ID_TABS_APPLY = 137;
+    // + GlassgramConfig.TAB_*
+    private static final int ID_TAB = 140;
 
     private final int page;
     private boolean ghostExpanded;
@@ -217,6 +224,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return getString(R.string.GlassgramCustomization);
             case PAGE_FILTERS:
                 return getString(R.string.GlassgramMessageFilters);
+            case PAGE_TABS:
+                return getString(R.string.GlassgramTabs);
             default:
                 // The header below the action bar carries the name
                 return "";
@@ -258,6 +267,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         // exteraGram's layout: rounded cards on the gray background, titles above them
         listView.adapter.setApplyBackground(false);
         listView.setSections(true);
+        if (page == PAGE_TABS) {
+            // a tab is dragged to its place
+            listView.listenReorder(this::onTabsReordered);
+            listView.allowReorder(true);
+        }
         return view;
     }
 
@@ -300,6 +314,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
                 items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
                 items.add(UItem.asCheck(ID_GLASS_PANELS, getString(R.string.GlassgramGlassPanels)).setChecked(GlassgramConfig.glassPanels));
+                items.add(UItem.asButton(ID_TABS, getString(R.string.GlassgramTabs), tabsSummary()));
                 items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
                 items.add(header(getString(R.string.GlassgramFontHeader)));
                 items.add(UItem.asButton(ID_FONT, getString(R.string.GlassgramFont), fontName(GlassgramConfig.font)));
@@ -342,6 +357,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HIDE_SHARE, getString(R.string.GlassgramHideShareButton)).setChecked(GlassgramConfig.hideShareButton));
                 items.add(UItem.asButtonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
                 items.add(header(getString(R.string.GlassgramPhotos)));
+                items.add(UItem.asCheck(ID_HIDE_ATTACH_CAMERA, getString(R.string.GlassgramHideAttachCamera)).setChecked(GlassgramConfig.hideAttachCamera));
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
                 items.add(UItem.asShadow(getString(R.string.GlassgramAlwaysSendHDInfo)));
                 items.add(header(getString(R.string.GlassgramVideos)));
@@ -370,6 +386,24 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButtonCheck(ID_ROUND_KEEP_ZOOM, getString(R.string.GlassgramRoundKeepZoom), getString(R.string.GlassgramRoundKeepZoomInfo)).setChecked(GlassgramConfig.roundKeepZoom));
                 items.add(UItem.asButton(ID_ROUND_CAMERA_INFO, getString(R.string.GlassgramRoundCameraInfo)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramRoundVideosInfo)));
+                break;
+            }
+            case PAGE_TABS: {
+                loadTabs();
+                items.add(header(getString(R.string.GlassgramTabsHeader)));
+                tabsReorderId = adapter.reorderSectionStart();
+                for (int tab : tabsOrder) {
+                    items.add(UItem.asCheck(ID_TAB + tab, tabName(tab)).setChecked(tabsOn[tab]));
+                }
+                adapter.reorderSectionEnd();
+                items.add(UItem.asShadow(getString(R.string.GlassgramTabsInfo)));
+                if (tabsChanged) {
+                    items.add(UItem.asButton(ID_TABS_APPLY, getString(R.string.GlassgramTabsApply)).accent());
+                }
+                if (!GlassgramConfig.mainTabs.isEmpty()) {
+                    items.add(UItem.asButton(ID_TABS_RESET, getString(R.string.GlassgramTabsReset)));
+                }
+                items.add(UItem.asShadow(null));
                 break;
             }
             case PAGE_GHOST: {
@@ -643,6 +677,20 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_FONT:
                 showFontChoice();
                 return;
+            case ID_TABS:
+                presentFragment(new GlassgramSettingsActivity(PAGE_TABS));
+                return;
+            case ID_TABS_APPLY:
+                restartApp(getParentActivity());
+                return;
+            case ID_TABS_RESET:
+                tabsOrder = null;
+                saveTabs("");
+                return;
+        }
+        if (item.id >= ID_TAB && item.id < ID_TAB + GlassgramConfig.TAB_KINDS) {
+            toggleTab(item.id - ID_TAB);
+            return;
         }
         final boolean value;
         switch (item.id) {
@@ -741,6 +789,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_HIDE_SEND_AS:
                 value = GlassgramConfig.hideSendAsButton = !GlassgramConfig.hideSendAsButton;
                 GlassgramConfig.putBoolean("hideSendAsButton", value);
+                break;
+            case ID_HIDE_ATTACH_CAMERA:
+                value = GlassgramConfig.hideAttachCamera = !GlassgramConfig.hideAttachCamera;
+                GlassgramConfig.putBoolean("hideAttachCamera", value);
                 break;
             case ID_RECENT_STICKERS:
                 value = GlassgramConfig.unlimitedRecentStickers = !GlassgramConfig.unlimitedRecentStickers;
@@ -1499,6 +1551,108 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         builder.show();
+    }
+
+    // The capsule's tabs as on this page: every kind in its order, and which of them are shown
+    private int[] tabsOrder;
+    private final boolean[] tabsOn = new boolean[GlassgramConfig.TAB_KINDS];
+    private int tabsReorderId = -1;
+    private boolean tabsChanged;
+
+    private void loadTabs() {
+        if (tabsOrder != null) {
+            return;
+        }
+        int[] shown = GlassgramConfig.mainTabs();
+        if (shown == null) {
+            // Telegram's own: chats, contacts, calls or settings, profile
+            shown = new int[]{GlassgramConfig.TAB_CHATS, GlassgramConfig.TAB_CONTACTS,
+                getUserConfig().showCallsTab ? GlassgramConfig.TAB_CALLS : GlassgramConfig.TAB_SETTINGS, GlassgramConfig.TAB_PROFILE};
+        }
+        tabsOrder = new int[GlassgramConfig.TAB_KINDS];
+        java.util.Arrays.fill(tabsOn, false);
+        int count = 0;
+        for (int tab : shown) {
+            tabsOrder[count++] = tab;
+            tabsOn[tab] = true;
+        }
+        for (int tab = 0; tab < GlassgramConfig.TAB_KINDS; tab++) {
+            if (!tabsOn[tab]) {
+                tabsOrder[count++] = tab;
+            }
+        }
+    }
+
+    private static String tabName(int tab) {
+        switch (tab) {
+            case GlassgramConfig.TAB_CHATS: return getString(R.string.MainTabsChats);
+            case GlassgramConfig.TAB_CONTACTS: return getString(R.string.MainTabsContacts);
+            case GlassgramConfig.TAB_SETTINGS: return getString(R.string.Settings);
+            case GlassgramConfig.TAB_CALLS: return getString(R.string.MainTabsCalls);
+            default: return getString(R.string.MainTabsProfile);
+        }
+    }
+
+    private String tabsSummary() {
+        final int[] shown = GlassgramConfig.mainTabs();
+        return shown == null ? getString(R.string.GlassgramTabsDefault) : String.valueOf(shown.length);
+    }
+
+    private void toggleTab(int tab) {
+        loadTabs();
+        if (tab == GlassgramConfig.TAB_CHATS) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.GlassgramTabsChatsStay)).show();
+            return;
+        }
+        int shown = 0;
+        for (boolean on : tabsOn) {
+            shown += on ? 1 : 0;
+        }
+        if (tabsOn[tab] && shown <= 2) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.GlassgramTabsMin)).show();
+            return;
+        }
+        // the settings are reached from their tab or from the profile's
+        if (tabsOn[tab] && (tab == GlassgramConfig.TAB_SETTINGS && !tabsOn[GlassgramConfig.TAB_PROFILE]
+                || tab == GlassgramConfig.TAB_PROFILE && !tabsOn[GlassgramConfig.TAB_SETTINGS])) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.GlassgramTabsSettingsStay)).show();
+            return;
+        }
+        tabsOn[tab] = !tabsOn[tab];
+        saveTabs(null);
+    }
+
+    private void onTabsReordered(int id, ArrayList<UItem> items) {
+        if (id != tabsReorderId || tabsOrder == null) {
+            return;
+        }
+        int count = 0;
+        for (UItem item : items) {
+            if (item.id >= ID_TAB && item.id < ID_TAB + GlassgramConfig.TAB_KINDS && count < tabsOrder.length) {
+                tabsOrder[count++] = item.id - ID_TAB;
+            }
+        }
+        saveTabs(null);
+    }
+
+    /** Writes the tabs shown in their order, or value as it is ("" for Telegram's own); they apply at the next start. */
+    private void saveTabs(String value) {
+        if (value == null) {
+            final StringBuilder sb = new StringBuilder();
+            for (int tab : tabsOrder) {
+                if (tabsOn[tab]) {
+                    sb.append(tab);
+                }
+            }
+            value = sb.toString();
+        }
+        GlassgramConfig.mainTabs = value;
+        // written at once: the restart may follow right away
+        GlassgramConfig.putStringNow("mainTabs", value);
+        tabsChanged = true;
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
     }
 
     private void askRestart(Context context) {

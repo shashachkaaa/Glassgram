@@ -346,6 +346,16 @@
     <string name="GlassgramHideSendAsInfo">Клавиатура скрывается, когда вы прокручиваете сообщения пальцем. Без кнопки «Отправить как…» сообщения уходят от отправителя по умолчанию для этого чата.</string>
     <string name="GlassgramPhotos">Фото</string>
     <string name="GlassgramAlwaysSendHD">Всегда отправлять в HD</string>
+    <string name="GlassgramTabs">Вкладки внизу</string>
+    <string name="GlassgramTabsHeader">Вкладки</string>
+    <string name="GlassgramTabsInfo">Отметь вкладки, которые нужны, и удерживай вкладку, чтобы перетащить её на своё место. Чаты остаются всегда. Новые вкладки появятся после перезапуска.</string>
+    <string name="GlassgramTabsApply">Перезапустить и применить</string>
+    <string name="GlassgramTabsReset">Вернуть вкладки Telegram</string>
+    <string name="GlassgramTabsDefault">Стандартные</string>
+    <string name="GlassgramTabsChatsStay">Чаты всегда остаются на панели</string>
+    <string name="GlassgramTabsSettingsStay">На панели должны остаться Настройки или Профиль: через них открываются настройки</string>
+    <string name="GlassgramTabsMin">На панели должно остаться минимум две вкладки</string>
+    <string name="GlassgramHideAttachCamera">Скрыть камеру во вложениях</string>
     <string name="GlassgramAlwaysSendHDInfo">Фото отправляются в высоком качестве, если не выключить HD для конкретного фото перед отправкой.</string>
     <string name="GlassgramLastSeenNow">был(а) только что</string>
     <string name="GlassgramLastSeenMinutes_one">был(а) %1$d минуту назад</string>

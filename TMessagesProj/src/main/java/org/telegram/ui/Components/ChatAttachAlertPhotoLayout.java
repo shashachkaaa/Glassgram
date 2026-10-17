@@ -732,6 +732,9 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
     public ChatAttachAlertPhotoLayout(ChatAttachAlert alert, Context context, boolean forceDarkTheme, boolean needCamera, Theme.ResourcesProvider resourcesProvider) {
         super(alert, context, resourcesProvider);
         this.forceDarkTheme = forceDarkTheme;
+        // glassGram: the camera tile can be hidden, the gallery then starts with the photos; an
+        // avatar is still taken with the camera
+        needCamera = needCamera && (alert.avatarPicker != 0 || !org.telegram.messenger.GlassgramConfig.hideAttachCamera);
         this.needCamera = needCamera;
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.albumsDidLoad);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.cameraInitied);

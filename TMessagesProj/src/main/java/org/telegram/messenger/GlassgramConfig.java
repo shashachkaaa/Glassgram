@@ -60,6 +60,37 @@ public class GlassgramConfig {
     /** The app's font (GlassgramFonts), taken at start. */
     public static String font = GlassgramFonts.SYSTEM;
     public static boolean hideFloatingButton;
+    // The tabs of the bottom capsule (TAB_*), as digits in their order; empty for Telegram's own
+    public static final int TAB_CHATS = 0, TAB_CONTACTS = 1, TAB_SETTINGS = 2, TAB_CALLS = 3, TAB_PROFILE = 4;
+    public static final int TAB_KINDS = 5;
+    public static String mainTabs = "";
+
+    /** The tabs of the bottom capsule in their order, chats always among them; null for Telegram's own. */
+    public static int[] mainTabs() {
+        return parseMainTabs(mainTabs);
+    }
+
+    public static int[] parseMainTabs(String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        final int[] tabs = new int[value.length()];
+        int count = 0;
+        boolean chats = false;
+        for (int i = 0; i < value.length(); i++) {
+            final int tab = value.charAt(i) - '0';
+            boolean seen = false;
+            for (int j = 0; j < count; j++) {
+                seen |= tabs[j] == tab;
+            }
+            if (tab < 0 || tab >= TAB_KINDS || seen) {
+                continue;
+            }
+            chats |= tab == TAB_CHATS;
+            tabs[count++] = tab;
+        }
+        return chats ? java.util.Arrays.copyOf(tabs, count) : null;
+    }
 
     // Chats
     public static boolean hideTimeOnStickers;
@@ -67,6 +98,7 @@ public class GlassgramConfig {
     public static boolean hideKeyboardOnScroll;
     public static boolean hideSendAsButton;
     public static boolean unlimitedRecentStickers;
+    public static boolean hideAttachCamera;
     // Stickers: the size (12 is Telegram's own, 4..20) and the shape
     public static final int STICKER_SIZE_DEFAULT = 12, STICKER_SIZE_MIN = 4, STICKER_SIZE_MAX = 20;
     public static final int STICKER_SHAPE_DEFAULT = 0, STICKER_SHAPE_ROUNDED = 1, STICKER_SHAPE_MESSAGE = 2;
@@ -212,11 +244,13 @@ public class GlassgramConfig {
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
         font = p.getString("font", GlassgramFonts.SYSTEM);
+        mainTabs = p.getString("mainTabs", "");
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);
         hideTimeOnStickers = p.getBoolean("hideTimeOnStickers", false);
         disableGreetingSticker = p.getBoolean("disableGreetingSticker", false);
         hideKeyboardOnScroll = p.getBoolean("hideKeyboardOnScroll", false);
         hideSendAsButton = p.getBoolean("hideSendAsButton", false);
+        hideAttachCamera = p.getBoolean("hideAttachCamera", false);
         unlimitedRecentStickers = p.getBoolean("unlimitedRecentStickers", false);
         spySaveDeletedMessages = p.getBoolean("spySaveDeletedMessages", false);
         spySaveEditsHistory = p.getBoolean("spySaveEditsHistory", false);

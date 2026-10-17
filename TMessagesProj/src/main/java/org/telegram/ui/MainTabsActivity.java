@@ -39,6 +39,7 @@ import androidx.core.view.WindowInsetsCompat;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.Emoji;
@@ -105,6 +106,35 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private static int indexToPosition(int index) {
         return index > 2 ? index - 1 : index;
+    }
+
+    // glassGram: the tabs chosen for the capsule (INDEX_* in their order), taken at start; null
+    // for Telegram's own four, where calls and settings share a place
+    private final int[] customTabs = GlassgramConfig.mainTabs();
+
+    /** The tab (INDEX_*) at a page of the pager, -1 for none. */
+    private int tabAt(int position) {
+        if (customTabs == null) {
+            if (position == POSITION_CALLS_OR_SETTINGS) {
+                return getUserConfig().showCallsTab ? INDEX_CALLS : INDEX_SETTINGS;
+            }
+            return position == POSITION_CHATS ? INDEX_CHATS : position == POSITION_CONTACTS ? INDEX_CONTACTS
+                : position == POSITION_PROFILE ? INDEX_PROFILE : -1;
+        }
+        return position >= 0 && position < customTabs.length ? customTabs[position] : -1;
+    }
+
+    /** The page of a tab (INDEX_*) in the pager, -1 when the tab is not in the capsule. */
+    private int positionOf(int index) {
+        if (customTabs == null) {
+            return indexToPosition(index);
+        }
+        for (int i = 0; i < customTabs.length; i++) {
+            if (customTabs[i] == index) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static final int ANIMATOR_ID_TABS_VISIBLE = 0;
@@ -328,12 +358,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsView.addTabToIgnoreClick(tabs[INDEX_PROFILE]);
         tabsView.addTabToIgnoreClick(tabs[INDEX_CALLS]);
 
-        for (int index = 0; index < tabs.length; index++) {
+        for (int order = 0; order < (customTabs != null ? customTabs.length : tabs.length); order++) {
+            final int index = customTabs != null ? customTabs[order] : order;
             final GlassTabView view = tabs[index];
 
-            final int position = indexToPosition(index);
             tabs[index].setOnClickListener(v -> {
                 if (viewPager.isManualScrolling() || viewPager.isTouch()) {
+                    return;
+                }
+                final int position = positionOf(index);
+                if (position < 0) {
                     return;
                 }
 
@@ -447,7 +481,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (getContext() == null || getParentActivity() == null) return false;
         final ItemOptions o = ItemOptions.makeOptions(this, anchor);
         o.add(R.drawable.menu_call_create, getString(R.string.GroupCallCreate2), () -> CallLogActivity.openCreateCall(this));
-        if (getUserConfig().showCallsTab) {
+        if (customTabs != null) {
+            // the capsule's tabs are chosen in glassGram's settings
+        } else if (getUserConfig().showCallsTab) {
             o.add(R.drawable.msg_archive_hide, getString(R.string.HideCallTab), () -> {
                 getUserConfig().setShowCallsTab(false);
                 checkUi_callTabVisible(false, true);
@@ -600,15 +636,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void openFolder(int folderId) {
-        if (viewPager.getCurrentPosition() == POSITION_CHATS && dialogsActivity != null) {
+        final int chats = positionOf(INDEX_CHATS);
+        if (viewPager.getCurrentPosition() == chats && dialogsActivity != null) {
             dialogsActivity.scrollToFolder(folderId);
         } else {
             if (dialogsActivity == null) {
                 prepareDialogsActivity(null);
             }
             pendingFolderId = folderId;
-            selectTab(POSITION_CHATS, true);
-            viewPager.scrollToPosition(POSITION_CHATS);
+            selectTab(chats, true);
+            viewPager.scrollToPosition(chats);
         }
     }
 
@@ -748,10 +785,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 dropFragmentAtPosition(POSITION_CALLS_OR_SETTINGS);
                 dropCallsFragmentAfterPageScroll = false;
             }
-            if (currentPosition != POSITION_PROFILE) {
-                dropFragmentAtPosition(POSITION_PROFILE);
+            final int profile = positionOf(INDEX_PROFILE);
+            if (profile >= 0 && currentPosition != profile) {
+                dropFragmentAtPosition(profile);
             }
-            if (pendingFolderId != null && currentPosition == POSITION_CHATS && dialogsActivity != null) {
+            if (pendingFolderId != null && currentPosition == positionOf(INDEX_CHATS) && dialogsActivity != null) {
                 dialogsActivity.scrollToFolder(pendingFolderId);
                 pendingFolderId = null;
             }
@@ -779,12 +817,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected int getFragmentsCount() {
-        return TABS_COUNT;
+        return customTabs != null ? customTabs.length : TABS_COUNT;
     }
 
     @Override
     protected int getStartPosition() {
-        return POSITION_CHATS;
+        return positionOf(INDEX_CHATS);
     }
 
     private DialogsActivity dialogsActivity;
@@ -812,20 +850,21 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         bundle.putBoolean("hasMainTabs", true);
         dialogsActivity = new DialogsActivity(bundle);
         dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
-        putFragmentAtPosition(POSITION_CHATS, dialogsActivity);
+        putFragmentAtPosition(positionOf(INDEX_CHATS), dialogsActivity);
         return dialogsActivity;
     }
 
     @Override
     protected BaseFragment createBaseFragmentAt(int position) {
-        if (position == POSITION_CONTACTS) {
+        final int tab = tabAt(position);
+        if (tab == INDEX_CONTACTS) {
             Bundle args = new Bundle();
             args.putBoolean("needPhonebook", true);
             args.putBoolean("needFinishFragment", false);
             args.putBoolean("hasMainTabs", true);
             return new ContactsActivity(args);
-        } else if (position == POSITION_CALLS_OR_SETTINGS) {
-            if (getUserConfig().showCallsTab) {
+        } else if (tab == INDEX_CALLS || tab == INDEX_SETTINGS) {
+            if (tab == INDEX_CALLS) {
                 Bundle args = new Bundle();
                 args.putBoolean("needFinishFragment", false);
                 args.putBoolean("hasMainTabs", true);
@@ -834,13 +873,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             return new SettingsActivity(args);
-        } else if (position == POSITION_CHATS) {
+        } else if (tab == INDEX_CHATS) {
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             dialogsActivity = new DialogsActivity(args);
             dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
             return dialogsActivity;
-        } else if (position == POSITION_PROFILE) {
+        } else if (tab == INDEX_PROFILE) {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
             args.putBoolean("my_profile", true);
@@ -862,15 +901,15 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public void selectTab(int position, boolean animated) {
         for (int a = 0; a < tabs.length; a++) {
             GlassTabView tab = tabs[a];
-            tab.setSelected(indexToPosition(a) == position, animated);
+            tab.setSelected(positionOf(a) == position, animated);
         }
         checkUi_liquidTabs();
     }
 
     public void setGestureSelectedOverride(float animatedPosition, boolean allow) {
         for (int index = 0; index < tabs.length; index++) {
-            final int position = indexToPosition(index);
-            final float visibility = Math.max(0, 1f - Math.abs(position - animatedPosition));
+            final int position = positionOf(index);
+            final float visibility = position < 0 ? 0 : Math.max(0, 1f - Math.abs(position - animatedPosition));
             tabs[index].setGestureSelectedOverride(visibility, allow);
         }
         tabsView.invalidate();
@@ -1004,6 +1043,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         } else if (id == NotificationCenter.needSetDayNightTheme) {
             clearAllHiddenFragments();
         } else if (id == NotificationCenter.callTabsVisibleToggled) {
+            if (customTabs != null) {
+                // the capsule's tabs are chosen in glassGram's settings
+                return;
+            }
             final boolean callTabsVisible = getUserConfig().showCallsTab;
             checkUi_callTabVisible(callTabsVisible, true);
             if (viewPager != null && viewPager.getCurrentPosition() == POSITION_CALLS_OR_SETTINGS) {
@@ -1070,7 +1113,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
 
         final float animatedPosition = viewPager.getPositionAnimated();
-        final float isProfile = 1f - MathUtils.clamp(Math.abs(POSITION_PROFILE - animatedPosition), 0, 1);
+        final int profile = positionOf(INDEX_PROFILE);
+        final float isProfile = profile < 0 ? 0 : 1f - MathUtils.clamp(Math.abs(profile - animatedPosition), 0, 1);
         final float hide = 1f - AndroidUtilities.getNavigationBarThirdButtonsFactor(0, 1f, navigationBarHeight);
         float alpha = (1f - isProfile * hide) * animatorTabsVisible.getFloatValue();
         if (tabletLayout) {
@@ -1099,7 +1143,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void checkUi_callTabVisible(boolean callTabsVisible, boolean animated) {
-        if (tabsView != null) {
+        if (tabsView != null && customTabs == null) {
             tabsView.setViewVisible(tabs[INDEX_SETTINGS], !callTabsVisible, animated);
             tabsView.setViewVisible(tabs[INDEX_CALLS], callTabsVisible, animated);
         }
@@ -1291,6 +1335,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 if (getContext() == null || tabs == null) return;
 
                 final View v = tabs[INDEX_PROFILE];
+                if (v.getParent() == null) {
+                    return;
+                }
                 final float translate = (contentView.getWidth() - ((tabsView.getX() + v.getX()) + v.getWidth()) + v.getWidth() / 2f) / AndroidUtilities.density;
 
                 accountSwitchHint = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);

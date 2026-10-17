@@ -11351,6 +11351,16 @@
     <string name="GlassgramHideSendAsInfo">The keyboard hides when you scroll messages by hand. Without the \"Send as…\" button messages go out as the default sender of the chat.</string>
     <string name="GlassgramPhotos">Photos</string>
     <string name="GlassgramAlwaysSendHD">Always Send in HD</string>
+    <string name="GlassgramTabs">Bottom tabs</string>
+    <string name="GlassgramTabsHeader">Tabs</string>
+    <string name="GlassgramTabsInfo">Tick the tabs to show and hold one to drag it to its place. Chats always stay. The new tabs show after a restart.</string>
+    <string name="GlassgramTabsApply">Restart to apply</string>
+    <string name="GlassgramTabsReset">Reset to Telegram\'s tabs</string>
+    <string name="GlassgramTabsDefault">Standard</string>
+    <string name="GlassgramTabsChatsStay">Chats always stay in the bar</string>
+    <string name="GlassgramTabsSettingsStay">Settings or Profile stays in the bar: the settings are opened from there</string>
+    <string name="GlassgramTabsMin">At least two tabs stay in the bar</string>
+    <string name="GlassgramHideAttachCamera">Hide the camera in attachments</string>
     <string name="GlassgramAlwaysSendHDInfo">Photos are sent in high quality unless you switch it off for a photo before sending.</string>
     <string name="GlassgramLastSeenNow">last seen just now</string>
     <string name="GlassgramLastSeenMinutes_one">last seen %1$d minute ago</string>
