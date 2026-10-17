@@ -1267,6 +1267,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_WELCOME_REVERT = 116;
     public final static int OPTION_SEND_MONEY = 117;
     public final static int OPTION_GLASSGRAM_EDIT_HISTORY = 900;
+    public final static int OPTION_GLASSGRAM_METADATA = 901;
     public final static int OPTION_GLASSGRAM_PLUGIN_ITEM = 910;
     private java.util.List<org.telegram.messenger.plugins.PluginsController.MenuItem> glassgramPluginMenuItems;
 
@@ -34141,6 +34142,12 @@ public class ChatActivity extends BaseFragment implements
                 }
                 break;
             }
+            case OPTION_GLASSGRAM_METADATA: {
+                if (selectedObject != null) {
+                    presentFragment(new GlassgramMediaInfoActivity(selectedObject));
+                }
+                break;
+            }
             default: {
                 if (option >= OPTION_GLASSGRAM_PLUGIN_ITEM && option < OPTION_GLASSGRAM_PLUGIN_ITEM + 80 && glassgramPluginMenuItems != null && option - OPTION_GLASSGRAM_PLUGIN_ITEM < glassgramPluginMenuItems.size()) {
                     glassgramPluginMenuItems.get(option - OPTION_GLASSGRAM_PLUGIN_ITEM).click(glassgramMenuContext(selectedObject));
@@ -40582,6 +40589,14 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
 
+            if (org.telegram.messenger.GlassgramConfig.inlineButtonData && buttonTypeUrl == null && buttonTypeCopy == null) {
+                // glassGram: what the button holds, its text and callback_data, to copy
+                org.telegram.ui.Components.GlassgramButtonInfo.show(ChatActivity.this, button, themeDelegate);
+                try {
+                    cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                } catch (Exception ignore) {}
+                return;
+            }
             if (buttonTypeCopy != null) {
                 didLongPressCopyButton(buttonTypeCopy.copy_text);
                 return;
@@ -46379,6 +46394,11 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
                 }
+                if (message != null && GlassgramMediaInfoActivity.hasMedia(message)) {
+                    items.add(LocaleController.getString(R.string.GlassgramMediaInfo));
+                    options.add(OPTION_GLASSGRAM_METADATA);
+                    icons.add(R.drawable.msg_info);
+                }
                 glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
                 for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {
                     org.telegram.messenger.plugins.PluginsController.MenuItem pluginItem = glassgramPluginMenuItems.get(pi);
@@ -46738,6 +46758,11 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.GlassgramEditHistory));
                     options.add(OPTION_GLASSGRAM_EDIT_HISTORY);
                     icons.add(R.drawable.msg_log);
+                }
+                if (message != null && GlassgramMediaInfoActivity.hasMedia(message)) {
+                    items.add(LocaleController.getString(R.string.GlassgramMediaInfo));
+                    options.add(OPTION_GLASSGRAM_METADATA);
+                    icons.add(R.drawable.msg_info);
                 }
                 glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
                 for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {

@@ -184,6 +184,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_OFFLINE_TRANSCRIBE = 152;
     private static final int ID_TRANSCRIBE_LANG = 153;
     private static final int ID_TRANSCRIBE_MODEL = 154;
+    private static final int ID_BUTTON_DATA = 155;
 
     private final int page;
     private boolean ghostExpanded;
@@ -352,6 +353,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramChats)));
                 items.add(UItem.asCheck(ID_HIDE_KEYBOARD, getString(R.string.GlassgramHideKeyboardOnScroll)).setChecked(GlassgramConfig.hideKeyboardOnScroll));
                 items.add(UItem.asCheck(ID_COMMA_MENTION, getString(R.string.GlassgramCommaAfterMention)).setChecked(GlassgramConfig.commaAfterMention));
+                items.add(UItem.asButtonCheck(ID_BUTTON_DATA, getString(R.string.GlassgramButtonData), getString(R.string.GlassgramButtonDataInfo)).setChecked(GlassgramConfig.inlineButtonData));
                 items.add(UItem.asButtonCheck(ID_INPUT_CALCULATOR, getString(R.string.GlassgramInputCalculator), getString(R.string.GlassgramInputCalculatorInfo)).setChecked(GlassgramConfig.inputCalculator));
                 items.add(UItem.asCheck(ID_HIDE_SEND_AS, getString(R.string.GlassgramHideSendAs)).setChecked(GlassgramConfig.hideSendAsButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramHideSendAsInfo)));
@@ -851,6 +853,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     downloadTranscriptionModel();
                 }
                 listView.adapter.update(true);
+                break;
+            case ID_BUTTON_DATA:
+                value = GlassgramConfig.inlineButtonData = !GlassgramConfig.inlineButtonData;
+                GlassgramConfig.putBoolean("inlineButtonData", value);
                 break;
             case ID_MINI_AVATARS:
                 value = GlassgramConfig.senderMiniAvatars = !GlassgramConfig.senderMiniAvatars;

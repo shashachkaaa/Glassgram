@@ -123,6 +123,8 @@ public class GlassgramConfig {
     public static boolean inputCalculator = true;
     // a small avatar of the sender before the name in group messages
     public static boolean senderMiniAvatars;
+    // a long press on a bot's inline button shows its text and callback_data (GlassgramButtonInfo)
+    public static boolean inlineButtonData = true;
     // voice and video messages transcribed on the phone (GlassgramVoice), in this language
     public static boolean offlineTranscription;
     public static String offlineTranscriptionLang = GlassgramVoice.LANG_RU;
@@ -297,6 +299,7 @@ public class GlassgramConfig {
         commaAfterMention = p.getBoolean("commaAfterMention", false);
         inputCalculator = p.getBoolean("inputCalculator", true);
         senderMiniAvatars = p.getBoolean("senderMiniAvatars", false);
+        inlineButtonData = p.getBoolean("inlineButtonData", true);
         offlineTranscription = p.getBoolean("offlineTranscription", false);
         offlineTranscriptionLang = p.getString("offlineTranscriptionLang", GlassgramVoice.LANG_RU);
         doubleTapSeekSeconds = p.getInt("doubleTapSeekSeconds", 10);
