@@ -13,6 +13,7 @@ import android.graphics.RenderNode;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 
 import androidx.annotation.RequiresApi;
@@ -44,6 +45,7 @@ public class ProfileHeaderGlass {
     private final View view;
     private final ViewBehindBackdrop behind;
     private View header;
+    private View photo;
     private Object backdropNode;
     private boolean active, refreshPosted;
     private long recordedAt;
@@ -77,6 +79,17 @@ public class ProfileHeaderGlass {
     public ProfileHeaderGlass(View view) {
         this.view = view;
         this.behind = new ViewBehindBackdrop(view);
+    }
+
+    /**
+     * The photo gallery, a sibling of the view, ending above it: under the view the gallery only
+     * draws a heavy blur of its bottom, smooth, with nothing for the lens to bend, and the glass
+     * looked like a plain veil. The glass is made of the photo mirrored under its bottom edge
+     * instead, the same picture as that blur, so the lens has the photo itself to bend.
+     */
+    public void setPhoto(View photo) {
+        this.photo = photo;
+        view.invalidate();
     }
 
     /** The header drawn under the view, a sibling of its parent. */
@@ -157,6 +170,7 @@ public class ProfileHeaderGlass {
         AndroidUtilities.rectTmp.set(0, 0, view.getWidth(), view.getHeight());
         behind.setArea(AndroidUtilities.rectTmp);
         behind.draw(canvas);
+        drawMirroredPhoto(canvas);
         if (h != null) {
             final float[] s = headerState;
             s[0] = h.getLeft();
@@ -168,6 +182,42 @@ public class ProfileHeaderGlass {
             s[6] = h.getAlpha();
             s[7] = h.getVisibility();
         }
+    }
+
+    private void drawMirroredPhoto(Canvas canvas) {
+        final View p = photo;
+        if (!(p instanceof ViewGroup) || p.getParent() != view.getParent() || p.getVisibility() != View.VISIBLE || p.getAlpha() <= 0f) {
+            return;
+        }
+        // The photo ends at the bottom of the gallery's pages; the gallery's blur mirrors it under
+        // there, stretched twice in height, and the glass is made of the same, only sharp
+        final ViewGroup pages = (ViewGroup) p;
+        int photoBottom = 0;
+        for (int i = 0; i < pages.getChildCount(); i++) {
+            final View page = pages.getChildAt(i);
+            if (page.getVisibility() == View.VISIBLE) {
+                photoBottom = Math.max(photoBottom, page.getBottom());
+            }
+        }
+        if (photoBottom <= 0) {
+            return;
+        }
+        final float axis = p.getY() + photoBottom - view.getY();
+        if (axis >= view.getHeight()) {
+            return;
+        }
+        final int restore = canvas.save();
+        canvas.clipRect(0, Math.max(0, axis), view.getWidth(), view.getHeight());
+        // A point d above the photo's bottom edge is drawn 2d below it
+        canvas.translate(p.getX() - view.getX(), axis);
+        canvas.scale(1f, -2f);
+        canvas.translate(0, -photoBottom);
+        if (p.getAlpha() < 1f) {
+            canvas.saveLayerAlpha(0, 0, p.getWidth(), photoBottom, (int) (255 * p.getAlpha()));
+        }
+        canvas.translate(-p.getScrollX(), -p.getScrollY());
+        p.draw(canvas);
+        canvas.restoreToCount(restore);
     }
 
     private boolean isStale() {
@@ -191,8 +241,8 @@ public class ProfileHeaderGlass {
      *
      * @param white 1 when the content on it is white (over a colored header or a photo): a light
      *              veil that keeps the header's color; 0 under dark content: frosted white, as in iOS
-     * @param photo 1 over the expanded photo: what is under the glass there is the gallery's blur,
-     *              smooth, with nothing for the lens to bend, so the glass shows by a brighter, wider rim
+     * @param photo 1 over the expanded photo: the glass is a little darker there, for the white
+     *              content on it over a light photo, and shows by a brighter, wider rim
      */
     public void draw(Canvas canvas, Piece piece, RectF rect, float radius, float white, float alpha, float photo) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -203,7 +253,9 @@ public class ProfileHeaderGlass {
         final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
         final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
         final int frosted = ColorUtils.setAlphaComponent(surface, (int) (255 * BackdropGlass.tintAlpha(dark)));
-        final int tint = ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white);
+        final int tint = ColorUtils.blendARGB(
+            ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white),
+            ColorUtils.setAlphaComponent(Color.BLACK, 0x24), photo);
 
         if (white < 1f) {
             // A soft shadow around the frosted glass, outside it so it does not darken it
@@ -235,7 +287,7 @@ public class ProfileHeaderGlass {
             : canvas.save();
         canvas.translate(left, top);
         ((GlassLayer) piece.layer).draw(canvas, rect.width(), rect.height(), radius, density,
-            dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
+            dark || photo >= 0.5f ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
             (veil ? 4f : BackdropGlass.BlurRadius) * density,
             Math.max(1, Math.min(dp(12), Math.min(rect.width(), rect.height()) / 4)), dpf2(24),
             false, true, dark,

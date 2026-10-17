@@ -225,10 +225,11 @@ public class ProfileMusicView extends View {
     private final ProfileHeaderGlass.Piece glassPiece = new ProfileHeaderGlass.Piece();
 
     /** The header drawn under the pill, a sibling of its parent, for its glass. */
-    public void setGlassHeader(View header) {
+    public void setGlassHeader(View header, View photo) {
         if (glass == null) {
             glass = new ProfileHeaderGlass(this);
         }
+        glass.setPhoto(photo);
         glass.setHeader(header);
     }
 

@@ -350,10 +350,11 @@ public class ProfileActionsView extends View {
     private final RectF glassRect = new RectF();
 
     /** The header drawn under the buttons, a sibling of their parent, for their glass. */
-    public void setGlassHeader(View header) {
+    public void setGlassHeader(View header, View photo) {
         if (glass == null) {
             glass = new ProfileHeaderGlass(this);
         }
+        glass.setPhoto(photo);
         glass.setHeader(header);
     }
 
