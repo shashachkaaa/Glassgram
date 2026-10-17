@@ -133,6 +133,45 @@ public class ProfileGalleryBlurView extends View {
         }
     }
 
+    /**
+     * glassGram: what the blur under the photo is made of, sharp: the photo's bottom mirrored under
+     * its edge and stretched as the blur draws it, at (0, 0) of this view. The glass of the buttons
+     * over it is made of this, so its lens has the photo to bend instead of a smooth blur.
+     */
+    public void drawSharpMirror(Canvas canvas) {
+        if (view == null || !view.isAttachedToWindow() || view.getVisibility() == GONE) {
+            return;
+        }
+        final int position = currentPosition >= 0 ? currentPosition : view.getCurrentItem();
+        canvas.save();
+        canvas.clipRect(0, size, getWidth(), getHeight());
+        canvas.save();
+        canvas.translate(-offset, 0);
+        drawSharpMirror(canvas, view.getItemViewAt(position));
+        canvas.restore();
+        if (offset != 0) {
+            canvas.save();
+            canvas.translate(-offset + view.getMeasuredWidth(), 0);
+            drawSharpMirror(canvas, view.getItemViewAt(position + 1));
+            canvas.restore();
+        }
+        canvas.restore();
+    }
+
+    // The mirrored half of drawViewWithRenderNode
+    private void drawSharpMirror(Canvas canvas, View page) {
+        if (page == null) {
+            return;
+        }
+        final int h = page.getMeasuredHeight();
+        canvas.save();
+        canvas.scale(1f, -1f);
+        canvas.translate(0f, -h - size);
+        canvas.scale(1f, 2f, 0, h);
+        page.draw(canvas);
+        canvas.restore();
+    }
+
     public boolean isUsingRenderNode() {
         return usingRenderNode;
     }

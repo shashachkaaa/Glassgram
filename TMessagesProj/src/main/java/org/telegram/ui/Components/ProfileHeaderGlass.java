@@ -13,7 +13,6 @@ import android.graphics.RenderNode;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 
 import androidx.annotation.RequiresApi;
@@ -82,10 +81,9 @@ public class ProfileHeaderGlass {
     }
 
     /**
-     * The photo gallery, a sibling of the view, ending above it: under the view the gallery only
-     * draws a heavy blur of its bottom, smooth, with nothing for the lens to bend, and the glass
-     * looked like a plain veil. The glass is made of the photo mirrored under its bottom edge
-     * instead, the same picture as that blur, so the lens has the photo itself to bend.
+     * The gallery's blur under the photo, a sibling of the view drawn before it. Under the view it
+     * is a heavy blur of the photo's mirrored bottom, smooth, with nothing for the lens to bend,
+     * and the glass looked like a plain veil; the glass is made of the same mirror, sharp.
      */
     public void setPhoto(View photo) {
         this.photo = photo;
@@ -186,37 +184,15 @@ public class ProfileHeaderGlass {
 
     private void drawMirroredPhoto(Canvas canvas) {
         final View p = photo;
-        if (!(p instanceof ViewGroup) || p.getParent() != view.getParent() || p.getVisibility() != View.VISIBLE || p.getAlpha() <= 0f) {
-            return;
-        }
-        // The photo ends at the bottom of the gallery's pages; the gallery's blur mirrors it under
-        // there, stretched twice in height, and the glass is made of the same, only sharp
-        final ViewGroup pages = (ViewGroup) p;
-        int photoBottom = 0;
-        for (int i = 0; i < pages.getChildCount(); i++) {
-            final View page = pages.getChildAt(i);
-            if (page.getVisibility() == View.VISIBLE) {
-                photoBottom = Math.max(photoBottom, page.getBottom());
-            }
-        }
-        if (photoBottom <= 0) {
-            return;
-        }
-        final float axis = p.getY() + photoBottom - view.getY();
-        if (axis >= view.getHeight()) {
+        if (!(p instanceof ProfileGalleryBlurView) || p.getParent() != view.getParent() || p.getVisibility() != View.VISIBLE || p.getAlpha() <= 0f) {
             return;
         }
         final int restore = canvas.save();
-        canvas.clipRect(0, Math.max(0, axis), view.getWidth(), view.getHeight());
-        // A point d above the photo's bottom edge is drawn 2d below it
-        canvas.translate(p.getX() - view.getX(), axis);
-        canvas.scale(1f, -2f);
-        canvas.translate(0, -photoBottom);
+        canvas.translate(p.getX() - view.getX(), p.getY() - view.getY());
         if (p.getAlpha() < 1f) {
-            canvas.saveLayerAlpha(0, 0, p.getWidth(), photoBottom, (int) (255 * p.getAlpha()));
+            canvas.saveLayerAlpha(0, 0, p.getWidth(), p.getHeight(), (int) (255 * p.getAlpha()));
         }
-        canvas.translate(-p.getScrollX(), -p.getScrollY());
-        p.draw(canvas);
+        ((ProfileGalleryBlurView) p).drawSharpMirror(canvas);
         canvas.restoreToCount(restore);
     }
 
