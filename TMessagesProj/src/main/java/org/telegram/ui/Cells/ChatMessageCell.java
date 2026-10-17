@@ -1709,6 +1709,34 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean drawName;
     private boolean drawNameLayout;
     private boolean drawNameAvatar;
+    // glassGram: a small avatar of the sender before the name in groups (GlassgramConfig.senderMiniAvatars)
+    private boolean drawMiniAvatar;
+    private ImageReceiver miniAvatarImage;
+    private AvatarDrawable miniAvatarDrawable;
+    private static final int MINI_AVATAR_SIZE = 20, MINI_AVATAR_GAP = 5;
+
+    private int miniAvatarShift() {
+        return drawMiniAvatar ? dp(MINI_AVATAR_SIZE + MINI_AVATAR_GAP) : 0;
+    }
+
+    private void setMiniAvatar() {
+        if (miniAvatarImage == null) {
+            miniAvatarImage = new ImageReceiver(this);
+            miniAvatarImage.setRoundRadius(dp(MINI_AVATAR_SIZE) / 2);
+            if (attachedToWindow) {
+                miniAvatarImage.onAttachedToWindow();
+            }
+            miniAvatarDrawable = new AvatarDrawable();
+            miniAvatarDrawable.setTextSize(dp(9));
+        }
+        if (currentUser != null) {
+            miniAvatarDrawable.setInfo(currentAccount, currentUser);
+            miniAvatarImage.setForUserOrChat(currentUser, miniAvatarDrawable);
+        } else if (currentChat != null) {
+            miniAvatarDrawable.setInfo(currentAccount, currentChat);
+            miniAvatarImage.setForUserOrChat(currentChat, miniAvatarDrawable);
+        }
+    }
 
     private float ephemeralX, ephemeralY;
     private StaticLayout ephemeralLayout;
@@ -6439,6 +6467,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             groupMedia.onDetachedFromWindow();
         }
         avatarImage.onDetachedFromWindow();
+        if (miniAvatarImage != null) {
+            miniAvatarImage.onDetachedFromWindow();
+        }
         if (sideImage != null) {
             sideImage.onDetachedFromWindow();
         }
@@ -6570,6 +6601,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
         avatarImage.setParentView((View) getParent());
         avatarImage.onAttachedToWindow();
+        if (miniAvatarImage != null) {
+            miniAvatarImage.onAttachedToWindow();
+        }
         if (sideImage != null) {
             sideImage.onAttachedToWindow();
         }
@@ -7047,6 +7081,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             instantViewLayout = null;
             drawNameLayout = false;
             drawNameAvatar = false;
+            drawMiniAvatar = false;
             linkPreviewAbove = false;
             captionAbove = currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.invert_media || groupedMessages != null && groupedMessages.captionAbove;
             isSmallImage = false;
@@ -18959,6 +18994,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (drawNameAvatar) {
                 nameWidth -= dp(32.33f);
             }
+            drawMiniAvatar = !drawNameAvatar && GlassgramConfig.senderMiniAvatars && isChat && needAuthorName && !messageObject.isOutOwner()
+                && (currentUser != null || currentChat != null) && !messageObject.isSponsored()
+                && !messageObject.shouldDrawWithoutBackground() && messageObject.type != MessageObject.TYPE_ROUND_VIDEO;
+            if (drawMiniAvatar) {
+                nameWidth -= miniAvatarShift();
+                setMiniAvatar();
+            }
             if (drawTopic && topicButton != null) {
                 nameWidth -= topicButton.width + dp(8);
             }
@@ -19138,6 +19180,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (drawNameAvatar) {
                     nameWidth += dp(32.33f + 4);
                 }
+                nameWidth += miniAvatarShift();
                 if (drawTopic && topicButton != null) {
                     nameWidth += topicButton.width + dp(8);
                 }
@@ -21490,6 +21533,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarAlpha = drawNameAvatar ? 1.0f : 0.0f;
             }
             nx += dp(32.33f) * avatarAlpha;
+            nx += miniAvatarShift();
             final float avatarY = ny;
             if (adminLayout == null) {
                 ny += dp(5) * avatarAlpha;
@@ -22341,6 +22385,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 ny += dp(5) * avatarAlpha;
             } else {
                 ny -= dp(2.33f) * avatarAlpha;
+            }
+            if (drawMiniAvatar && miniAvatarImage != null) {
+                final int size = dp(MINI_AVATAR_SIZE);
+                miniAvatarImage.setImageCoords(nx, ny + (nameLayout.getHeight() - size) / 2f, size, size);
+                miniAvatarImage.setAlpha(nameAlpha);
+                miniAvatarImage.draw(canvas);
+                nx += miniAvatarShift();
             }
 
             if (!currentMessageObject.isSponsored()) {
@@ -29388,7 +29439,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public int getNameStatusX() {
-        return (int) (nameX + nameOffsetX + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(2) + dp(4 + 12 + 4) / 2);
+        return (int) (nameX + nameOffsetX + miniAvatarShift() + (viaNameWidth > 0 ? viaNameWidth - dp(4 + 28) : glassgramNameStatusEnd()) + dp(2) + dp(4 + 12 + 4) / 2);
     }
 
     public int getNameStatusY() {

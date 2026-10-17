@@ -357,6 +357,8 @@
     <string name="GlassgramTabsMin">На панели должно остаться минимум две вкладки</string>
     <string name="GlassgramInputCalculator">Калькулятор в поле ввода</string>
     <string name="GlassgramInputCalculatorInfo">Напиши пример и «=», например 12*7=, и над полем появится ответ. Нажми на него, чтобы вставить.</string>
+    <string name="GlassgramMiniAvatars">Мини-аватарки отправителей</string>
+    <string name="GlassgramMiniAvatarsInfo">Маленькая аватарка рядом с именем отправителя в сообщениях групп</string>
     <string name="GlassgramHideAttachCamera">Скрыть камеру во вложениях</string>
     <string name="GlassgramAlwaysSendHDInfo">Фото отправляются в высоком качестве, если не выключить HD для конкретного фото перед отправкой.</string>
     <string name="GlassgramLastSeenNow">был(а) только что</string>

@@ -121,6 +121,8 @@ public class GlassgramConfig {
     public static boolean commaAfterMention;
     // "12*7=" in the message field shows its result (GlassgramCalcHint)
     public static boolean inputCalculator = true;
+    // a small avatar of the sender before the name in group messages
+    public static boolean senderMiniAvatars;
 
     // Videos
     public static int doubleTapSeekSeconds = 10;
@@ -291,6 +293,7 @@ public class GlassgramConfig {
         showPollResults = p.getBoolean("showPollResults", false);
         commaAfterMention = p.getBoolean("commaAfterMention", false);
         inputCalculator = p.getBoolean("inputCalculator", true);
+        senderMiniAvatars = p.getBoolean("senderMiniAvatars", false);
         doubleTapSeekSeconds = p.getInt("doubleTapSeekSeconds", 10);
         preferOriginalQuality = p.getBoolean("preferOriginalQuality", false);
         volumeUnmute = p.getBoolean("volumeUnmute", false);

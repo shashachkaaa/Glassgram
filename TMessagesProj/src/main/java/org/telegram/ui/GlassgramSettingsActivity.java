@@ -180,6 +180,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     // + GlassgramConfig.TAB_*
     private static final int ID_TAB = 140;
     private static final int ID_INPUT_CALCULATOR = 150;
+    private static final int ID_MINI_AVATARS = 151;
 
     private final int page;
     private boolean ghostExpanded;
@@ -355,6 +356,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_MESSAGE_TAIL, getString(R.string.GlassgramRemoveMessageTail)).setChecked(GlassgramConfig.removeMessageTail));
                 items.add(UItem.asCheck(ID_EDITED_ICON, getString(R.string.GlassgramEditedIcon)).setChecked(GlassgramConfig.editedIcon));
                 items.add(UItem.asCheck(ID_ONLINE_INDICATOR, getString(R.string.GlassgramOnlineIndicator)).setChecked(GlassgramConfig.showOnlineIndicator));
+                items.add(UItem.asButtonCheck(ID_MINI_AVATARS, getString(R.string.GlassgramMiniAvatars), getString(R.string.GlassgramMiniAvatarsInfo)).setChecked(GlassgramConfig.senderMiniAvatars));
                 items.add(UItem.asCheck(ID_FORWARD_COUNT, getString(R.string.GlassgramForwardCount)).setChecked(GlassgramConfig.showForwardCount));
                 items.add(UItem.asCheck(ID_HIDE_SHARE, getString(R.string.GlassgramHideShareButton)).setChecked(GlassgramConfig.hideShareButton));
                 items.add(UItem.asButtonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
@@ -791,6 +793,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_HIDE_SEND_AS:
                 value = GlassgramConfig.hideSendAsButton = !GlassgramConfig.hideSendAsButton;
                 GlassgramConfig.putBoolean("hideSendAsButton", value);
+                break;
+            case ID_MINI_AVATARS:
+                value = GlassgramConfig.senderMiniAvatars = !GlassgramConfig.senderMiniAvatars;
+                GlassgramConfig.putBoolean("senderMiniAvatars", value);
                 break;
             case ID_INPUT_CALCULATOR:
                 value = GlassgramConfig.inputCalculator = !GlassgramConfig.inputCalculator;
