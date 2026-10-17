@@ -1,9 +1,12 @@
 package org.telegram.ui.Components;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.ColorSpace;
+import android.graphics.HardwareRenderer;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -14,7 +17,12 @@ import android.graphics.RectF;
 import android.graphics.RecordingCanvas;
 import android.graphics.RenderNode;
 import android.graphics.drawable.Drawable;
+import android.hardware.HardwareBuffer;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Context;
 import android.view.View;
 import android.view.ViewTreeObserver;
@@ -214,9 +222,9 @@ public class LiquidPanelDrawable extends Drawable {
         if (glass == null) {
             glass = new GlassLayer();
             decorNode = new RenderNode("LiquidPanelBackdrop");
-            // The backdrop is drawn once into a texture and blurred from it, not redrawn whole
-            // (the chat with its own glass) in every frame of the panel
-            ((RenderNode) decorNode).setUseCompositingLayer(true, null);
+            // The glass is made of a picture of it (see requestSnapshot), or, where that fails, of
+            // a texture of it, so the chat with its own glass isn't redrawn whole for the panel
+            ((RenderNode) decorNode).setUseCompositingLayer(snapshotFailed, null);
         }
         final RenderNode node = (RenderNode) decorNode;
         decor.getLocationOnScreen(decorLocation);
@@ -225,9 +233,9 @@ public class LiquidPanelDrawable extends Drawable {
         final long now = android.os.SystemClock.uptimeMillis();
         if (!backdropRecorded || node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight()
                 || now - backdropRecordedAt >= BACKDROP_REFRESH_MS) {
+            final boolean resized = node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight();
             backdropRecorded = true;
             backdropRecordedAt = now;
-            backdropVersion++;
             node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
             node.setClipToBounds(false);
             // The windows drawn here use the shared scratch rects too; a sheet that set one before drawing
@@ -242,6 +250,14 @@ public class LiquidPanelDrawable extends Drawable {
                 node.endRecording();
                 AndroidUtilities.rectTmp.set(savedRectTmp);
                 AndroidUtilities.rectTmp2.set(savedRectTmp2);
+            }
+            if (resized) {
+                dropSnapshot();
+            }
+            // Until its picture comes the glass is made of the live recording; after that the old
+            // picture stays until the new one is ready
+            if (!requestSnapshot(host, decor.getWidth(), decor.getHeight()) || snapshot == null) {
+                backdropVersion++;
             }
         }
 
@@ -362,10 +378,188 @@ public class LiquidPanelDrawable extends Drawable {
         windowsBelow.clear();
     }
 
-    private final GlassLayer.Backdrop backdrop = c -> {
+    // a method, as the fields it reads are declared below and a lambda here may not read them
+    private final GlassLayer.Backdrop backdrop = this::drawBackdrop;
+
+    private void drawBackdrop(Canvas c) {
         c.translate(backdropDx, backdropDy);
-        c.drawRenderNode((RenderNode) decorNode);
+        if (snapshot != null) {
+            c.scale(SNAPSHOT_SCALE, SNAPSHOT_SCALE);
+            c.drawBitmap(snapshot, 0, 0, snapshotPaint);
+        } else {
+            c.drawRenderNode((RenderNode) decorNode);
+        }
+    }
+
+    /*
+     * The backdrop as a picture. The recorded decor holds the live views of the windows behind, so
+     * glass made of it was made anew whenever anything there changed (a video or a round message
+     * playing in the chat): the whole screen rendered, blurred and refracted again for each of its
+     * frames, on the render thread every window shares, and the sheet and anything opening over it
+     * stuttered. It is rendered into a half-size buffer when it is recorded, and the glass is made
+     * of that, so it is worked out again only when a new picture is taken.
+     */
+    private static final int SNAPSHOT_SCALE = 2;
+    private final Paint snapshotPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private HardwareRenderer snapshotRenderer;
+    private ImageReader snapshotReader;
+    private RenderNode snapshotRoot;
+    private Image snapshotImage;
+    private Bitmap snapshot;
+    private View snapshotHost;
+    private boolean snapshotFailed;
+
+    private final View.OnAttachStateChangeListener snapshotDetach = new View.OnAttachStateChangeListener() {
+        @Override
+        public void onViewAttachedToWindow(@NonNull View v) {
+        }
+
+        @Override
+        public void onViewDetachedFromWindow(@NonNull View v) {
+            releaseSnapshot();
+            backdropRecorded = false;
+        }
     };
+
+    /** Renders the recorded backdrop into the picture; false when it can't, and the live recording is used. */
+    private boolean requestSnapshot(View host, int width, int height) {
+        if (snapshotFailed || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return false;
+        }
+        try {
+            final int w = Math.max(1, width / SNAPSHOT_SCALE), h = Math.max(1, height / SNAPSHOT_SCALE);
+            if (snapshotReader == null || snapshotReader.getWidth() != w || snapshotReader.getHeight() != h) {
+                releaseSnapshot();
+                // three: the one drawn, one waiting and one being rendered
+                snapshotReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3,
+                    HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT);
+                snapshotReader.setOnImageAvailableListener(this::onSnapshot, snapshotHandler);
+                snapshotRoot = new RenderNode("LiquidPanelSnapshot");
+                snapshotRenderer = new HardwareRenderer();
+                snapshotRenderer.setOpaque(false);
+                snapshotRenderer.setSurface(snapshotReader.getSurface());
+                snapshotRenderer.setContentRoot(snapshotRoot);
+            }
+            if (snapshotHost != host) {
+                if (snapshotHost != null) {
+                    snapshotHost.removeOnAttachStateChangeListener(snapshotDetach);
+                }
+                snapshotHost = host;
+                host.addOnAttachStateChangeListener(snapshotDetach);
+            }
+            snapshotRoot.setPosition(0, 0, w, h);
+            final RecordingCanvas c = snapshotRoot.beginRecording(w, h);
+            try {
+                c.scale(1f / SNAPSHOT_SCALE, 1f / SNAPSHOT_SCALE);
+                c.drawRenderNode((RenderNode) decorNode);
+            } finally {
+                snapshotRoot.endRecording();
+            }
+            // rendered after the frame being drawn now, not from inside its drawing
+            if (!snapshotPending) {
+                snapshotPending = true;
+                snapshotHandler.post(renderSnapshot);
+            }
+            return true;
+        } catch (Throwable e) {
+            org.telegram.messenger.FileLog.e(e);
+            snapshotFailed();
+            return false;
+        }
+    }
+
+    private void snapshotFailed() {
+        snapshotFailed = true;
+        releaseSnapshot();
+        if (decorNode != null) {
+            ((RenderNode) decorNode).setUseCompositingLayer(true, null);
+        }
+    }
+
+    private final Handler snapshotHandler = new Handler(Looper.getMainLooper());
+    private boolean snapshotPending;
+    private final Runnable renderSnapshot = () -> {
+        snapshotPending = false;
+        if (snapshotRenderer == null) {
+            return;
+        }
+        try {
+            snapshotRenderer.createRenderRequest().syncAndDraw();
+        } catch (Throwable e) {
+            org.telegram.messenger.FileLog.e(e);
+            snapshotFailed();
+            backdropVersion++;
+            invalidateSelf();
+        }
+    };
+
+    private void onSnapshot(ImageReader reader) {
+        if (reader != snapshotReader) {
+            return;
+        }
+        Image image = null;
+        try {
+            image = reader.acquireLatestImage();
+            if (image == null) {
+                return;
+            }
+            final HardwareBuffer buffer = image.getHardwareBuffer();
+            final Bitmap bitmap = buffer == null ? null : Bitmap.wrapHardwareBuffer(buffer, ColorSpace.get(ColorSpace.Named.SRGB));
+            if (buffer != null) {
+                buffer.close();
+            }
+            if (bitmap == null) {
+                image.close();
+                return;
+            }
+            // the old buffer goes back to be rendered into only when the next picture is asked for,
+            // by when the glass no longer draws it
+            if (snapshotImage != null) {
+                snapshotImage.close();
+            }
+            snapshotImage = image;
+            snapshot = bitmap;
+        } catch (Throwable e) {
+            org.telegram.messenger.FileLog.e(e);
+            if (image != null && image != snapshotImage) {
+                image.close();
+            }
+            return;
+        }
+        backdropVersion++;
+        invalidateSelf();
+        final View h = host();
+        if (h != null) {
+            h.invalidate();
+        }
+    }
+
+    private void dropSnapshot() {
+        snapshot = null;
+        if (snapshotImage != null) {
+            snapshotImage.close();
+            snapshotImage = null;
+        }
+    }
+
+    private void releaseSnapshot() {
+        dropSnapshot();
+        snapshotHandler.removeCallbacks(renderSnapshot);
+        snapshotPending = false;
+        if (snapshotRenderer != null) {
+            snapshotRenderer.destroy();
+            snapshotRenderer = null;
+        }
+        if (snapshotReader != null) {
+            snapshotReader.close();
+            snapshotReader = null;
+        }
+        snapshotRoot = null;
+        if (snapshotHost != null) {
+            snapshotHost.removeOnAttachStateChangeListener(snapshotDetach);
+            snapshotHost = null;
+        }
+    }
 
     @Override
     public void setAlpha(int alpha) {
