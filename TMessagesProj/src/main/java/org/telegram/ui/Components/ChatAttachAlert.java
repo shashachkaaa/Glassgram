@@ -4560,8 +4560,6 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             calcMandatoryInsets = chatActivity.isKeyboardVisible();
-            // glassGram: the chat's GIFs and stickers rest under the sheet (see ChatActivity)
-            chatActivity.glassgramPauseAnimations(true);
         }
         updateDoneItemEnabled();
         openTransitionFinished = false;
@@ -7046,9 +7044,6 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     @Override
     public void dismissInternal() {
-        if (baseFragment instanceof ChatActivity) {
-            ((ChatActivity) baseFragment).glassgramPauseAnimations(false);
-        }
         if (delegate != null) {
             delegate.doOnIdle(this::removeFromRoot);
         } else {
