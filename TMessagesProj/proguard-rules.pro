@@ -67,3 +67,10 @@
 -keep class com.android.dx.** { *; }
 -dontwarn com.android.dx.**
 -dontwarn com.chaquo.python.**
+
+# Vosk (offline transcription) binds its native functions through JNA by name
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.** { *; }
+-dontwarn java.awt.**
+-dontwarn com.sun.jna.**

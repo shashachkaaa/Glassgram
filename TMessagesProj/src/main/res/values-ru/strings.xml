@@ -359,6 +359,19 @@
     <string name="GlassgramInputCalculatorInfo">Напиши пример и «=», например 12*7=, и над полем появится ответ. Нажми на него, чтобы вставить.</string>
     <string name="GlassgramMiniAvatars">Мини-аватарки отправителей</string>
     <string name="GlassgramMiniAvatarsInfo">Маленькая аватарка рядом с именем отправителя в сообщениях групп</string>
+    <string name="GlassgramTranscription">Расшифровка голосовых</string>
+    <string name="GlassgramOfflineTranscription">Расшифровка на телефоне</string>
+    <string name="GlassgramOfflineTranscriptionInfo">Голосовые и кружки без Premium и интернета</string>
+    <string name="GlassgramTranscriptionLanguage">Язык</string>
+    <string name="GlassgramTranscriptionInfo">Кнопка расшифровки у голосовых и кружков работает без Premium: речь распознаётся прямо на телефоне (Vosk). Нужна модель языка, около 45 МБ, и Android 10 или новее. Точность ниже, чем у расшифровки Telegram.</string>
+    <string name="GlassgramTranscriptionDownloading">Загрузка модели… нажми, чтобы остановить</string>
+    <string name="GlassgramTranscriptionModelReady">Модель загружена</string>
+    <string name="GlassgramTranscriptionDownload">Скачать модель</string>
+    <string name="GlassgramTranscriptionDelete">Удалить модель?</string>
+    <string name="GlassgramTranscriptionDeleteInfo">Сообщения не будут расшифровываться на телефоне, пока модель не скачать снова.</string>
+    <string name="GlassgramTranscriptionDownloadFailed">Не удалось скачать модель, попробуй ещё раз</string>
+    <string name="GlassgramTranscriptionModelDone">Модель загружена: сообщения расшифровываются на телефоне</string>
+    <string name="GlassgramTranscribeFailed">Не удалось расшифровать сообщение</string>
     <string name="GlassgramHideAttachCamera">Скрыть камеру во вложениях</string>
     <string name="GlassgramAlwaysSendHDInfo">Фото отправляются в высоком качестве, если не выключить HD для конкретного фото перед отправкой.</string>
     <string name="GlassgramLastSeenNow">был(а) только что</string>

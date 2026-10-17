@@ -11364,6 +11364,19 @@
     <string name="GlassgramInputCalculatorInfo">Type a sum and “=”, like 12*7=, to see its result above the field; tap it to write it in.</string>
     <string name="GlassgramMiniAvatars">Sender mini avatars</string>
     <string name="GlassgramMiniAvatarsInfo">A small avatar next to the sender\'s name in group messages</string>
+    <string name="GlassgramTranscription">Voice transcription</string>
+    <string name="GlassgramOfflineTranscription">Transcribe on the phone</string>
+    <string name="GlassgramOfflineTranscriptionInfo">Voice and video messages, without Premium or the internet</string>
+    <string name="GlassgramTranscriptionLanguage">Language</string>
+    <string name="GlassgramTranscriptionInfo">The transcribe button of voice and video messages works without Premium: the speech is recognized right on the phone (Vosk). It needs the model of the language, about 45 MB, and Android 10 or newer; it is less exact than Telegram\'s own.</string>
+    <string name="GlassgramTranscriptionDownloading">Downloading the model… tap to stop</string>
+    <string name="GlassgramTranscriptionModelReady">Model downloaded</string>
+    <string name="GlassgramTranscriptionDownload">Download the model</string>
+    <string name="GlassgramTranscriptionDelete">Delete the model?</string>
+    <string name="GlassgramTranscriptionDeleteInfo">Messages won\'t be transcribed on the phone until it is downloaded again.</string>
+    <string name="GlassgramTranscriptionDownloadFailed">Couldn\'t download the model, try again</string>
+    <string name="GlassgramTranscriptionModelDone">The model is downloaded: messages are transcribed on the phone</string>
+    <string name="GlassgramTranscribeFailed">Couldn\'t transcribe this message</string>
     <string name="GlassgramHideAttachCamera">Hide the camera in attachments</string>
     <string name="GlassgramAlwaysSendHDInfo">Photos are sent in high quality unless you switch it off for a photo before sending.</string>
     <string name="GlassgramLastSeenNow">last seen just now</string>

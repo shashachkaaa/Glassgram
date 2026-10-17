@@ -181,6 +181,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TAB = 140;
     private static final int ID_INPUT_CALCULATOR = 150;
     private static final int ID_MINI_AVATARS = 151;
+    private static final int ID_OFFLINE_TRANSCRIBE = 152;
+    private static final int ID_TRANSCRIBE_LANG = 153;
+    private static final int ID_TRANSCRIBE_MODEL = 154;
 
     private final int page;
     private boolean ghostExpanded;
@@ -379,6 +382,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asRoundCheckbox(ID_AUTO_PAUSE_ROUND, getString(R.string.GlassgramAutoPauseRound)).setChecked(GlassgramConfig.autoPauseRound).setPad(1));
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramAutoPauseInfo)));
+                items.add(header(getString(R.string.GlassgramTranscription)));
+                items.add(UItem.asButtonCheck(ID_OFFLINE_TRANSCRIBE, getString(R.string.GlassgramOfflineTranscription), getString(R.string.GlassgramOfflineTranscriptionInfo)).setChecked(GlassgramConfig.offlineTranscription));
+                if (GlassgramConfig.offlineTranscription) {
+                    items.add(UItem.asButton(ID_TRANSCRIBE_LANG, getString(R.string.GlassgramTranscriptionLanguage), transcriptionLangName(GlassgramConfig.offlineTranscriptionLang)));
+                    items.add(UItem.asButton(ID_TRANSCRIBE_MODEL, transcriptionModelText(), transcriptionModelValue()));
+                }
+                items.add(UItem.asShadow(getString(R.string.GlassgramTranscriptionInfo)));
                 items.add(header(getString(R.string.GlassgramRoundVideos)));
                 items.add(UItem.asButtonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
                 items.add(UItem.asButtonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
@@ -684,6 +694,46 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_TABS:
                 presentFragment(new GlassgramSettingsActivity(PAGE_TABS));
                 return;
+            case ID_TRANSCRIBE_LANG: {
+                final String[] langs = org.telegram.messenger.GlassgramVoice.LANGS;
+                final String[] names = new String[langs.length];
+                int current = 0;
+                for (int i = 0; i < langs.length; i++) {
+                    names[i] = transcriptionLangName(langs[i]);
+                    if (langs[i].equals(GlassgramConfig.offlineTranscriptionLang)) {
+                        current = i;
+                    }
+                }
+                showChoice(getString(R.string.GlassgramTranscriptionLanguage), names, current, which -> {
+                    GlassgramConfig.offlineTranscriptionLang = langs[which];
+                    GlassgramConfig.putString("offlineTranscriptionLang", langs[which]);
+                    if (!org.telegram.messenger.GlassgramVoice.isModelReady(langs[which])) {
+                        downloadTranscriptionModel();
+                    }
+                });
+                return;
+            }
+            case ID_TRANSCRIBE_MODEL: {
+                final String lang = GlassgramConfig.offlineTranscriptionLang;
+                if (org.telegram.messenger.GlassgramVoice.isDownloading(lang)) {
+                    org.telegram.messenger.GlassgramVoice.cancelDownload();
+                } else if (org.telegram.messenger.GlassgramVoice.isModelReady(lang)) {
+                    new AlertDialog.Builder(getParentActivity())
+                        .setTitle(getString(R.string.GlassgramTranscriptionDelete))
+                        .setMessage(getString(R.string.GlassgramTranscriptionDeleteInfo))
+                        .setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                            org.telegram.messenger.GlassgramVoice.deleteModel(lang);
+                            AndroidUtilities.runOnUIThread(() -> {
+                                if (listView != null) listView.adapter.update(true);
+                            }, 300);
+                        })
+                        .setNegativeButton(getString(R.string.Cancel), null)
+                        .show();
+                } else {
+                    downloadTranscriptionModel();
+                }
+                return;
+            }
             case ID_TABS_APPLY:
                 restartApp(getParentActivity());
                 return;
@@ -793,6 +843,14 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_HIDE_SEND_AS:
                 value = GlassgramConfig.hideSendAsButton = !GlassgramConfig.hideSendAsButton;
                 GlassgramConfig.putBoolean("hideSendAsButton", value);
+                break;
+            case ID_OFFLINE_TRANSCRIBE:
+                value = GlassgramConfig.offlineTranscription = !GlassgramConfig.offlineTranscription;
+                GlassgramConfig.putBoolean("offlineTranscription", value);
+                if (value && !org.telegram.messenger.GlassgramVoice.isModelReady(GlassgramConfig.offlineTranscriptionLang)) {
+                    downloadTranscriptionModel();
+                }
+                listView.adapter.update(true);
                 break;
             case ID_MINI_AVATARS:
                 value = GlassgramConfig.senderMiniAvatars = !GlassgramConfig.senderMiniAvatars;
@@ -1662,6 +1720,56 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         // written at once: the restart may follow right away
         GlassgramConfig.putStringNow("mainTabs", value);
         tabsChanged = true;
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private static String transcriptionLangName(String lang) {
+        return org.telegram.messenger.GlassgramVoice.LANG_EN.equals(lang) ? "English" : "Русский";
+    }
+
+    private String transcriptionModelText() {
+        final String lang = GlassgramConfig.offlineTranscriptionLang;
+        if (org.telegram.messenger.GlassgramVoice.isDownloading(lang)) {
+            return getString(R.string.GlassgramTranscriptionDownloading);
+        }
+        return getString(org.telegram.messenger.GlassgramVoice.isModelReady(lang) ? R.string.GlassgramTranscriptionModelReady : R.string.GlassgramTranscriptionDownload);
+    }
+
+    private String transcriptionModelValue() {
+        final String lang = GlassgramConfig.offlineTranscriptionLang;
+        if (org.telegram.messenger.GlassgramVoice.isDownloading(lang)) {
+            return (int) (org.telegram.messenger.GlassgramVoice.downloadProgress() * 100) + "%";
+        }
+        if (org.telegram.messenger.GlassgramVoice.isModelReady(lang)) {
+            return AndroidUtilities.formatFileSize(org.telegram.messenger.GlassgramVoice.modelSize(lang));
+        }
+        return "~45 MB";
+    }
+
+    private void downloadTranscriptionModel() {
+        final String lang = GlassgramConfig.offlineTranscriptionLang;
+        org.telegram.messenger.GlassgramVoice.download(lang, new org.telegram.messenger.GlassgramVoice.DownloadListener() {
+            @Override
+            public void onProgress(long done, long total) {
+                if (listView != null) {
+                    listView.adapter.update(false);
+                }
+            }
+
+            @Override
+            public void onDone(boolean ok) {
+                if (listView != null) {
+                    listView.adapter.update(true);
+                }
+                if (!ok && !isFinishing() && getParentActivity() != null && !org.telegram.messenger.GlassgramVoice.isModelReady(lang)) {
+                    BulletinFactory.of(GlassgramSettingsActivity.this).createErrorBulletin(getString(R.string.GlassgramTranscriptionDownloadFailed)).show();
+                } else if (ok && getParentActivity() != null) {
+                    BulletinFactory.of(GlassgramSettingsActivity.this).createSimpleBulletin(R.raw.done, getString(R.string.GlassgramTranscriptionModelDone)).show();
+                }
+            }
+        });
         if (listView != null) {
             listView.adapter.update(true);
         }

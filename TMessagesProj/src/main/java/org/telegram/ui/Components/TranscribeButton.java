@@ -209,7 +209,7 @@ public class TranscribeButton {
         boolean processClick, toOpen = !shouldBeOpen;
         if (!shouldBeOpen) {
             processClick = !loading;
-            if ((premium || canTranscribeTrial(parent.getMessageObject())) && parent.getMessageObject().isSent()) {
+            if ((premium || canTranscribeTrial(parent.getMessageObject()) || org.telegram.messenger.GlassgramVoice.isReady()) && parent.getMessageObject().isSent()) {
                 setLoading(true, true);
             }
         } else {
@@ -224,7 +224,7 @@ public class TranscribeButton {
         pressed = false;
         if (processClick) {
             if (!premium && toOpen) {
-                if (canTranscribeTrial(parent.getMessageObject()) || parent.getMessageObject() != null && parent.getMessageObject().messageOwner != null && !TextUtils.isEmpty(parent.getMessageObject().messageOwner.voiceTranscription)) {
+                if (org.telegram.messenger.GlassgramVoice.isReady() || canTranscribeTrial(parent.getMessageObject()) || parent.getMessageObject() != null && parent.getMessageObject().messageOwner != null && !TextUtils.isEmpty(parent.getMessageObject().messageOwner.voiceTranscription)) {
                     transcribePressed(parent.getMessageObject(), toOpen, parent.getDelegate());
                 } else {
                     if (parent.getDelegate() != null) {
@@ -683,6 +683,9 @@ public class TranscribeButton {
                 AndroidUtilities.runOnUIThread(() -> {
                     NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.voiceTranscriptionUpdate, messageObject, null, null, (Boolean) true, (Boolean) true);
                 });
+            } else if (org.telegram.messenger.GlassgramVoice.useFor(account)) {
+                // glassGram: transcribed on the phone, without Premium
+                transcribeOffline(messageObject, dialogId, messageId);
             } else {
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("sending Transcription request, msg_id=" + messageId + " dialog_id=" + dialogId);
@@ -772,6 +775,35 @@ public class TranscribeButton {
                 NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.voiceTranscriptionUpdate, messageObject, null, null, (Boolean) false, null);
             });
         }
+    }
+
+    // ids of the transcriptions made on the phone: negative, never one of Telegram's
+    private static long offlineTranscriptionId;
+
+    private static void transcribeOffline(MessageObject messageObject, long dialogId, int messageId) {
+        final int account = messageObject.currentAccount;
+        if (transcribeOperationsByDialogPosition == null) {
+            transcribeOperationsByDialogPosition = new HashMap<>();
+        }
+        transcribeOperationsByDialogPosition.put((Integer) reqInfoHash(messageObject), messageObject);
+        org.telegram.messenger.GlassgramVoice.transcribe(messageObject, text -> {
+            if (text == null) {
+                // it could not be done: the loading stops, as when Telegram refuses
+                if (transcribeOperationsByDialogPosition != null) {
+                    transcribeOperationsByDialogPosition.remove((Integer) reqInfoHash(messageObject));
+                }
+                android.widget.Toast.makeText(org.telegram.messenger.ApplicationLoader.applicationContext, org.telegram.messenger.LocaleController.getString(R.string.GlassgramTranscribeFailed), android.widget.Toast.LENGTH_SHORT).show();
+                NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.voiceTranscriptionUpdate, messageObject);
+                return;
+            }
+            final long id = --offlineTranscriptionId;
+            TranscribeButton.openVideoTranscription(messageObject);
+            messageObject.messageOwner.voiceTranscriptionOpen = true;
+            messageObject.messageOwner.voiceTranscriptionFinal = true;
+            messageObject.messageOwner.voiceTranscriptionId = id;
+            MessagesStorage.getInstance(account).updateMessageVoiceTranscription(dialogId, messageId, text, messageObject.messageOwner);
+            finishTranscription(messageObject, id, text);
+        });
     }
 
     public static boolean finishTranscription(MessageObject messageObject, long transcription_id, String text) {
