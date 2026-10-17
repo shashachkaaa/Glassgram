@@ -86,15 +86,6 @@ public class ProfileHeaderGlass {
         view.invalidate();
     }
 
-    /**
-     * Leaves a sibling out of what the glass is made of: the gallery's blur, so over a photo the
-     * glass refracts the photo itself instead of a blur that leaves it nothing to bend.
-     */
-    public void setExcluded(View sibling) {
-        behind.setExcluded(sibling);
-        view.invalidate();
-    }
-
     /** Called from the view's onAttachedToWindow and onDetachedFromWindow. */
     public void watch(boolean watch) {
         if (tree != null && tree.isAlive()) {
@@ -200,8 +191,10 @@ public class ProfileHeaderGlass {
      *
      * @param white 1 when the content on it is white (over a colored header or a photo): a light
      *              veil that keeps the header's color; 0 under dark content: frosted white, as in iOS
+     * @param photo 1 over the expanded photo: what is under the glass there is the gallery's blur,
+     *              smooth, with nothing for the lens to bend, so the glass shows by a brighter, wider rim
      */
-    public void draw(Canvas canvas, Piece piece, RectF rect, float radius, float white, float alpha) {
+    public void draw(Canvas canvas, Piece piece, RectF rect, float radius, float white, float alpha, float photo) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
@@ -250,7 +243,7 @@ public class ProfileHeaderGlass {
                 backdrop.translate(-left, -top);
                 backdrop.drawRenderNode(node);
             },
-            tint, veil ? 0.8f : 1f, 1f);
+            tint, AndroidUtilities.lerp(veil ? 0.8f : 1f, 1f, photo), AndroidUtilities.lerp(1f, 1.8f, photo));
         canvas.restoreToCount(restore);
     }
 }

@@ -225,11 +225,10 @@ public class ProfileMusicView extends View {
     private final ProfileHeaderGlass.Piece glassPiece = new ProfileHeaderGlass.Piece();
 
     /** The header drawn under the pill, a sibling of its parent, for its glass. */
-    public void setGlassHeader(View header, View excluded) {
+    public void setGlassHeader(View header) {
         if (glass == null) {
             glass = new ProfileHeaderGlass(this);
         }
-        glass.setExcluded(excluded);
         glass.setHeader(header);
     }
 
@@ -304,7 +303,7 @@ public class ProfileMusicView extends View {
         );
         final boolean glassDrawn = glass != null && glass.begin(canvas);
         if (glassDrawn) {
-            glass.draw(canvas, glassPiece, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha);
+            glass.draw(canvas, glassPiece, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha, parentExpanded);
         } else {
             if (withShadows && SharedConfig.shadowsInSections) {
                 backgroundPaint.setShadowLayer(dpf2(2), 0, dpf2(0.33f), multAlpha(0x0a000000, alpha));

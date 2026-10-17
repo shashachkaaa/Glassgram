@@ -33,18 +33,6 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
         this.view = view;
     }
 
-    // Siblings left out of the backdrop
-    private View excluded;
-
-    /** Leaves a sibling out of the backdrop, such as an effect already drawn over what the glass is made of. */
-    public void setExcluded(View sibling) {
-        excluded = sibling;
-    }
-
-    private boolean isBehind(View child) {
-        return child != excluded && isDrawn(child);
-    }
-
     /** Where the glass is, in the view's coordinates; the backdrop is drawn from its top-left corner. */
     public void setArea(RectF area) {
         this.area.set(area);
@@ -74,7 +62,7 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
         }
         final int index = parent.indexOfChild(view);
         for (int i = 0; i < index; i++) {
-            if (isBehind(parent.getChildAt(i))) {
+            if (isDrawn(parent.getChildAt(i))) {
                 return true;
             }
         }
@@ -104,7 +92,7 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
             final int index = parent.indexOfChild(view);
             for (int i = 0; i < index; i++) {
                 final View child = parent.getChildAt(i);
-                if (!isBehind(child)) {
+                if (!isDrawn(child)) {
                     continue;
                 }
                 final int childRestore = canvas.save();
@@ -137,8 +125,7 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
         final ViewGroup parent = (ViewGroup) view.getParent();
         final int index = parent.indexOfChild(view);
         for (int i = 0; i < index; i++) {
-            final View child = parent.getChildAt(i);
-            if (child != excluded && child.isDirty()) {
+            if (parent.getChildAt(i).isDirty()) {
                 return true;
             }
         }

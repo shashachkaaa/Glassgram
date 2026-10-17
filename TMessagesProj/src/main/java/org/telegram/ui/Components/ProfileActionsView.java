@@ -350,11 +350,10 @@ public class ProfileActionsView extends View {
     private final RectF glassRect = new RectF();
 
     /** The header drawn under the buttons, a sibling of their parent, for their glass. */
-    public void setGlassHeader(View header, View excluded) {
+    public void setGlassHeader(View header) {
         if (glass == null) {
             glass = new ProfileHeaderGlass(this);
         }
-        glass.setExcluded(excluded);
         glass.setHeader(header);
     }
 
@@ -396,7 +395,7 @@ public class ProfileActionsView extends View {
                 action.rect.width() / 2.0f * (1.0f - action.getScale()),
                 action.rect.height() / 2.0f * (1.0f - action.getScale())
             );
-            glass.draw(canvas, action.glass, glassRect, r, white, action.getAlpha() * alphaFraction);
+            glass.draw(canvas, action.glass, glassRect, r, white, action.getAlpha() * alphaFraction, parentExpanded);
         }
     }
 
