@@ -1278,7 +1278,10 @@ public class CaptionContainerView extends FrameLayout {
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         if (child == editText) {
             float ty = isAtTop() ? 0 : Math.max(0, editText.getHeight() - dp(82) - editText.getScrollY()) * (1f - keyboardT);
-            canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), 0xFF, Canvas.ALL_SAVE_FLAG);
+            // glassGram: the layer only as large as the field, all drawn in it is clipped to; the
+            // view spans the whole photo viewer, and its full size was an offscreen layer that big
+            // in every frame the viewer drew
+            canvas.saveLayerAlpha(bounds.left, bounds.top, bounds.right, bounds.bottom, 0xFF, Canvas.ALL_SAVE_FLAG);
 
             canvas.save();
             canvas.clipRect(bounds);

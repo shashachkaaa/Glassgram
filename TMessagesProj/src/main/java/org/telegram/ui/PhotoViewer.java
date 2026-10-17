@@ -2242,15 +2242,27 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
         }
 
+        // glassGram: one delayed check at a time; every frame the viewer drew queued another one
+        private boolean checkPending;
+        private final Runnable delayedCheck = () -> {
+            checkPending = false;
+            checkAllowDrawContent();
+        };
+
         @Keep
         @Override
         public void setAlpha(int alpha) {
             if (parentActivity instanceof LaunchActivity) {
                 allowDrawContent = !isVisible || alpha != 255;
                 if (allowDrawContent) {
+                    if (checkPending) {
+                        checkPending = false;
+                        AndroidUtilities.cancelRunOnUIThread(delayedCheck);
+                    }
                     checkAllowDrawContent();
-                } else {
-                    AndroidUtilities.runOnUIThread(this::checkAllowDrawContent, 70);
+                } else if (!checkPending) {
+                    checkPending = true;
+                    AndroidUtilities.runOnUIThread(delayedCheck, 70);
                 }
             }
             super.setAlpha(alpha);
@@ -7318,8 +7330,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         captionEditContainer = new FrameLayout(parentActivity) {
             @Override
             public void setTranslationY(float translationY) {
-                super.setTranslationY(translationY);
-                invalidateBlur();
+                // glassGram: only when it moved; the picker passes on every call, changed or not
+                if (getTranslationY() != translationY) {
+                    super.setTranslationY(translationY);
+                    invalidateBlur();
+                }
             }
         };
         captionEditContainer.addView(captionEdit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.BOTTOM));
@@ -7890,7 +7905,20 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         animatorPollAttachButtonsVisibility.setValue(false, false);
     }
 
+    // glassGram: set when the glass was left unrecorded during an opening or closing
+    private boolean glassRecordDeferred;
+
     public void invalidateAllGlassAttachedViews() {
+        // glassGram: with the RenderNode blur the glass draws the viewer's blurred picture by
+        // reference (getRenderNodeColorMatrix), so it follows the photo without being recorded
+        // again. Recording every glass, with its Liquid Glass lens and highlight, on every frame of
+        // the opening and closing cost the main thread and gave the render thread new layers; it is
+        // done once when the animation is over (onDraw).
+        if (animationInProgress != 0 && BLUR_RENDERNODE() && renderNode != null && renderNode.hasDisplayList()) {
+            glassRecordDeferred = true;
+            return;
+        }
+        glassRecordDeferred = false;
         if (iBlur3BlurredDrawables != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             for (BlurredBackgroundDrawableRenderNode d : iBlur3BlurredDrawables) {
                 d.invalidateDisplayList();
@@ -19553,6 +19581,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
     @SuppressLint({"NewApi", "DrawAllocation"})
     private void onDraw(Canvas canvas) {
+        if (glassRecordDeferred && animationInProgress == 0) {
+            invalidateAllGlassAttachedViews();
+        }
         Canvas realCanvas = canvas;
         if (BLUR_RENDERNODE()) {
             if (renderNode == null) {

@@ -6424,8 +6424,12 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         }
         if (allowDrawContent != value) {
             allowDrawContent = value;
-            if (currentAttachLayout == photoLayout && photoLayout != null && !photoLayout.cameraExpanded) {
-                photoLayout.pauseCamera(!allowDrawContent || sent);
+            // glassGram: under the photo viewer the camera only stops its preview (onPreOpen) and
+            // starts it again once the viewer has closed (onClose). Destroying it as the viewer
+            // settled and building it anew as the viewer began to close put a read back of the
+            // preview, a JPEG of it and a new camera on the main thread, right in those animations.
+            if (sent && currentAttachLayout == photoLayout && photoLayout != null && !photoLayout.cameraExpanded) {
+                photoLayout.pauseCamera(true);
             }
         }
     }

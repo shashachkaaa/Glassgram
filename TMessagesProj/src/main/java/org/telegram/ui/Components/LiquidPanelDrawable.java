@@ -87,7 +87,7 @@ public class LiquidPanelDrawable extends Drawable {
     private final ViewTreeObserver.OnPreDrawListener positionWatcher = () -> {
         final View h = observedHost;
         if (h != null && h.isAttachedToWindow()) {
-            h.getLocationOnScreen(checkLocation);
+            layoutLocationOnScreen(h, checkLocation);
             if (checkLocation[0] != drawnLocation[0] || checkLocation[1] != drawnLocation[1]) {
                 invalidateSelf();
                 h.invalidate();
@@ -95,6 +95,25 @@ public class LiquidPanelDrawable extends Drawable {
         }
         return true;
     };
+
+    /*
+     * Where a view is on screen by its layout and translations, without the scales of it and its
+     * parents. The photo viewer zooms the sheet behind it in every frame of its opening and closing;
+     * with the scale, getLocationOnScreen moved in each of them and the glass was made anew in every
+     * frame, though the glass zooms with the sheet and the screen behind is zoomed alike.
+     */
+    private final RectF layoutRect = new RectF();
+
+    private void layoutLocationOnScreen(View v, int[] out) {
+        final View root = v.getRootView();
+        if (v == root || !org.telegram.ui.Components.chat.ViewPositionWatcher.computeRectInParent(v, root, layoutRect)) {
+            v.getLocationOnScreen(out);
+            return;
+        }
+        root.getLocationOnScreen(out);
+        out[0] += Math.round(layoutRect.left);
+        out[1] += Math.round(layoutRect.top);
+    }
 
     private void watchPosition(View h) {
         final ViewTreeObserver tree = h.getViewTreeObserver();
@@ -228,12 +247,19 @@ public class LiquidPanelDrawable extends Drawable {
         }
         final RenderNode node = (RenderNode) decorNode;
         decor.getLocationOnScreen(decorLocation);
+        layoutLocationOnScreen(host, hostLocation);
         // Recording the screen and the windows under the panel costs the UI thread a whole frame of
         // their drawing; a panel sliding or fading over it doesn't need it anew in every frame
         final long now = android.os.SystemClock.uptimeMillis();
-        if (!backdropRecorded || node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight()
-                || now - backdropRecordedAt >= BACKDROP_REFRESH_MS) {
-            final boolean resized = node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight();
+        final boolean resized = node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight();
+        final boolean moved = hostLocation[0] != drawnLocation[0] || hostLocation[1] != drawnLocation[1];
+        // drawn again after a while unseen, as under the photo viewer: that frame records the whole sheet anew already
+        final boolean afterGap = now - lastGlassDrawAt > BACKDROP_REFRESH_MS;
+        lastGlassDrawAt = now;
+        final boolean stale = now - backdropRecordedAt >= BACKDROP_REFRESH_MS;
+        if (!backdropRecorded || resized || snapshot == null && !node.hasDisplayList()
+                || stale && (snapshot == null || !moved && (!afterGap || refreshRequested))) {
+            refreshRequested = false;
             backdropRecorded = true;
             backdropRecordedAt = now;
             node.setPosition(0, 0, decor.getWidth(), decor.getHeight());
@@ -259,9 +285,13 @@ public class LiquidPanelDrawable extends Drawable {
             if (!requestSnapshot(host, decor.getWidth(), decor.getHeight()) || snapshot == null) {
                 backdropVersion++;
             }
+        } else if (stale && !refreshPosted) {
+            // Moving, or just shown again: the old picture stays, and a new one is taken once the
+            // panel stands still, in a frame of its own
+            refreshPosted = true;
+            snapshotHandler.postDelayed(refreshBackdrop, BACKDROP_REFRESH_MS);
         }
 
-        host.getLocationOnScreen(hostLocation);
         drawnLocation[0] = hostLocation[0];
         drawnLocation[1] = hostLocation[1];
         watchPosition(host);
@@ -281,7 +311,8 @@ public class LiquidPanelDrawable extends Drawable {
         }
         final RenderNode gn = (RenderNode) glassNode;
         final int w = (int) Math.ceil(rect.width()), h = (int) Math.ceil(rect.height());
-        if (glassVersion != backdropVersion || gn.getWidth() != w || gn.getHeight() != h || glassRadius != radius
+        // (and when HWUI dropped its display list while the window was hidden: it would draw nothing)
+        if (glassVersion != backdropVersion || !gn.hasDisplayList() || gn.getWidth() != w || gn.getHeight() != h || glassRadius != radius
                 || glassTint != tint || glassDark != dark || glassDx != backdropDx || glassDy != backdropDy) {
             glassVersion = backdropVersion;
             glassRadius = radius;
@@ -320,6 +351,18 @@ public class LiquidPanelDrawable extends Drawable {
     private static final long BACKDROP_REFRESH_MS = 250;
     private boolean backdropRecorded;
     private long backdropRecordedAt;
+    private long lastGlassDrawAt;
+    private boolean refreshPosted;
+    // the delayed redraw that takes the new picture: a gap of its own must not put it off again
+    private boolean refreshRequested;
+    private final Runnable refreshBackdrop = () -> {
+        refreshPosted = false;
+        refreshRequested = true;
+        final View h = host();
+        if (h != null && h.isAttachedToWindow()) {
+            h.invalidate();
+        }
+    };
 
     private final ArrayList<View> windowsBelow = new ArrayList<>();
     private final int[] windowLocation = new int[2];
@@ -546,6 +589,8 @@ public class LiquidPanelDrawable extends Drawable {
         dropSnapshot();
         snapshotHandler.removeCallbacks(renderSnapshot);
         snapshotPending = false;
+        snapshotHandler.removeCallbacks(refreshBackdrop);
+        refreshPosted = false;
         if (snapshotRenderer != null) {
             snapshotRenderer.destroy();
             snapshotRenderer = null;
