@@ -179,6 +179,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TABS_APPLY = 137;
     // + GlassgramConfig.TAB_*
     private static final int ID_TAB = 140;
+    private static final int ID_INPUT_CALCULATOR = 150;
 
     private final int page;
     private boolean ghostExpanded;
@@ -347,6 +348,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramChats)));
                 items.add(UItem.asCheck(ID_HIDE_KEYBOARD, getString(R.string.GlassgramHideKeyboardOnScroll)).setChecked(GlassgramConfig.hideKeyboardOnScroll));
                 items.add(UItem.asCheck(ID_COMMA_MENTION, getString(R.string.GlassgramCommaAfterMention)).setChecked(GlassgramConfig.commaAfterMention));
+                items.add(UItem.asButtonCheck(ID_INPUT_CALCULATOR, getString(R.string.GlassgramInputCalculator), getString(R.string.GlassgramInputCalculatorInfo)).setChecked(GlassgramConfig.inputCalculator));
                 items.add(UItem.asCheck(ID_HIDE_SEND_AS, getString(R.string.GlassgramHideSendAs)).setChecked(GlassgramConfig.hideSendAsButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramHideSendAsInfo)));
                 items.add(header(getString(R.string.GlassgramMessages)));
@@ -789,6 +791,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_HIDE_SEND_AS:
                 value = GlassgramConfig.hideSendAsButton = !GlassgramConfig.hideSendAsButton;
                 GlassgramConfig.putBoolean("hideSendAsButton", value);
+                break;
+            case ID_INPUT_CALCULATOR:
+                value = GlassgramConfig.inputCalculator = !GlassgramConfig.inputCalculator;
+                GlassgramConfig.putBoolean("inputCalculator", value);
                 break;
             case ID_HIDE_ATTACH_CAMERA:
                 value = GlassgramConfig.hideAttachCamera = !GlassgramConfig.hideAttachCamera;

@@ -119,6 +119,8 @@ public class GlassgramConfig {
     public static boolean hideShareButton;
     public static boolean showPollResults;
     public static boolean commaAfterMention;
+    // "12*7=" in the message field shows its result (GlassgramCalcHint)
+    public static boolean inputCalculator = true;
 
     // Videos
     public static int doubleTapSeekSeconds = 10;
@@ -288,6 +290,7 @@ public class GlassgramConfig {
         hideShareButton = p.getBoolean("hideShareButton", false);
         showPollResults = p.getBoolean("showPollResults", false);
         commaAfterMention = p.getBoolean("commaAfterMention", false);
+        inputCalculator = p.getBoolean("inputCalculator", true);
         doubleTapSeekSeconds = p.getInt("doubleTapSeekSeconds", 10);
         preferOriginalQuality = p.getBoolean("preferOriginalQuality", false);
         volumeUnmute = p.getBoolean("volumeUnmute", false);

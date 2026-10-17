@@ -11360,6 +11360,8 @@
     <string name="GlassgramTabsChatsStay">Chats always stay in the bar</string>
     <string name="GlassgramTabsSettingsStay">Settings or Profile stays in the bar: the settings are opened from there</string>
     <string name="GlassgramTabsMin">At least two tabs stay in the bar</string>
+    <string name="GlassgramInputCalculator">Calculator in the message field</string>
+    <string name="GlassgramInputCalculatorInfo">Type a sum and “=”, like 12*7=, to see its result above the field; tap it to write it in.</string>
     <string name="GlassgramHideAttachCamera">Hide the camera in attachments</string>
     <string name="GlassgramAlwaysSendHDInfo">Photos are sent in high quality unless you switch it off for a photo before sending.</string>
     <string name="GlassgramLastSeenNow">last seen just now</string>
