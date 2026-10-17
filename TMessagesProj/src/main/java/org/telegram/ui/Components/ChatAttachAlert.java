@@ -6411,9 +6411,17 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     private boolean allowDrawContent = true;
     public boolean sent = false;
+    // glassGram: what the layout was last told here, so the photo viewer's calls on every frame of
+    // its opening and closing don't redraw the whole gallery (and the glass over it) each time
+    private AttachAlertLayout drawContentLayout;
+    private float drawContentPanTranslationY = Float.NaN;
 
     public void setAllowDrawContent(boolean value) {
-        currentAttachLayout.onContainerTranslationUpdated(currentPanTranslationY);
+        if (allowDrawContent != value || drawContentLayout != currentAttachLayout || drawContentPanTranslationY != currentPanTranslationY) {
+            drawContentLayout = currentAttachLayout;
+            drawContentPanTranslationY = currentPanTranslationY;
+            currentAttachLayout.onContainerTranslationUpdated(currentPanTranslationY);
+        }
         if (allowDrawContent != value) {
             allowDrawContent = value;
             if (currentAttachLayout == photoLayout && photoLayout != null && !photoLayout.cameraExpanded) {
