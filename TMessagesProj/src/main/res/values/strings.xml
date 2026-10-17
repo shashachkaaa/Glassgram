@@ -11353,7 +11353,7 @@
     <string name="GlassgramAlwaysSendHD">Always Send in HD</string>
     <string name="GlassgramTabs">Bottom tabs</string>
     <string name="GlassgramTabsHeader">Tabs</string>
-    <string name="GlassgramTabsInfo">Tick the tabs to show and hold one to drag it to its place. Chats always stay. The new tabs show after a restart.</string>
+    <string name="GlassgramTabsInfo">Tick the tabs to show and hold one to drag it to its place. Chats always stay. The bar changes as soon as you go back.</string>
     <string name="GlassgramTabsApply">Restart to apply</string>
     <string name="GlassgramTabsReset">Reset to Telegram\'s tabs</string>
     <string name="GlassgramTabsDefault">Standard</string>

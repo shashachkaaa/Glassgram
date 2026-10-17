@@ -1711,7 +1711,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         saveTabs(null);
     }
 
-    /** Writes the tabs shown in their order, or value as it is ("" for Telegram's own); they apply at the next start. */
+    /** Writes the tabs shown in their order, or value as it is ("" for Telegram's own), and remakes the capsule under these pages with them. */
     private void saveTabs(String value) {
         if (value == null) {
             final StringBuilder sb = new StringBuilder();
@@ -1725,7 +1725,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         GlassgramConfig.mainTabs = value;
         // written at once: the restart may follow right away
         GlassgramConfig.putStringNow("mainTabs", value);
-        tabsChanged = true;
+        // where it can't be remade (tablets), the restart applies them
+        tabsChanged = !MainTabsActivity.rebuildUnder(getParentLayout());
         if (listView != null) {
             listView.adapter.update(true);
         }

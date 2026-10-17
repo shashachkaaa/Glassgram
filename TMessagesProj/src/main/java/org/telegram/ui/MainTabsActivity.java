@@ -58,6 +58,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.EdgeToEdgeSupportMode;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
@@ -85,6 +86,7 @@ import org.telegram.ui.Stories.recorder.HintView2;
 import org.telegram.ui.Wallet.WalletActivity;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collections;
 
 import me.vkryl.android.animator.BoolAnimator;
@@ -108,9 +110,37 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return index > 2 ? index - 1 : index;
     }
 
-    // glassGram: the tabs chosen for the capsule (INDEX_* in their order), taken at start; null
+    // glassGram: the tabs chosen for the capsule (INDEX_* in their order), taken as it is made; null
     // for Telegram's own four, where calls and settings share a place
     private final int[] customTabs = GlassgramConfig.mainTabs();
+    // glassGram: the tab (INDEX_*) to open on instead of chats, for a capsule made anew under the settings
+    private int openTab = -1;
+
+    /**
+     * glassGram: puts a new capsule with the tabs now chosen in place of the one under the pages
+     * above it, open on the tab that was open, so the change shows on going back. False when there
+     * is none to replace: on tablets it is on screen, and the change waits for a restart.
+     */
+    public static boolean rebuildUnder(INavigationLayout layout) {
+        if (layout == null || AndroidUtilities.isTablet()) {
+            return false;
+        }
+        final List<BaseFragment> stack = layout.getFragmentStack();
+        for (int i = 0; i < stack.size() - 1; i++) {
+            if (!(stack.get(i) instanceof MainTabsActivity)) {
+                continue;
+            }
+            final MainTabsActivity old = (MainTabsActivity) stack.get(i);
+            final MainTabsActivity fresh = new MainTabsActivity();
+            fresh.openTab = old.viewPager != null ? old.tabAt(old.viewPager.getCurrentPosition()) : old.openTab;
+            if (!layout.addFragmentToStack(fresh, i)) {
+                return false;
+            }
+            layout.removeFragmentFromStack(old, true);
+            return true;
+        }
+        return false;
+    }
 
     /** The tab (INDEX_*) at a page of the pager, -1 for none. */
     private int tabAt(int position) {
@@ -335,6 +365,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     @Override
     public View createView(Context context) {
         super.createView(context);
+        // only the first view opens on it: going back still leads to chats
+        openTab = -1;
         tabletLayout = false;
 
         tabsView = new MainTabsLayout(context, resourceProvider);
@@ -822,7 +854,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected int getStartPosition() {
-        return positionOf(INDEX_CHATS);
+        final int open = openTab >= 0 ? positionOf(openTab) : -1;
+        return open >= 0 ? open : positionOf(INDEX_CHATS);
     }
 
     private DialogsActivity dialogsActivity;

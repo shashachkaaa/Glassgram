@@ -348,7 +348,7 @@
     <string name="GlassgramAlwaysSendHD">Всегда отправлять в HD</string>
     <string name="GlassgramTabs">Вкладки внизу</string>
     <string name="GlassgramTabsHeader">Вкладки</string>
-    <string name="GlassgramTabsInfo">Отметь вкладки, которые нужны, и удерживай вкладку, чтобы перетащить её на своё место. Чаты остаются всегда. Новые вкладки появятся после перезапуска.</string>
+    <string name="GlassgramTabsInfo">Отметь вкладки, которые нужны, и удерживай вкладку, чтобы перетащить её на своё место. Чаты остаются всегда. Панель изменится, как только вернёшься назад.</string>
     <string name="GlassgramTabsApply">Перезапустить и применить</string>
     <string name="GlassgramTabsReset">Вернуть вкладки Telegram</string>
     <string name="GlassgramTabsDefault">Стандартные</string>
