@@ -104,6 +104,7 @@ public class NotificationsCheckCell extends FrameLayout {
         multilineValueTextView.setPadding(0, 0, 0, 0);
         multilineValueTextView.setVisibility(View.GONE);
         addView(multilineValueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 80 : (withImage ? 64 : padding), 38 - (withImage ? 2 : 0) + (currentHeight - 70) / 2, LocaleController.isRTL ? (withImage ? 64 : padding) : 80, 0));
+        multilineValueTop = ((LayoutParams) multilineValueTextView.getLayoutParams()).topMargin;
 
         checkBox = new Switch(context, resourcesProvider) {
             @Override
@@ -124,9 +125,33 @@ public class NotificationsCheckCell extends FrameLayout {
         return color;
     }
 
+    // glassGram: the title wraps too, and the multiline value goes under all of its lines
+    private boolean wrapTitle;
+    private final int multilineValueTop;
+
+    public void setWrapTitle(boolean wrap) {
+        if (wrapTitle == wrap) {
+            return;
+        }
+        wrapTitle = wrap;
+        textView.setSingleLine(!wrap);
+        if (wrap) {
+            textView.setMaxLines(3);
+        }
+        requestLayout();
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (isMultiline) {
+            int valueTop = multilineValueTop;
+            if (wrapTitle) {
+                final LayoutParams lp = (LayoutParams) textView.getLayoutParams();
+                final int width = Math.max(0, MeasureSpec.getSize(widthMeasureSpec) - lp.leftMargin - lp.rightMargin);
+                textView.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                valueTop += Math.max(0, textView.getLineCount() - 1) * textView.getLineHeight();
+            }
+            ((LayoutParams) multilineValueTextView.getLayoutParams()).topMargin = valueTop;
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         } else {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(currentHeight), MeasureSpec.EXACTLY));

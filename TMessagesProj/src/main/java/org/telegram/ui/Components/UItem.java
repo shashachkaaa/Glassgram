@@ -702,6 +702,14 @@ public class UItem extends AdapterWithDiffUtils.Item {
         return this;
     }
 
+    // glassGram: a check with a subtext shows the subtext and the title whole, wrapped, not cut
+    public boolean wrapText;
+
+    public UItem wrapText() {
+        this.wrapText = true;
+        return this;
+    }
+
     public UItem setSpanCount(int spanCount) {
         this.spanCount = spanCount;
         return this;

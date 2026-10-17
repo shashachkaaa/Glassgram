@@ -353,18 +353,18 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramChats)));
                 items.add(UItem.asCheck(ID_HIDE_KEYBOARD, getString(R.string.GlassgramHideKeyboardOnScroll)).setChecked(GlassgramConfig.hideKeyboardOnScroll));
                 items.add(UItem.asCheck(ID_COMMA_MENTION, getString(R.string.GlassgramCommaAfterMention)).setChecked(GlassgramConfig.commaAfterMention));
-                items.add(UItem.asButtonCheck(ID_BUTTON_DATA, getString(R.string.GlassgramButtonData), getString(R.string.GlassgramButtonDataInfo)).setChecked(GlassgramConfig.inlineButtonData));
-                items.add(UItem.asButtonCheck(ID_INPUT_CALCULATOR, getString(R.string.GlassgramInputCalculator), getString(R.string.GlassgramInputCalculatorInfo)).setChecked(GlassgramConfig.inputCalculator));
+                items.add(buttonCheck(ID_BUTTON_DATA, getString(R.string.GlassgramButtonData), getString(R.string.GlassgramButtonDataInfo)).setChecked(GlassgramConfig.inlineButtonData));
+                items.add(buttonCheck(ID_INPUT_CALCULATOR, getString(R.string.GlassgramInputCalculator), getString(R.string.GlassgramInputCalculatorInfo)).setChecked(GlassgramConfig.inputCalculator));
                 items.add(UItem.asCheck(ID_HIDE_SEND_AS, getString(R.string.GlassgramHideSendAs)).setChecked(GlassgramConfig.hideSendAsButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramHideSendAsInfo)));
                 items.add(header(getString(R.string.GlassgramMessages)));
                 items.add(UItem.asCheck(ID_MESSAGE_TAIL, getString(R.string.GlassgramRemoveMessageTail)).setChecked(GlassgramConfig.removeMessageTail));
                 items.add(UItem.asCheck(ID_EDITED_ICON, getString(R.string.GlassgramEditedIcon)).setChecked(GlassgramConfig.editedIcon));
                 items.add(UItem.asCheck(ID_ONLINE_INDICATOR, getString(R.string.GlassgramOnlineIndicator)).setChecked(GlassgramConfig.showOnlineIndicator));
-                items.add(UItem.asButtonCheck(ID_MINI_AVATARS, getString(R.string.GlassgramMiniAvatars), getString(R.string.GlassgramMiniAvatarsInfo)).setChecked(GlassgramConfig.senderMiniAvatars));
+                items.add(buttonCheck(ID_MINI_AVATARS, getString(R.string.GlassgramMiniAvatars), getString(R.string.GlassgramMiniAvatarsInfo)).setChecked(GlassgramConfig.senderMiniAvatars));
                 items.add(UItem.asCheck(ID_FORWARD_COUNT, getString(R.string.GlassgramForwardCount)).setChecked(GlassgramConfig.showForwardCount));
                 items.add(UItem.asCheck(ID_HIDE_SHARE, getString(R.string.GlassgramHideShareButton)).setChecked(GlassgramConfig.hideShareButton));
-                items.add(UItem.asButtonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
+                items.add(buttonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
                 items.add(header(getString(R.string.GlassgramPhotos)));
                 items.add(UItem.asCheck(ID_HIDE_ATTACH_CAMERA, getString(R.string.GlassgramHideAttachCamera)).setChecked(GlassgramConfig.hideAttachCamera));
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
@@ -372,7 +372,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramVideos)));
                 items.add(UItem.asButton(ID_DOUBLE_TAP_SEEK, getString(R.string.GlassgramDoubleTapSeek), seekNames()[seekIndex()]));
                 items.add(UItem.asCheck(ID_ORIGINAL_QUALITY, getString(R.string.GlassgramOriginalQuality)).setChecked(GlassgramConfig.preferOriginalQuality));
-                items.add(UItem.asButtonCheck(ID_VOLUME_UNMUTE, getString(R.string.GlassgramVolumeUnmute), getString(R.string.GlassgramVolumeUnmuteInfo)).setChecked(GlassgramConfig.volumeUnmute));
+                items.add(buttonCheck(ID_VOLUME_UNMUTE, getString(R.string.GlassgramVolumeUnmute), getString(R.string.GlassgramVolumeUnmuteInfo)).setChecked(GlassgramConfig.volumeUnmute));
                 final int pauses = (GlassgramConfig.autoPauseVideo ? 1 : 0) + (GlassgramConfig.autoPauseVoice ? 1 : 0) + (GlassgramConfig.autoPauseRound ? 1 : 0);
                 items.add(UItem.asExpandableSwitch(ID_AUTO_PAUSE, getString(R.string.GlassgramAutoPause), pauses + "/3")
                         .setChecked(GlassgramConfig.autoPause)
@@ -385,21 +385,21 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramAutoPauseInfo)));
                 items.add(header(getString(R.string.GlassgramTranscription)));
-                items.add(UItem.asButtonCheck(ID_OFFLINE_TRANSCRIBE, getString(R.string.GlassgramOfflineTranscription), getString(R.string.GlassgramOfflineTranscriptionInfo)).setChecked(GlassgramConfig.offlineTranscription));
+                items.add(buttonCheck(ID_OFFLINE_TRANSCRIBE, getString(R.string.GlassgramOfflineTranscription), getString(R.string.GlassgramOfflineTranscriptionInfo)).setChecked(GlassgramConfig.offlineTranscription));
                 if (GlassgramConfig.offlineTranscription) {
                     items.add(UItem.asButton(ID_TRANSCRIBE_LANG, getString(R.string.GlassgramTranscriptionLanguage), transcriptionLangName(GlassgramConfig.offlineTranscriptionLang)));
                     items.add(UItem.asButton(ID_TRANSCRIBE_MODEL, transcriptionModelText(), transcriptionModelValue()));
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramTranscriptionInfo)));
                 items.add(header(getString(R.string.GlassgramRoundVideos)));
-                items.add(UItem.asButtonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
-                items.add(UItem.asButtonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
+                items.add(buttonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
+                items.add(buttonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
                 if (GlassgramConfig.roundStabilization) {
-                    items.add(UItem.asButtonCheck(ID_ROUND_HORIZON, getString(R.string.GlassgramRoundHorizon), getString(R.string.GlassgramRoundHorizonInfo)).setChecked(GlassgramConfig.roundHorizon));
+                    items.add(buttonCheck(ID_ROUND_HORIZON, getString(R.string.GlassgramRoundHorizon), getString(R.string.GlassgramRoundHorizonInfo)).setChecked(GlassgramConfig.roundHorizon));
                 }
-                items.add(UItem.asButtonCheck(ID_ROUND_HIGH_QUALITY, getString(R.string.GlassgramRoundHighQuality), getString(R.string.GlassgramRoundHighQualityInfo)).setChecked(GlassgramConfig.roundHighQuality));
-                items.add(UItem.asButtonCheck(ID_ROUND_WIDE, getString(R.string.GlassgramRoundWide), getString(R.string.GlassgramRoundWideInfo)).setChecked(GlassgramConfig.roundWideCamera));
-                items.add(UItem.asButtonCheck(ID_ROUND_KEEP_ZOOM, getString(R.string.GlassgramRoundKeepZoom), getString(R.string.GlassgramRoundKeepZoomInfo)).setChecked(GlassgramConfig.roundKeepZoom));
+                items.add(buttonCheck(ID_ROUND_HIGH_QUALITY, getString(R.string.GlassgramRoundHighQuality), getString(R.string.GlassgramRoundHighQualityInfo)).setChecked(GlassgramConfig.roundHighQuality));
+                items.add(buttonCheck(ID_ROUND_WIDE, getString(R.string.GlassgramRoundWide), getString(R.string.GlassgramRoundWideInfo)).setChecked(GlassgramConfig.roundWideCamera));
+                items.add(buttonCheck(ID_ROUND_KEEP_ZOOM, getString(R.string.GlassgramRoundKeepZoom), getString(R.string.GlassgramRoundKeepZoomInfo)).setChecked(GlassgramConfig.roundKeepZoom));
                 items.add(UItem.asButton(ID_ROUND_CAMERA_INFO, getString(R.string.GlassgramRoundCameraInfo)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramRoundVideosInfo)));
                 break;
@@ -451,7 +451,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(getString(R.string.GlassgramSpySaveReadDateInfo)));
                 items.add(UItem.asCheck(ID_SPY_LAST_SEEN, getString(R.string.GlassgramSpySaveLastSeen)).setChecked(GlassgramConfig.spySaveLastSeenDate));
                 items.add(UItem.asShadow(AndroidUtilities.replaceTags(getString(R.string.GlassgramSpySaveLastSeenInfo))));
-                items.add(UItem.asButtonCheck(ID_SPY_ATTACHMENTS, getString(R.string.GlassgramSpySaveAttachments), getString(R.string.GlassgramSpySaveAttachmentsSub)).setChecked(GlassgramConfig.spySaveAttachments));
+                items.add(buttonCheck(ID_SPY_ATTACHMENTS, getString(R.string.GlassgramSpySaveAttachments), getString(R.string.GlassgramSpySaveAttachmentsSub)).setChecked(GlassgramConfig.spySaveAttachments));
                 items.add(UItem.asCheck(ID_CUSTOM_SELF_DESTRUCT, getString(R.string.GlassgramDisableSelfDestruct)).setChecked(GlassgramConfig.spyDisableSelfDestruct));
                 items.add(UItem.asCheck(ID_CONTENT_PROTECTION, getString(R.string.GlassgramIgnoreContentProtection)).setChecked(GlassgramConfig.ignoreContentProtection));
                 items.add(UItem.asShadow(getString(R.string.GlassgramProtectedInfo)));
@@ -514,7 +514,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
                 items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
                 items.add(header(getString(R.string.GlassgramDeveloperSection)));
-                items.add(UItem.asButtonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
+                items.add(buttonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
                 items.add(UItem.asButton(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
                 // the team's screen, with its sign-in, only for those on the team
                 if (GlassgramApi.isTeam(currentAccount)) {
@@ -1634,6 +1634,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private final boolean[] tabsOn = new boolean[GlassgramConfig.TAB_KINDS];
     private int tabsReorderId = -1;
     private boolean tabsChanged;
+
+    /** A switch with its description under it, shown whole however long. */
+    private static UItem buttonCheck(int id, CharSequence text, CharSequence subtext) {
+        return UItem.asButtonCheck(id, text, subtext).wrapText();
+    }
 
     private void loadTabs() {
         if (tabsOrder != null) {

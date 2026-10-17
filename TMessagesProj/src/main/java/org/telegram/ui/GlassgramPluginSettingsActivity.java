@@ -244,7 +244,7 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
                 Object value = settingValue(row);
                 boolean checked = value instanceof Boolean && (Boolean) value;
                 String subtext = str(row, "subtext");
-                item = TextUtils.isEmpty(subtext) ? UItem.asCheck(id, str(row, "text")) : UItem.asButtonCheck(id, str(row, "text"), subtext);
+                item = TextUtils.isEmpty(subtext) ? UItem.asCheck(id, str(row, "text")) : UItem.asButtonCheck(id, str(row, "text"), subtext).wrapText();
                 item.setChecked(checked);
                 break;
             }
