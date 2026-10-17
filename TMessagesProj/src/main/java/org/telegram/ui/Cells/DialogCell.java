@@ -2334,7 +2334,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         nameAdditionalsForChannelSubscriber = 0;
-        glassgramBadge = isDialogCell && !isSavedDialog ? org.telegram.messenger.GlassgramBadges.get(currentAccount, currentDialogId) : null;
+        // not on the own chat: it shows as Saved Messages (or My Notes), not as the account's name
+        final boolean glassgramSelf = currentDialogId == UserConfig.getInstance(currentAccount).getClientUserId() && !isMonoForumTopicDialog;
+        glassgramBadge = isDialogCell && !isSavedDialog && !glassgramSelf ? org.telegram.messenger.GlassgramBadges.get(currentAccount, currentDialogId) : null;
         // With a status the badge goes after it; otherwise it follows the name inside the text
         glassgramBadgeAfterStatus = glassgramBadge != null && drawPremium && emojiStatus.getDrawable() != null && !LocaleController.isRTL;
         if (glassgramBadgeAfterStatus) {

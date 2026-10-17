@@ -606,6 +606,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             if (currentUser != null) {
                 if (selfAsSavedMessages && UserObject.isUserSelf(currentUser)) {
                     nameTextView.setText(getString(R.string.SavedMessages), true);
+                    org.telegram.messenger.GlassgramBadges.applyTo(nameTextView, null);
                     statusTextView.setText(null);
                     avatarDrawable.setAvatarType(AvatarDrawable.AVATAR_TYPE_SAVED);
                     avatarImageView.setImage(null, "50_50", avatarDrawable, currentUser);
