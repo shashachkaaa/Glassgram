@@ -19585,12 +19585,21 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             invalidateAllGlassAttachedViews();
         }
         Canvas realCanvas = canvas;
+        // glassGram: while the viewer opens this node is only what the glass and the shadows blur
+        // (the photo itself is the animating view). Recorded anew in every frame, it had every
+        // glass's lens worked out again in each; it follows the photo at about 30 fps there instead.
+        boolean blurRecording = false;
         if (BLUR_RENDERNODE()) {
             if (renderNode == null) {
                 renderNode = new RenderNode("photo viewer");
             }
             renderNode.setPosition(0, 0, canvas.getWidth(), canvas.getHeight() + AndroidUtilities.navigationBarHeight);
-            canvas = renderNode.beginRecording();
+            final long now = SystemClock.uptimeMillis();
+            if (animationInProgress != 1 || !renderNode.hasDisplayList() || now - blurSourceRecordedAt >= 30) {
+                blurSourceRecordedAt = now;
+                blurRecording = true;
+                canvas = renderNode.beginRecording();
+            }
         }
         if (parentFragment != null && parentFragment.getFragmentView() != null) {
             if (!scroller.isFinished()) {
@@ -19672,7 +19681,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 canvas.restore();
             }
 
-            if (BLUR_RENDERNODE()) {
+            if (blurRecording) {
                 canvas = realCanvas;
                 renderNode.endRecording();
             }
@@ -19681,7 +19690,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         }
         if (animationInProgress == 3 || !isVisible && animationInProgress != 2 && !pipAnimationInProgress) {
 
-            if (BLUR_RENDERNODE()) {
+            if (blurRecording) {
                 canvas = realCanvas;
                 renderNode.endRecording();
                 canvas.drawRenderNode(renderNode);
@@ -20415,7 +20424,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
         }
 
-        if (BLUR_RENDERNODE()) {
+        if (blurRecording) {
             canvas = realCanvas;
             renderNode.endRecording();
             canvas.drawRenderNode(renderNode);
@@ -20423,6 +20432,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
         drawFancyShadows(canvas);
     }
+    private long blurSourceRecordedAt;
     private Matrix m;
 
     private Path clipFancyShadows;
@@ -20456,26 +20466,32 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             bottomFancyShadowPaint.setShader(bottomFancyShadow);
         }
 
-        canvas.saveLayerAlpha(0, 0, containerView.getWidth(), containerView.getHeight() + AndroidUtilities.navigationBarHeight, (int) (maxAlpha * (backgroundDrawable.getAlpha() - 127) * (1f / 127f * 255f)), Canvas.ALL_SAVE_FLAG);
-        clipFancyShadows.rewind();
-        clipFancyShadows.addRect(0, 0, containerView.getWidth(), top, Path.Direction.CW);
-        clipFancyShadows.addRect(0, containerView.getHeight() + AndroidUtilities.navigationBarHeight - bottom, containerView.getWidth(), containerView.getHeight() + AndroidUtilities.navigationBarHeight, Path.Direction.CW);
-        canvas.clipPath(clipFancyShadows);
+        // glassGram: a layer for each band, as large as the band, rather than one the size of the
+        // window clipped by a path to the two bands, in every frame the viewer draws
+        final int layerAlpha = (int) (maxAlpha * (backgroundDrawable.getAlpha() - 127) * (1f / 127f * 255f));
+        final float width = containerView.getWidth(), height = containerView.getHeight() + AndroidUtilities.navigationBarHeight;
+
+        canvas.saveLayerAlpha(0, 0, width, top, layerAlpha, Canvas.ALL_SAVE_FLAG);
+        canvas.clipRect(0, 0, width, top);
         canvas.drawColor(0xff000000);
         drawCaptionBlur(canvas, shadowBlurer, 0, 0, true, true, false);
-        canvas.save();
         topFancyShadowMatrix.reset();
         topFancyShadowMatrix.postScale(1, top / 16f);
         topFancyShadow.setLocalMatrix(topFancyShadowMatrix);
         topFancyShadowPaint.setAlpha(0xd0);
-        canvas.drawRect(0, 0, containerView.getWidth(), top, topFancyShadowPaint);
+        canvas.drawRect(0, 0, width, top, topFancyShadowPaint);
+        canvas.restore();
+
+        canvas.saveLayerAlpha(0, height - bottom, width, height, layerAlpha, Canvas.ALL_SAVE_FLAG);
+        canvas.clipRect(0, height - bottom, width, height);
+        canvas.drawColor(0xff000000);
+        drawCaptionBlur(canvas, shadowBlurer, 0, 0, true, true, false);
         bottomFancyShadowMatrix.reset();
         bottomFancyShadowMatrix.postScale(1, bottom / 16f);
-        bottomFancyShadowMatrix.postTranslate(0, containerView.getHeight() - bottom + AndroidUtilities.navigationBarHeight);
+        bottomFancyShadowMatrix.postTranslate(0, height - bottom);
         bottomFancyShadow.setLocalMatrix(bottomFancyShadowMatrix);
         bottomFancyShadowPaint.setAlpha(0xbb);
-        canvas.drawRect(0, containerView.getHeight() + AndroidUtilities.navigationBarHeight - bottom, containerView.getWidth(), containerView.getHeight() + AndroidUtilities.navigationBarHeight, bottomFancyShadowPaint);
-        canvas.restore();
+        canvas.drawRect(0, height - bottom, width, height, bottomFancyShadowPaint);
         canvas.restore();
     }
 
