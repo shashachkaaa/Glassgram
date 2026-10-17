@@ -37,8 +37,10 @@ public class ProfileHeaderGlass {
 
     private static final long REFRESH_MS = 32;
 
-    // Glass views drawn inside another one's backdrop (or the bar's) don't make glass there: it
-    // would record the same pieces again, and it is under nothing that shows them
+    // A glass view drawn inside another one's backdrop (or the bar's) does not record what is under
+    // it again there, it uses what it recorded last. It still draws its glass: the view's own
+    // picture can be recorded in there (the bar records the header in every frame over a photo,
+    // and the gallery redraws the buttons from inside it), and that picture is what stays on screen
     private static int recordingDepth;
 
     private final View view;
@@ -246,7 +248,7 @@ public class ProfileHeaderGlass {
             canvas.restore();
         }
 
-        if (isNested() || backdropNode == null) {
+        if (backdropNode == null) {
             tintPaint.setColor(ColorUtils.setAlphaComponent(tint, (int) (Color.alpha(tint) * alpha)));
             canvas.drawRoundRect(rect, radius, radius, tintPaint);
             return;
