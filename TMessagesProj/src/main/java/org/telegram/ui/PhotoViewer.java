@@ -4800,6 +4800,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             public BlurredBackgroundDrawable createDrawable() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     BlurredBackgroundDrawableRenderNode d = new BlurredBackgroundDrawableRenderNode(this);
+                    // glassGram: draw() below gives the photo already blurred
+                    d.setSourceBlurred(true);
                     iBlur3BlurredDrawables.add(d);
                     return d;
                 } else {
@@ -22134,6 +22136,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         if (renderNode == null) {
             renderNode = new RenderNode("pv_mat_" + hash + "_" + glass);
             renderNode.setRenderEffect(RenderEffect.createColorFilterEffect(new ColorMatrixColorFilter(colorMatrix)));
+            // glassGram: kept, as the cache meant: a new node for every blur drawn was a new
+            // offscreen layer for every glass, panel and shadow on every frame of an animation
+            matrixRenderNodes.put(hash, renderNode);
         }
 
         boolean needUpdateDisplayList = !renderNode.hasDisplayList();

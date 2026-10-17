@@ -380,6 +380,13 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
 
     public PhotoViewer.PhotoViewerProvider photoViewerProvider = new BasePhotoProvider() {
         @Override
+        public void onPreOpen() {
+            // glassGram: stopped as the viewer starts opening, not once it has: each camera frame
+            // redrew the sheet, with its glass, under the viewer's animation
+            pauseCameraPreview();
+        }
+
+        @Override
         public void onOpen() {
             pauseCameraPreview();
             setCurrentSpoilerVisible(-1, true);

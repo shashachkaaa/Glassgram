@@ -77,8 +77,10 @@ class BackdropGlass {
      * @param refractionHeight width of the refracting band at the edge, px
      * @param refractionAmount how far the band bends the backdrop, px
      * @param dark whether the glass sits on a dark theme
+     * @param blur false when the content behind is blurred already, so only the lens bends it
      * @return true if [renderEffect] or [padding] changed
      */
+    @JvmOverloads
     fun update(
         width: Float,
         height: Float,
@@ -86,13 +88,14 @@ class BackdropGlass {
         density: Float,
         refractionHeight: Float,
         refractionAmount: Float,
-        dark: Boolean
+        dark: Boolean,
+        blur: Boolean = true
     ): Boolean {
         val panel = min(width, height) >= PanelMinSize * density
         return updateEffect(
             width, height, radii, density,
             if (dark) COLOR_CONTROLS_DARK else COLOR_CONTROLS_LIGHT,
-            (if (panel) PanelBlurRadius else BlurRadius) * density,
+            if (blur) (if (panel) PanelBlurRadius else BlurRadius) * density else 0f,
             if (panel) refractionHeight * 2f else refractionHeight,
             refractionAmount,
             depthEffect = panel,

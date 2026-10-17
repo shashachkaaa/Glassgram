@@ -72,6 +72,17 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         }
     }
 
+    // glassGram: the source draws a blurred picture already (the photo viewer's), so the glass
+    // only bends it instead of blurring it a second time on every frame
+    private boolean sourceBlurred;
+
+    public void setSourceBlurred(boolean sourceBlurred) {
+        if (this.sourceBlurred != sourceBlurred) {
+            this.sourceBlurred = sourceBlurred;
+            renderNodeInvalidated = true;
+        }
+    }
+
 
     /*
      * How far around the glass the source must be captured. Telegram's own liquid shader
@@ -191,7 +202,7 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         glassRadii[2] = boundProps.shaderRadii[4];
         glassRadii[3] = boundProps.shaderRadii[6];
         if (backdropGlass.update(width, height, glassRadii, AndroidUtilities.density,
-                thickness, dp(24) * boundProps.liquidIntensity / 0.75f, dark)) {
+                thickness, dp(24) * boundProps.liquidIntensity / 0.75f, dark, !sourceBlurred)) {
             renderNodeFill.setRenderEffect(backdropGlass.getRenderEffect());
         }
         final int pad = (int) Math.ceil(backdropGlass.getPadding());
