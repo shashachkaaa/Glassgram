@@ -3493,7 +3493,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         audioVideoSendButton.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
 //        audioVideoSendButton.setFocusable(true);
 //        audioVideoSendButton.setAccessibilityDelegate(mediaMessageButtonsDelegate);
-        padding = dp(10f);
+        // glassGram: the outlined voice and video symbols of iOS, as large as there, instead of the filled Lottie ones
+        audioVideoSendButton.setStillIcon(ChatActivityEnterViewAnimatedIconView.State.VOICE, R.drawable.input_mic);
+        audioVideoSendButton.setStillIcon(ChatActivityEnterViewAnimatedIconView.State.VIDEO, R.drawable.input_video);
+        padding = dp(8f);
         audioVideoSendButton.setPadding(padding, padding, padding, padding);
         audioVideoButtonContainer.addView(audioVideoSendButton, LayoutHelper.createFrame(DEFAULT_HEIGHT, DEFAULT_HEIGHT));
 
@@ -14965,12 +14968,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         final float inside = glassgramSendInsideAnimated.set(glassgramSendInside());
         final float fieldEnd = base + messageEditTextContainer.getMeasuredWidth();
         out[5] = AndroidUtilities.lerp(fieldEnd, getMeasuredWidth(), inside);
-        if (inside > 0f) {
-            // the send button has the field's glass behind it now
+        // The send circle parts from the field's end as the field shrinks back from it, and is
+        // squeezed into the field as it grows (the send button then has the field's glass behind
+        // it); it no longer waits for the field to settle, empty between them
+        final float sendLeft = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
+        out[6] = inside > 0f ? Math.max(sendLeft, out[5] + dp(GLASSGRAM_GAP)) : sendLeft;
+        out[7] = getMeasuredWidth();
+        if (out[7] - out[6] < dp(8)) {
             out[6] = out[7] = -1;
-        } else {
-            out[6] = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
-            out[7] = getMeasuredWidth();
         }
         // with the AI button shown the attach piece is a tall pill carrying both
         final int heightIndex = org.telegram.ui.Components.chat.ChatInputViewsContainer.SEGMENT_ATTACH_HEIGHT;

@@ -20,9 +20,10 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     private State currentState;
     private TransitState animatingState;
     private final int sizeDp;
-    // glassGram: the stickers icon is iOS's round sticker with a peeled edge, not Android's square
-    // one; it swaps with the other icons by a fade and a scale, as on iOS
-    private Drawable stickerDrawable;
+    // glassGram: states shown as still icons, as on iOS (the stickers icon is iOS's round sticker
+    // with a peeled edge, not Android's square one); they swap with the others by a fade and a scale
+    private final Map<State, Integer> stillIcons = new HashMap<>();
+    private final Map<State, Drawable> stillDrawables = new HashMap<>();
     private Drawable swapFrom;
     private float swapProgress = 1f;
     private ValueAnimator swapAnimator;
@@ -50,6 +51,16 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     public ChatActivityEnterViewAnimatedIconView(Context context, int sizeDp) {
         super(context);
         this.sizeDp = sizeDp;
+        stillIcons.put(State.STICKER, R.drawable.input_sticker_ios);
+    }
+
+    /** glassGram: shows the state as this still icon instead of its Lottie one. */
+    public void setStillIcon(State state, int resId) {
+        stillIcons.put(state, resId);
+        stillDrawables.remove(state);
+        if (currentState == state) {
+            swapIcon(state, false);
+        }
     }
 
     public void setState(State state, boolean animate) {
@@ -58,7 +69,7 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
         }
         State fromState = currentState;
         currentState = state;
-        if (state == State.STICKER || fromState == State.STICKER) {
+        if (stillIcons.containsKey(state) || stillIcons.containsKey(fromState)) {
             swapIcon(state, animate && fromState != null);
         } else if (!animate || fromState == null || getState(fromState, currentState) == null) {
             cancelSwap();
@@ -106,12 +117,15 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
         final Drawable from = animate ? getDrawable() : null;
         cancelSwap();
         animatingState = null;
-        if (state == State.STICKER) {
-            if (stickerDrawable == null) {
-                stickerDrawable = getContext().getResources().getDrawable(R.drawable.input_sticker_ios).mutate();
+        final Integer stillIcon = stillIcons.get(state);
+        if (stillIcon != null) {
+            Drawable still = stillDrawables.get(state);
+            if (still == null) {
+                still = getContext().getResources().getDrawable(stillIcon).mutate();
+                stillDrawables.put(state, still);
             }
             clearAnimationDrawable();
-            setImageDrawable(stickerDrawable);
+            setImageDrawable(still);
         } else {
             RLottieDrawable drawable = stateMap.get(getAnyState(state));
             drawable.stop();
