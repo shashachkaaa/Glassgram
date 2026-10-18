@@ -1,6 +1,11 @@
 package org.telegram.ui.Components;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 
 import androidx.annotation.Nullable;
 
@@ -15,6 +20,12 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     private State currentState;
     private TransitState animatingState;
     private final int sizeDp;
+    // glassGram: the stickers icon is iOS's round sticker with a peeled edge, not Android's square
+    // one; it swaps with the other icons by a fade and a scale, as on iOS
+    private Drawable stickerDrawable;
+    private Drawable swapFrom;
+    private float swapProgress = 1f;
+    private ValueAnimator swapAnimator;
 
     private final Map<TransitState, RLottieDrawable> stateMap = new HashMap<TransitState, RLottieDrawable>() {
         @Nullable
@@ -47,7 +58,10 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
         }
         State fromState = currentState;
         currentState = state;
-        if (!animate || fromState == null || getState(fromState, currentState) == null) {
+        if (state == State.STICKER || fromState == State.STICKER) {
+            swapIcon(state, animate && fromState != null);
+        } else if (!animate || fromState == null || getState(fromState, currentState) == null) {
+            cancelSwap();
             RLottieDrawable drawable = stateMap.get(getAnyState(currentState));
             drawable.stop();
 
@@ -58,6 +72,7 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
             if (transitState == animatingState) {
                 return;
             }
+            cancelSwap();
 
             animatingState = transitState;
             RLottieDrawable drawable = stateMap.get(transitState);
@@ -85,6 +100,88 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
                 setContentDescription(LocaleController.getString(R.string.AccDescrVideoMessage));
                 break;
         }
+    }
+
+    private void swapIcon(State state, boolean animate) {
+        final Drawable from = animate ? getDrawable() : null;
+        cancelSwap();
+        animatingState = null;
+        if (state == State.STICKER) {
+            if (stickerDrawable == null) {
+                stickerDrawable = getContext().getResources().getDrawable(R.drawable.input_sticker_ios).mutate();
+            }
+            clearAnimationDrawable();
+            setImageDrawable(stickerDrawable);
+        } else {
+            RLottieDrawable drawable = stateMap.get(getAnyState(state));
+            drawable.stop();
+            drawable.setProgress(state == State.VOICE ? 0.5f : 0, false);
+            setAnimation(drawable);
+        }
+        if (from == null || from == getDrawable()) {
+            return;
+        }
+        swapFrom = from;
+        swapProgress = 0f;
+        swapAnimator = ValueAnimator.ofFloat(0f, 1f);
+        swapAnimator.addUpdateListener(a -> {
+            swapProgress = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        swapAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (swapAnimator == animation) {
+                    swapAnimator = null;
+                    swapFrom = null;
+                    swapProgress = 1f;
+                    invalidate();
+                }
+            }
+        });
+        swapAnimator.setDuration(220);
+        swapAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        swapAnimator.start();
+    }
+
+    private void cancelSwap() {
+        if (swapAnimator != null) {
+            final ValueAnimator animator = swapAnimator;
+            swapAnimator = null;
+            animator.cancel();
+        }
+        swapFrom = null;
+        swapProgress = 1f;
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        final Drawable drawable = getDrawable();
+        if (swapFrom == null || swapProgress >= 1f || drawable == null) {
+            super.onDraw(canvas);
+            return;
+        }
+        final float cx = getPaddingLeft() + (getWidth() - getPaddingLeft() - getPaddingRight()) / 2f;
+        final float cy = getPaddingTop() + (getHeight() - getPaddingTop() - getPaddingBottom()) / 2f;
+
+        // the old icon shrinks and fades out, drawn with the matrix the new one has (the icons are one size)
+        canvas.save();
+        float scale = AndroidUtilities.lerp(1f, 0.4f, swapProgress);
+        canvas.scale(scale, scale, cx, cy);
+        canvas.translate(getPaddingLeft(), getPaddingTop());
+        canvas.concat(getImageMatrix());
+        swapFrom.setAlpha((int) (0xFF * (1f - swapProgress)));
+        swapFrom.draw(canvas);
+        swapFrom.setAlpha(0xFF);
+        canvas.restore();
+
+        canvas.save();
+        scale = AndroidUtilities.lerp(0.4f, 1f, swapProgress);
+        canvas.scale(scale, scale, cx, cy);
+        drawable.setAlpha((int) (0xFF * swapProgress));
+        super.onDraw(canvas);
+        drawable.setAlpha(0xFF);
+        canvas.restore();
     }
 
     public State getCurrentState() {

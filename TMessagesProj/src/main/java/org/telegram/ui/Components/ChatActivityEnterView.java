@@ -3295,39 +3295,6 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
                 return true;
             }
-
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final RectF backgroundRect = new RectF();
-
-            @Override
-            protected void dispatchDraw(@NonNull Canvas canvas) {
-                if (!audioVideoButtonContainerForbidden) {
-                    float s = 1;
-                    if (expandStickersButton != null) {
-                        if (expandStickersButton.getVisibility() == View.VISIBLE) {
-                            s = 1f - expandStickersButton.getAlpha();
-                        }
-                    }
-
-                    final float r = dpf2(19);
-                    paint.setColor(getThemedColor(Theme.key_chat_messagePanelSend));
-                    final float margin = dpf2(3);
-                    final float height = dpf2(38);
-                    final float width = dpf2(38);
-                    backgroundRect.set(
-                            getMeasuredWidth() - width - margin,
-                            getMeasuredHeight() - height - margin,
-                            getMeasuredWidth() - margin,
-                            getMeasuredHeight() - margin
-                    );
-
-                    canvas.save();
-                    canvas.scale(s, s, backgroundRect.centerX(), backgroundRect.centerY());
-                    canvas.drawRoundRect(backgroundRect, r, r, paint);
-                    canvas.restore();
-                }
-                super.dispatchDraw(canvas);
-            }
         };
         audioVideoButtonContainer.setSoundEffectsEnabled(false);
         sendButtonContainer.addView(audioVideoButtonContainer, LayoutHelper.createFrame(DEFAULT_HEIGHT, DEFAULT_HEIGHT, Gravity.RIGHT | Gravity.BOTTOM));
@@ -3590,6 +3557,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 glassgramButtonsChanged();
             }
         };
+        sendButton.setGlassgramPlain(true);
         sendButton.setVisibility(INVISIBLE);
         sendButton.setContentDescription(getString(R.string.Send));
         sendButton.setSoundEffectsEnabled(false);
@@ -4042,6 +4010,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 glassgramButtonsChanged();
             }
         };
+        doneButton.setGlassgramPlain(true);
         doneButton.setContentDescription(getString(R.string.EditMessage));
         if (bounceable) {
             ScaleStateListAnimator.apply(doneButton);
@@ -6682,8 +6651,8 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         audioVideoButtonContainer.setAlpha(audioVideoButtonContainerForbidden ? 0.5f : 1.0f);
         audioVideoButtonContainer.invalidate();
-        audioVideoSendButton.setColorFilter(new PorterDuffColorFilter(audioVideoButtonContainerForbidden ?
-            getThemedColor(Theme.key_glass_defaultIcon) : Color.WHITE, PorterDuff.Mode.SRC_IN));
+        // glassGram: the voice and video symbol alone on the glass, without the theme's circle under it, as on iOS
+        audioVideoSendButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.SRC_IN));
         audioVideoSendButton.invalidate();
         updateFieldHint(false);
         boolean currentModeVideo = isInVideoMode;
@@ -10520,7 +10489,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (botKeyboardView != null) {
             botKeyboardView.updateColors();
         }
-        audioVideoSendButton.setColorFilter(new PorterDuffColorFilter(audioVideoButtonContainerForbidden ? getThemedColor(Theme.key_glass_defaultIcon) : Color.WHITE, PorterDuff.Mode.SRC_IN));
+        audioVideoSendButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.SRC_IN));
         emojiButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.SRC_IN));
         emojiButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector)));
         deleteRichDraftButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.SRC_IN));
@@ -15416,6 +15385,16 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
 
         private boolean isNewDesignSendButton;
+        // glassGram: the symbol alone in the theme's color, without the theme's circle under it, as on iOS
+        private boolean glassgramPlain;
+
+        public void setGlassgramPlain(boolean plain) {
+            if (glassgramPlain != plain) {
+                glassgramPlain = plain;
+                drawableColor = 0;
+                invalidate();
+            }
+        }
 
         public SendButton(Context context, int resId, Theme.ResourcesProvider resourcesProvider, boolean isNewDesignSendButton) {
             super(context);
@@ -15659,8 +15638,20 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
             updateColors();
             checkBackgroundRect();
+
+            final float loadingShown = this.loadingAnimatedShown.set(this.loadingShown);
+
+            final float openProgress = open.set(isOpen());
+            final float priceProgress = animatedPriceVisible.set(starsPrice > 0 && !hidePrice) * (1f - ephemeralFactor);
+            final float appear = this.appear.set(1);
             if (isNewDesignSendButton) {
+                // without the circle only the price, white, keeps its pill
+                final int backgroundAlpha = backgroundPaint.getAlpha();
+                if (glassgramPlain) {
+                    backgroundPaint.setAlpha((int) (backgroundAlpha * priceProgress));
+                }
                 canvas.drawRoundRect(backgroundRect, dp(RADIUS), dp(RADIUS), backgroundPaint);
+                backgroundPaint.setAlpha(backgroundAlpha);
             }
 
             final boolean inactive = isInactive();
@@ -15682,11 +15673,6 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
             }
 
-            final float loadingShown = this.loadingAnimatedShown.set(this.loadingShown);
-
-            final float openProgress = open.set(isOpen());
-            final float priceProgress = animatedPriceVisible.set(starsPrice > 0 && !hidePrice) * (1f - ephemeralFactor);
-            final float appear = this.appear.set(1);
             if (openProgress < 1) {
                 canvas.save();
                 canvas.translate(-dp(24) * (1f - appear), dp(24) * (1f - appear));
@@ -15756,7 +15742,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
                 canvas.clipPath(path);
                 if (loadingShown > 0) {
-                    loadingPaint.setColor(0xFFFFFFFF);
+                    loadingPaint.setColor(glassgramPlain ? ColorUtils.blendARGB(Theme.getColor(Theme.key_chat_messagePanelSend, resourcesProvider), 0xFFFFFFFF, priceProgress) : 0xFFFFFFFF);
                     loadingPaint.setAlpha((int) (0xFF * loadingShown));
                     final float R = dp(8.66f);
                     AndroidUtilities.rectTmp.set(right - w / 2.0f - R, cy - R, right - w / 2.0f + R, cy + R);
@@ -15790,13 +15776,15 @@ public class ChatActivityEnterView extends FrameLayout implements
                     priceText.setAlpha((int) (0xFF * priceProgress * (1.0f - loadingShown)));
                     priceText.draw(canvas);
                 }
-                drawableInverse.setAlpha((int) (0xFF * (1f - loadingShown) * (1f - priceProgress)));
+                // without the circle the disabled symbol is grey, as when closed
+                final Drawable inverse = glassgramPlain && inactive ? inactiveDrawable : drawableInverse;
+                inverse.setAlpha((int) (0xFF * (1f - loadingShown) * (1f - priceProgress)));
                 if (circleWidth > 0) {
-                    drawableInverse.setBounds((int) (right - w / 2.0f - drawableInverse.getIntrinsicWidth() / 2.0f), (int) (cy - drawableInverse.getIntrinsicHeight() / 2.0f), (int) (right - w / 2.0f + drawableInverse.getIntrinsicWidth() / 2.0f), (int) (cy + drawableInverse.getIntrinsicHeight() / 2.0f));
+                    inverse.setBounds((int) (right - w / 2.0f - inverse.getIntrinsicWidth() / 2.0f), (int) (cy - inverse.getIntrinsicHeight() / 2.0f), (int) (right - w / 2.0f + inverse.getIntrinsicWidth() / 2.0f), (int) (cy + inverse.getIntrinsicHeight() / 2.0f));
                 } else {
-                    drawableInverse.setBounds(x, y, x + drawable.getIntrinsicWidth(), y + drawable.getIntrinsicHeight());
+                    inverse.setBounds(x, y, x + drawable.getIntrinsicWidth(), y + drawable.getIntrinsicHeight());
                 }
-                drawableInverse.draw(canvas);
+                inverse.draw(canvas);
                 if (loadingShown > 0) {
                     canvas.restore();
                 }
@@ -15921,13 +15909,13 @@ public class ChatActivityEnterView extends FrameLayout implements
         private int drawableColor;
 
         public void updateColors() {
-            int color = isNewDesignSendButton ? Color.WHITE : Theme.getColor(Theme.key_chat_messagePanelSend, resourcesProvider);
+            int color = isNewDesignSendButton && !glassgramPlain ? Color.WHITE : Theme.getColor(Theme.key_chat_messagePanelSend, resourcesProvider);
             if (color != drawableColor) {
                 drawableColor = color;
                 drawable.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
                 int c = Theme.getColor(Theme.key_glass_defaultIcon, resourcesProvider);
                 inactiveDrawable.setColorFilter(new PorterDuffColorFilter(Color.argb(0xb4, Color.red(c), Color.green(c), Color.blue(c)), PorterDuff.Mode.SRC_IN));
-                drawableInverse.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chat_messagePanelVoicePressed, resourcesProvider), PorterDuff.Mode.SRC_IN));
+                drawableInverse.setColorFilter(new PorterDuffColorFilter(glassgramPlain ? color : Theme.getColor(Theme.key_chat_messagePanelVoicePressed, resourcesProvider), PorterDuff.Mode.SRC_IN));
             }
             if (isNewDesignSendButton) {
                 backgroundPaint.setColor(Theme.getColor(Theme.key_chat_messagePanelSend, resourcesProvider));
@@ -15958,6 +15946,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         public void copyTo(SendButton btn) {
             btn.isNewDesignSendButton = isNewDesignSendButton;
+            btn.setGlassgramPlain(glassgramPlain);
             btn.newCounterPos = newCounterPos;
             btn.count.setText(this.count.getText(), false);
             btn.countBounceScale = countBounceScale;
