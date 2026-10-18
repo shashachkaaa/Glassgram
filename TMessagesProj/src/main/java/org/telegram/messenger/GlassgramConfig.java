@@ -148,6 +148,8 @@ public class GlassgramConfig {
     // whether the last video message ended on the front camera, for the next one to start on
     public static boolean roundLastFront = true;
     // Statistics of devices, versions and the accounts on them, and crash reports, for glassGram's server (GlassgramStats)
+    /** The team's proxy (GlassgramProxy): GlassgramProxy.MODE_AUTO, MODE_ALWAYS or MODE_OFF. */
+    public static int proxyMode = GlassgramProxy.MODE_AUTO;
     public static boolean sendStats = true;
 
     /** The size video messages are recorded at with high quality. */
@@ -317,6 +319,7 @@ public class GlassgramConfig {
         roundKeepZoom = p.getBoolean("roundKeepZoom", false);
         roundLastFront = p.getBoolean("roundLastFront", true);
         sendStats = p.getBoolean("sendStats", true);
+        proxyMode = p.getInt("proxyMode", GlassgramProxy.MODE_AUTO);
         if (STORE_BUILD) {
             ghostMode = false;
             spySaveDeletedMessages = false;
@@ -333,6 +336,8 @@ public class GlassgramConfig {
             ignoreContentProtection = false;
             // a poll's results stay hidden until one votes, as in Telegram
             showPollResults = false;
+            // no way around blocks in the store's edition
+            proxyMode = GlassgramProxy.MODE_OFF;
         }
         loaded = true;
         // options the team turned off for this phone (GlassgramRemoteConfig)

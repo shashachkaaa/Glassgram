@@ -46,6 +46,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_RULES = 15;
     private static final int ID_CATALOG = 16;
     private static final int ID_BANS = 17;
+    private static final int ID_PROXIES = 18;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -141,7 +142,8 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
         final boolean admins = session.can(GlassgramApi.RIGHT_ADMINS);
         final boolean rules = session.can(GlassgramApi.RIGHT_CONFIG);
         final boolean catalog = session.can(GlassgramApi.RIGHT_PLUGINS);
-        if (stats || badges || support || admins || rules || catalog) {
+        final boolean proxies = session.can(GlassgramApi.RIGHT_PROXIES);
+        if (stats || badges || support || admins || rules || catalog || proxies) {
             items.add(UItem.asHeader(getString(R.string.GlassgramApiTools)));
             if (stats) {
                 items.add(UItem.asButton(ID_FIND_MODEL, R.drawable.msg_search, getString(R.string.GlassgramApiFindModel)));
@@ -155,6 +157,9 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             }
             if (session.can(GlassgramApi.RIGHT_BANS)) {
                 items.add(UItem.asButton(ID_BANS, R.drawable.msg_block, getString(R.string.GlassgramApiBans)));
+            }
+            if (proxies) {
+                items.add(UItem.asButton(ID_PROXIES, R.drawable.msg2_secret, getString(R.string.GlassgramApiProxies)));
             }
             if (badges) {
                 items.add(UItem.asButton(ID_GIVE_BADGE, R.drawable.msg_premium_badge, getString(R.string.GlassgramApiGiveBadge)));
@@ -218,6 +223,9 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 return;
             case ID_BANS:
                 GlassgramApiUi.showBans(this);
+                return;
+            case ID_PROXIES:
+                GlassgramApiUi.showProxies(this);
                 return;
         }
         if (item.id >= ID_BREAKDOWN && item.id - ID_BREAKDOWN < BREAKDOWNS.length) {

@@ -27,6 +27,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramFonts;
+import org.telegram.messenger.GlassgramProxy;
 import org.telegram.messenger.GlassgramRemoteConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.LocaleController;
@@ -34,6 +35,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
@@ -185,6 +187,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TRANSCRIBE_LANG = 153;
     private static final int ID_TRANSCRIBE_MODEL = 154;
     private static final int ID_BUTTON_DATA = 155;
+    private static final int ID_PROXY_MODE = 156;
 
     private final int page;
     private boolean ghostExpanded;
@@ -304,6 +307,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_DOWNLOAD_BOOST, getString(R.string.GlassgramDownloadBoost), boostNames()[GlassgramConfig.downloadBoost]));
                 items.add(UItem.asCheck(ID_UPLOAD_BOOST, getString(R.string.GlassgramUploadBoost)).setChecked(GlassgramConfig.uploadBoost));
                 items.add(UItem.asShadow(getString(R.string.GlassgramBoostInfo)));
+                // no way around blocks in the RuStore edition
+                if (!GlassgramConfig.STORE_BUILD) {
+                    items.add(header(getString(R.string.GlassgramProxy)));
+                    items.add(UItem.asButton(ID_PROXY_MODE, getString(R.string.GlassgramProxy), proxyModeNames()[GlassgramConfig.proxyMode]));
+                    items.add(UItem.asShadow(getString(R.string.GlassgramProxyInfo) + "\n\n" + proxyStatus()));
+                }
                 items.add(header(getString(R.string.GlassgramProfile)));
                 items.add(UItem.asCheck(ID_RELATIVE_LAST_SEEN, getString(R.string.GlassgramRelativeLastSeen)).setChecked(GlassgramConfig.relativeLastSeen));
                 items.add(UItem.asCheck(ID_HIDE_PHONE, getString(R.string.GlassgramHidePhone)).setChecked(GlassgramConfig.hidePhoneNumber));
@@ -680,6 +689,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_TITLE_TEXT:
                 showTitleTextDialog();
+                return;
+            case ID_PROXY_MODE:
+                showChoice(getString(R.string.GlassgramProxy), proxyModeNames(), GlassgramConfig.proxyMode, which -> {
+                    GlassgramConfig.proxyMode = which;
+                    GlassgramConfig.putInt("proxyMode", which);
+                    GlassgramProxy.update();
+                });
                 return;
             case ID_DOWNLOAD_BOOST:
                 showChoice(getString(R.string.GlassgramDownloadBoost), boostNames(), GlassgramConfig.downloadBoost, which -> {
@@ -1538,6 +1554,25 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         builder.show();
+    }
+
+    /** The team's proxy settings, in GlassgramProxy's modes' order. */
+    private static String[] proxyModeNames() {
+        return new String[]{getString(R.string.GlassgramProxyAuto), getString(R.string.GlassgramProxyAlways), getString(R.string.GlassgramProxyOff)};
+    }
+
+    /** How the app reaches Telegram now. */
+    private static String proxyStatus() {
+        if (GlassgramProxy.count() == 0) {
+            return getString(R.string.GlassgramProxyStatusNone);
+        }
+        if (GlassgramProxy.activeProxy() != null) {
+            return getString(R.string.GlassgramProxyStatusTeam);
+        }
+        if (SharedConfig.isProxyEnabled()) {
+            return getString(R.string.GlassgramProxyStatusOwn);
+        }
+        return getString(GlassgramProxy.vpnActive() ? R.string.GlassgramProxyStatusVpn : R.string.GlassgramProxyStatusDirect);
     }
 
     private static String fontName(String id) {

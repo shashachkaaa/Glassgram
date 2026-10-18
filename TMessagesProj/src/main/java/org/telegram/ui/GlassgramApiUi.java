@@ -27,6 +27,7 @@ import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.GlassgramApi;
 import org.telegram.messenger.GlassgramBadges;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramProxy;
 import org.telegram.messenger.GlassgramStats;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
@@ -34,6 +35,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -41,6 +43,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.utils.proxy.ProxySettings;
 
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -1059,6 +1062,170 @@ public final class GlassgramApiUi {
                 })
                 .setNegativeButton(getString(R.string.Cancel), null)
                 .show();
+    }
+
+    // --- Proxies ----------------------------------------------------------------------------------
+
+    /** The team's proxies, which every app goes through without a VPN: each with its state, and a new one by its link. */
+    public static void showProxies(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/proxies/list", null, response -> {
+            progress.dismiss();
+            if (!response.ok()) {
+                showError(fragment, response);
+                return;
+            }
+            final JSONArray proxies = response.json.optJSONArray("proxies");
+            final int count = proxies != null ? proxies.length() : 0;
+            final CharSequence[] items = new CharSequence[count + 1];
+            for (int i = 0; i < count; i++) {
+                final JSONObject proxy = proxies.optJSONObject(i);
+                final String note = proxy.optString("note");
+                items[i] = (proxy.optBoolean("enabled") ? "🟢 " : "⏸ ") + proxyAddress(proxy) + (TextUtils.isEmpty(note) ? "" : "\n" + note);
+            }
+            items[count] = "＋ " + getString(R.string.GlassgramApiProxyAdd);
+            if (fragment.getParentActivity() == null) {
+                return;
+            }
+            new AlertDialog.Builder(fragment.getParentActivity())
+                    .setTitle(getString(R.string.GlassgramApiProxies))
+                    .setItems(items, (d, which) -> {
+                        if (which == count) {
+                            askProxy(fragment);
+                        } else {
+                            showProxy(fragment, proxies.optJSONObject(which));
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.Close), null)
+                    .show();
+        });
+    }
+
+    private static String proxyAddress(JSONObject proxy) {
+        return proxy.optString("host") + ":" + proxy.optInt("port") + ("socks5".equals(proxy.optString("type")) ? " · SOCKS5" : "");
+    }
+
+    private static ProxySettings proxySettings(JSONObject proxy) {
+        return ProxySettings.builder()
+                .setType("socks5".equals(proxy.optString("type")) ? ProxySettings.Type.SOCKS5 : ProxySettings.Type.MTPROTO)
+                .setAddress(proxy.optString("host"))
+                .setPort(proxy.optInt("port"))
+                .setSecret(proxy.optString("secret"))
+                .setUser(proxy.optString("user"))
+                .setPassword(proxy.optString("password"))
+                .build();
+    }
+
+    /** One proxy: its ping from this phone, pausing it, its note, its link, deleting it. */
+    private static void showProxy(BaseFragment fragment, JSONObject proxy) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final long id = proxy.optLong("id");
+        final boolean enabled = proxy.optBoolean("enabled");
+        final ProxySettings settings = proxySettings(proxy);
+        final CharSequence[] items = {
+                getString(R.string.GlassgramApiProxyPing),
+                getString(enabled ? R.string.GlassgramApiProxyPause : R.string.GlassgramApiProxyResume),
+                getString(R.string.GlassgramApiProxyNote),
+                getString(R.string.GlassgramApiProxyCopy),
+                getString(R.string.Delete)};
+        new AlertDialog.Builder(context)
+                .setTitle(proxyAddress(proxy))
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        pingProxy(fragment, settings);
+                    } else if (which == 1) {
+                        saveProxy(fragment, "PUT", "/proxies/" + id, GlassgramApi.json("enabled", !enabled));
+                    } else if (which == 2) {
+                        askProxyNote(fragment, id, proxy.optString("note"));
+                    } else if (which == 3) {
+                        AndroidUtilities.addToClipboard(settings.getLink());
+                        showDone(fragment, getString(R.string.LinkCopied));
+                    } else {
+                        new AlertDialog.Builder(context)
+                                .setTitle(getString(R.string.Delete))
+                                .setMessage(formatString(R.string.GlassgramApiProxyDelete, proxyAddress(proxy)))
+                                .setPositiveButton(getString(R.string.Delete), (d2, w) -> saveProxy(fragment, "DELETE", "/proxies/" + id, null))
+                                .setNegativeButton(getString(R.string.Cancel), null)
+                                .show();
+                    }
+                })
+                .setNegativeButton(getString(R.string.Close), null)
+                .show();
+    }
+
+    /** How long the proxy takes to answer from this phone, the way Telegram's proxy list checks it. */
+    private static void pingProxy(BaseFragment fragment, ProxySettings settings) {
+        ConnectionsManager.getInstance(fragment.getCurrentAccount()).checkProxy(settings, time -> AndroidUtilities.runOnUIThread(() -> {
+            if (fragment.getParentActivity() == null) {
+                return;
+            }
+            if (time < 0) {
+                BulletinFactory.of(fragment).createErrorBulletin(getString(R.string.GlassgramApiProxyNoAnswer)).show();
+            } else {
+                showDone(fragment, formatString(R.string.GlassgramApiProxyPingResult, time));
+            }
+        }));
+    }
+
+    /** A new proxy by its link, as Telegram shares them, with a note for the team. */
+    private static void askProxy(BaseFragment fragment) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor link = field(context, getString(R.string.GlassgramApiProxyLinkHint), false, false);
+        final EditTextBoldCursor note = field(context, getString(R.string.GlassgramApiProxyNoteHint), false, false);
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.addView(wrap(context, link));
+        layout.addView(wrap(context, note));
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiProxyAdd))
+                .setView(layout)
+                .setPositiveButton(getString(R.string.OK), (d, w) -> saveProxy(fragment, "POST", "/proxies",
+                        GlassgramApi.json("link", link.getText().toString().trim(), "note", note.getText().toString().trim())))
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    private static void askProxyNote(BaseFragment fragment, long id, String current) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor note = field(context, getString(R.string.GlassgramApiProxyNoteHint), false, false);
+        note.setText(current);
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiProxyNote))
+                .setView(wrap(context, note))
+                .setPositiveButton(getString(R.string.OK), (d, w) -> saveProxy(fragment, "PUT", "/proxies/" + id,
+                        GlassgramApi.json("note", note.getText().toString().trim())))
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** Sends a change of the list, then shows it again; this app takes the new list at once. */
+    private static void saveProxy(BaseFragment fragment, String method, String path, JSONObject body) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), method, path, body, response -> {
+            progress.dismiss();
+            if (!response.ok()) {
+                showError(fragment, response);
+                return;
+            }
+            showDone(fragment, getString(R.string.GlassgramApiProxySaved));
+            GlassgramProxy.refreshNow();
+            showProxies(fragment);
+        });
     }
 
     // --- Admins -----------------------------------------------------------------------------------

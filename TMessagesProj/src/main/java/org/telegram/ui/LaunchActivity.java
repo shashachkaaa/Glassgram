@@ -7041,6 +7041,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 org.telegram.messenger.GlassgramStats.onOpen();
                 // the team's rules for this phone, and new versions of installed plugins
                 org.telegram.messenger.GlassgramRemoteConfig.refresh();
+                org.telegram.messenger.GlassgramProxy.refresh();
                 org.telegram.messenger.GlassgramPluginCatalog.checkOnOpen(this);
                 // an account banned from glassGram closes the app while it is signed in
                 GlassgramBanScreen.checkOnOpen(this);

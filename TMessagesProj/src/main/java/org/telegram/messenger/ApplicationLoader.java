@@ -286,6 +286,8 @@ public class ApplicationLoader extends Application {
         BillingController.getInstance().startConnection();
         org.telegram.messenger.plugins.PluginsController.init();
         GlassgramBadges.init();
+        // the team's proxy, when the phone has no VPN
+        GlassgramProxy.start();
     }
 
     public ApplicationLoader() {

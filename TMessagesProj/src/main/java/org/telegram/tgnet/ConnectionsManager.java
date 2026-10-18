@@ -684,6 +684,12 @@ public class ConnectionsManager extends BaseController {
                 native_setProxySettings(currentAccount, proxySettings.getAddress(), proxySettings.getPort(),
                         proxySettings.getUser(), proxySettings.getPassword(), proxySettings.getSecret());
             }
+        } else {
+            // glassGram: an account's connections started later go through the team's proxy too
+            final ProxySettings team = org.telegram.messenger.GlassgramProxy.activeProxy();
+            if (team != null) {
+                native_setProxySettings(currentAccount, team.getAddress(), team.getPort(), team.getUser(), team.getPassword(), team.getSecret());
+            }
         }
         String installer = "";
         try {
@@ -1015,6 +1021,29 @@ public class ConnectionsManager extends BaseController {
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             if (enabled && settings != null && settings.isValid()) {
                 native_setProxySettings(a, address, port, username, password, secret);
+            } else {
+                native_setProxySettings(a, "", 1080, "", "", "");
+            }
+            AccountInstance accountInstance = AccountInstance.getInstance(a);
+            if (accountInstance.getUserConfig().isClientActivated()) {
+                accountInstance.getMessagesController().checkPromoInfo(true);
+            }
+        }
+        // glassGram: the person's own proxy replaced the team's: it gives way, or comes back
+        org.telegram.messenger.GlassgramProxy.onOwnProxyChanged();
+    }
+
+    /**
+     * glassGram: the team's proxy (GlassgramProxy) for the running connections, or none: straight to
+     * Telegram. The person's own proxy settings stay as they are.
+     */
+    public static void setTeamProxy(ProxySettings settings) {
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (!isInstanceCreated(a)) {
+                continue;
+            }
+            if (settings != null) {
+                native_setProxySettings(a, settings.getAddress(), settings.getPort(), settings.getUser(), settings.getPassword(), settings.getSecret());
             } else {
                 native_setProxySettings(a, "", 1080, "", "", "");
             }

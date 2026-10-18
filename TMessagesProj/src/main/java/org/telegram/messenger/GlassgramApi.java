@@ -44,6 +44,7 @@ public final class GlassgramApi {
     public static final String RIGHT_CONFIG = "config";
     public static final String RIGHT_PLUGINS = "plugins";
     public static final String RIGHT_BANS = "bans";
+    public static final String RIGHT_PROXIES = "proxies";
     public static final String RIGHT_ADMINS = "admins";
 
     private static final String PREFS = "glassgram_api";
