@@ -19,6 +19,8 @@ import java.util.ArrayList;
  * glassGram: the team's proxies to Telegram (GET /proxies, kept by the team in glassGram Team), for
  * Telegram to work without a VPN. On "auto" the connections go through one of them while the phone
  * has no VPN, and straight to Telegram while one is on; on "always" through one with a VPN too.
+ * The account's personal VLESS key (GlassgramTunnel) comes before them: its tunnel is tried first,
+ * the team's proxies after it, and they bring the connection to Telegram the key is asked for over.
  * <p>
  * The person's own proxy (Telegram's proxy settings) comes first: while it is on, the team's isn't
  * used. The team's is given to the connections directly (ConnectionsManager.setTeamProxy), not put
@@ -38,9 +40,16 @@ public final class GlassgramProxy {
     private static final long ROUND_PAUSE = 60 * 1000L;
 
     private static final ArrayList<ProxySettings> proxies = new ArrayList<>();
-    /** The team's proxy the connections have now, or null: straight to Telegram, or through the person's own. */
+    /** The personal key's outbounds, tried before the proxies, or null without a key. */
+    private static JSONArray tunnel;
+    /** The team's proxy the connections have now, or the tunnel's local one, or null: straight to Telegram, or through the person's own. */
     private static volatile ProxySettings active;
+    /** The one in use or to try: the tunnel's outbounds first, then the proxies. */
     private static int index;
+    /** The tunnel's outbound running (or starting), or -1; each start or stop raises the generation. */
+    private static int activeTunnel = -1, tunnelGeneration;
+    private static boolean tunnelStarting;
+    private static final DispatchQueue tunnelQueue = new DispatchQueue("glassgramTunnel");
     /** Proxies tried in a row without connecting. */
     private static int failed;
     private static boolean started, loading;
@@ -74,7 +83,9 @@ public final class GlassgramProxy {
             } catch (Exception e) {
                 FileLog.e(e, false);
             }
-            index = prefs().getInt("index", 0);
+            tunnel = GlassgramTunnel.outbounds();
+            // the tunnel first; without it, the proxy that last connected
+            index = tunnelCount() > 0 ? 0 : prefs().getInt("index", 0);
             watchNetwork();
             update();
             refresh();
@@ -101,10 +112,13 @@ public final class GlassgramProxy {
                 return;
             }
             // the proxy in use keeps its place in the new list, if it's still there
-            final ProxySettings current = index < proxies.size() ? proxies.get(index) : null;
+            final int at = index - tunnelCount();
+            final ProxySettings current = at >= 0 && at < proxies.size() ? proxies.get(at) : null;
             proxies.clear();
             proxies.addAll(now);
-            index = Math.max(0, proxies.indexOf(current));
+            if (current != null) {
+                index = tunnelCount() + Math.max(0, proxies.indexOf(current));
+            }
             failed = 0;
             update();
         });
@@ -141,9 +155,35 @@ public final class GlassgramProxy {
         return active;
     }
 
-    /** How many proxies the team gives out. */
+    /** How many proxies the team gives out, the tunnel's outbounds with them. */
     public static int count() {
-        return proxies.size();
+        return candidates();
+    }
+
+    /** Whether the connections go through the tunnel of the personal key now. */
+    public static boolean isTunnel() {
+        return activeTunnel >= 0 && active != null && !tunnelStarting;
+    }
+
+    private static int tunnelCount() {
+        return tunnel != null ? tunnel.length() : 0;
+    }
+
+    private static int candidates() {
+        return tunnelCount() + proxies.size();
+    }
+
+    /** The personal key came, or changed, or went: the tunnel is tried first again. */
+    private static void onKeyChanged() {
+        final JSONArray now = GlassgramTunnel.outbounds();
+        if (now == null ? tunnel == null : tunnel != null && now.toString().equals(tunnel.toString())) {
+            return;
+        }
+        stopTunnel();
+        tunnel = now;
+        index = 0;
+        failed = 0;
+        update();
     }
 
     /** Whether the phone's traffic goes through a VPN now. */
@@ -163,6 +203,8 @@ public final class GlassgramProxy {
     public static void onOwnProxyChanged() {
         AndroidUtilities.runOnUIThread(() -> {
             active = null;
+            // the tunnel's local proxy was taken away too: it starts again if it's still the one
+            stopTunnel();
             update();
         });
     }
@@ -174,8 +216,14 @@ public final class GlassgramProxy {
         }
         final int mode = GlassgramConfig.proxyMode;
         final boolean own = SharedConfig.isProxyEnabled();
-        if (mode == MODE_OFF || proxies.isEmpty() || own || mode == MODE_AUTO && vpnActive()) {
+        if (mode != MODE_OFF) {
+            // the personal key is asked for, or renewed, with a VPN on too: ready for when it's off
+            GlassgramTunnel.refreshKey(GlassgramProxy::onKeyChanged);
+        }
+        final int count = candidates();
+        if (mode == MODE_OFF || count == 0 || own || mode == MODE_AUTO && vpnActive()) {
             AndroidUtilities.cancelRunOnUIThread(checkConnected);
+            stopTunnel();
             if (active != null) {
                 active = null;
                 if (!own) {
@@ -184,28 +232,82 @@ public final class GlassgramProxy {
             }
             return;
         }
-        if (index >= proxies.size()) {
+        if (index >= count) {
             index = 0;
         }
-        final ProxySettings proxy = proxies.get(index);
-        if (proxy.equals(active)) {
+        if (index < tunnelCount()) {
+            if (activeTunnel != index) {
+                startTunnel(index);
+            }
             return;
         }
+        final ProxySettings proxy = proxies.get(index - tunnelCount());
+        if (activeTunnel < 0 && proxy.equals(active)) {
+            return;
+        }
+        stopTunnel();
+        apply(proxy);
+    }
+
+    private static void apply(ProxySettings proxy) {
         active = proxy;
         ConnectionsManager.setTeamProxy(proxy);
         AndroidUtilities.cancelRunOnUIThread(checkConnected);
         AndroidUtilities.runOnUIThread(checkConnected, CONNECT_TIMEOUT);
     }
 
+    /** Starts the tunnel with an outbound off the main thread, then gives the connections its local proxy. */
+    private static void startTunnel(int at) {
+        final JSONObject outbound = tunnel.optJSONObject(at);
+        final int generation = ++tunnelGeneration;
+        activeTunnel = at;
+        tunnelStarting = true;
+        tunnelQueue.postRunnable(() -> {
+            final ProxySettings local = GlassgramTunnel.start(outbound);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (generation != tunnelGeneration) {
+                    // stopped, or another started, meanwhile
+                    return;
+                }
+                tunnelStarting = false;
+                if (local != null) {
+                    apply(local);
+                    return;
+                }
+                // it didn't start: the next one, as for one that doesn't connect
+                activeTunnel = -1;
+                if (++failed >= candidates()) {
+                    failed = 0;
+                    AndroidUtilities.runOnUIThread(GlassgramProxy::update, ROUND_PAUSE);
+                    return;
+                }
+                index = (index + 1) % candidates();
+                update();
+            });
+        });
+    }
+
+    private static void stopTunnel() {
+        if (activeTunnel < 0 && !tunnelStarting) {
+            return;
+        }
+        tunnelGeneration++;
+        activeTunnel = -1;
+        tunnelStarting = false;
+        tunnelQueue.postRunnable(GlassgramTunnel::stop);
+    }
+
     /** A proxy that hasn't connected in CONNECT_TIMEOUT gives way to the next; one that has is remembered. */
     private static void checkConnected() {
-        if (active == null || proxies.isEmpty()) {
+        if (active == null || candidates() == 0) {
             return;
         }
         final int state = ConnectionsManager.getInstance(UserConfig.selectedAccount).getConnectionState();
         if (state == ConnectionsManager.ConnectionStateConnected || state == ConnectionsManager.ConnectionStateUpdating) {
             failed = 0;
-            prefs().edit().putInt("index", index).apply();
+            if (index >= tunnelCount()) {
+                prefs().edit().putInt("index", index - tunnelCount()).apply();
+            }
             return;
         }
         if (state == ConnectionsManager.ConnectionStateWaitingForNetwork || ApplicationLoader.mainInterfacePaused) {
@@ -213,13 +315,13 @@ public final class GlassgramProxy {
             AndroidUtilities.runOnUIThread(checkConnected, CONNECT_TIMEOUT);
             return;
         }
-        if (++failed >= proxies.size()) {
+        if (++failed >= candidates()) {
             // none of them connected in a row: this one stays a while before the next round
             failed = 0;
             AndroidUtilities.runOnUIThread(checkConnected, ROUND_PAUSE);
             return;
         }
-        index = (index + 1) % proxies.size();
+        index = (index + 1) % candidates();
         update();
     }
 

@@ -74,3 +74,7 @@
 -keep class * implements com.sun.jna.** { *; }
 -dontwarn java.awt.**
 -dontwarn com.sun.jna.**
+
+# glassGram's tunnel: libXray's gomobile bindings, called by reflection and from Go
+-keep class libXray.** { *; }
+-keep class go.** { *; }

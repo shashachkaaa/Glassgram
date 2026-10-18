@@ -19,6 +19,11 @@ dependencies {
     implementation project(':TMessagesProj')
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     implementation files('../TMessagesProj/libs/libgsaverification-client.aar')
+    // glassGram's tunnel: Xray-core through XTLS/libXray, built by the CI (build-apk.yml). A build
+    // without it has no tunnel: GlassgramTunnel reaches it by reflection
+    if (file('../TMessagesProj/libs/libXray.aar').exists()) {
+        implementation files('../TMessagesProj/libs/libXray.aar')
+    }
 }
 
 android {

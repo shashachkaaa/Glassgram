@@ -1228,6 +1228,237 @@ public final class GlassgramApiUi {
         });
     }
 
+    // --- The tunnel's personal keys ---------------------------------------------------------------
+
+    /** The tunnel: its limits, the 3x-ui inbounds and which give glassGram's keys, and an account's key. */
+    public static void showTunnel(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/tunnel", null, response -> {
+            progress.dismiss();
+            final Activity context = fragment.getParentActivity();
+            if (!response.ok() || context == null) {
+                showError(fragment, response);
+                return;
+            }
+            if (!response.json.optBoolean("configured")) {
+                new AlertDialog.Builder(context)
+                        .setTitle(getString(R.string.GlassgramApiTunnel))
+                        .setMessage(getString(R.string.GlassgramApiTunnelNotSet))
+                        .setPositiveButton(getString(R.string.OK), null)
+                        .show();
+                return;
+            }
+            final JSONObject settings = response.json.optJSONObject("settings");
+            final JSONArray inbounds = response.json.optJSONArray("inbounds");
+            final String defaultHost = response.json.optString("default_host");
+            final int count = inbounds != null ? inbounds.length() : 0;
+            final CharSequence[] items = new CharSequence[count + 2];
+            final int gb = settings != null ? settings.optInt("gb") : 0;
+            items[0] = formatString(R.string.GlassgramApiTunnelLimits, settings != null ? settings.optInt("devices") : 0,
+                    gb == 0 ? getString(R.string.GlassgramApiTunnelNoLimit) : String.valueOf(gb), settings != null ? settings.optInt("days") : 0);
+            for (int i = 0; i < count; i++) {
+                final JSONObject inbound = inbounds.optJSONObject(i);
+                final String reason = inbound.optString("unsupported");
+                final StringBuilder text = new StringBuilder()
+                        .append(inbound.optBoolean("enabled") ? "🟢 " : TextUtils.isEmpty(reason) ? "⚪ " : "⛔ ")
+                        .append(inbound.optString("remark")).append(" · ").append(inbound.optString("protocol"))
+                        .append(' ').append(inbound.optString("network")).append('/').append(inbound.optString("security"))
+                        .append(" :").append(inbound.optInt("port"));
+                if (inbound.optBoolean("enabled")) {
+                    text.append("\n→ ").append(TextUtils.isEmpty(inbound.optString("host")) ? defaultHost : inbound.optString("host"));
+                    text.append(" · ").append(formatString(R.string.GlassgramApiTunnelInboundKeys, inbound.optInt("keys")));
+                } else if (!TextUtils.isEmpty(reason)) {
+                    text.append("\n").append(reason);
+                }
+                items[i + 1] = text;
+            }
+            items[count + 1] = formatString(R.string.GlassgramApiTunnelKeys, response.json.optInt("keys"));
+            new AlertDialog.Builder(context)
+                    .setTitle(getString(R.string.GlassgramApiTunnel))
+                    .setItems(items, (d, which) -> {
+                        if (which == 0) {
+                            askTunnelLimits(fragment, settings);
+                        } else if (which == count + 1) {
+                            askTunnelAccount(fragment);
+                        } else {
+                            showTunnelInbound(fragment, inbounds.optJSONObject(which - 1), defaultHost);
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.Close), null)
+                    .show();
+            final String error = response.json.optString("error");
+            if (!TextUtils.isEmpty(error)) {
+                BulletinFactory.of(fragment).createErrorBulletin(error).show();
+            }
+        });
+    }
+
+    private static void askTunnelLimits(BaseFragment fragment, JSONObject settings) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null || settings == null) {
+            return;
+        }
+        final EditTextBoldCursor devices = field(context, getString(R.string.GlassgramApiTunnelDevices), true, false);
+        final EditTextBoldCursor gb = field(context, getString(R.string.GlassgramApiTunnelGb), true, false);
+        final EditTextBoldCursor days = field(context, getString(R.string.GlassgramApiTunnelDays), true, false);
+        devices.setText(String.valueOf(settings.optInt("devices")));
+        gb.setText(String.valueOf(settings.optInt("gb")));
+        days.setText(String.valueOf(settings.optInt("days")));
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        for (EditTextBoldCursor field : new EditTextBoldCursor[]{devices, gb, days}) {
+            final TextView label = new TextView(context);
+            label.setText(field.getHint());
+            label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            label.setTextColor(Theme.getColor(Theme.key_dialogTextGray2));
+            label.setPadding(dp(24), dp(8), dp(24), 0);
+            layout.addView(label);
+            layout.addView(wrap(context, field));
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiTunnel))
+                .setView(layout)
+                .setPositiveButton(getString(R.string.OK), (d, w) -> saveTunnel(fragment, "PUT", "/tunnel/settings",
+                        GlassgramApi.json("devices", Utilities.parseInt(devices.getText()), "gb", Utilities.parseInt(gb.getText()),
+                                "days", Utilities.parseInt(days.getText()))))
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** An inbound: whether it gives keys, the address the apps reach it at, its note. */
+    private static void showTunnelInbound(BaseFragment fragment, JSONObject inbound, String defaultHost) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null || inbound == null) {
+            return;
+        }
+        final int id = inbound.optInt("id");
+        final boolean enabled = inbound.optBoolean("enabled");
+        final String host = inbound.optString("host");
+        final CharSequence[] items = {
+                getString(enabled ? R.string.GlassgramApiTunnelStop : R.string.GlassgramApiTunnelGive),
+                getString(R.string.GlassgramApiTunnelHost) + ": " + (TextUtils.isEmpty(host) ? defaultHost : host),
+                getString(R.string.GlassgramApiProxyNote) + (TextUtils.isEmpty(inbound.optString("note")) ? "" : ": " + inbound.optString("note"))};
+        new AlertDialog.Builder(context)
+                .setTitle(inbound.optString("remark") + " :" + inbound.optInt("port"))
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        saveTunnel(fragment, "PUT", "/tunnel/sources/" + id, GlassgramApi.json("enabled", !enabled));
+                        return;
+                    }
+                    final boolean isHost = which == 1;
+                    final EditTextBoldCursor field = field(context, isHost ? formatString(R.string.GlassgramApiTunnelHostHint, defaultHost)
+                            : getString(R.string.GlassgramApiProxyNoteHint), false, false);
+                    field.setText(isHost ? host : inbound.optString("note"));
+                    new AlertDialog.Builder(context)
+                            .setTitle(getString(isHost ? R.string.GlassgramApiTunnelHost : R.string.GlassgramApiProxyNote))
+                            .setView(wrap(context, field))
+                            .setPositiveButton(getString(R.string.OK), (d2, w) -> saveTunnel(fragment, "PUT", "/tunnel/sources/" + id,
+                                    GlassgramApi.json(isHost ? "host" : "note", field.getText().toString().trim())))
+                            .setNegativeButton(getString(R.string.Cancel), null)
+                            .show();
+                })
+                .setNegativeButton(getString(R.string.Close), null)
+                .show();
+    }
+
+    /** Asks whose key to look at: a Telegram id, or a @username found through Telegram. */
+    private static void askTunnelAccount(BaseFragment fragment) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor field = field(context, getString(R.string.GlassgramApiHolderHint), false, false);
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiTunnel))
+                .setView(wrap(context, field))
+                .setPositiveButton(getString(R.string.OK), (d, w) -> {
+                    final String text = field.getText().toString().trim().replace("https://t.me/", "").replace("t.me/", "");
+                    if (text.matches("\\d{1,15}")) {
+                        showTunnelKey(fragment, Long.parseLong(text));
+                        return;
+                    }
+                    final String username = text.startsWith("@") ? text.substring(1) : text;
+                    if (username.isEmpty()) {
+                        return;
+                    }
+                    MessagesController.getInstance(fragment.getCurrentAccount()).getUserNameResolver().resolve(username, id -> AndroidUtilities.runOnUIThread(() -> {
+                        if (id == null || id <= 0) {
+                            if (fragment.getParentActivity() != null) {
+                                BulletinFactory.of(fragment).createErrorBulletin(getString(R.string.GlassgramApiNoSuchUser)).show();
+                            }
+                        } else {
+                            showTunnelKey(fragment, id);
+                        }
+                    }));
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** An account's key, without the key: when made and renewed, until when, its traffic; and revoking it. */
+    private static void showTunnelKey(BaseFragment fragment, long userId) {
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/tunnel/keys?user_id=" + userId, null, response -> {
+            progress.dismiss();
+            final Activity context = fragment.getParentActivity();
+            if (!response.ok() || context == null) {
+                showError(fragment, response);
+                return;
+            }
+            final JSONArray keys = response.json.optJSONArray("keys");
+            final JSONObject key = keys != null ? keys.optJSONObject(0) : null;
+            if (key == null) {
+                BulletinFactory.of(fragment).createErrorBulletin(getString(R.string.GlassgramApiTunnelNoKey)).show();
+                return;
+            }
+            final StringBuilder text = new StringBuilder(formatString(R.string.GlassgramApiTunnelKeyInfo,
+                    date(key.optLong("created_at")), date(key.optLong("renewed_at")),
+                    key.optLong("expires_at") > 0 ? date(key.optLong("expires_at")) : "—", key.optInt("generation")));
+            final JSONArray traffic = key.optJSONArray("traffic");
+            for (int i = 0; traffic != null && i < traffic.length(); i++) {
+                final JSONObject item = traffic.optJSONObject(i);
+                text.append("\n").append(formatString(R.string.GlassgramApiTunnelTraffic, item.optInt("inbound_id"),
+                        AndroidUtilities.formatFileSize(item.optLong("up")), AndroidUtilities.formatFileSize(item.optLong("down"))));
+            }
+            new AlertDialog.Builder(context)
+                    .setTitle(String.valueOf(userId))
+                    .setMessage(text)
+                    .setPositiveButton(getString(R.string.GlassgramApiTunnelRevoke), (d, w) -> {
+                        final AlertDialog revoking = progress(fragment);
+                        GlassgramApi.call(fragment.getCurrentAccount(), "DELETE", "/tunnel/keys/" + userId, null, revoked -> {
+                            revoking.dismiss();
+                            if (revoked.ok()) {
+                                showDone(fragment, getString(R.string.GlassgramApiTunnelRevoked));
+                            } else {
+                                showError(fragment, revoked);
+                            }
+                        });
+                    })
+                    .setNegativeButton(getString(R.string.Close), null)
+                    .show();
+        });
+    }
+
+    /** Sends a change of the tunnel, then shows it again. */
+    private static void saveTunnel(BaseFragment fragment, String method, String path, JSONObject body) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), method, path, body, response -> {
+            progress.dismiss();
+            if (!response.ok()) {
+                showError(fragment, response);
+                return;
+            }
+            showDone(fragment, getString(R.string.GlassgramApiTunnelSaved));
+            showTunnel(fragment);
+        });
+    }
+
     // --- Admins -----------------------------------------------------------------------------------
 
     public static void showAdmins(BaseFragment fragment) {

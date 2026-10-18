@@ -1566,6 +1566,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (GlassgramProxy.count() == 0) {
             return getString(R.string.GlassgramProxyStatusNone);
         }
+        if (GlassgramProxy.isTunnel()) {
+            return getString(R.string.GlassgramProxyStatusTunnel);
+        }
         if (GlassgramProxy.activeProxy() != null) {
             return getString(R.string.GlassgramProxyStatusTeam);
         }

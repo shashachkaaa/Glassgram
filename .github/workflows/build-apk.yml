@@ -46,6 +46,9 @@ env:
   ANDROID_NDK_VERSION: 27.2.12479018
   ANDROID_CMAKE_VERSION: 3.22.1
   ANDROID_BUILD_TOOLS_VERSION: 36.0.0
+  # glassGram's tunnel: the pinned XTLS/libXray (Xray-core for mobile), and the Go it builds with
+  LIBXRAY_COMMIT: 75ccb623c807a1113a064278e3e544b0049c16a5
+  GO_VERSION: 1.27.2
   ANDROID_PLATFORM: android-36
 
 jobs:
@@ -110,6 +113,47 @@ jobs:
           echo "ANDROID_HOME=${ANDROID_HOME}" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=${ANDROID_HOME}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      # glassGram's tunnel: Xray-core through XTLS/libXray, bound for Android by gomobile (armv7 and
+      # arm64). Built once for each pinned libXray and kept in the cache. Not in the RuStore
+      # edition: a build without it has no tunnel
+      - name: Restore the Xray library
+        id: libxray
+        if: matrix.edition == 'full'
+        uses: actions/cache/restore@v4
+        with:
+          path: TMessagesProj/libs/libXray.aar
+          key: libxray-${{ env.LIBXRAY_COMMIT }}-${{ env.ANDROID_NDK_VERSION }}
+
+      - name: Set up Go
+        if: matrix.edition == 'full' && steps.libxray.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Build the Xray library
+        if: matrix.edition == 'full' && steps.libxray.outputs.cache-hit != 'true'
+        run: |
+          git clone --quiet --filter=blob:none https://github.com/XTLS/libXray "$RUNNER_TEMP/libXray"
+          cd "$RUNNER_TEMP/libXray"
+          git checkout --quiet "$LIBXRAY_COMMIT"
+          MOBILE="$(go list -m -f '{{.Version}}' golang.org/x/mobile)"
+          go get -tool "golang.org/x/mobile/cmd/gobind@$MOBILE"
+          go install "golang.org/x/mobile/cmd/gomobile@$MOBILE"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          gomobile init
+          gomobile bind -target android/arm,android/arm64 -androidapi 21 -trimpath \
+            -ldflags="-checklinkname=0 -s -w -buildid= -extldflags=-Wl,-z,max-page-size=16384" \
+            -o "$GITHUB_WORKSPACE/TMessagesProj/libs/libXray.aar" .
+          ls -la "$GITHUB_WORKSPACE/TMessagesProj/libs/libXray.aar"
+
+      - name: Save the Xray library
+        if: matrix.edition == 'full' && steps.libxray.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: TMessagesProj/libs/libXray.aar
+          key: libxray-${{ env.LIBXRAY_COMMIT }}-${{ env.ANDROID_NDK_VERSION }}
 
       # The native code is compiled through ccache, whose cache lives between builds: unchanged
       # C/C++ files are not compiled again. Both editions build the same native code, so both
