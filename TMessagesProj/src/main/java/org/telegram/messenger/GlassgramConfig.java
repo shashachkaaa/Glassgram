@@ -331,6 +331,8 @@ public class GlassgramConfig {
             spyDisplayGhostStatus = false;
             spyDisableSelfDestruct = false;
             ignoreContentProtection = false;
+            // a poll's results stay hidden until one votes, as in Telegram
+            showPollResults = false;
         }
         loaded = true;
         // options the team turned off for this phone (GlassgramRemoteConfig)

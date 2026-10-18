@@ -364,7 +364,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(buttonCheck(ID_MINI_AVATARS, getString(R.string.GlassgramMiniAvatars), getString(R.string.GlassgramMiniAvatarsInfo)).setChecked(GlassgramConfig.senderMiniAvatars));
                 items.add(UItem.asCheck(ID_FORWARD_COUNT, getString(R.string.GlassgramForwardCount)).setChecked(GlassgramConfig.showForwardCount));
                 items.add(UItem.asCheck(ID_HIDE_SHARE, getString(R.string.GlassgramHideShareButton)).setChecked(GlassgramConfig.hideShareButton));
-                items.add(buttonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
+                // not in the RuStore edition: Telegram shows a poll's results only after voting
+                if (!GlassgramConfig.STORE_BUILD) {
+                    items.add(buttonCheck(ID_POLL_RESULTS, getString(R.string.GlassgramPollResults), getString(R.string.GlassgramPollResultsInfo)).setChecked(GlassgramConfig.showPollResults));
+                }
                 items.add(header(getString(R.string.GlassgramPhotos)));
                 items.add(UItem.asCheck(ID_HIDE_ATTACH_CAMERA, getString(R.string.GlassgramHideAttachCamera)).setChecked(GlassgramConfig.hideAttachCamera));
                 items.add(UItem.asCheck(ID_ALWAYS_HD, getString(R.string.GlassgramAlwaysSendHD)).setChecked(org.telegram.messenger.SharedConfig.photoHighQualityDefault));
