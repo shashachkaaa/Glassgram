@@ -7,6 +7,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
@@ -20,20 +21,25 @@ import android.text.style.ClickableSpan;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
+import org.telegram.messenger.Utilities;
 import org.telegram.messenger.plugins.PluginsController;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -212,8 +218,69 @@ public final class GlassgramPluginInstaller {
             layout.addView(new View(activity), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 12));
         }
 
-        sheet.setCustomView(layout);
+        FrameLayout container = new FrameLayout(activity);
+        container.addView(layout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        ImageView source = new ImageView(activity);
+        source.setScaleType(ImageView.ScaleType.CENTER);
+        source.setImageResource(R.drawable.formatting_code);
+        source.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider), PorterDuff.Mode.SRC_IN));
+        source.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), Theme.RIPPLE_MASK_CIRCLE_20DP));
+        source.setContentDescription(getString(R.string.GlassgramPluginSource));
+        source.setOnClickListener(v -> openSource(fragment, file, name));
+        container.addView(source, LayoutHelper.createFrame(40, 40, Gravity.TOP | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 8, 8, 8, 0));
+
+        sheet.setCustomView(container);
         fragment.showDialog(sheet);
+    }
+
+    /** Opens the plugin's code in an app the user picks: a copy named .py, which the app can only read. */
+    private static void openSource(BaseFragment fragment, File file, String name) {
+        Utilities.globalQueue.postRunnable(() -> {
+            // files/cache/ is shared by the app's FileProvider
+            File dir = new File(ApplicationLoader.applicationContext.getFilesDir(), "cache/plugin_source");
+            File copy = new File(dir, sourceName(name));
+            try {
+                File[] old = dir.listFiles();
+                if (old != null) {
+                    for (File f : old) {
+                        f.delete();
+                    }
+                }
+                if (!dir.isDirectory() && !dir.mkdirs()) {
+                    throw new IllegalStateException("No directory " + dir);
+                }
+                if (!AndroidUtilities.copyFile(file, copy)) {
+                    throw new IllegalStateException("Not copied " + file);
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+                AndroidUtilities.runOnUIThread(() -> showError(fragment, getString(R.string.GlassgramPluginSourceFailed)));
+                return;
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                Activity activity = fragment.getParentActivity();
+                if (activity == null) {
+                    return;
+                }
+                try {
+                    Intent view = new Intent(Intent.ACTION_VIEW);
+                    view.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", copy), "text/plain");
+                    view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    activity.startActivity(Intent.createChooser(view, getString(R.string.GlassgramPluginSourceWith)));
+                } catch (Exception e) {
+                    FileLog.e(e);
+                    showError(fragment, getString(R.string.GlassgramPluginSourceFailed));
+                }
+            });
+        });
+    }
+
+    private static String sourceName(String name) {
+        String safe = name == null ? "" : name.replaceAll("[^\\p{L}\\p{N} ._-]", "_").trim();
+        if (safe.length() > 60) {
+            safe = safe.substring(0, 60).trim();
+        }
+        return (safe.isEmpty() ? "plugin" : safe) + ".py";
     }
 
     /** Icon, name, "Version · @author" and description of a plugin, centered like exteraGram's. */

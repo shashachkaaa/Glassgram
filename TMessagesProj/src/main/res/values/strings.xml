@@ -11645,6 +11645,9 @@
     <string name="GlassgramPluginLoadFailed">%1$s is installed but failed to start: %2$s</string>
     <string name="GlassgramPluginInstalledToast">%1$s installed successfully.</string>
     <string name="GlassgramPluginEnableAfterInstall">Enable after installation</string>
+    <string name="GlassgramPluginSource">Source code</string>
+    <string name="GlassgramPluginSourceWith">Open the source code with</string>
+    <string name="GlassgramPluginSourceFailed">Couldn\'t open the plugin\'s code</string>
     <string name="GlassgramDeveloperSection">Developer</string>
     <string name="GlassgramSendStats">Usage statistics</string>
     <string name="GlassgramSendStatsInfo">Once a day: the phone\'s model, Android version, what the cameras can do, which options are on and the IDs of your Telegram accounts, so glassGram\'s team sees in a profile that you use glassGram and on what phone. Messages, contacts and your number are never sent</string>

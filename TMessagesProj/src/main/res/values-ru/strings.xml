@@ -644,6 +644,9 @@
     <string name="GlassgramPluginLoadFailed">%1$s установлен, но не запустился: %2$s</string>
     <string name="GlassgramPluginInstalledToast">%1$s успешно установлен.</string>
     <string name="GlassgramPluginEnableAfterInstall">Включить после установки</string>
+    <string name="GlassgramPluginSource">Исходный код</string>
+    <string name="GlassgramPluginSourceWith">Открыть исходный код в</string>
+    <string name="GlassgramPluginSourceFailed">Не удалось открыть код плагина</string>
     <string name="GlassgramDeveloperSection">Разработчику</string>
     <string name="GlassgramSendStats">Статистика использования</string>
     <string name="GlassgramSendStatsInfo">Раз в день: модель телефона, версия Android, возможности камер, включённые настройки и ID ваших аккаунтов Telegram — команда glassGram видит в профиле, что вы пользуетесь glassGram и на каком телефоне. Сообщения, контакты и номер не отправляются</string>
