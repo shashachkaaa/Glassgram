@@ -375,6 +375,8 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
     private float prevToHideProgress;
     public long videoDuration;
     private boolean allowShare, allowRepost, allowShareLink;
+    // glassGram: saving follows "ignore content protection", sharing what the server allows
+    private boolean allowSave;
     public boolean forceUpdateOffsets;
     private HintView mediaBanTooltip;
 
@@ -1903,7 +1905,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                                     .allowCover(false)
                                     .setCount(1)
                                     .isEdit(false)
-                                    .set(storyViewer.livePlayer != null && storyViewer.livePlayer.areMessagesEnabled(), currentStory.allowScreenshots(), currentStory.storyItem != null && currentStory.storyItem.pinned, storyViewer.livePlayer == null ? 0 : (int) storyViewer.livePlayer.getSendPaidMessagesStars());
+                                    .set(storyViewer.livePlayer != null && storyViewer.livePlayer.areMessagesEnabled(), currentStory.storyAllowsScreenshots(), currentStory.storyItem != null && currentStory.storyItem.pinned, storyViewer.livePlayer == null ? 0 : (int) storyViewer.livePlayer.getSendPaidMessagesStars());
                                 sheet.whenSelectedRules((privacy, allowComments, allowScreenshots, keepInProfile, isRtmpStream, sendAs, pricePerComment, whenDone, cancelled) -> {
                                     if ((currentStory.storyItem != null && currentStory.storyItem.pinned) != keepInProfile) {
                                         MessagesController.getInstance(currentAccount).getStoriesController().updateStoriesPinned(dialogId, storyItems, keepInProfile, null);
@@ -2068,7 +2070,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                             createQualityItem(popupLayout);
                         }
 
-                        if (!unsupported && allowShare && !currentStory.isLive) {
+                        if (!unsupported && allowSave && !currentStory.isLive) {
                             if (UserConfig.getInstance(currentAccount).isPremium()) {
                                 ActionBarMenuItem.addItem(popupLayout, R.drawable.msg_gallery, getString(R.string.SaveToGallery), false, resourcesProvider).setOnClickListener(v -> {
                                     saveToGallery();
@@ -5003,7 +5005,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             }
             currentStory.set(uploadingStory);
             storyAreasView.set(null, StoryMediaAreasView.getMediaAreasFor(uploadingStory.entry), emojiAnimationsOverlay);
-            allowShare = allowRepost = allowShareLink = false;
+            allowShare = allowRepost = allowShareLink = allowSave = false;
         } else {
             isUploading = false;
             isEditing = false;
@@ -5027,7 +5029,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                 currentStory.set(editingStory);
                 storyAreasView.set(null, StoryMediaAreasView.getMediaAreasFor(editingStory.entry), emojiAnimationsOverlay);
                 currentStory.editingSourceItem = storyItem;
-                allowShare = allowRepost = allowShareLink = false;
+                allowShare = allowRepost = allowShareLink = allowSave = false;
             } else {
                 boolean isVideo = storyItem.media != null && MessageObject.isVideoDocument(storyItem.media.getDocument());
                 Drawable thumbDrawable = null;
@@ -5094,11 +5096,15 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                 storyAreasView.set(preload ? null : storyItem, emojiAnimationsOverlay);
                 currentStory.set(storyItem);
                 allowShare = allowShareLink = !unsupported && currentStory.storyItem != null && !(currentStory.storyItem instanceof TL_stories.TL_storyItemDeleted) && !(currentStory.storyItem instanceof TL_stories.TL_storyItemSkipped);
+                allowSave = allowShare;
                 if (allowShare) {
-                    allowShare = currentStory.allowScreenshots() && currentStory.storyItem.isPublic;
+                    allowSave = currentStory.allowScreenshots() && currentStory.storyItem.isPublic;
+                    allowShare = currentStory.storyAllowsScreenshots() && currentStory.storyItem.isPublic;
                 }
-                if (allowShare) {
-                    allowShare = currentStory.storyItem.pinned || !StoriesUtilities.isExpired(currentAccount, currentStory.storyItem);
+                if (allowShare || allowSave) {
+                    final boolean available = currentStory.storyItem.pinned || !StoriesUtilities.isExpired(currentAccount, currentStory.storyItem);
+                    allowShare = allowShare && available;
+                    allowSave = allowSave && available;
                 }
                 allowRepost = allowShare;
                 if (allowRepost && isChannel) {
@@ -5388,7 +5394,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             createReplyDisabledView();
             unsupportedContainer.setVisibility(View.VISIBLE);
             replyDisabledTextView.setVisibility(View.VISIBLE);
-            allowShare = allowRepost = allowShareLink = false;
+            allowShare = allowRepost = allowShareLink = allowSave = false;
             if (chatActivityEnterView != null) {
                 chatActivityEnterView.setVisibility(View.GONE);
             }
@@ -7150,7 +7156,13 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             return storyItem != null && storyItem.close_friends;
         }
 
+        /** glassGram: "ignore content protection" lets protected stories be captured and saved too. */
         public boolean allowScreenshots() {
+            return org.telegram.messenger.GlassgramConfig.ignoreContentProtection || storyAllowsScreenshots();
+        }
+
+        /** What the story itself allows: its settings, and what the server lets be shared. */
+        public boolean storyAllowsScreenshots() {
             if (uploadingStory != null) {
                 return uploadingStory.entry.allowScreenshots;
             }
