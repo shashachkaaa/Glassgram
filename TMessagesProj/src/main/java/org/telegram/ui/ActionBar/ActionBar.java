@@ -871,8 +871,24 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     /** The glass capsule under the back button or the menu items, or false if there is nothing to put it under. */
+    // glassGram: the glass buttons where the iOS-like chat header has its own (getIosHeaderMargin): the
+    // profile opens from that header, and its back button and menu stood further out, on smaller circles
+    private boolean glassButtonsIos;
+
+    public void setGlassButtonsIosLayout(boolean value) {
+        if (glassButtonsIos != value) {
+            glassButtonsIos = value;
+            requestLayout();
+        }
+    }
+
+    /** How far in the back button and the menu go for the iOS-like layout, from their 27dp and 24dp centers. */
+    private int glassButtonsIosShift(int center) {
+        return glassButtons && glassButtonsIos ? iosHeaderSize(IOS_MARGIN) + iosHeaderSize(IOS_BUTTON) / 2 - center : 0;
+    }
+
     private boolean glassButtonRect(View child, RectF out) {
-        final float h = dp(40);
+        final float h = glassButtons && glassButtonsIos ? iosHeaderSize(IOS_BUTTON) : dp(40);
         if (child == backButtonImageView) {
             if (child.getVisibility() != VISIBLE || child.getAlpha() <= 0f) {
                 return false;
@@ -2159,7 +2175,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         int textLeft;
         if (backButtonImageView != null && backButtonImageView.getVisibility() != GONE) {
-            backButtonImageView.layout(0, additionalTop, backButtonImageView.getMeasuredWidth(), additionalTop + backButtonImageView.getMeasuredHeight());
+            final int backShift = glassButtonsIosShift(backButtonImageView.getMeasuredWidth() / 2);
+            backButtonImageView.layout(backShift, additionalTop, backShift + backButtonImageView.getMeasuredWidth(), additionalTop + backButtonImageView.getMeasuredHeight());
             textLeft = glassMode ? dp(76) : dp(AndroidUtilities.isTablet() ? 80 : 72);
         } else {
             textLeft = glassMode ? dp(24) : dp(AndroidUtilities.isTablet() ? 26 : 18);
@@ -2167,7 +2184,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         textLeft += additionalTextLeft;
 
         if (menu != null && menu.getVisibility() != GONE) {
-            int menuLeft = menu.searchFieldVisible() ? dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) : (getMeasuredWidth()) - menu.getMeasuredWidth();
+            int menuLeft = menu.searchFieldVisible() ? dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) : (getMeasuredWidth()) - menu.getMeasuredWidth() - glassButtonsIosShift(dp(24));
             menu.layout(menuLeft, additionalTop, menuLeft + menu.getMeasuredWidth(), additionalTop + menu.getMeasuredHeight());
         }
 
