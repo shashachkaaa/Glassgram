@@ -91,6 +91,7 @@ import java.util.Collections;
 
 import me.vkryl.android.animator.BoolAnimator;
 import me.vkryl.android.animator.FactorAnimator;
+import org.telegram.ui.Components.GlassgramPreDraw;
 
 public class MainTabsActivity extends ViewPagerActivity implements NotificationCenter.NotificationCenterDelegate, FactorAnimator.Target {
 
@@ -1228,7 +1229,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 liquidTabs.invalidateTabs();
             }
         });
-        tabsView.getViewTreeObserver().addOnPreDrawListener(() -> {
+        GlassgramPreDraw.whileAttached(tabsView, () -> {
             checkUi_liquidTabsBounds();
             return true;
         });

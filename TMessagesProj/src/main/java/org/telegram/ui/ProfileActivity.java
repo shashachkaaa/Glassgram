@@ -68,6 +68,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
+import org.telegram.ui.Components.GlassgramPreDraw;
 import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
@@ -2481,7 +2482,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         };
         // Calls live in the actions row under the name; Telegram hides them in the bar, but some
         // of its animations bring them back there (a long glass capsule): keep them hidden
-        actionBar.getViewTreeObserver().addOnPreDrawListener(() -> {
+        GlassgramPreDraw.whileAttached(actionBar, () -> {
             if (actionsView != null) {
                 if (callItem != null && callItem.getVisibility() == View.VISIBLE) {
                     callItem.setVisibility(View.GONE);

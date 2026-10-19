@@ -100,6 +100,19 @@ public class GlassgramCalcHint extends TextView {
             }).start();
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        // Leaving with the hint shown (closing the chat) would leave the follower in the window's
+        // observer, keeping this hint and, through the field, the whole chat
+        if (shown) {
+            shown = false;
+            getViewTreeObserver().removeOnPreDrawListener(follower);
+            animate().cancel();
+            setVisibility(GONE);
+        }
+        super.onDetachedFromWindow();
+    }
+
     // Above the field's left edge, wherever the field is now
     private void place() {
         final EditText field = enterView.getEditField();

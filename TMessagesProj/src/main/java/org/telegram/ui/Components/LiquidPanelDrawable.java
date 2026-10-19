@@ -86,7 +86,16 @@ public class LiquidPanelDrawable extends Drawable {
     private final int[] checkLocation = new int[2];
     private final ViewTreeObserver.OnPreDrawListener positionWatcher = () -> {
         final View h = observedHost;
-        if (h != null && h.isAttachedToWindow()) {
+        if (h == null || !h.isAttachedToWindow()) {
+            // The host left its window: stop watching, or the window's observer keeps this panel,
+            // its host and what that holds (an in-window menu holds its screen) for good.
+            // The next draw watches again.
+            if (observedTree != null && observedTree.isAlive()) {
+                observedTree.removeOnPreDrawListener(this.positionWatcher);
+            }
+            observedTree = null;
+            observedHost = null;
+        } else {
             layoutLocationOnScreen(h, checkLocation);
             if (checkLocation[0] != drawnLocation[0] || checkLocation[1] != drawnLocation[1]) {
                 invalidateSelf();
