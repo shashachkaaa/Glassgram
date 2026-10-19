@@ -1029,6 +1029,12 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
 
         if (withThanos) {
             animatorSet.setInterpolator(CubicBezierInterpolator.EASE_OUT);
+        } else if (glassgramSpringEnter) {
+            // glassGram: only the moves (translations) spring; the progresses here are alphas too
+            // (captions, times, corners), and a spring's overshoot takes them past 0..1
+            for (Animator child : animatorSet.getChildAnimations()) {
+                child.setInterpolator(child instanceof ObjectAnimator ? translationInterpolator : DEFAULT_INTERPOLATOR);
+            }
         } else if (translationInterpolator != null) {
             animatorSet.setInterpolator(translationInterpolator);
         }
