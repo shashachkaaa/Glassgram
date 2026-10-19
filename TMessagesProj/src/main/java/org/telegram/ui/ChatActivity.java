@@ -42867,6 +42867,7 @@ public class ChatActivity extends BaseFragment implements
         // As the avatar in the pill did: the profile, or the community the chat belongs to
         iosHeaderAvatar.setOnClickListener(v -> avatar.performClick());
         actionBar.setGlassEndView(iosHeaderAvatar);
+        checkUi_topPanelLayoutWidth();
     }
 
     private void disableIosHeader() {
@@ -42882,6 +42883,7 @@ public class ChatActivity extends BaseFragment implements
             avatarContainer.getAvatarImageView().getImageReceiver().setParentView(avatarContainer.getAvatarImageView());
             avatarContainer.setIosHeader(false);
         }
+        checkUi_topPanelLayoutWidth();
     }
 
     public boolean hasIosHeader() {
@@ -47110,7 +47112,11 @@ public class ChatActivity extends BaseFragment implements
                 * (1f - animatorSearchResultAsListVisibility.getFloatValue())
                 * (1f - getHashtagTabsShownT());
 
-            topPanelLayout.setPadding(dp(7) + (int) sideMenu, dp(7), dp(7), dp(7));
+            // glassGram: under the iOS-like header the card lines up with its back button and avatar, as on
+            // iOS; 7dp from the edges it was wider than the header and made it look small
+            final int iosMargin = actionBar != null ? actionBar.getIosHeaderMargin() : 0;
+            final int side = iosMargin > 0 ? iosMargin : dp(7);
+            topPanelLayout.setPadding(side + (int) sideMenu, dp(7), side, dp(7));
         }
     }
 

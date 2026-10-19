@@ -2836,6 +2836,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return iosHeaderSize(IOS_BUTTON) / (float) dp(46);
     }
 
+    /** The iOS-like chat header's distance from the screen's edges, for the panels under it to line up; 0 without it. */
+    public int getIosHeaderMargin() {
+        return isIosCenteredPill() ? iosHeaderSize(IOS_MARGIN) : 0;
+    }
+
     public void checkAvatarContainerWidth(boolean animated) {
         if (chatAvatarContainer == null) {
             return;
