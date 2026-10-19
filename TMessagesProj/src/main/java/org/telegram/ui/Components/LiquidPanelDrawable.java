@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.ColorSpace;
 import android.graphics.HardwareRenderer;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -97,7 +98,7 @@ public class LiquidPanelDrawable extends Drawable {
             observedHost = null;
         } else {
             layoutLocationOnScreen(h, checkLocation);
-            if (checkLocation[0] != drawnLocation[0] || checkLocation[1] != drawnLocation[1]) {
+            if (checkLocation[0] != drawnLocation[0] || checkLocation[1] != drawnLocation[1] || scaleChanged(h)) {
                 invalidateSelf();
                 h.invalidate();
             }
@@ -179,6 +180,33 @@ public class LiquidPanelDrawable extends Drawable {
     /** The view drawing this drawable, when it is drawn by hand rather than as a background. */
     public void setHost(View host) {
         this.host = host;
+    }
+
+    /*
+     * Menus and dialogs grow and shrink by their own scale as they open and close. Their glass
+     * places the screen behind by where the panel really is on screen, scales included, so the
+     * blurred screen stays put under them instead of a still picture of it stretching with them.
+     * Sheets keep ignoring scales: the photo viewer zooms them together with the screen behind.
+     */
+    private boolean followScale;
+    private final Matrix screenMatrix = new Matrix();
+    private final Matrix backdropMatrix = new Matrix();
+    private final Matrix glassMatrix = new Matrix();
+    private final Matrix drawnScreenMatrix = new Matrix();
+    private final Matrix checkScreenMatrix = new Matrix();
+
+    public void setFollowScale(boolean follow) {
+        followScale = follow;
+    }
+
+    // a method, as the watcher above may not read the fields declared here
+    private boolean scaleChanged(View h) {
+        if (!followScale) {
+            return false;
+        }
+        checkScreenMatrix.reset();
+        h.transformMatrixToGlobal(checkScreenMatrix);
+        return !checkScreenMatrix.equals(drawnScreenMatrix);
     }
 
     @Override
@@ -306,6 +334,22 @@ public class LiquidPanelDrawable extends Drawable {
         watchPosition(host);
         backdropDx = decorLocation[0] - (hostLocation[0] + rect.left);
         backdropDy = decorLocation[1] - (hostLocation[1] + rect.top);
+        boolean scaled = false;
+        if (followScale) {
+            screenMatrix.reset();
+            host.transformMatrixToGlobal(screenMatrix);
+            drawnScreenMatrix.set(screenMatrix);
+            // From the decor's points to the panel's own: where the panel draws what is on screen under it
+            if (screenMatrix.invert(backdropMatrix)) {
+                backdropMatrix.preTranslate(decorLocation[0], decorLocation[1]);
+                backdropMatrix.postTranslate(-rect.left, -rect.top);
+                scaled = true;
+            }
+        }
+        if (scaled != backdropScaled) {
+            backdropScaled = scaled;
+            glassVersion = -1;
+        }
 
         // ward's glassPanel: the window is denser than in-screen glass so text stays readable
         // The panel's alpha goes on the finished glass below, so fading doesn't redo it
@@ -322,8 +366,10 @@ public class LiquidPanelDrawable extends Drawable {
         final int w = (int) Math.ceil(rect.width()), h = (int) Math.ceil(rect.height());
         // (and when HWUI dropped its display list while the window was hidden: it would draw nothing)
         if (glassVersion != backdropVersion || !gn.hasDisplayList() || gn.getWidth() != w || gn.getHeight() != h || glassRadius != radius
-                || glassTint != tint || glassDark != dark || glassDx != backdropDx || glassDy != backdropDy) {
+                || glassTint != tint || glassDark != dark || glassDx != backdropDx || glassDy != backdropDy
+                || backdropScaled && !glassMatrix.equals(backdropMatrix)) {
             glassVersion = backdropVersion;
+            glassMatrix.set(backdropMatrix);
             glassRadius = radius;
             glassTint = tint;
             glassDark = dark;
@@ -351,6 +397,7 @@ public class LiquidPanelDrawable extends Drawable {
     }
 
     private Object glassNode;
+    private boolean backdropScaled;
     private int backdropVersion, glassVersion = -1;
     private float glassRadius = -1, glassDx = Float.NaN, glassDy = Float.NaN;
     private int glassTint;
@@ -434,7 +481,11 @@ public class LiquidPanelDrawable extends Drawable {
     private final GlassLayer.Backdrop backdrop = this::drawBackdrop;
 
     private void drawBackdrop(Canvas c) {
-        c.translate(backdropDx, backdropDy);
+        if (backdropScaled) {
+            c.concat(backdropMatrix);
+        } else {
+            c.translate(backdropDx, backdropDy);
+        }
         if (snapshot != null) {
             c.scale(SNAPSHOT_SCALE, SNAPSHOT_SCALE);
             c.drawBitmap(snapshot, 0, 0, snapshotPaint);

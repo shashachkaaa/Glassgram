@@ -167,6 +167,7 @@ public class ActionBarPopupWindow extends PopupWindow {
             if (resId != 0) {
                 backgroundDrawable = LiquidPanelDrawable.wrap(getResources().getDrawable(resId).mutate(), dp(12), dp(12), () -> backgroundColor);
                 ((LiquidPanelDrawable) backgroundDrawable).setHost(this);
+                ((LiquidPanelDrawable) backgroundDrawable).setFollowScale(true);
                 setPadding(dp(8), dp(8), dp(8), dp(8));
             }
             if (backgroundDrawable != null) {
@@ -387,6 +388,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                 final LiquidPanelDrawable panel = (LiquidPanelDrawable) LiquidPanelDrawable.wrap(drawable, glassRadius, glassRadius,
                     () -> getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
                 panel.setHost(this);
+                panel.setFollowScale(true);
                 drawable = panel;
             }
             backgroundColor = Color.WHITE;

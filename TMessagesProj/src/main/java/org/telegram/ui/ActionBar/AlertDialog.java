@@ -692,6 +692,7 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         containerView = new AlertDialogView(getContext());
         if (shadowDrawable instanceof LiquidPanelDrawable) {
             ((LiquidPanelDrawable) shadowDrawable).setHost(containerView);
+            ((LiquidPanelDrawable) shadowDrawable).setFollowScale(true);
         }
         containerView.setOrientation(LinearLayout.VERTICAL);
         if ((blurredBackground || progressViewStyle == ALERT_TYPE_SPINNER) && progressViewStyle != ALERT_TYPE_LOADING) {
