@@ -8082,8 +8082,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                     ArrayList<Animator> animators = new ArrayList<>();
                     if (audioVideoButtonContainer.getVisibility() == VISIBLE) {
-                        animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_X, 0.1f));
-                        animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_Y, 0.1f));
+                        // Glassgram: in the split input the voice button keeps its size, fading as it
+                        // slides out with its circle (glassgramSlideVoice), as on iOS
+                        if (!glassgramSplit()) {
+                            animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_X, 0.1f));
+                            animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_Y, 0.1f));
+                        }
                         animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.ALPHA, 0.0f));
                     }
                     if (expandStickersButton != null && expandStickersButton.getVisibility() == VISIBLE) {
@@ -8289,8 +8293,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                     ArrayList<Animator> animators = new ArrayList<>();
                     if (audioVideoButtonContainer.getVisibility() == VISIBLE) {
-                        animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_X, 0.1f));
-                        animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_Y, 0.1f));
+                        // Glassgram: in the split input the voice button keeps its size, fading as it
+                        // slides out with its circle (glassgramSlideVoice), as on iOS
+                        if (!glassgramSplit()) {
+                            animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_X, 0.1f));
+                            animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.SCALE_Y, 0.1f));
+                        }
                         animators.add(ObjectAnimator.ofFloat(audioVideoSendButton, View.ALPHA, 0.0f));
                     }
                     if (expandStickersButton != null && expandStickersButton.getVisibility() == VISIBLE) {
@@ -10423,14 +10431,47 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (show && fromAlpha < 0.25f && getSendButtonInternal() instanceof SendButton) {
             ((SendButton) getSendButtonInternal()).appear();
         }
+        // Glassgram: in the split input the send button comes into focus as it grows, and blurs as it goes, as on iOS
+        final boolean blur = glassgramSplit() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
         ValueAnimator a = ValueAnimator.ofFloat(0, 1);
         a.addUpdateListener(anm -> {
             final float t = (float) anm.getAnimatedValue();
             getSendButtonInternal().setAlpha(lerp(fromAlpha, toAlpha, t));
             getSendButtonInternal().setScaleX(lerp(fromScaleX, toScaleX, t));
             getSendButtonInternal().setScaleY(lerp(fromScaleY, toScaleY, t));
+            if (blur) {
+                glassgramBlurSendButton(dp(10) * (show ? 1f - t : t));
+            }
         });
+        if (blur) {
+            a.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    glassgramBlurSendButton(0);
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    glassgramBlurSendButton(0);
+                }
+            });
+        }
         return a;
+    }
+
+    private float glassgramSendBlur;
+
+    private void glassgramBlurSendButton(float radius) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return;
+        }
+        // whole pixels: a new effect in every frame for the same blur would only cost
+        final float r = radius < 0.5f ? 0 : Math.round(radius);
+        if (r == glassgramSendBlur) {
+            return;
+        }
+        glassgramSendBlur = r;
+        getSendButtonInternal().setRenderEffect(r == 0 ? null : android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.DECAL));
     }
 
     public View getAudioVideoButtonContainer() {
@@ -14830,6 +14871,28 @@ public class ChatActivityEnterView extends FrameLayout implements
     // How far the field has grown over the send button (0: the send circle apart, 1: inside the field)
     private AnimatedFloat glassgramSendInsideAnimated;
     private Runnable glassgramSegmentsListener;
+    // How far the voice button and its circle have slid out to the right, and where this view is in its window
+    private float glassgramVoiceSlide;
+    private final int[] glassgramLocation = new int[2];
+
+    /** From its place to past the screen's edge, its glass's padding and shadow included. */
+    private float glassgramVoiceSlideDistance() {
+        getLocationInWindow(glassgramLocation);
+        final View root = getRootView();
+        final float margin = root == null ? 0 : Math.max(0, root.getWidth() - glassgramLocation[0] - getMeasuredWidth());
+        return dp(DEFAULT_HEIGHT + 14) + margin;
+    }
+
+    /** The voice button goes with its circle; a recording or the single island puts it back. */
+    private void glassgramSlideVoice(boolean split) {
+        if (audioVideoButtonContainer == null) {
+            return;
+        }
+        final float slide = split ? glassgramVoiceSlide : 0f;
+        if (audioVideoButtonContainer.getTranslationX() != slide) {
+            audioVideoButtonContainer.setTranslationX(slide);
+        }
+    }
 
     public boolean glassgramSplit() {
         // not where the attach button lives in the side controls (scheduled messages, comments)
@@ -14968,13 +15031,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         final float inside = glassgramSendInsideAnimated.set(glassgramSendInside());
         final float fieldEnd = base + messageEditTextContainer.getMeasuredWidth();
         out[5] = AndroidUtilities.lerp(fieldEnd, getMeasuredWidth(), inside);
-        // The send circle parts from the field's end as the field shrinks back from it, and is
-        // squeezed into the field as it grows (the send button then has the field's glass behind
-        // it); it no longer waits for the field to settle, empty between them
+        // As on iOS, the voice button's circle slides out past the screen's edge, whole, as the
+        // field grows over its place (the send button shows inside the field's end), and slides
+        // back in as the field shrinks; it keeps clear of the field's end all the way
         final float sendLeft = getMeasuredWidth() - dp(DEFAULT_HEIGHT);
-        out[6] = inside > 0f ? Math.max(sendLeft, out[5] + dp(GLASSGRAM_GAP)) : sendLeft;
-        out[7] = getMeasuredWidth();
-        if (out[7] - out[6] < dp(8)) {
+        glassgramVoiceSlide = inside * glassgramVoiceSlideDistance();
+        out[6] = sendLeft + glassgramVoiceSlide;
+        out[7] = out[6] + dp(DEFAULT_HEIGHT);
+        if (inside >= 1f) {
             out[6] = out[7] = -1;
         }
         // with the AI button shown the attach piece is a tall pill carrying both
@@ -15142,6 +15206,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             return;
         }
         final boolean has = split && getGlassgramSegments(glassgramSegments);
+        glassgramSlideVoice(has);
         if (has) {
             glassgramUpdateRects(glassgramSegments);
             if (glassgramSendInside() != glassgramLaidOutSendInside) {
