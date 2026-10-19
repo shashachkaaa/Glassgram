@@ -928,23 +928,42 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         statuses.add(getString(R.string.WaitingForNetwork));
         statuses.add(getString(R.string.Connecting));
         statuses.add(getString(R.string.Updating));
+        // Only the statuses this chat can show: the pill wraps the name as on iOS, a bot's "bot" kept
+        // it as wide as "last seen yesterday at 23:59", close to the back button and the avatar
         final TLRPC.Chat chat = parentFragment != null ? parentFragment.getCurrentChat() : null;
-        if (chat != null) {
-            statuses.add(String.format("%s, %s", LocaleController.formatPluralString("Members", 99999), LocaleController.formatPluralString("OnlineCount", 9999)));
+        final TLRPC.User user = parentFragment != null ? parentFragment.getCurrentUser() : null;
+        final int[] actions;
+        if (chat != null && ChatObject.isChannelAndNotMegaGroup(chat)) {
             statuses.add(LocaleController.formatPluralString("Subscribers", 999999));
+            actions = new int[0];
+        } else if (chat != null) {
+            statuses.add(String.format("%s, %s", LocaleController.formatPluralString("Members", 99999), LocaleController.formatPluralString("OnlineCount", 9999)));
+            actions = new int[]{R.string.Typing, R.string.RecordingAudio, R.string.RecordingRound, R.string.SendingPhoto, R.string.SendingVideoStatus, R.string.SendingFile};
+        } else if (user != null && user.bot) {
+            statuses.add(getString(R.string.Bot));
+            statuses.add(LocaleController.formatPluralStringComma("BotUsers", 9999999, ','));
+            actions = new int[]{R.string.Typing, R.string.SendingPhoto, R.string.SendingVideoStatus, R.string.SendingFile};
+        } else if (user != null && UserObject.isUserSelf(user)) {
+            statuses.add(getString(R.string.ChatYourSelf));
+            statuses.add(getString(R.string.SavedMessagesViewAsChatsHint));
+            actions = new int[0];
+        } else if (user != null && (UserObject.isReplyUser(user) || user.id == UserObject.VERIFY
+                || user.id == 333000 || user.id == 777000 || user.id == 42777 || MessagesController.isSupportUser(user))) {
+            // A status that never changes (saved messages, notifications, support): only the one shown
+            actions = new int[0];
         } else {
             statuses.add(getString(R.string.Online));
             statuses.add(getString(R.string.Lately));
             statuses.add(getString(R.string.WithinAWeek));
             statuses.add(getString(R.string.WithinAMonth));
             statuses.add(LocaleController.formatString(R.string.LastSeenFormatted, LocaleController.formatString(R.string.YesterdayAtFormatted, "23:59")));
+            actions = new int[]{R.string.Typing, R.string.RecordingAudio, R.string.RecordingRound, R.string.SendingPhoto, R.string.SendingVideoStatus, R.string.SendingFile};
         }
         float width = 0;
         for (int i = 0; i < statuses.size(); i++) {
             width = Math.max(width, paint.measureText(statuses.get(i)));
         }
         // Actions come with the typing animation before them
-        final int[] actions = {R.string.Typing, R.string.RecordingAudio, R.string.RecordingRound, R.string.SendingPhoto, R.string.SendingVideoStatus, R.string.SendingFile};
         for (int action : actions) {
             width = Math.max(width, paint.measureText(getString(action)) + dp(24));
         }
