@@ -14979,9 +14979,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         ((MarginLayoutParams) messageEditTextContainer.getLayoutParams()).rightMargin = dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
         // Inside the field's end the send button is a capsule a fifth wider than tall, as on iOS
-        // (there 40 by 33 in a field 36 high), not a circle
+        // (there 40 by 33 in a field 36 high), not a circle: its background 46 by 38, and the same
+        // shape for its pressed and options states
         if (sendButton != null) {
-            sendButton.setCircleSize(dp(48), dp(DEFAULT_HEIGHT - 8));
+            sendButton.setGlassgramCapsuleWidth(dpf2(46));
+            sendButton.setCircleSize(dp(46), dp(38));
         }
         // The AI button sits right above the attach button, the two on one glass pill whatever the field's height
         if (aiButton != null) {
@@ -15457,6 +15459,16 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
         }
 
+        // Glassgram: the width of the button's background when it is a capsule rather than a circle (0: a circle)
+        private float glassgramCapsuleWidth;
+
+        public void setGlassgramCapsuleWidth(float width) {
+            if (glassgramCapsuleWidth != width) {
+                glassgramCapsuleWidth = width;
+                invalidate();
+            }
+        }
+
         private boolean isNewDesignSendButton;
 
         public SendButton(Context context, int resId, Theme.ResourcesProvider resourcesProvider, boolean isNewDesignSendButton) {
@@ -15702,7 +15714,8 @@ public class ChatActivityEnterView extends FrameLayout implements
             updateColors();
             checkBackgroundRect();
             if (isNewDesignSendButton) {
-                canvas.drawRoundRect(backgroundRect, dp(RADIUS), dp(RADIUS), backgroundPaint);
+                // a circle, or a capsule (glassgramCapsuleWidth): its ends round whatever its width
+                canvas.drawRoundRect(backgroundRect, backgroundRect.height() / 2f, backgroundRect.height() / 2f, backgroundPaint);
             }
 
             final boolean inactive = isInactive();
@@ -15710,7 +15723,9 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             int x, y;
             if (isNewDesignSendButton) {
-                x = Math.round(backgroundRect.right - backgroundRect.height() / 2f - drawable.getIntrinsicWidth() / 2f);
+                // in the middle of a capsule; a price makes it wider to the left, the arrow stays at its end
+                final float end = glassgramCapsuleWidth > 0 ? Math.min(backgroundRect.width(), Math.max(backgroundRect.height(), glassgramCapsuleWidth)) / 2f : backgroundRect.height() / 2f;
+                x = Math.round(backgroundRect.right - end - drawable.getIntrinsicWidth() / 2f);
                 y = Math.round(backgroundRect.top + backgroundRect.height() / 2f - drawable.getIntrinsicHeight() / 2f);
             } else {
                 x = getMeasuredWidth() - getMeasuredHeight() / 2 - drawable.getIntrinsicWidth() / 2;
@@ -16040,7 +16055,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             final float margin = dpf2(3);
             final float height = dpf2(38);
             final float width = lerp(
-                Math.max(height, dpf2(10 + 10) + priceText.getCurrentWidth()),
+                Math.max(Math.max(height, glassgramCapsuleWidth), dpf2(10 + 10) + priceText.getCurrentWidth()),
                 height, sameWidthFactor);
             backgroundRect.set(
                     getMeasuredWidth() - width - margin,
