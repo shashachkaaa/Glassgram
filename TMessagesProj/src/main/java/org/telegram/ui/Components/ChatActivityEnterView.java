@@ -14978,6 +14978,11 @@ public class ChatActivityEnterView extends FrameLayout implements
             ((MarginLayoutParams) richDraftPreview.getLayoutParams()).leftMargin = textLeft - dp(8);
         }
         ((MarginLayoutParams) messageEditTextContainer.getLayoutParams()).rightMargin = dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);
+        // Inside the field's end the send button is a capsule a fifth wider than tall, as on iOS
+        // (there 40 by 33 in a field 36 high), not a circle
+        if (sendButton != null) {
+            sendButton.setCircleSize(dp(48), dp(DEFAULT_HEIGHT - 8));
+        }
         // The AI button sits right above the attach button, the two on one glass pill whatever the field's height
         if (aiButton != null) {
             final FrameLayout.LayoutParams aiLp = (FrameLayout.LayoutParams) aiButton.getLayoutParams();
