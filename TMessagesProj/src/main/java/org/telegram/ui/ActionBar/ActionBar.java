@@ -2799,7 +2799,24 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
      */
     public int getAvatarContainerMaxWidth() {
         final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
-        return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6) - (hasBackButton ? glassBackCounterTouchExtra : 0);
+        final int backExtra = hasBackButton ? glassBackCounterTouchExtra : 0;
+        if (isIosCenteredPill()) {
+            // Centered on the bar: the room each side of it is what the wider side leaves, the back
+            // button with its badge or the avatar, less a gap from it
+            return getMeasuredWidth() - 2 * (dp(6 + 46 + IOS_PILL_GAP_DP) + backExtra);
+        }
+        return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6) - backExtra;
+    }
+
+    /*
+     * glassGram: in the iOS-like chat header (the avatar at the end) the title pill stays in the middle
+     * of the bar, as on iOS, and a long name leaves wide gaps to the back button and the avatar; between
+     * them it ran from one to the other.
+     */
+    private static final int IOS_PILL_GAP_DP = 16;
+
+    private boolean isIosCenteredPill() {
+        return glassMode && glassEndView != null && chatAvatarContainer != null;
     }
 
     public void checkAvatarContainerWidth(boolean animated) {
@@ -2944,8 +2961,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
             if (chatAvatarContainer != null) {
-                final int width = lerp(Math.min(widthDefault, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, Math.max(searchFactor, actionModeFactor));
-                left = (rightDefault + leftDefault - width) / 2;
+                final float openFactor = Math.max(searchFactor, actionModeFactor);
+                final int width = lerp(Math.min(widthDefault, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, openFactor);
+                final int between = (rightDefault + leftDefault - width) / 2;
+                if (isIosCenteredPill() && openFactor < 1f) {
+                    // In the middle of the bar, never over the buttons beside it
+                    final int centered = Math.max(leftDefault, Math.min((getWidth() - width) / 2, rightDefault - width));
+                    left = lerp(centered, between, openFactor);
+                } else {
+                    left = between;
+                }
                 right = left + width;
 
                 final float translationX = left

@@ -245,7 +245,10 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
         canvas.restore();
     }
 
-    /** glassGram: the playing track's progress along the bottom of the player's row, as far in as the dividers. */
+    /**
+     * glassGram: the playing track's progress along the bottom of the player's row, inside the glass:
+     * the row's bottom is the card's when it is the last, below the glass's own edge.
+     */
     private void drawAudioProgress(Canvas canvas) {
         if (callFragmentContextView == null) {
             return;
@@ -256,9 +259,14 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
             if (callFragmentContextView != view && callFragmentContextView.getParent() != view) {
                 continue;
             }
-            final float alpha = entry.getVisibility() * Math.min(1, entry.getPosition());
-            final float bottom = getPaddingTop() + entry.getRectF().bottom;
-            callFragmentContextView.drawAudioProgress(canvas, getPaddingLeft() + dp(14), getWidth() - getPaddingRight() - dp(14), bottom, alpha);
+            // Not the dividers' alpha: theirs is 0 for the first row, which has none above it
+            final float alpha = entry.getVisibility();
+            float bottom = getPaddingTop() + entry.getRectF().bottom;
+            if (backgroundDrawable != null && glassRect.height() > 0) {
+                bottom = Math.min(bottom, glassRect.bottom);
+            }
+            bottom -= dp(5);
+            callFragmentContextView.drawAudioProgress(canvas, getPaddingLeft() + dp(20), getWidth() - getPaddingRight() - dp(20), bottom, alpha);
             return;
         }
     }
