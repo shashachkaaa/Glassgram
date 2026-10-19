@@ -135,6 +135,8 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
     public void setCallFragmentContextView(FragmentContextView fragmentContextView) {
         callFragmentContextView = fragmentContextView;
         callFragmentContextView.getCapsuleBlobDrawable().setCallback(this);
+        // glassGram: the card draws the track's progress over its rows (see dispatchDraw)
+        callFragmentContextView.setAudioProgressDrawer(this::invalidate);
     }
 
     @Override
@@ -238,7 +240,26 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
         }
 
         super.dispatchDraw(canvas);
+        drawAudioProgress(canvas);
         canvas.restore();
         canvas.restore();
+    }
+
+    /** glassGram: the playing track's progress along the bottom of the player's row, as far in as the dividers. */
+    private void drawAudioProgress(Canvas canvas) {
+        if (callFragmentContextView == null) {
+            return;
+        }
+        for (int a = 0, N = getEntriesCount(); a < N; a++) {
+            final ListAnimator.Entry<AnimatedLinearLayout.Holder> entry = getEntry(a);
+            final View view = entry.item.view;
+            if (callFragmentContextView != view && callFragmentContextView.getParent() != view) {
+                continue;
+            }
+            final float alpha = entry.getVisibility() * Math.min(1, entry.getPosition());
+            final float bottom = getPaddingTop() + entry.getRectF().bottom;
+            callFragmentContextView.drawAudioProgress(canvas, getPaddingLeft() + dp(14), getWidth() - getPaddingRight() - dp(14), bottom, alpha);
+            return;
+        }
     }
 }

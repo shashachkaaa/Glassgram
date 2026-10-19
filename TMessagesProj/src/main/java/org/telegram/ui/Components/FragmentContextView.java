@@ -1600,6 +1600,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         } else if (id == NotificationCenter.messagePlayingProgressDidChanged) {
             if (currentStyle == STYLE_AUDIO_PLAYER) {
                 invalidate();
+                if (audioProgressDrawer != null) {
+                    audioProgressDrawer.run();
+                }
             }
         }
     }
@@ -2659,7 +2662,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         }
         super.dispatchDraw(canvas);
 
-        if (currentStyle == STYLE_AUDIO_PLAYER) {
+        if (currentStyle == STYLE_AUDIO_PLAYER && audioProgressDrawer == null) {
             MessageObject playingMessageObject = MediaController.getInstance().getPlayingMessageObject();
             if (playingMessageObject != null) {
                 final float left = -dpf2(1);
@@ -2673,6 +2676,38 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
         wasDraw = true;
+    }
+
+    /*
+     * glassGram: in the chat's glass card the card draws the track's progress itself, over all its
+     * rows at the bottom of this one (drawAudioProgress), and redraws it as the track plays; drawn
+     * here it did not show in the card.
+     */
+    private Runnable audioProgressDrawer;
+
+    public void setAudioProgressDrawer(Runnable redraw) {
+        audioProgressDrawer = redraw;
+    }
+
+    /** The playing track's progress as a line from left to right ending at bottom; false when no track plays here. */
+    public boolean drawAudioProgress(Canvas canvas, float left, float right, float bottom, float alpha) {
+        if (currentStyle != STYLE_AUDIO_PLAYER || alpha <= 0) {
+            return false;
+        }
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing == null) {
+            return false;
+        }
+        final float h = dpf2(2);
+        final float p = lerp(left, right, Math.max(0f, Math.min(1f, playing.audioProgress)));
+        if (p - left < h) {
+            return true;
+        }
+        final int color = getThemedColor(Theme.key_inappPlayerPlayPause);
+        progressPaint.setColor(color);
+        progressPaint.setAlpha((int) (Color.alpha(color) * alpha));
+        canvas.drawRoundRect(left, bottom - h, p, bottom, h / 2f, h / 2f, progressPaint);
+        return true;
     }
 
     boolean drawOverlay;
