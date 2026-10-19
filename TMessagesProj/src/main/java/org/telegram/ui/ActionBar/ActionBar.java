@@ -2802,8 +2802,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int backExtra = hasBackButton ? glassBackCounterTouchExtra : 0;
         if (isIosCenteredPill()) {
             // Centered on the bar: the room each side of it is what the wider side leaves, the back
-            // button with its badge or the avatar, less a gap from it
-            return getMeasuredWidth() - 2 * (dp(6 + 46 + IOS_PILL_GAP_DP) + backExtra);
+            // button with its badge or the avatar, less the gap from it
+            return getMeasuredWidth() - 2 * (iosHeaderSize(IOS_MARGIN) + iosHeaderSize(IOS_BUTTON) + iosHeaderSize(IOS_GAP) + backExtra);
         }
         return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6) - backExtra;
     }
@@ -2813,10 +2813,27 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
      * of the bar, as on iOS, and a long name leaves wide gaps to the back button and the avatar; between
      * them it ran from one to the other.
      */
-    private static final int IOS_PILL_GAP_DP = 16;
-
     private boolean isIosCenteredPill() {
         return glassMode && glassEndView != null && chatAvatarContainer != null;
+    }
+
+    /*
+     * The iOS-like chat header has iOS's sizes, measured on an iPhone 390pt wide: 44pt for the buttons
+     * and the pill, 16pt from the screen's edges, 13pt between them. They take the same part of the
+     * bar's width here, and no more than as many dp: the bar's 46dp circles 6dp from the edges took
+     * more of a narrower screen, and the name looked large beside the gaps. The name and the status
+     * shrink with the pill (getIosHeaderScale).
+     */
+    private static final float IOS_WIDTH = 390, IOS_BUTTON = 44, IOS_MARGIN = 16, IOS_GAP = 13;
+
+    private int iosHeaderSize(float pt) {
+        final int width = getMeasuredWidth() > 0 ? getMeasuredWidth() : AndroidUtilities.displaySize.x;
+        return Math.round(AndroidUtilities.dpf2(pt) * Math.min(1f, width / AndroidUtilities.dpf2(IOS_WIDTH)));
+    }
+
+    /** How much smaller than the bar's own (46dp) the iOS-like chat header's pill is, for the text in it. */
+    public float getIosHeaderScale() {
+        return iosHeaderSize(IOS_BUTTON) / (float) dp(46);
     }
 
     public void checkAvatarContainerWidth(boolean animated) {
@@ -2911,7 +2928,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int menuWidthB = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
         // With an end view the menu's glass is a circle under it, until search or selection need the menu
         final float endFactor = glassMode && glassEndView != null ? (1f - actionModeFactor) * (1f - searchFieldVisibleAlpha) : 0f;
-        final int menuWidth = lerp(menuWidthB, s, endFactor);
+        // The iOS-like chat header's sizes, back to the bar's own for search and selection
+        final float iosFactor = isIosCenteredPill() ? Math.max(0f, Math.min(1f, endFactor)) : 0f;
+        final int si = lerp(s, iosHeaderSize(IOS_BUTTON), iosFactor);
+        final int mi = lerp(p, iosHeaderSize(IOS_MARGIN), iosFactor);
+        final int menuWidth = lerp(menuWidthB, si, endFactor);
         if (glassEndView != null) {
             final float alpha = Math.max(0f, Math.min(1f, endFactor));
             if (glassEndView.getAlpha() != alpha) {
@@ -2944,19 +2965,21 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final float tx = chevron
                 ? AndroidUtilities.dpf2(-0.5f) - AndroidUtilities.dpf2(0.5f) * counterProgress
                 : dp(2) - dp(3) * counterProgress;
-            if (backButtonImageView.getTranslationX() != tx) {
-                backButtonImageView.setTranslationX(tx);
+            // In the middle of its circle wherever the circle is (the iOS-like chat header's is smaller, further in)
+            final float shift = (mi + si / 2f) - (p + s / 2f);
+            if (backButtonImageView.getTranslationX() != tx + shift) {
+                backButtonImageView.setTranslationX(tx + shift);
             }
         }
 
-        final int t = getHeight() - (getCurrentActionBarHeight() + s) / 2 - p;
-        final int b = t + s + p * 2;
+        final int t = getHeight() - (getCurrentActionBarHeight() + si) / 2 - p;
+        final int b = t + si + p * 2;
 
         if (glassDrawable != null && !glassOnlyBack && drawGlassTitle) {
-            final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
-            final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
+            final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? mi : 0) : (int) (mi * animatorHasMenuItems.getFloatValue()));
+            final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, mi + si), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
 
-            final int leftDefault = lerp(hasBackButton ? s + p + backExtra : (int) ((s + p) * closeFactor), s + p + backExtra, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
+            final int leftDefault = lerp(hasBackButton ? si + mi + backExtra : (int) ((si + mi) * closeFactor), si + mi + backExtra, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
             final int rightDefault = getWidth() - rightOffset;
             final int widthDefault = rightDefault - leftDefault;
             final int left, right;
@@ -3001,12 +3024,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         // while topics are open beside it, and its glass stayed there as a smudge under the topics' bar
         final float backAlpha = Math.max(hasBackButton ? backButtonImageView.getAlpha() : closeFactor, glassBackOverlay);
         if (glassDrawableBack != null && backAlpha > 0 && glassAlpha > 0) {
-            glassDrawableBack.setBounds(0, t, s + p * 2 + backExtra, b);
+            glassDrawableBack.setBounds(mi - p, t, mi + si + p + backExtra, b);
             glassDrawableBack.setAlpha((int) (255 * glassAlpha * backAlpha));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
         if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && glassAlpha > 0) {
-            glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
+            glassDrawableMenu.setBounds(getWidth() - Math.max(si, menuWidth) - p - mi, t, getWidth() - mi + p, b);
             glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * Math.max(endFactor, animatorHasMenuItems.getFloatValue()))));
             drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
             if (glassEndView != null) {
@@ -3020,6 +3043,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 }
                 if (glassEndView.getTranslationY() != ty) {
                     glassEndView.setTranslationY(ty);
+                }
+                // A 2dp rim of glass around it in a circle of any size
+                final float scale = (si - dp(4)) / (float) glassEndView.getWidth();
+                if (glassEndView.getWidth() > 0 && glassEndView.getScaleX() != scale) {
+                    glassEndView.setScaleX(scale);
+                    glassEndView.setScaleY(scale);
                 }
             }
         }

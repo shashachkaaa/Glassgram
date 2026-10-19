@@ -788,8 +788,38 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         subtitleTextView.setTag(subtitle);
     }
 
+    /*
+     * glassGram: the iOS-like header's pill is smaller than the bar's 46dp circles on a screen narrower
+     * than an iPhone's (ActionBar.getIosHeaderScale), and the name and the status in it with it, as
+     * they are in the pill on iOS.
+     */
+    private float iosTextScale = 1f;
+
+    private void updateIosTextScale() {
+        final float scale = iosHeader && actionBar != null ? actionBar.getIosHeaderScale() : 1f;
+        if (!glassMode || scale == iosTextScale) {
+            return;
+        }
+        iosTextScale = scale;
+        titleTextView.setTextSizePx(Math.round(dpf2(17.5f) * scale));
+        if (subtitleTextView != null) {
+            subtitleTextView.setTextSizePx(Math.round(dpf2(13.5f) * scale));
+        }
+        iosStatusBudget = -1;
+    }
+
+    /** A height in the bar, nearer its middle by the iOS-like header's scale. */
+    private int iosY(int y) {
+        if (iosTextScale == 1f) {
+            return y;
+        }
+        final float middle = ActionBar.getCurrentActionBarHeight() / 2f + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0);
+        return Math.round(middle + (y - middle) * iosTextScale);
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        updateIosTextScale();
         final int width = MeasureSpec.getSize(widthMeasureSpec);
         final int availableWidth = width - dp((avatarImageView.getVisibility() == VISIBLE ? 54 : 0) + 16);
         avatarImageView.measure(MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(avatarSizeInDp) - 2, MeasureSpec.EXACTLY));
@@ -836,7 +866,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         titleTextLargerCopyView = new SimpleTextView(getContext());
         this.titleTextLargerCopyView.set(titleTextLargerCopyView);
         titleTextLargerCopyView.setTextColor(getThemedColor(Theme.key_actionBarDefaultTitle));
-        titleTextLargerCopyView.setTextSizePx(dp(glassMode ? 17.5f : 18));
+        titleTextLargerCopyView.setTextSizePx((int) titleTextView.getPaint().getTextSize());
         titleTextLargerCopyView.setGravity(Gravity.LEFT);
         titleTextLargerCopyView.setTypeface(AndroidUtilities.bold());
         titleTextLargerCopyView.setLeftDrawableTopPadding(-dp(1.3f));
@@ -862,7 +892,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         this.subtitleTextLargerCopyView.set(subtitleTextLargerCopyView);
         subtitleTextLargerCopyView.setTextColor(getThemedColor(Theme.key_actionBarDefaultSubtitle));
         subtitleTextLargerCopyView.setTag(Theme.key_actionBarDefaultSubtitle);
-        subtitleTextLargerCopyView.setTextSizePx(dp(glassMode ? 13.5f : 14));
+        subtitleTextLargerCopyView.setTextSizePx(subtitleTextView != null ? (int) subtitleTextView.getPaint().getTextSize() : dp(glassMode ? 13.5f : 14));
         subtitleTextLargerCopyView.setGravity(Gravity.LEFT);
         if (subtitleTextView != null) {
             subtitleTextLargerCopyView.setText(subtitleTextView.getText());
@@ -996,7 +1026,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         final int actionBarHeight = ActionBar.getCurrentActionBarHeight();
         final int viewTop = (actionBarHeight - avatarImageView.getMeasuredHeight() - 2) / 2 + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0);
-        final int subtitleTop = viewTop + dp(glassMode ? 23.66f : 24);
+        final int subtitleTop = iosY(viewTop + dp(glassMode ? 23.66f : 24));
 
         avatarImageView.layout(1 + leftPadding, 1 + viewTop, 1 + leftPadding + avatarImageView.getMeasuredWidth(), 1 + viewTop + avatarImageView.getMeasuredHeight());
         final int l = leftPadding + (avatarImageView.getVisibility() == VISIBLE ? dp(glassMode ? 49.66f : 55) : dp(glassMode ? 13 : 1)) + rightAvatarPadding;
@@ -1012,14 +1042,17 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
         SimpleTextView titleTextLargerCopyView = this.titleTextLargerCopyView.get();
         if (getSubtitleTextView().getVisibility() != GONE) {
-            titleTextView.layout(titleLeft, viewTop + dp(1.66f) - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(1.66f) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
+            final int titleTop = iosY(viewTop + dp(1.66f));
+            titleTextView.layout(titleLeft, titleTop - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), titleTop + titleTextView.getTextHeight() - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
             if (titleTextLargerCopyView != null) {
-                titleTextLargerCopyView.layout(titleLeft, viewTop + dp(1.66f), titleLeft + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(1.66f));
+                titleTextLargerCopyView.layout(titleLeft, titleTop, titleLeft + titleTextLargerCopyView.getMeasuredWidth(), titleTop + titleTextLargerCopyView.getTextHeight());
             }
         } else {
-            titleTextView.layout(titleLeft, viewTop + dp(11) - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), viewTop + titleTextView.getTextHeight() + dp(11) - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
+            final int titleTop = iosY(viewTop + dp(11));
+            titleTextView.layout(titleLeft, titleTop - titleTextView.getPaddingTop(), titleLeft + titleTextView.getMeasuredWidth(), titleTop + titleTextView.getTextHeight() - titleTextView.getPaddingTop() + titleTextView.getPaddingBottom());
             if (titleTextLargerCopyView != null) {
-                titleTextLargerCopyView.layout(titleLeft, viewTop + dp(10), titleLeft + titleTextLargerCopyView.getMeasuredWidth(), viewTop + titleTextLargerCopyView.getTextHeight() + dp(10));
+                final int copyTop = iosY(viewTop + dp(10));
+                titleTextLargerCopyView.layout(titleLeft, copyTop, titleLeft + titleTextLargerCopyView.getMeasuredWidth(), copyTop + titleTextLargerCopyView.getTextHeight());
             }
         }
         if (communityItem != null) {
