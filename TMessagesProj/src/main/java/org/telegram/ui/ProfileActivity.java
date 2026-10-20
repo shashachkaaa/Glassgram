@@ -3113,7 +3113,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
 
                 if (previousTransitionFragment != null) {
-                    nameTextView[0].setRightPadding(nameTextView[0].getMeasuredWidth() - previousTransitionFragment.getAvatarContainer().getTitleTextView().getMeasuredWidth());
+                    // glassGram: the header's name may be smaller than the copy (the iOS-like header, see
+                    // prevHeaderScale): as wide as it is at the copy's size, or the copy cut it
+                    final SimpleTextView chatTitle = previousTransitionFragment.getAvatarContainer().getTitleTextView();
+                    final float titleScale = chatTitle.getPaint().getTextSize() / nameTextView[0].getPaint().getTextSize();
+                    nameTextView[0].setRightPadding(nameTextView[0].getMeasuredWidth() - (int) Math.ceil(chatTitle.getMeasuredWidth() / (titleScale > 0 ? titleScale : 1f)));
                 }
 
                 if (!fragmentOpened && (expandPhoto || openAnimationInProgress && playProfileAnimation == 2)) {
@@ -9033,6 +9037,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         int buttonsWidth = AndroidUtilities.dp((openAnimationInProgress ? 109 : 47) + 8 + (40 + extra * (1.0f - mediaHeaderAnimationProgress)));
         int minOnlineWidth = viewWidth - buttonsWidth;
         int minWidth = (int) (minOnlineWidth / (startWidth != 0 ? 1f : minScale));
+        if (openAnimationInProgress) {
+            // glassGram: the iOS-like header's name and status are centered and wider than the room
+            // left of the profile's buttons: they start as wide as they are there
+            minWidth = Math.max(minWidth, prevTitleWidth);
+            minOnlineWidth = Math.max(minOnlineWidth, prevSubtitleWidth);
+        }
         int maxOnlineWidth = startWidth != 0 ? startWidth : viewWidth - AndroidUtilities.dp(18) * 2;
         int maxWidth = startWidth != 0 ? startWidth : (int) (maxOnlineWidth / maxScale);
 
@@ -9996,6 +10006,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private float prevAvatarSize = 42;
     // ...and its name's and status's colors (0: the bar's own)
     private int prevTitleColor, prevSubtitleColor;
+    // ...and the room its name and status take there, at the profile's sizes
+    private int prevTitleWidth, prevSubtitleWidth;
 
     /*
      * The name and the status the profile starts from are its first copies, laid out for the profile's
@@ -10056,6 +10068,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevAvatarSize = endAvatar.getWidth() > 0 ? endAvatar.getWidth() * avatarScale / AndroidUtilities.density : 42;
             prevHeaderScale = container.getTitleTextView().getPaint().getTextSize() / dpf2(17.5f);
             prevTitleColor = container.getTitleTextView().getTextColor();
+            prevTitleWidth = (int) Math.ceil(container.getTitleTextView().getMeasuredWidth() / prevHeaderScale);
+            prevSubtitleWidth = container.getSubtitleTextView() != null ? (int) Math.ceil(container.getSubtitleTextView().getMeasuredWidth() / prevHeaderScale) : 0;
             prevSubtitleColor = container.getSubtitleTextView() instanceof SimpleTextView ? ((SimpleTextView) container.getSubtitleTextView()).getTextColor() : 0;
             prevNameTranslation = ViewPositionWatcher.computeXCoordinateInParent(container.getTitleTextView(), parent) - dp(109);
             prevOnlineTranslation = ViewPositionWatcher.computeXCoordinateInParent(container.getSubtitleTextView(), parent) - dp(109) - dp(8) * (1f - prevHeaderScale);
@@ -10065,6 +10079,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevHeaderScale = 1f;
             prevAvatarSize = 42;
             prevTitleColor = prevSubtitleColor = 0;
+            prevTitleWidth = prevSubtitleWidth = 0;
         }
     }
 
@@ -10147,6 +10162,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevHeaderScale = 1f;
             prevAvatarSize = 42;
             prevTitleColor = prevSubtitleColor = 0;
+            prevTitleWidth = prevSubtitleWidth = 0;
             for (int i = 0; i < 2; i++) {
                 FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) onlineTextView[i + 1].getLayoutParams();
                 layoutParams.rightMargin = (int) (-21 * AndroidUtilities.density + AndroidUtilities.dp(8));
