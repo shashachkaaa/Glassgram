@@ -9927,7 +9927,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         actionBar.setItemsColor(ColorUtils.blendARGB(iconColor, color, avatarAnimationProgress), false);
 
         color = peerColor != null ? Color.WHITE : getThemedColor(Theme.key_profile_title);
-        int titleColor = /*peerColor != null ? Color.WHITE :*/ getThemedColor(Theme.key_actionBarDefaultTitle);
+        // glassGram: from the colors of the header it opens from (see prevTitleColor)
+        int titleColor = /*peerColor != null ? Color.WHITE :*/ prevTitleColor != 0 ? prevTitleColor : getThemedColor(Theme.key_actionBarDefaultTitle);
         for (int i = 0; i < 2; i++) {
             if (nameTextView[i] == null || i == 1 && playProfileAnimation == 2) {
                 continue;
@@ -9936,7 +9937,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         color = isOnline[0] ? getThemedColor(Theme.key_profile_status) : AvatarDrawable.getProfileTextColorForId(userId != 0 || ChatObject.isChannel(chatId, currentAccount) && !currentChat.megagroup ? 5 : chatId, resourcesProvider);
-        int subtitleColor = getThemedColor(isOnline[0] ? Theme.key_chat_status : Theme.key_actionBarDefaultSubtitle);
+        int subtitleColor = prevSubtitleColor != 0 ? prevSubtitleColor : getThemedColor(isOnline[0] ? Theme.key_chat_status : Theme.key_actionBarDefaultSubtitle);
         for (int i = 0; i < 3; i++) {
             if (onlineTextView[i] == null || i == 1 || i == 2 && playProfileAnimation == 2) {
                 continue;
@@ -9993,6 +9994,41 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
      */
     private float prevHeaderScale = 1f;
     private float prevAvatarSize = 42;
+    // ...and its name's and status's colors (0: the bar's own)
+    private int prevTitleColor, prevSubtitleColor;
+
+    /*
+     * The name and the status the profile starts from are its first copies, laid out for the profile's
+     * own bar, narrower than the header's centered name: a long name was cut there and lost its badge.
+     * While the profile goes to or from that header they take the whole width after their start.
+     */
+    private int[] transitionCopyMargins;
+
+    private void widenTransitionCopies(boolean widen) {
+        final View[] copies = {nameTextView[0], onlineTextView[0]};
+        if (widen == (transitionCopyMargins != null)) {
+            return;
+        }
+        if (widen) {
+            transitionCopyMargins = new int[copies.length];
+        }
+        for (int i = 0; i < copies.length; i++) {
+            if (copies[i] == null || !(copies[i].getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+                continue;
+            }
+            final FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) copies[i].getLayoutParams();
+            if (widen) {
+                transitionCopyMargins[i] = lp.rightMargin;
+                lp.rightMargin = 0;
+            } else {
+                lp.rightMargin = transitionCopyMargins[i];
+            }
+            copies[i].setLayoutParams(lp);
+        }
+        if (!widen) {
+            transitionCopyMargins = null;
+        }
+    }
 
     /** How much lower the name starts than at its 1.3dp below a 42dp avatar, for the header's scale. */
     private float prevNameShiftY() {
@@ -10019,6 +10055,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevAvatarTranslation = ViewPositionWatcher.computeXCoordinateInParent(endAvatar, parent) + endAvatar.getWidth() * (1f - avatarScale) / 2f;
             prevAvatarSize = endAvatar.getWidth() > 0 ? endAvatar.getWidth() * avatarScale / AndroidUtilities.density : 42;
             prevHeaderScale = container.getTitleTextView().getPaint().getTextSize() / dpf2(17.5f);
+            prevTitleColor = container.getTitleTextView().getTextColor();
+            prevSubtitleColor = container.getSubtitleTextView() instanceof SimpleTextView ? ((SimpleTextView) container.getSubtitleTextView()).getTextColor() : 0;
             prevNameTranslation = ViewPositionWatcher.computeXCoordinateInParent(container.getTitleTextView(), parent) - dp(109);
             prevOnlineTranslation = ViewPositionWatcher.computeXCoordinateInParent(container.getSubtitleTextView(), parent) - dp(109) - dp(8) * (1f - prevHeaderScale);
         } else {
@@ -10026,6 +10064,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevNameTranslation = prevOnlineTranslation = prevAvatarTranslation - dp(109) + dp(48);
             prevHeaderScale = 1f;
             prevAvatarSize = 42;
+            prevTitleColor = prevSubtitleColor = 0;
         }
     }
 
@@ -10081,6 +10120,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         transitionChatActionBar = previousActionBar != null && ((ChatActivity) previousTransitionFragment).hasIosHeader() ? previousActionBar : null;
         fadeTransitionButtons(isOpen ? 0f : 1f);
+        widenTransitionCopies(transitionChatActionBar != null);
 
         final boolean fromChat = previousTransitionFragment instanceof ChatActivity && ((ChatActivity) previousTransitionFragment).getCurrentChat() != null;
         if (previousTransitionFragment != null) {
@@ -10106,6 +10146,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             prevNameTranslation = prevOnlineTranslation = -dp(109) + dp(48);
             prevHeaderScale = 1f;
             prevAvatarSize = 42;
+            prevTitleColor = prevSubtitleColor = 0;
             for (int i = 0; i < 2; i++) {
                 FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) onlineTextView[i + 1].getLayoutParams();
                 layoutParams.rightMargin = (int) (-21 * AndroidUtilities.density + AndroidUtilities.dp(8));
@@ -10374,6 +10415,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 // The profile's buttons whole again, the chat's back button as it was
                 fadeTransitionButtons(1f);
                 transitionChatActionBar = null;
+                widenTransitionCopies(false);
                 if (previousActionBar != null) {
                     previousActionBar.setSkipDrawChild(false);
                 }
