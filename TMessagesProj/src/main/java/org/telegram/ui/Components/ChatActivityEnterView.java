@@ -10495,6 +10495,9 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (messageSendPreview != null) {
             messageSendPreview.updateColors();
         }
+        if (botCommandsMenuButton != null && glassgramSplit()) {
+            botCommandsMenuButton.setGlassgramColor(getThemedColor(Theme.key_chat_messagePanelSend));
+        }
 
         updateRecordedDeleteIconColors();
         if (recordCircle != null) {
@@ -14947,6 +14950,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         final boolean menu = botCommandsMenuButton != null && botCommandsMenuButton.getTag() != null;
         if (botCommandsMenuButton != null) {
             botCommandsMenuButton.setGlassgramStyle(true);
+            // In the chat theme's accent, as the send button and the menu button on iOS
+            botCommandsMenuButton.setGlassgramColor(getThemedColor(Theme.key_chat_messagePanelSend));
         }
         glassgramAttachLeft = menu ? dp(8 + 6 + GLASSGRAM_GAP) + botCommandsMenuButton.getMeasuredWidth() : 0;
         glassgramFieldLeft = glassgramAttachLeft + dp(DEFAULT_HEIGHT + GLASSGRAM_GAP);

@@ -98,11 +98,21 @@ public class BotCommandsMenuView extends View {
     }
 
     private boolean glassgramStyle;
+    private int glassgramColor;
 
-    /** Glassgram: a gray pill with white text, for the menu's own glass piece in the split input. */
+    /** Glassgram: a pill with white text, for the menu's own glass piece in the split input. */
     public void setGlassgramStyle(boolean glassgramStyle) {
         if (this.glassgramStyle != glassgramStyle) {
             this.glassgramStyle = glassgramStyle;
+            updateColors();
+            invalidate();
+        }
+    }
+
+    /** The pill's color in the glassgram style: the chat theme's accent, as iOS colors the menu button (0: gray). */
+    public void setGlassgramColor(int color) {
+        if (glassgramColor != color) {
+            glassgramColor = color;
             updateColors();
             invalidate();
         }
@@ -115,7 +125,7 @@ public class BotCommandsMenuView extends View {
 
     private void updateColors() {
         paint.setColor(glassgramStyle
-            ? Theme.multAlpha(Theme.getColor(Theme.key_glass_defaultIcon), 0.45f)
+            ? (glassgramColor != 0 ? glassgramColor : Theme.multAlpha(Theme.getColor(Theme.key_glass_defaultIcon), 0.45f))
             : Theme.getColor(Theme.key_chat_messagePanelVoiceBackground));
         int textColor = glassgramStyle ? 0xFFFFFFFF : Theme.getColor(Theme.key_chat_messagePanelVoiceDuration);
         backDrawable.setBackColor(textColor);
