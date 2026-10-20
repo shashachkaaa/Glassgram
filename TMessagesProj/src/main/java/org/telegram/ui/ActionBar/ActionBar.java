@@ -2833,17 +2833,18 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
         final int backExtra = hasBackButton ? glassBackCounterTouchExtra : 0;
         if (isIosCenteredPill()) {
-            // Centered on the bar: the room each side of it is what the wider side leaves, the back
-            // button with its badge or the avatar, less the gap from it
-            return getMeasuredWidth() - 2 * (iosHeaderSize(IOS_MARGIN) + iosHeaderSize(IOS_BUTTON) + iosHeaderSize(IOS_GAP) + backExtra);
+            // All the room between the back button with its badge and the avatar, less the gaps from
+            // them: a long name moves off the middle as on iOS; centered on the bar, the side with a
+            // wide badge ("363") left room unused on the other
+            return getMeasuredWidth() - 2 * (iosHeaderSize(IOS_MARGIN) + iosHeaderSize(IOS_BUTTON) + iosHeaderSize(IOS_GAP)) - backExtra;
         }
         return getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6) - backExtra;
     }
 
     /*
      * glassGram: in the iOS-like chat header (the avatar at the end) the title pill stays in the middle
-     * of the bar, as on iOS, and a long name leaves wide gaps to the back button and the avatar; between
-     * them it ran from one to the other.
+     * of the bar, as on iOS, and a long name leaves gaps to the back button and the avatar; between them
+     * it ran from one to the other.
      */
     private boolean isIosCenteredPill() {
         return glassMode && glassEndView != null && chatAvatarContainer != null;
@@ -3025,8 +3026,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 final int width = lerp(Math.min(widthDefault, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, openFactor);
                 final int between = (rightDefault + leftDefault - width) / 2;
                 if (isIosCenteredPill() && openFactor < 1f) {
-                    // In the middle of the bar, never over the buttons beside it
-                    final int centered = Math.max(leftDefault, Math.min((getWidth() - width) / 2, rightDefault - width));
+                    // In the middle of the bar while it fits there, else as near it as the gaps to the
+                    // buttons beside it let it (the glass's own inset p is part of each gap)
+                    final int gap = Math.max(0, iosHeaderSize(IOS_GAP) - p);
+                    final int centered = Math.max(leftDefault + gap, Math.min((getWidth() - width) / 2, rightDefault - gap - width));
                     left = lerp(centered, between, openFactor);
                 } else {
                     left = between;
