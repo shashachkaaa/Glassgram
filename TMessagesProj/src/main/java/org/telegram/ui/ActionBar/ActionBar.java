@@ -2794,8 +2794,23 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean doNotDrawChild;
 
     public void setSkipDrawChild(boolean skip) {
+        if (!skip) {
+            skipDrawChildBackAlpha = 0f;
+        }
         if (doNotDrawChild != skip) {
             doNotDrawChild = skip;
+            invalidate();
+        }
+    }
+
+    // glassGram: the back button stays while the children are skipped, at this alpha: the profile opening
+    // from the chat's header fades its own back button in over it, and out over it as it closes
+    private float skipDrawChildBackAlpha;
+
+    public void setSkipDrawChildBackAlpha(float alpha) {
+        alpha = Math.max(0f, Math.min(1f, alpha));
+        if (skipDrawChildBackAlpha != alpha) {
+            skipDrawChildBackAlpha = alpha;
             invalidate();
         }
     }
@@ -3087,6 +3102,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         isAnimationsAllowed = true;
         if (doNotDrawChild) {
+            if (skipDrawChildBackAlpha > 0f && backButtonImageView != null && backButtonImageView.getVisibility() == VISIBLE) {
+                canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (255 * skipDrawChildBackAlpha));
+                drawChild(canvas, backButtonImageView, getDrawingTime());
+                canvas.restore();
+            }
             return;
         }
 

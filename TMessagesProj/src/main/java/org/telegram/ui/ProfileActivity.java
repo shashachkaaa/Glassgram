@@ -9866,8 +9866,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private AboutLinkCell aboutLinkCell;
 
     @Keep
+    /*
+     * glassGram: the chat's bar with the iOS-like header the profile opens from or closes into: its back
+     * button fades out as the profile's back button and menu fade in, and back as they go. They stood
+     * there whole from the first frame, over the header still on its way.
+     */
+    private ActionBar transitionChatActionBar;
+
+    private void fadeTransitionButtons(float progress) {
+        if (transitionChatActionBar == null || actionBar == null) {
+            return;
+        }
+        final float alpha = Math.max(0f, Math.min(1f, progress));
+        transitionChatActionBar.setSkipDrawChildBackAlpha(1f - alpha);
+        if (actionBar.getBackButton() != null) {
+            actionBar.getBackButton().setAlpha(alpha);
+        }
+        actionBar.createMenu().setAlpha(alpha);
+        actionBar.invalidate();
+    }
+
     public void setAvatarAnimationProgress(float progress) {
         avatarAnimationProgress = currentExpandAnimatorValue = progress;
+        fadeTransitionButtons(progress);
         checkPhotoDescriptionAlpha();
         if (playProfileAnimation == 2) {
             avatarImage.setProgressToExpand(progress);
@@ -10058,6 +10079,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else {
             previousActionBar = null;
         }
+        transitionChatActionBar = previousActionBar != null && ((ChatActivity) previousTransitionFragment).hasIosHeader() ? previousActionBar : null;
+        fadeTransitionButtons(isOpen ? 0f : 1f);
 
         final boolean fromChat = previousTransitionFragment instanceof ChatActivity && ((ChatActivity) previousTransitionFragment).getCurrentChat() != null;
         if (previousTransitionFragment != null) {
@@ -10348,6 +10371,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         animatorSet.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
+                // The profile's buttons whole again, the chat's back button as it was
+                fadeTransitionButtons(1f);
+                transitionChatActionBar = null;
                 if (previousActionBar != null) {
                     previousActionBar.setSkipDrawChild(false);
                 }
