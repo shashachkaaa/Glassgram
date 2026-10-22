@@ -95,7 +95,10 @@
       "badge": "critic",
       "text": "Пидорас"
     },
-    "6090475162": "supporter",
+    "6090475162": {
+      "badge": "peter",
+      "text": "босс"
+    },
     "8048923927": {
       "badge": "glassgram",
       "text": "Официальный бот шпион от glassGram."
