@@ -9,6 +9,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 
@@ -29,6 +30,9 @@ import org.telegram.ui.Stars.StarsReactionsSheet;
  *
  * As a drawable (next to names in SimpleTextView) it animates through its callback; the same
  * drawing is used by {@link GlassgramBadgeSpan} inside text.
+ *
+ * A badge can be a picture (a bitmap, like the "peter" face) instead of a glyph: it keeps its own
+ * colors and is cut to the rosette, which shows in the name's color around it.
  */
 public class GlassgramBadgeDrawable extends Drawable {
 
@@ -51,7 +55,23 @@ public class GlassgramBadgeDrawable extends Drawable {
         size = sizePx;
         shape = ContextCompat.getDrawable(ApplicationLoader.applicationContext, R.drawable.glassgram_badge_shape).mutate();
         glyph = ContextCompat.getDrawable(ApplicationLoader.applicationContext, glyphResId).mutate();
+        picture = glyph instanceof BitmapDrawable;
+        if (picture) {
+            ((BitmapDrawable) glyph).getPaint().setFilterBitmap(true);
+            ((BitmapDrawable) glyph).getPaint().setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
+        }
         particles = new StarsReactionsSheet.Particles(StarsReactionsSheet.Particles.TYPE_RADIAL, 8);
+    }
+
+    private final boolean picture;
+
+    /** Whether the badge's glyph is a picture, drawn in its own colors (see the class). */
+    public static boolean isPicture(int glyphResId) {
+        try {
+            return ContextCompat.getDrawable(ApplicationLoader.applicationContext, glyphResId) instanceof BitmapDrawable;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** The color of the name next to the badge. */
@@ -128,11 +148,19 @@ public class GlassgramBadgeDrawable extends Drawable {
             lastCutout = cutout;
             lastGlyphColor = glyphColor;
             shape.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
-            glyph.setColorFilter(new PorterDuffColorFilter(cutout ? 0xFF000000 : glyphColor, PorterDuff.Mode.SRC_IN));
+            if (!picture) {
+                glyph.setColorFilter(new PorterDuffColorFilter(cutout ? 0xFF000000 : glyphColor, PorterDuff.Mode.SRC_IN));
+            }
         }
         shape.setBounds(left, top, left + badgeSize, top + badgeSize);
         glyph.setBounds(left, top, left + badgeSize, top + badgeSize);
-        if (cutout) {
+        if (picture) {
+            // The picture over the rosette, cut to it (its paint draws SRC_ATOP)
+            final int layer = canvas.saveLayer(left, top, left + badgeSize, top + badgeSize, null);
+            shape.draw(canvas);
+            glyph.draw(canvas);
+            canvas.restoreToCount(layer);
+        } else if (cutout) {
             // A white rosette with the glyph showing the cover through it
             cutoutPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
             final int layer = canvas.saveLayer(left, top, left + badgeSize, top + badgeSize, null);

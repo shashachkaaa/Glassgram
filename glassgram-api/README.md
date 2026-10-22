@@ -42,7 +42,9 @@ from your own server instead, change `GlassgramBadges.API_URL` and return the sa
 
 - `badges` — the badge kinds, by any id you like.
   - `icon` — the glyph on the badge: `arrow` (the Glassgram arrow), `check`, `star`, `heart`,
-    `bolt`, `crown`, `code`, `shield`.
+    `bolt`, `crown`, `code`, `shield`, `supporter`; or a picture in its own colors, cut to the
+    rosette: `peter` (Peter Griffin's face). Older versions of the app show a picture's badge
+    with the arrow.
   - `text` — what tapping the badge shows, per language code; `en` is the fallback. A plain
     string works too.
   - `donate_bot` — optional, for supporters' badges: the bot that takes donations (without `@`).

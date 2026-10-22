@@ -14,6 +14,7 @@ import org.json.JSONObject;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.GlassgramBadgeDrawable;
 import org.telegram.ui.Components.GlassgramBadgeSpan;
 import org.telegram.ui.Components.CombinedDrawable;
 
@@ -112,6 +113,9 @@ public final class GlassgramBadges {
                     return R.drawable.glassgram_badge_shield;
                 case "supporter":
                     return R.drawable.glassgram_badge_supporter;
+                // Pictures, drawn in their own colors in the rosette (see GlassgramBadgeDrawable)
+                case "peter":
+                    return R.drawable.glassgram_badge_peter;
                 case "arrow":
                 default:
                     return R.drawable.glassgram_badge_arrow;
@@ -120,6 +124,13 @@ public final class GlassgramBadges {
 
         /** The badge drawn still at sizePx for bulletins, in the theme's verified colors. */
         public Drawable createDrawable(Context context, int sizePx) {
+            if (GlassgramBadgeDrawable.isPicture(getIconResId())) {
+                // A picture keeps its colors and is cut to the rosette
+                final GlassgramBadgeDrawable drawable = new GlassgramBadgeDrawable(getIconResId(), sizePx);
+                drawable.setColor(Theme.getColor(Theme.key_chats_verifiedBackground));
+                drawable.setBounds(0, 0, sizePx, sizePx);
+                return drawable;
+            }
             Drawable shape = ContextCompat.getDrawable(context, R.drawable.glassgram_badge_shape).mutate();
             shape.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chats_verifiedBackground), PorterDuff.Mode.SRC_IN));
             Drawable glyph = ContextCompat.getDrawable(context, getIconResId()).mutate();

@@ -50,6 +50,13 @@
         "en": "Armchair critic.",
         "ru": "Диванный критик."
       }
+    },
+    "peter": {
+      "icon": "peter",
+      "text": {
+        "en": "Approved by Peter Griffin.",
+        "ru": "Питер Гриффин одобряет."
+      }
     }
   },
   "peers": {
