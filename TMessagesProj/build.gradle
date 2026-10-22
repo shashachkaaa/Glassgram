@@ -285,6 +285,8 @@ chaquopy {
             install "pyyaml==6.0.3"
             install "pillow==11.0.0"
             install "lxml==5.3.0"
+            // Library plugins (zwylib and others) import it, as exteraGram has it
+            install "typing_extensions==4.12.2"
         }
     }
 }
