@@ -125,10 +125,9 @@ android {
 
     // glassGram: the RuStore edition (-PGLASSGRAM_STORE=true) cannot ask to install packages:
     // its own manifest, merged over all the others, removes REQUEST_INSTALL_PACKAGES
+    // (the variant's source set does not exist yet here: it is created for it)
     if ((project.findProperty("GLASSGRAM_STORE") ?: "false").toString() == "true") {
-        sourceSets.afatRelease {
-            manifest.srcFile '../TMessagesProj/config/store/AndroidManifest.xml'
-        }
+        sourceSets.maybeCreate("afatRelease").manifest.srcFile('../TMessagesProj/config/store/AndroidManifest.xml')
     }
 
     flavorDimensions "minApi"
