@@ -290,6 +290,7 @@
     <string name="GlassgramGlassHeader">Стеклянная шапка списка чатов</string>
     <string name="GlassgramSplitInput">Раздельное поле ввода</string>
     <string name="GlassgramUpdateTitle">Обновление glassGram</string>
+    <string name="GlassgramApkStore">glassGram из RuStore не устанавливает приложения. Сохраните APK в «Загрузки» и откройте его в файловом менеджере.</string>
     <string name="GlassgramUpdateText">Вышел glassGram %1$s. У вас %2$s.</string>
     <string name="GlassgramUpdateDownload">Скачать</string>
     <string name="GlassgramUpdateLater">Напомнить позже</string>

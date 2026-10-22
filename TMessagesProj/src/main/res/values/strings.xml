@@ -11295,6 +11295,7 @@
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
     <string name="GlassgramSplitInput">Split Message Field</string>
     <string name="GlassgramUpdateTitle">glassGram update</string>
+    <string name="GlassgramApkStore">glassGram from RuStore doesn\'t install apps. Save the APK to Downloads and open it from a file manager.</string>
     <string name="GlassgramUpdateText">glassGram %1$s is out. You have %2$s.</string>
     <string name="GlassgramUpdateDownload">Download</string>
     <string name="GlassgramUpdateLater">Remind me later</string>

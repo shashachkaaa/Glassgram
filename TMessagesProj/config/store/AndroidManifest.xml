@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    glassGram: merged over the app's manifest in the RuStore edition (-PGLASSGRAM_STORE=true, see
+    TMessagesProj_App/build.gradle). RuStore refuses an app that can ask to install packages
+    (rules 2.14, 5.3, 6.3, 10.1), and the edition updates only through the store.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+
+</manifest>

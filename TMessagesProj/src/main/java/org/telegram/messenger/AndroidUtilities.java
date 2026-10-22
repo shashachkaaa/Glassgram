@@ -4260,6 +4260,11 @@ public class AndroidUtilities {
                             }
                         }
                     }
+                    if (GlassgramConfig.STORE_BUILD && "application/vnd.android.package-archive".equals(realMimeType)) {
+                        // glassGram: the RuStore edition cannot install it, see openForView
+                        openForView(f, fileName, realMimeType, activity, null, false);
+                        return;
+                    }
                     if (Build.VERSION.SDK_INT >= 24) {
                         intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
                     } else {
@@ -4323,6 +4328,22 @@ public class AndroidUtilities {
             }
             if (realMimeType != null && realMimeType.equals("application/vnd.android.package-archive")) {
                 if (restrict) return true;
+                if (GlassgramConfig.STORE_BUILD) {
+                    // glassGram: the RuStore edition cannot install packages (no REQUEST_INSTALL_PACKAGES,
+                    // see config/store/AndroidManifest.xml): it saves the APK to Downloads instead
+                    final String apkName = fileName, apkPath = f.getAbsolutePath(), apkMime = realMimeType;
+                    new AlertDialog.Builder(activity, resourcesProvider)
+                        .setMessage(getString(R.string.GlassgramApkStore))
+                        .setPositiveButton(getString(R.string.SaveToDownloads), (d, w) -> MediaController.saveFile(apkPath, activity, 2, apkName, apkMime, uri -> {
+                            final org.telegram.ui.Components.BulletinFactory bulletins = org.telegram.ui.Components.BulletinFactory.global();
+                            if (bulletins != null) {
+                                bulletins.createDownloadBulletin(org.telegram.ui.Components.BulletinFactory.FileType.UNKNOWN, resourcesProvider).show();
+                            }
+                        }))
+                        .setNegativeButton(getString(R.string.Cancel), null)
+                        .show();
+                    return true;
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ApplicationLoader.applicationContext.getPackageManager().canRequestPackageInstalls()) {
                     AlertsCreator.createApkRestrictedDialog(activity, resourcesProvider).show();
                     return true;
