@@ -63,6 +63,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Emoji;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
@@ -2535,8 +2536,16 @@ public class Bulletin {
 
         @Override
         public void show() {
-            if (!AndroidUtilities.isSafeToShow(getContext())) return;
-            super.show();
+            // glassGram: the window needs a running activity's token. Made with the application's
+            // context (BulletinFactory.global() with no screen open, as when a plugin shows a
+            // bulletin from the background) or before the activity's window is up, it isn't shown
+            // rather than taking the app down
+            if (AndroidUtilities.findActivity(getContext()) == null || !AndroidUtilities.isSafeToShow(getContext())) return;
+            try {
+                super.show();
+            } catch (WindowManager.BadTokenException e) {
+                FileLog.e(e);
+            }
         }
 
         private void applyInsets(Insets insets) {
