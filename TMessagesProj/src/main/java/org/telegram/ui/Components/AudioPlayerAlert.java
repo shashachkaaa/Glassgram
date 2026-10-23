@@ -641,6 +641,11 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                 }
                 return super.onTouch(ev);
             }
+
+            @Override
+            protected boolean isTouchBlocked() {
+                return rewindingState != 0;
+            }
         };
         seekBarView.setLineWidth(4);
         seekBarView.setDelegate(new SeekBarView.SeekBarViewDelegate() {

@@ -28,9 +28,16 @@ class DampedDragAnimation(
      * анимации попросту не видно.
      */
     val stiffness: Float = 1000f,
+    /**
+     * Swell as the finger goes down. A slider spans a whole list row, and lists are scrolled
+     * from it: it swells only once it is really dragged ([press] is then the owner's).
+     */
+    val pressOnDown: Boolean = true,
     val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     val onDragStopped: DampedDragAnimation.() -> Unit,
     val onDrag: DampedDragAnimation.(size: IntSize, dragAmount: Offset) -> Unit,
+    /** The gesture taken by someone else, a list scrolling; by default the same as [onDragStopped]. */
+    val onDragCancelled: (DampedDragAnimation.() -> Unit)? = null,
 ) {
 
     private val valueAnimationSpec =
@@ -74,14 +81,16 @@ class DampedDragAnimation(
             claimHorizontal = true,
             onDragStart = { down ->
                 onDragStarted(down.position)
-                press()
+                if (pressOnDown) {
+                    press()
+                }
             },
             onDragEnd = {
                 onDragStopped()
                 release()
             },
             onDragCancel = {
-                onDragStopped()
+                (onDragCancelled ?: onDragStopped).invoke(this@DampedDragAnimation)
                 release()
             }
         ) { change, dragAmount ->

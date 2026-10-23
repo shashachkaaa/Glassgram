@@ -32,14 +32,17 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.liquidglass.LiquidSliderView;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.Utilities;
@@ -78,6 +81,8 @@ public class SeekBarView extends FrameLayout {
 
     private boolean twoSided;
     private final Theme.ResourcesProvider resourcesProvider;
+    private LiquidSliderView liquidView;
+    private float liquidProgress;
     private final AudioPlayerAlert.ClippingTextViewSwitcher textViewSwitcher;
 
     public interface SeekBarViewDelegate {
@@ -137,6 +142,38 @@ public class SeekBarView extends FrameLayout {
         textViewSwitcher.setIsCenter();
         addView(textViewSwitcher, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+        if (LiquidSliderView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            // glassGram: the slider itself is the library's: LiquidSlider from the
+            // Kyant0/AndroidLiquidGlass catalog. A Compose view can't be measured before it has a
+            // window (sheets measure their content before theirs is attached), so it stays out of
+            // the layout until then; it is sized by hand, larger than this view (see onMeasure)
+            liquidView = new LiquidSliderView(context);
+            liquidView.setVisibility(GONE);
+            liquidView.setListener(new LiquidSliderView.Listener() {
+                @Override
+                public void onValueChange(float value, boolean stop) {
+                    final float progress = twoSided ? toTwoSided(value) : value;
+                    liquidProgress = progress;
+                    if (stop) {
+                        // A two-sided slider reports its last move as a move, as it did
+                        setSeekBarDrag(!twoSided, progress);
+                    } else if (reportChanges) {
+                        setSeekBarDrag(false, progress);
+                    }
+                }
+
+                @Override
+                public void onPressedChange(boolean value) {
+                    pressed = value;
+                    if (delegate != null) {
+                        delegate.onSeekBarPressed(value);
+                    }
+                }
+            });
+            addView(liquidView, LayoutHelper.createFrame(0, 0));
+            setClipChildren(false);
+        }
+
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         setAccessibilityDelegate(seekBarAccessibilityDelegate = new FloatSeekBarAccessibilityDelegate(inPercents) {
             @Override
@@ -171,6 +208,9 @@ public class SeekBarView extends FrameLayout {
 
     public void setSeparatorsCount(int separatorsCount) {
         this.separatorsCount = separatorsCount;
+        if (liquidView != null) {
+            liquidView.setSteps(separatorsCount);
+        }
     }
 
     public void setColors(int inner, int outer) {
@@ -179,10 +219,18 @@ public class SeekBarView extends FrameLayout {
         if (hoverDrawable != null) {
             Theme.setSelectorDrawableColor(hoverDrawable, ColorUtils.setAlphaComponent(outer, 40), true);
         }
+        updateLiquidColors();
     }
 
     public void setTwoSided(boolean value) {
+        if (twoSided == value) {
+            return;
+        }
         twoSided = value;
+        if (liquidView != null) {
+            liquidView.setTwoSided(value);
+            liquidView.setValue(twoSided ? fromTwoSided(liquidProgress) : liquidProgress, false);
+        }
     }
 
     public boolean isTwoSided() {
@@ -198,15 +246,71 @@ public class SeekBarView extends FrameLayout {
         if (hoverDrawable != null) {
             Theme.setSelectorDrawableColor(hoverDrawable, ColorUtils.setAlphaComponent(color, 40), true);
         }
+        updateLiquidColors();
+    }
+
+    /** glassGram: the library's slider stands in for the one drawn here. */
+    private boolean isLiquid() {
+        return liquidView != null && liquidView.getVisibility() == VISIBLE;
+    }
+
+    /** Touches are turned down meanwhile (the player rewinding, say). */
+    protected boolean isTouchBlocked() {
+        return false;
+    }
+
+    private void updateLiquidColors() {
+        if (liquidView == null) {
+            return;
+        }
+        final int background = getThemedColor(Theme.key_windowBackgroundWhite);
+        final boolean dark = ColorUtils.calculateLuminance(background | 0xFF000000) < 0.5f;
+        liquidView.setColors(outerPaint1.getColor(), LiquidSliderView.trackColor(dark), getThemedColor(Theme.key_player_progressCachedBackground));
+    }
+
+    private static float toTwoSided(float fraction) {
+        return fraction >= 0.5f ? fraction * 2f - 1f : -Math.max(0.01f, fraction * 2f);
+    }
+
+    private static float fromTwoSided(float progress) {
+        return progress >= 0 ? 0.5f + progress / 2f : -progress / 2f;
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (isLiquid()) {
+            if (isTouchBlocked() && !pressed) {
+                return false;
+            }
+            // The slider takes a sideways move from the list it is in, and leaves it a scroll
+            if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                sx = ev.getX();
+                sy = ev.getY();
+                captured = false;
+            } else if (ev.getActionMasked() == MotionEvent.ACTION_MOVE && !captured) {
+                final float dx = Math.abs(ev.getX() - sx), dy = Math.abs(ev.getY() - sy);
+                if (dx > ViewConfiguration.get(getContext()).getScaledTouchSlop() && dx > dy && getParent() != null) {
+                    captured = true;
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (isLiquid()) {
+            return false;
+        }
         return onTouch(ev);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (isLiquid()) {
+            return false;
+        }
         return onTouch(event);
     }
 
@@ -216,6 +320,9 @@ public class SeekBarView extends FrameLayout {
 
     public void setMinProgress(float progress) {
         minProgress = progress;
+        if (liquidView != null) {
+            liquidView.setMinValue(Math.max(0, progress));
+        }
         if (getProgress() < minProgress) {
             setProgress(minProgress, false);
         }
@@ -357,6 +464,9 @@ public class SeekBarView extends FrameLayout {
     }
 
     public float getProgress() {
+        if (liquidView != null) {
+            return liquidProgress;
+        }
         if (getMeasuredWidth() == 0) {
             return progressToSet;
         }
@@ -368,6 +478,13 @@ public class SeekBarView extends FrameLayout {
     }
 
     public void setProgress(float progress, boolean animated) {
+        if (liquidView != null) {
+            if (minProgress >= 0 && progress < minProgress && !twoSided) {
+                progress = minProgress;
+            }
+            liquidProgress = progress;
+            liquidView.setValue(twoSided ? fromTwoSided(progress) : progress, animated);
+        }
         if (getMeasuredWidth() == 0) {
             progressToSet = progress;
             return;
@@ -402,6 +519,9 @@ public class SeekBarView extends FrameLayout {
 
     public void setBufferedProgress(float progress) {
         bufferedProgress = progress;
+        if (liquidView != null) {
+            liquidView.setBuffered(progress);
+        }
         invalidate();
     }
 
@@ -414,11 +534,45 @@ public class SeekBarView extends FrameLayout {
             setProgress(progressToSet);
             progressToSet = -100;
         }
+        if (isLiquid() && liquidView.isAttachedToWindow()) {
+            final int overflow = dp(LiquidSliderView.OVERFLOW_DP);
+            liquidView.setTrackInset(selectorWidth / 2 + overflow);
+            liquidView.measure(
+                MeasureSpec.makeMeasureSpec(getMeasuredWidth() + 2 * overflow, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(getMeasuredHeight() + 2 * overflow, MeasureSpec.EXACTLY)
+            );
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (liquidView != null) {
+            liquidView.setVisibility(VISIBLE);
+            updateLiquidColors();
+            // The glass thumb grows 1.5x while it moves, like the library's LiquidSlider,
+            // and needs room around this view's own bounds
+            if (getParent() instanceof ViewGroup) {
+                ((ViewGroup) getParent()).setClipChildren(false);
+            }
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (liquidView != null) {
+            liquidView.setVisibility(GONE);
+        }
     }
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
+        if (isLiquid() && liquidView.isAttachedToWindow()) {
+            final int overflow = dp(LiquidSliderView.OVERFLOW_DP);
+            liquidView.layout(-overflow, -overflow, getMeasuredWidth() + overflow, getMeasuredHeight() + overflow);
+        }
         int b = getMeasuredHeight() / 2 + AndroidUtilities.dp(14) + textViewSwitcher.getMeasuredHeight() / 2;
         int l = (selectorWidth / 2 + (lastDuration > 1000L * 60 * 10 ? AndroidUtilities.dp(42) : 0)) + AndroidUtilities.dp(25) + AndroidUtilities.dp(8) /*+ AndroidUtilities.dp(16)*/;
 
@@ -436,6 +590,11 @@ public class SeekBarView extends FrameLayout {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (isLiquid()) {
+            updateLiquidColors();
+            drawTimestampLabel(canvas);
+            return;
+        }
         int thumbX = this.thumbX;
         if (!twoSided && separatorsCount > 1) {
             float step = (getMeasuredWidth() - selectorWidth) / ((float) separatorsCount - 1f);
