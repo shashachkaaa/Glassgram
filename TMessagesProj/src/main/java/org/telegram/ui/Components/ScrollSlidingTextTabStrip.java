@@ -344,7 +344,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
                 setMeasuredDimension(tabsContainer.getMeasuredWidth(), tabsContainer.getMeasuredHeight());
                 if (liquidTabs != null && liquidTabs.getVisibility() != GONE && liquidTabs.isAttachedToWindow()) {
                     liquidTabs.measure(
-                        MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(liquidTabsBarWidth(), MeasureSpec.EXACTLY),
                         MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
                 }
             }
@@ -353,7 +353,14 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
             protected void onLayout(boolean changed, int l, int t, int r, int b) {
                 tabsContainer.layout(0, 0, tabsContainer.getMeasuredWidth(), tabsContainer.getMeasuredHeight());
                 if (liquidTabs != null && liquidTabs.getVisibility() != GONE && liquidTabs.isAttachedToWindow()) {
-                    liquidTabs.layout(0, 0, r - l, b - t);
+                    // The strip's own width is known only now
+                    final int width = liquidTabsBarWidth(), height = b - t;
+                    if (liquidTabs.getMeasuredWidth() != width || liquidTabs.getMeasuredHeight() != height) {
+                        liquidTabs.measure(
+                            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                    }
+                    liquidTabs.layout(0, 0, width, height);
                 }
             }
         };
@@ -848,7 +855,8 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
     }
 
     private void scrollToChild(int position, boolean smooth) {
-        if (tabCount == 0 || scrollingToChild == position) {
+        // On the liquid bar the row stays put: the bar scrolls its tabs itself
+        if (tabCount == 0 || scrollingToChild == position || liquidTabsUsed) {
             return;
         }
         scrollingToChild = position;
@@ -1016,13 +1024,15 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
      * list's folders: a glass capsule with a drop that rides between the tabs, swells under the
      * finger, can be dragged and refracts the tabs it passes over. The tabs stay this view's,
      * laid out but not drawn in their row, and painted into the bar's slots, which are of one
-     * width. Tabs that do not fit side by side, and reordering, keep the scrolling row.
+     * width; tabs that do not fit side by side (a profile's shared media) scroll inside the
+     * capsule, each as wide as its title, under the same drop. Reordering keeps the row.
      */
     private static final int LIQUID_TABS_MAX = 5;
     private static final float LIQUID_TABS_INSET_DP = 4f;
 
     private org.telegram.liquidglass.LiquidTabBarView liquidTabs;
     private boolean liquidTabsUsed;
+    private float[] liquidTabWidths;
     private final ArrayList<View> liquidTabViews = new ArrayList<>();
     private final ArrayList<View> liquidTabViewsTmp = new ArrayList<>();
     private final int[] liquidTabsLocation = new int[2];
@@ -1118,14 +1128,16 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
             return;
         }
         final int count = tabsContainer.getChildCount();
-        boolean use = isAttachedToWindow() && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS) && !reordering
-            && count >= 2 && count <= LIQUID_TABS_MAX && getMeasuredWidth() > 0 && tabsWrapper.getMeasuredWidth() <= getMeasuredWidth();
-        if (use) {
-            // Each tab gets the same slot; a title wider than that keeps the row
+        final int viewport = getMeasuredWidth() - getPaddingLeft() - getPaddingRight();
+        final boolean use = isAttachedToWindow() && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS) && !reordering
+            && count >= 2 && viewport > 0;
+        boolean sideBySide = use && count <= LIQUID_TABS_MAX && tabsWrapper.getMeasuredWidth() <= getMeasuredWidth();
+        if (sideBySide) {
+            // Each tab gets the same slot; a title wider than that makes them scroll
             final float slot = (getMeasuredWidth() - dp(LIQUID_TABS_INSET_DP) * 2 - dp(8)) / (float) count;
             for (int a = 0; a < count; a++) {
                 if (positionToWidth.get(a) - dp(32) + dp(20) > slot) {
-                    use = false;
+                    sideBySide = false;
                     break;
                 }
             }
@@ -1141,6 +1153,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
                 liquidTabs.setTabs(liquidTabViews);
             }
             liquidTabViewsTmp.clear();
+            liquidTabs.setTabWidths(sideBySide ? null : liquidScrollTabWidths(count, viewport));
             liquidTabs.setSelectedIndex(currentPosition);
         }
         if (liquidTabsUsed != use) {
@@ -1155,13 +1168,65 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
                 scrollTo(0, 0);
                 // Measured and placed here, after the row was laid out, as the bar is shown now
                 liquidTabs.measure(
-                    MeasureSpec.makeMeasureSpec(tabsWrapper.getMeasuredWidth(), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(liquidTabsBarWidth(), MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(tabsWrapper.getMeasuredHeight(), MeasureSpec.EXACTLY));
-                liquidTabs.layout(0, 0, tabsWrapper.getMeasuredWidth(), tabsWrapper.getMeasuredHeight());
+                liquidTabs.layout(0, 0, liquidTabsBarWidth(), tabsWrapper.getMeasuredHeight());
+            } else {
+                // The row scrolls again, to the chosen tab
+                scrollingToChild = -1;
+                scrollToChild(currentPosition, false);
             }
             invalidate();
         }
         liquidTabs.invalidateTabs();
+    }
+
+    /** The bar spans what is in sight of the row, not the whole row, whose tabs it scrolls itself. */
+    private int liquidTabsBarWidth() {
+        final int row = tabsWrapper.getMeasuredWidth();
+        final int viewport = getMeasuredWidth() - getPaddingLeft() - getPaddingRight();
+        return viewport > 0 ? Math.min(row, viewport) : row;
+    }
+
+    /**
+     * Each tab as wide as its title with the row's padding around it, from the tab itself (the
+     * widths kept by position are not swapped when tabs are reordered); stretched to fill the
+     * capsule when they are fewer than it holds.
+     */
+    private float[] liquidScrollTabWidths(int count, int viewport) {
+        if (liquidTabWidths == null || liquidTabWidths.length != count) {
+            liquidTabWidths = new float[count];
+        }
+        float total = 0;
+        for (int a = 0; a < count; a++) {
+            final View child = tabsContainer.getChildAt(a);
+            float width = 0;
+            if (child instanceof TextView) {
+                final TextView tab = (TextView) child;
+                width = (float) Math.ceil(HintView2.measureCorrectly(tab.getText(), tab.getPaint())) + dp(32);
+            }
+            liquidTabWidths[a] = width;
+            total += width;
+        }
+        final float available = viewport - dp(LIQUID_TABS_INSET_DP) * 2 - dp(8);
+        if (total > 0 && total < available) {
+            final float stretch = available / total;
+            for (int a = 0; a < count; a++) {
+                liquidTabWidths[a] *= stretch;
+            }
+        }
+        return liquidTabWidths;
+    }
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        // The bar takes its touches and scrolls its tabs itself
+        return !liquidTabsUsed && super.onInterceptTouchEvent(ev);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        return !liquidTabsUsed && super.onTouchEvent(ev);
     }
 
     @Override

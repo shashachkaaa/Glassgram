@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +58,9 @@ import org.telegram.liquidglass.catalog.LocalLiquidBottomTabScale
  * The tabs themselves stay Telegram's views (animated icons, counters, avatar); they live,
  * laid out but not drawn, in their old container, and are painted here into each slot. The
  * content behind the bar comes from a [Source] in the coordinates of its source view.
+ *
+ * Tabs that do not fit side by side, each as wide as its title ([setTabWidths]), scroll inside
+ * the capsule under the same drop ([LiquidScrollTabs]).
  */
 class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
 
@@ -92,6 +96,7 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
     private var backdropTick by mutableIntStateOf(0)
     private var resetTick by mutableIntStateOf(0)
     private var textTabsState by mutableStateOf(false)
+    private var tabWidthsState by mutableStateOf<List<Float>?>(null)
 
     private val sourceLocation = IntArray(2)
 
@@ -169,6 +174,17 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
         textTabsState = textTabs
     }
 
+    /**
+     * Each tab's width, px, for tabs that do not fit side by side: they scroll inside the capsule;
+     * null puts them back side by side, in slots of one width.
+     */
+    fun setTabWidths(widths: FloatArray?) {
+        val list = widths?.toList()
+        if (list != tabWidthsState) {
+            tabWidthsState = list
+        }
+    }
+
     /** Space between this view's edges and the capsule, px. */
     fun setInset(px: Float) {
         insetPx = px
@@ -240,9 +256,10 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
         val density = LocalDensity.current
         val inset = with(density) { insetPx.toDp() }
 
+        val widths = tabWidthsState?.takeIf { it.size == tabs.size }
         BoxWithConstraints(Modifier.fillMaxSize().padding(inset), contentAlignment = Alignment.Center) {
             val barHeight = maxHeight
-            key(tabs.size) {
+            key(tabs.size, widths != null) {
                 val external = selectedIndexState.coerceIn(0, tabs.size - 1)
                 val reset = resetTick
                 var shown by remember { mutableIntStateOf(external) }
@@ -251,33 +268,26 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                 val selectedTabIndex = remember { { shownState.value } }
                 val externalState = rememberUpdatedState(external)
 
-                LiquidBottomTabs(
-                    selectedTabIndex = selectedTabIndex,
-                    onTabSelected = { index ->
-                        shown = index
-                        // Called for outside changes too; only report the user's own choice
-                        if (index != externalState.value) listener?.onTabSelected(index)
-                    },
-                    backdrop = backdrop,
-                    tabsCount = tabs.size,
-                    modifier = Modifier.fillMaxWidth(),
-                    accentColor = Color(accentColorState),
-                    // As in ward: the bar spans the screen, and the catalog's 1000 makes the drop jump
-                    stiffness = 320f,
-                    blurs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                    refracts = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
-                    containerColor = if (containerColorState != 0) Color(containerColorState) else Color.Unspecified,
-                    isLightTheme = lightState,
-                    barHeight = barHeight,
-                    barGrowth = if (textTabsState) 8f.dp else 16f.dp,
-                    dropGrowth = if (textTabsState) 12f.dp else Dp.Unspecified,
-                    dropLensHeight = if (textTabsState) 6f.dp else 10f.dp,
-                    dropLensAmount = if (textTabsState) 8f.dp else 14f.dp,
-                    dropChromaticAberration = !textTabsState
-                ) {
+                val onTabSelected: (Int) -> Unit = { index ->
+                    shown = index
+                    // Called for outside changes too; only report the user's own choice
+                    if (index != externalState.value) listener?.onTabSelected(index)
+                }
+                val accentColor = Color(accentColorState)
+                // As in ward: the bar spans the screen, and the catalog's 1000 makes the drop jump
+                val stiffness = 320f
+                val blurs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                val refracts = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                val containerColor = if (containerColorState != 0) Color(containerColorState) else Color.Unspecified
+                val barGrowth = if (textTabsState) 8f.dp else 16f.dp
+                val dropGrowth = if (textTabsState) 12f.dp else Dp.Unspecified
+                val dropLensHeight = if (textTabsState) 6f.dp else 10f.dp
+                val dropLensAmount = if (textTabsState) 8f.dp else 14f.dp
+                val tabsContent: @Composable RowScope.() -> Unit = {
                     tabs.forEachIndexed { index, view ->
                         ViewTab(
                             view = view,
+                            widthPx = widths?.get(index),
                             onClick = {
                                 if (shown == index) {
                                     reselectListener?.onTabReselected(index)
@@ -289,13 +299,58 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                         )
                     }
                 }
+
+                if (widths != null) {
+                    LiquidScrollTabs(
+                        selectedTabIndex = selectedTabIndex,
+                        onTabSelected = onTabSelected,
+                        backdrop = backdrop,
+                        tabWidths = widths,
+                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = accentColor,
+                        stiffness = stiffness,
+                        blurs = blurs,
+                        refracts = refracts,
+                        containerColor = containerColor,
+                        isLightTheme = lightState,
+                        barHeight = barHeight,
+                        barGrowth = barGrowth,
+                        dropGrowth = dropGrowth,
+                        dropLensHeight = dropLensHeight,
+                        dropLensAmount = dropLensAmount,
+                        dropChromaticAberration = !textTabsState,
+                        content = tabsContent
+                    )
+                } else {
+                    LiquidBottomTabs(
+                        selectedTabIndex = selectedTabIndex,
+                        onTabSelected = onTabSelected,
+                        backdrop = backdrop,
+                        tabsCount = tabs.size,
+                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = accentColor,
+                        stiffness = stiffness,
+                        blurs = blurs,
+                        refracts = refracts,
+                        containerColor = containerColor,
+                        isLightTheme = lightState,
+                        barHeight = barHeight,
+                        barGrowth = barGrowth,
+                        dropGrowth = dropGrowth,
+                        dropLensHeight = dropLensHeight,
+                        dropLensAmount = dropLensAmount,
+                        dropChromaticAberration = !textTabsState,
+                        content = tabsContent
+                    )
+                }
             }
         }
     }
 
     @Composable
-    private fun RowScope.ViewTab(view: View, onClick: () -> Unit, onLongClick: () -> Unit) {
+    private fun RowScope.ViewTab(view: View, widthPx: Float?, onClick: () -> Unit, onLongClick: () -> Unit) {
         val scale = LocalLiquidBottomTabScale.current
+        val density = LocalDensity.current
         val onClickState = rememberUpdatedState(onClick)
         val onLongClickState = rememberUpdatedState(onLongClick)
         Box(
@@ -308,7 +363,10 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                     )
                 }
                 .fillMaxHeight()
-                .weight(1f)
+                .then(
+                    // A slot of one width, or as wide as the tab's title when they scroll
+                    if (widthPx != null) Modifier.width(with(density) { widthPx.toDp() }) else Modifier.weight(1f)
+                )
                 .graphicsLayer {
                     val s = scale()
                     scaleX = s
