@@ -3,7 +3,6 @@ package org.telegram.liquidglass
 import android.content.Context
 import android.graphics.Canvas
 import android.view.View
-import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -62,6 +61,7 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
     private val scope = CoroutineScope(SupervisorJob() + AndroidUiDispatcher.Main)
     private val highlight = InteractiveHighlight(scope)
     private val motion = LiquidButtonMotion()
+    private val slot = WindowRootSlot(this)
     private var watchJob: Job? = null
 
     private var source: Source? = null
@@ -130,18 +130,10 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
     fun getContentTranslationY(): Float = motion.translationY
 
     /** Puts the view, out of sight, in the root of [owner]'s window; call when the owner is attached. */
-    fun attach(owner: View) {
-        val root = owner.rootView as? ViewGroup ?: return
-        if (parent === root) {
-            return
-        }
-        (parent as? ViewGroup)?.removeView(this)
-        root.addView(this, ViewGroup.LayoutParams(0, 0))
-    }
+    fun attach(owner: View) = slot.attach(owner)
 
-    fun detach() {
-        (parent as? ViewGroup)?.removeView(this)
-    }
+    /** Takes the view out of the window's root on the main thread's next turn, see [WindowRootSlot]. */
+    fun detach() = slot.detach()
 
     /**
      * Draws the button with its top-left corner at ([left], [top]) of [canvas], [width] by

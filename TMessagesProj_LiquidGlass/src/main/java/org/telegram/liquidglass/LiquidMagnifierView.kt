@@ -3,7 +3,6 @@ package org.telegram.liquidglass
 import android.content.Context
 import android.graphics.Canvas
 import android.view.View
-import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +33,7 @@ class LiquidMagnifierView(context: Context) : AbstractComposeView(context) {
         fun draw(canvas: Canvas)
     }
 
+    private val slot = WindowRootSlot(this)
     private var source: Source? = null
     private var backdropTick by mutableIntStateOf(0)
     private var drawnWidth = 0
@@ -48,18 +48,9 @@ class LiquidMagnifierView(context: Context) : AbstractComposeView(context) {
         this.source = source
     }
 
-    fun attach(owner: View) {
-        val root = owner.rootView as? ViewGroup ?: return
-        if (parent === root) {
-            return
-        }
-        (parent as? ViewGroup)?.removeView(this)
-        root.addView(this, ViewGroup.LayoutParams(0, 0))
-    }
+    fun attach(owner: View) = slot.attach(owner)
 
-    fun detach() {
-        (parent as? ViewGroup)?.removeView(this)
-    }
+    fun detach() = slot.detach()
 
     /** Draws the magnifier with its top-left corner at ([left], [top]); false when it can't yet. */
     fun drawInto(canvas: Canvas, left: Float, top: Float): Boolean {
