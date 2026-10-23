@@ -335,6 +335,20 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
     private ViewPropertyAnimator failViewAnimator;
 
     BlurredBackgroundDrawable inputFieldBackground;
+    private org.telegram.ui.Components.LiquidPressEffect inputFieldGlass;
+
+    /** glassGram: a story's button on the library's LiquidButton glass, made of the story under it. */
+    private void setLiquidGlass(View view) {
+        if (view == null || blurredBackgroundDrawableFactory == null || !org.telegram.liquidglass.LiquidButtonView.isSupported()
+                || !org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS)) {
+            return;
+        }
+        final android.graphics.drawable.Drawable selector = view.getBackground();
+        view.setBackground(new org.telegram.ui.Components.LiquidGlassBackground(view, blurredBackgroundDrawableFactory.create(view, blurredBackgroundColorProvider), dp(2)));
+        if (selector != null) {
+            view.setForeground(selector);
+        }
+    }
     BlurredBackgroundDrawable emojiKeyboardBackground;
 
     Paint inputBackgroundPaint;
@@ -1324,6 +1338,11 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         bottomActionsLinearLayout.addView(likeButtonContainer, LayoutHelper.createLinear(40, 40, Gravity.RIGHT));
 
         addView(bottomActionsLinearLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT, 0, 0,4,0));
+        setLiquidGlass(shareButton);
+        setLiquidGlass(likeButtonContainer);
+        if (repostButtonContainer != null) {
+            setLiquidGlass(repostButtonContainer);
+        }
 
         optionsIconView = new ImageView(context);
         optionsIconView.setImageDrawable(sharedResources.optionsDrawable);
@@ -1331,6 +1350,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         optionsIconView.setBackground(Theme.createSelectorDrawable(Color.WHITE));
         optionsIconView.setContentDescription(getString(R.string.AccDescrMoreOptions));
         storyContainer.addView(optionsIconView, LayoutHelper.createFrame(40, 40, Gravity.RIGHT | Gravity.TOP, 2, 15, 2, 0));
+        setLiquidGlass(optionsIconView);
 
         pipIconView = new ImageView(context);
         pipIconView.setImageDrawable(sharedResources.pipDrawable);
@@ -1338,6 +1358,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         pipIconView.setBackground(Theme.createSelectorDrawable(Color.WHITE));
         pipIconView.setContentDescription(getString(R.string.AccDescrPipMode));
         storyContainer.addView(pipIconView, LayoutHelper.createFrame(40, 40, Gravity.RIGHT | Gravity.TOP, 2, 15, 2 + 40, 0));
+        setLiquidGlass(pipIconView);
         pipIconView.setOnClickListener(v -> {
             if (storyViewer != null) {
                 storyViewer.switchToPip();
@@ -2238,6 +2259,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             }
         };
         storyContainer.addView(muteIconContainer, LayoutHelper.createFrame(40, 40, Gravity.RIGHT | Gravity.TOP, 2, 15, 2 + 40, 0));
+        setLiquidGlass(muteIconContainer);
 
         muteIconView = new RLottieImageView(context);
         muteIconView.setPadding(dp(6), dp(6), dp(6), dp(6));
@@ -7728,7 +7750,14 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                 inputFieldBackground.setBounds((int) sharedResources.finalRect.left, (int) sharedResources.finalRect.top, (int) sharedResources.finalRect.right, (int) sharedResources.finalRect.bottom);
                 inputFieldBackground.setRadius(radius);
                 inputFieldBackground.setAlpha((int) (0xFF * (1f - progressToDismiss) * getHideInterfaceAlpha() * (1f - outT)));
-                inputFieldBackground.draw(canvas);
+                // glassGram: the reply field is the library's LiquidButton glass, made of the story
+                if (inputFieldGlass == null) {
+                    inputFieldGlass = new org.telegram.ui.Components.LiquidPressEffect(this);
+                }
+                final RectF f = sharedResources.finalRect;
+                if (!inputFieldGlass.drawGlass(canvas, f.left, f.top, f.right, f.bottom, radius, inputFieldBackground, inputFieldBackground.getAlpha())) {
+                    inputFieldBackground.draw(canvas);
+                }
             } else {
                 canvas.drawRoundRect(sharedResources.finalRect, radius, radius, inputBackgroundPaint);
             }

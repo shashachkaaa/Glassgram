@@ -405,7 +405,67 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
     }
 
 
+    // glassGram: the magnifier of the Kyant0/AndroidLiquidGlass catalog in place of the system's,
+    // drawn by the overlay over what is under it
+    private org.telegram.liquidglass.LiquidMagnifierView liquidMagnifier;
+    private org.telegram.ui.Components.ViewBehindBackdrop liquidMagnifierBackdrop;
+    private boolean liquidMagnifierShown;
+    private float liquidMagnifierSourceX, liquidMagnifierSourceY;
+    private final RectF liquidMagnifierRect = new RectF();
+
+    private boolean useLiquidMagnifier() {
+        return org.telegram.liquidglass.LiquidMagnifierView.isSupported() && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS);
+    }
+
+    private void drawLiquidMagnifier(Canvas canvas, View overlay) {
+        if (!liquidMagnifierShown) {
+            return;
+        }
+        if (liquidMagnifier == null) {
+            liquidMagnifier = new org.telegram.liquidglass.LiquidMagnifierView(overlay.getContext());
+            liquidMagnifierBackdrop = new org.telegram.ui.Components.ViewBehindBackdrop(overlay);
+            liquidMagnifier.setSource(c -> {
+                if (!liquidMagnifierBackdrop.isDrawing() && liquidMagnifierBackdrop.isAvailable()) {
+                    liquidMagnifierBackdrop.draw(c);
+                }
+            });
+            overlay.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(@NonNull View v) {
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(@NonNull View v) {
+                    liquidMagnifier.detach();
+                }
+            });
+        }
+        if (!liquidMagnifier.isAttachedToWindow()) {
+            // Into the window's root after this frame: it must not get a child while it draws
+            overlay.post(() -> {
+                if (overlay.isAttachedToWindow() && liquidMagnifier != null) {
+                    liquidMagnifier.attach(overlay);
+                    overlay.invalidate();
+                }
+            });
+            return;
+        }
+        final float w = dp(org.telegram.liquidglass.LiquidMagnifierView.WIDTH_DP), h = dp(org.telegram.liquidglass.LiquidMagnifierView.HEIGHT_DP);
+        // It shows what lies its offset below it, at its middle: the text under the finger
+        final float left = Utilities.clamp(liquidMagnifierSourceX - w / 2f, overlay.getWidth() - w, 0);
+        final float top = liquidMagnifierSourceY - AndroidUtilities.dpf2(org.telegram.liquidglass.LiquidMagnifierView.OFFSET_DP) - h / 2f;
+        liquidMagnifierRect.set(left, top, left + w, top + h);
+        liquidMagnifierBackdrop.setArea(liquidMagnifierRect);
+        liquidMagnifier.drawInto(canvas, left, top);
+    }
+
     private void hideMagnifier() {
+        if (liquidMagnifierShown) {
+            liquidMagnifierShown = false;
+            if (textSelectionOverlay != null) {
+                textSelectionOverlay.invalidate();
+            }
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             if (magnifier != null) {
                 magnifier.dismiss();
@@ -458,8 +518,11 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 magnifierDx = (x - magnifierXanimated) / 100f;
             }
 
-            if (magnifier == null) {
-                magnifier = new Magnifier(textSelectionOverlay);
+            final boolean liquid = useLiquidMagnifier();
+            if (liquid ? !liquidMagnifierShown : magnifier == null) {
+                if (!liquid) {
+                    magnifier = new Magnifier(textSelectionOverlay);
+                }
                 magnifierYanimated = magnifierY;
                 magnifierXanimated = magnifierX;
             }
@@ -484,6 +547,13 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
                 magnifierXanimated = magnifierX;
             }
 
+            if (liquid) {
+                liquidMagnifierShown = true;
+                liquidMagnifierSourceX = magnifierXanimated;
+                liquidMagnifierSourceY = magnifierYanimated + lineHeight * 1.5f + dp(8);
+                textSelectionOverlay.invalidate();
+                return;
+            }
             magnifier.show(
                 magnifierXanimated, magnifierYanimated + lineHeight * 1.5f + dp(8)
             );
@@ -1417,6 +1487,7 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
             if (isOneTouch) {
                 invalidate();
             }
+            drawLiquidMagnifier(canvas, this);
         }
 
         public boolean isTouched() {

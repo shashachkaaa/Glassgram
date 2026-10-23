@@ -152,6 +152,14 @@ public class LiquidPressEffect {
         if (!isButton() || glass == null) {
             return false;
         }
+        final BlurredBackgroundSource unwrapped = glass.getUnwrappedSource();
+        if (unwrapped instanceof org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode) {
+            final org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode node = (org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode) unwrapped;
+            if (node.inRecording() || node.isRecordingCanvas(canvas)) {
+                // Drawn into the very picture it is made of (a story's buttons lie on the story): not there
+                return true;
+            }
+        }
         buttonGlass = glass;
         buttonBackdrop = null;
         // The source records only around glass that has been drawn: the glass, not drawn now,

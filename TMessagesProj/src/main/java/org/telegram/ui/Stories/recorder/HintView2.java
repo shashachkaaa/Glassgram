@@ -17,6 +17,7 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.CornerPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
@@ -43,6 +44,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 
+import androidx.core.graphics.ColorUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -756,6 +758,68 @@ public class HintView2 extends View {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         AnimatedEmojiSpan.release(this, emojiGroupedSpans);
+        if (liquidBgTree != null && liquidBgTree.isAlive()) {
+            liquidBgTree.removeOnPreDrawListener(liquidBgWatcher);
+        }
+        liquidBgTree = null;
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (liquidBgTree != null && liquidBgTree.isAlive()) {
+            liquidBgTree.removeOnPreDrawListener(liquidBgWatcher);
+        }
+        liquidBgTree = getViewTreeObserver();
+        liquidBgTree.addOnPreDrawListener(liquidBgWatcher);
+    }
+
+    /*
+     * glassGram: the hint is the library's LiquidButton glass (Kyant0/AndroidLiquidGlass) over
+     * what is on the screen under it, toned with the hint's color so its text reads; its arrow,
+     * outside the glass, is drawn in that tone.
+     */
+    private org.telegram.ui.Components.LiquidPressEffect liquidBg;
+    private org.telegram.ui.Components.ViewBehindBackdrop liquidBgBackdrop;
+    private Paint liquidArrowPaint;
+    private android.view.ViewTreeObserver liquidBgTree;
+    private final android.view.ViewTreeObserver.OnPreDrawListener liquidBgWatcher = () -> {
+        // The glass is recorded when the hint draws: what moves under it has to redraw it
+        if (liquidBgBackdrop != null && liquidBgBackdrop.isStale()) {
+            invalidate();
+        }
+        return true;
+    };
+
+    private boolean drawLiquidBgPath(Canvas canvas, float alpha) {
+        if (!org.telegram.liquidglass.LiquidButtonView.isSupported() || !org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS)
+                || bounds.isEmpty() || !canvas.isHardwareAccelerated()) {
+            return false;
+        }
+        if (liquidBg == null) {
+            liquidBg = new org.telegram.ui.Components.LiquidPressEffect(this);
+            // Its shadow lies around it
+            liquidBg.setUnclipParents(1);
+            liquidBgBackdrop = new org.telegram.ui.Components.ViewBehindBackdrop(this);
+            liquidArrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        }
+        liquidBgBackdrop.setArea(bounds);
+        final org.telegram.liquidglass.GlassLayer.Backdrop backdrop = !liquidBgBackdrop.isDrawing() && liquidBgBackdrop.isAvailable() ? liquidBgBackdrop : null;
+        final int color = backgroundPaint.getColor();
+        final int surface = ColorUtils.setAlphaComponent(color, Math.min(Color.alpha(color), 0xC8));
+        final float radius = Math.min(rounding, Math.min(bounds.width(), bounds.height()) / 2f);
+        if (!liquidBg.drawGlass(canvas, bounds.left, bounds.top, bounds.right, bounds.bottom, radius, backdrop, surface, 0, (int) (0xFF * alpha))) {
+            return false;
+        }
+        // The arrow, outside the glass
+        liquidArrowPaint.setColor(surface);
+        liquidArrowPaint.setAlpha((int) (Color.alpha(surface) * alpha));
+        liquidArrowPaint.setPathEffect(backgroundPaint.getPathEffect());
+        canvas.save();
+        canvas.clipOutRect(bounds);
+        canvas.drawPath(path, liquidArrowPaint);
+        canvas.restore();
+        return true;
     }
 
     private final ButtonBounce bounce = new ButtonBounce(this, 2f, 5f);
@@ -781,6 +845,9 @@ public class HintView2 extends View {
     private long flickerStart;
 
     protected void drawBgPath(Canvas canvas, float alpha) {
+        if (blurBackgroundPaint == null && !flicker && drawLiquidBgPath(canvas, alpha)) {
+            return;
+        }
         if (blurBackgroundPaint != null) {
             canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), 0xFF, Canvas.ALL_SAVE_FLAG);
             canvas.drawPath(path, blurBackgroundPaint);

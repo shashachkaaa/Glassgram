@@ -816,7 +816,79 @@ public class Bulletin {
         public void setBackground(int color, int rounding) {
             if (!hasCustomBackground) {
                 background = Theme.createRoundRectDrawable(dp(rounding), color);
+                plateColor = color;
+                plateRounding = rounding;
             }
+        }
+
+        /*
+         * glassGram: the plate is the library's LiquidButton glass (Kyant0/AndroidLiquidGlass)
+         * over what is on the screen under it, toned with the plate's color so its text reads.
+         */
+        private int plateColor, plateRounding = 16;
+        private LiquidPressEffect liquidPlate;
+        private ViewBehindBackdrop liquidPlateBackdrop;
+        private View liquidPlateHost;
+        private final RectF liquidPlateArea = new RectF();
+        private android.view.ViewTreeObserver liquidPlateTree;
+        private final android.view.ViewTreeObserver.OnPreDrawListener liquidPlateWatcher = () -> {
+            // The glass is recorded when the plate draws: what moves under it has to redraw it
+            if (liquidPlateBackdrop != null && liquidPlateBackdrop.isStale()) {
+                invalidate();
+            }
+            return true;
+        };
+
+        private void drawPlate(Canvas canvas, boolean fromBlurRender) {
+            if (!fromBlurRender && !hasCustomBackground && drawLiquidPlate(canvas)) {
+                return;
+            }
+            background.draw(canvas);
+        }
+
+        private boolean drawLiquidPlate(Canvas canvas) {
+            if (!org.telegram.liquidglass.LiquidButtonView.isSupported() || !org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS)) {
+                return false;
+            }
+            if (liquidPlate == null) {
+                liquidPlate = new LiquidPressEffect(this);
+                // Its shadow lies around it
+                liquidPlate.setUnclipParents(1);
+            }
+            // The bulletin's own layout lies over the screen: the glass is made of what is behind it
+            final View host = getParent() instanceof View ? (View) getParent() : this;
+            if (liquidPlateHost != host) {
+                liquidPlateHost = host;
+                liquidPlateBackdrop = new ViewBehindBackdrop(host);
+            }
+            final Rect b = background.getBounds();
+            liquidPlateArea.set(b);
+            if (host != this) {
+                liquidPlateArea.offset(getX(), getY());
+            }
+            liquidPlateBackdrop.setArea(liquidPlateArea);
+            final org.telegram.liquidglass.GlassLayer.Backdrop backdrop = !liquidPlateBackdrop.isDrawing() && liquidPlateBackdrop.isAvailable() ? liquidPlateBackdrop : null;
+            final int surface = androidx.core.graphics.ColorUtils.setAlphaComponent(plateColor, Math.min(android.graphics.Color.alpha(plateColor), 0xC8));
+            return liquidPlate.drawGlass(canvas, b.left, b.top, b.right, b.bottom, dp(plateRounding), backdrop, surface, 0, 255);
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if (liquidPlateTree != null && liquidPlateTree.isAlive()) {
+                liquidPlateTree.removeOnPreDrawListener(liquidPlateWatcher);
+            }
+            liquidPlateTree = getViewTreeObserver();
+            liquidPlateTree.addOnPreDrawListener(liquidPlateWatcher);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            if (liquidPlateTree != null && liquidPlateTree.isAlive()) {
+                liquidPlateTree.removeOnPreDrawListener(liquidPlateWatcher);
+            }
+            liquidPlateTree = null;
         }
 
         private boolean hasCustomBackground;
@@ -1234,7 +1306,7 @@ public class Bulletin {
                 if (hasSavedAlpha) {
                     canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), alpha, Canvas.ALL_SAVE_FLAG);
                 }
-                background.draw(canvas);
+                drawPlate(canvas, fromBlurRender);
                 super.dispatchDraw(canvas);
                 if (clip) {
                     if (clipPaint == null) {
@@ -1262,7 +1334,7 @@ public class Bulletin {
                 canvas.restore();
                 invalidate();
             } else {
-                background.draw(canvas);
+                drawPlate(canvas, fromBlurRender);
                 super.dispatchDraw(canvas);
             }
         }
