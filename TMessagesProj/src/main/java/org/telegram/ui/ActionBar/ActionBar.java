@@ -69,6 +69,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LiquidGlassButtonBackground;
 import org.telegram.ui.Components.ViewBehindBackdrop;
 import org.telegram.ui.Components.LiquidPressEffect;
+import org.telegram.liquidglass.GlassLayer;
 import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.SnowflakesEffect;
@@ -747,7 +748,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
         for (LiquidPressEffect effect : glassPress) {
-            if (effect != null && effect.isActive()) {
+            if (effect != null && (effect.isActive() || effect.isLibraryButton())) {
                 return;
             }
         }
@@ -759,6 +760,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private LiquidPressEffect glassPress(int surface) {
         if (glassPress[surface] == null) {
             glassPress[surface] = new LiquidPressEffect(this);
+            // The library's LiquidButton has its shadow around it, past the bar
+            glassPress[surface].setUnclipParents(1);
         }
         return glassPress[surface];
     }
@@ -842,8 +845,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final RectF r = glassRect[surface];
         r.set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
         glassShown[surface] = true;
-        final LiquidPressEffect effect = glassPress[surface];
         final BlurredBackgroundDrawable glass = drawable instanceof BlurredBackgroundDrawable ? (BlurredBackgroundDrawable) drawable : null;
+        // glassGram: the piece is the library's LiquidButton, its glass and its highlight; what it
+        // carries follows its press (glassTransform)
+        if (glass != null && r.width() > 0 && r.height() > 0) {
+            glass.setRadiusScale(1f);
+            if (glassPress(surface).drawGlass(canvas, r.left, r.top, r.right, r.bottom, Math.min(r.width(), r.height()) / 2f, glass, glass.getAlpha())) {
+                return;
+            }
+        }
+        final LiquidPressEffect effect = glassPress[surface];
         if (effect == null || !effect.isActive()) {
             if (glass != null) {
                 glass.setRadiusScale(1f);
@@ -1008,15 +1019,22 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 }
                 glass.setColors(itemsColor, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
                 glass.setAlpha((int) (255 * glassButtonAlpha(child)));
-                glass.setBounds(Math.round(g.left), Math.round(g.top), Math.round(g.right), Math.round(g.bottom));
-                glassButtonBackdrop.setArea(g);
-                glass.setBackdrop(!glassButtonBackdrop.isDrawing() && glassButtonBackdrop.isAvailable() ? glassButtonBackdrop : null);
-                glass.draw(canvas);
-                if (pressed) {
-                    canvas.save();
-                    canvas.translate(g.left, g.top);
-                    effect.drawGlow(canvas, g.width(), g.height(), Math.min(g.width(), g.height()) / 2f);
-                    canvas.restore();
+                // glassGram: the capsule is the library's LiquidButton over what is under the bar
+                glassButtonBackdrop.setArea(r);
+                final GlassLayer.Backdrop liquidBackdrop = !glassButtonBackdrop.isDrawing() && glassButtonBackdrop.isAvailable() ? glassButtonBackdrop : null;
+                final boolean liquid = glassPress(surface).drawGlass(canvas, r.left, r.top, r.right, r.bottom, Math.min(r.width(), r.height()) / 2f,
+                    liquidBackdrop, glass.getGlassTint(), 0, (int) (255 * glassButtonAlpha(child)));
+                if (!liquid) {
+                    glass.setBounds(Math.round(g.left), Math.round(g.top), Math.round(g.right), Math.round(g.bottom));
+                    glassButtonBackdrop.setArea(g);
+                    glass.setBackdrop(!glassButtonBackdrop.isDrawing() && glassButtonBackdrop.isAvailable() ? glassButtonBackdrop : null);
+                    glass.draw(canvas);
+                    if (pressed) {
+                        canvas.save();
+                        canvas.translate(g.left, g.top);
+                        effect.drawGlow(canvas, g.width(), g.height(), Math.min(g.width(), g.height()) / 2f);
+                        canvas.restore();
+                    }
                 }
                 // The icon follows the glass through the canvas
                 glassTransform(canvas, surface);

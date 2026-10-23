@@ -17,16 +17,26 @@ import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 
+import org.telegram.liquidglass.GlassLayer;
+import org.telegram.liquidglass.LiquidButtonView;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 
 /**
- * Press feedback of the Kyant0/AndroidLiquidGlass catalog's LiquidButton for a plain View:
- * the surface swells a little and leans towards the finger (its `layerBlock`), and a light
- * spot follows the finger (its `InteractiveHighlight`). Both springs use the catalog's
- * spring(0.5f, 300f).
+ * A glass button of the Kyant0/AndroidLiquidGlass catalog's LiquidButton for a plain View.
  * <p>
- * Call {@link #onTouchEvent} from {@code dispatchTouchEvent}, wrap {@code draw} in
- * {@link #transform} / {@code restore}, and call {@link #drawGlow} after the background.
+ * Where Liquid Glass is on, the button is the library's LiquidButton itself ({@link LiquidButtonView}):
+ * {@link #drawGlass} draws its glass with its highlight in place of the view's own glass, and
+ * the press is the catalog's InteractiveHighlight with LiquidButton's layer: the surface swells a
+ * little and leans towards the finger, and a light spot follows the finger. Elsewhere this view's
+ * own copy of that motion runs, with the catalog's spring(0.5f, 300f), and {@link #drawGlow}
+ * draws the light.
+ * <p>
+ * Call {@link #onTouchEvent} from {@code dispatchTouchEvent}, wrap the content's {@code draw} in
+ * {@link #transform} / {@code restore}, and draw the glass with {@link #drawGlass}, or call
+ * {@link #drawGlow} after the background when it returns false.
  */
 public class LiquidPressEffect {
 
@@ -46,8 +56,40 @@ public class LiquidPressEffect {
     private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path clip = new Path();
 
+    // The library's LiquidButton, where there is one
+    private LiquidButtonView button;
+    private BlurredBackgroundDrawable buttonGlass;
+    private GlassLayer.Backdrop buttonBackdrop;
+    private float buttonLeft, buttonTop, buttonWidth, buttonHeight;
+    // Whether the button was drawn last time: it has its own highlight then
+    private boolean buttonDrawn;
+
     public LiquidPressEffect(View view) {
         this.view = view;
+        if (LiquidButtonView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            button = new LiquidButtonView(view.getContext());
+            button.setSource(this::drawButtonSource);
+            button.setInvalidateListener(() -> {
+                view.invalidate();
+                restoreClipping();
+            });
+            // The button needs a window: it goes, out of sight, into the root of the view's own,
+            // after the frame being drawn (the root must not get a child while it draws)
+            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    attachButton();
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View v) {
+                    button.detach();
+                }
+            });
+            if (view.isAttachedToWindow()) {
+                attachButton();
+            }
+        }
         pressAnimation = spring(press, 0.001f);
         offsetXAnimation = spring(offsetX, 0.5f);
         offsetYAnimation = spring(offsetY, 0.5f);
@@ -56,6 +98,124 @@ public class LiquidPressEffect {
         } else {
             glowPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.ADD));
         }
+    }
+
+    private void attachButton() {
+        view.post(() -> {
+            if (view.isAttachedToWindow()) {
+                button.attach(view);
+                view.invalidate();
+            }
+        });
+    }
+
+    /** Whether the library's LiquidButton was drawn last time, so its owner keeps room for its shadow. */
+    public boolean isLibraryButton() {
+        return isButton() && buttonDrawn;
+    }
+
+    /** Whether the library's LiquidButton is drawn (and pressed) for this view right now. */
+    private boolean isButton() {
+        return button != null && button.isAttachedToWindow();
+    }
+
+    /** What is under the button, from the view's glass, with (0, 0) at the button's top-left corner. */
+    private void drawButtonSource(Canvas canvas) {
+        if (buttonBackdrop != null) {
+            buttonBackdrop.draw(canvas);
+            return;
+        }
+        final BlurredBackgroundDrawable glass = buttonGlass;
+        if (glass == null) {
+            return;
+        }
+        final BlurredBackgroundSource source = glass.getUnwrappedSource();
+        if (source == null) {
+            return;
+        }
+        // The glass's source is laid out like the canvas it is drawn in, moved by its offset
+        final float sx = buttonLeft + glass.getSourceOffsetX();
+        final float sy = buttonTop + glass.getSourceOffsetY();
+        canvas.save();
+        canvas.translate(-sx, -sy);
+        source.draw(canvas, sx, sy, sx + buttonWidth, sy + buttonHeight);
+        canvas.restore();
+    }
+
+    /**
+     * Draws the library's LiquidButton for the glass (left, top, right, bottom, in the canvas) in
+     * place of glass: what is under it comes from the glass's source, and its surface is the
+     * glass's tint. False when there is none here (no Liquid Glass, no window yet, a software
+     * canvas): the caller draws its glass itself, and {@link #drawGlow} over it.
+     */
+    public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius, BlurredBackgroundDrawable glass, int alpha) {
+        if (!isButton() || glass == null) {
+            return false;
+        }
+        buttonGlass = glass;
+        buttonBackdrop = null;
+        // The source records only around glass that has been drawn: the glass, not drawn now,
+        // still has to count, as it would on its first draw
+        if (glass instanceof org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawableRenderNode && !glass.hasDisplayList()) {
+            final BlurredBackgroundSource source = glass.getSource();
+            if (source != null) {
+                source.dispatchOnDrawablesRelativePositionChange();
+            }
+            glass.updateDisplayList();
+        }
+        return drawButton(canvas, left, top, right, bottom, radius, surfaceOf(glass.getBackgroundColor()), 0, alpha);
+    }
+
+    /**
+     * Like {@link #drawGlass}, with what is under the button from a backdrop drawn from the
+     * button's top-left corner, a surface color over the glass and a tint (the filled buttons),
+     * 0 for none.
+     */
+    public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius, GlassLayer.Backdrop backdrop, int surfaceColor, int tint, int alpha) {
+        if (!isButton()) {
+            return false;
+        }
+        buttonGlass = null;
+        buttonBackdrop = backdrop;
+        return drawButton(canvas, left, top, right, bottom, radius, surfaceColor, tint, alpha);
+    }
+
+    private boolean drawButton(Canvas canvas, float left, float top, float right, float bottom, float radius, int surfaceColor, int tint, int alpha) {
+        if (alpha <= 0) {
+            return true;
+        }
+        buttonLeft = left;
+        buttonTop = top;
+        buttonWidth = right - left;
+        buttonHeight = bottom - top;
+        button.setSurfaceColor(surfaceColor);
+        button.setTint(tint);
+        button.setCornerRadius(radius >= Math.min(buttonWidth, buttonHeight) / 2f - 0.5f ? Float.POSITIVE_INFINITY : radius);
+        final boolean layer = alpha < 255;
+        if (layer) {
+            final float o = AndroidUtilities.dp(LiquidButtonView.OVERFLOW_DP);
+            canvas.saveLayerAlpha(left - o, top - o, right + o, bottom + o, alpha);
+        }
+        final boolean drawn = button.drawInto(canvas, left, top, Math.round(buttonWidth), Math.round(buttonHeight));
+        if (layer) {
+            canvas.restore();
+        }
+        buttonDrawn = drawn;
+        if (drawn) {
+            // The library's shadow lies around the button: its parents must not cut it
+            unclipParents();
+        }
+        return drawn;
+    }
+
+    /** The glass's tint as the surface of the button: as light as the library's other glass. */
+    private static int surfaceOf(int backgroundColor) {
+        if (Color.alpha(backgroundColor) == 0) {
+            return 0;
+        }
+        final boolean dark = androidx.core.graphics.ColorUtils.calculateLuminance(backgroundColor | 0xFF000000) < 0.5f;
+        final float alpha = Math.min(Color.alpha(backgroundColor) / 255f, org.telegram.liquidglass.BackdropGlass.tintAlpha(dark));
+        return androidx.core.graphics.ColorUtils.setAlphaComponent(backgroundColor, (int) (alpha * 255));
     }
 
     private SpringAnimation spring(FloatValueHolder holder, float threshold) {
@@ -106,7 +266,10 @@ public class LiquidPressEffect {
     }
 
     private void restoreClipping() {
-        if (unclipped.isEmpty() && unclippedPadding.isEmpty() || pressAnimation.isRunning() || offsetXAnimation.isRunning() || offsetYAnimation.isRunning() || isActive() && press.getValue() > 0.01f) {
+        if (unclipped.isEmpty() && unclippedPadding.isEmpty() || pressAnimation.isRunning() || offsetXAnimation.isRunning() || offsetYAnimation.isRunning() || isActive() && getPressProgress() > 0.01f) {
+            return;
+        }
+        if (isButton() && (button.isActive() || buttonDrawn)) {
             return;
         }
         for (android.view.ViewGroup group : unclipped) {
@@ -122,11 +285,17 @@ public class LiquidPressEffect {
     }
 
     public float getPressProgress() {
+        if (isButton()) {
+            return button.getPressProgress();
+        }
         return press.getValue();
     }
 
     /** Whether the surface is pressed or still springing back, so it has to be drawn transformed. */
     public boolean isActive() {
+        if (isButton()) {
+            return button.isActive();
+        }
         return press.getValue() != 0f || offsetX.getValue() != 0f || offsetY.getValue() != 0f;
     }
 
@@ -142,6 +311,26 @@ public class LiquidPressEffect {
      * the action bar); the view's own clickable state does not matter.
      */
     public void onTouch(int action, float x, float y) {
+        if (isButton()) {
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    unclipParents();
+                    touchX = x;
+                    touchY = y;
+                    button.press(x, y);
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    touchX = x;
+                    touchY = y;
+                    button.move(x, y);
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    button.release();
+                    break;
+            }
+            return;
+        }
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 unclipParents();
@@ -178,6 +367,18 @@ public class LiquidPressEffect {
     private boolean compute(float width, float height) {
         if (width <= 0 || height <= 0) {
             return false;
+        }
+        if (isButton()) {
+            // The library's own: LiquidButton's layer
+            if (!button.isActive()) {
+                return false;
+            }
+            button.computeMotion(width, height);
+            curTx = button.getContentTranslationX();
+            curTy = button.getContentTranslationY();
+            curScaleX = button.getContentScaleX();
+            curScaleY = button.getContentScaleY();
+            return true;
         }
         final float progress = press.getValue();
         final float ox = offsetX.getValue(), oy = offsetY.getValue();
@@ -242,9 +443,15 @@ public class LiquidPressEffect {
         return Math.max(1f, Math.max(moved.width() / width, moved.height() / height));
     }
 
-    /** The catalog's InteractiveHighlight: a faint wash and a light spot under the finger. */
+    /**
+     * This view's copy of the catalog's InteractiveHighlight: a faint wash and a light spot under
+     * the finger. The library's LiquidButton draws its own (see {@link #drawGlass}).
+     */
     public void drawGlow(Canvas canvas, float width, float height, float radius) {
-        final float progress = press.getValue();
+        final float progress = getPressProgress();
+        if (isButton() && buttonDrawn) {
+            return;
+        }
         if (progress <= 0f || width <= 0 || height <= 0) {
             return;
         }

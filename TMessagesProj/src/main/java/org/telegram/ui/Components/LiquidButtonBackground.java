@@ -49,6 +49,13 @@ public class LiquidButtonBackground extends Drawable {
         return color;
     }
 
+    // The library's LiquidButton is drawn in its place (see ButtonWithCounterView)
+    private boolean skipDraw;
+
+    public void setSkipDraw(boolean skipDraw) {
+        this.skipDraw = skipDraw;
+    }
+
     public static float radius(Rect bounds) {
         return Math.min(bounds.width(), bounds.height()) / 2f;
     }
@@ -56,7 +63,7 @@ public class LiquidButtonBackground extends Drawable {
     @Override
     public void draw(@NonNull Canvas canvas) {
         final Rect b = getBounds();
-        if (b.isEmpty()) {
+        if (b.isEmpty() || skipDraw) {
             return;
         }
         final float r = radius(b);

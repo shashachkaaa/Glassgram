@@ -496,6 +496,14 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
     @Override
     public void draw(@NonNull Canvas canvas) {
         if (filled) {
+            // glassGram: the button is the library's LiquidButton tinted with its color, the
+            // catalog's "Tinted Liquid Button"; its text follows the press
+            if (getBackground() instanceof LiquidButtonBackground) {
+                final LiquidButtonBackground background = (LiquidButtonBackground) getBackground();
+                final boolean liquid = liquidPress.drawGlass(canvas, 0, 0, getWidth(), getHeight(), Math.min(getWidth(), getHeight()) / 2f,
+                    null, 0, background.getColor(), 255);
+                background.setSkipDraw(liquid);
+            }
             canvas.save();
             liquidPress.transform(canvas, getWidth(), getHeight());
             super.draw(canvas);

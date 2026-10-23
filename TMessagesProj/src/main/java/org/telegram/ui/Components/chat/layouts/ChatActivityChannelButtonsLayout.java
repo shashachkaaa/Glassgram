@@ -449,6 +449,18 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
             containerDrawable.setBounds(AndroidUtilities.rectTmp2);
             final int p = dp(6);
             containerGlassRect.set(tmpRect.left + p, tmpRect.top + p, tmpRect.right - p, tmpRect.bottom - p);
+            // glassGram: the pill is the library's LiquidButton, and its content follows its press
+            final RectF g = containerGlassRect;
+            containerDrawable.setRadiusScale(1f);
+            if (containerPress.drawGlass(canvas, g.left, g.top, g.right, g.bottom, Math.min(g.width(), g.height()) / 2f, containerDrawable, containerDrawable.getAlpha())) {
+                canvas.save();
+                canvas.translate(g.left, g.top);
+                containerPress.transform(canvas, g.width(), g.height());
+                canvas.translate(-g.left, -g.top);
+                final boolean result = super.drawChild(canvas, child, drawingTime);
+                canvas.restore();
+                return result;
+            }
             if (containerPress.isActive()) {
                 final RectF r = containerGlassRect;
                 // The glass goes where the press moved it and blurs what is there now

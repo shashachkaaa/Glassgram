@@ -203,6 +203,17 @@ public class ChatInputViewsContainer extends FrameLayout {
             }
             drawable.setAlpha(buttonsOnly ? Math.round(glassgramSegmentsAlpha * Math.max(0f, Math.min(1f, glassgramMorphAlpha))) : glassgramSegmentsAlpha);
             final LiquidPressEffect press = glassgramSegmentsProvider.getPress(i);
+            // glassGram: the piece is the library's LiquidButton, its glass and its highlight
+            if (press != null) {
+                final float visibleTop = top + pad, visibleBottom = island.bottom - pad;
+                drawable.setRadiusScale(1f);
+                drawable.setBounds(Math.round(left) - pad, top, Math.round(right) + pad, island.bottom);
+                // A tall field is a rounded rectangle, not a capsule
+                final float radius = Math.min((visibleBottom - visibleTop) / 2f, dp(INPUT_BUBBLE_RADIUS));
+                if (press.drawGlass(canvas, left, visibleTop, right, visibleBottom, radius, drawable, drawable.getAlpha())) {
+                    continue;
+                }
+            }
             if (press == null || !press.isActive()) {
                 drawable.setRadiusScale(1f);
                 drawable.setBounds(Math.round(left) - pad, top, Math.round(right) + pad, island.bottom);

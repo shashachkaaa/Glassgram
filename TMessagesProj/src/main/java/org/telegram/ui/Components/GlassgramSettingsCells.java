@@ -279,6 +279,8 @@ public final class GlassgramSettingsCells {
                 super(context);
                 this.shape = shape;
                 press = new LiquidPressEffect(this);
+                // The tiles' row and the cell: the button's shadow lies around it
+                press.setUnclipParents(2);
                 chosen = new AnimatedFloat(this, 0, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
                 chosen.set(selected == shape, true);
                 stroke.setStyle(Paint.Style.STROKE);
@@ -297,8 +299,15 @@ public final class GlassgramSettingsCells {
                 return super.dispatchTouchEvent(event);
             }
 
+            // The tile is the library's LiquidButton over the settings card, its fill the surface
+            private boolean liquid;
+            private final org.telegram.liquidglass.GlassLayer.Backdrop cardBackdrop =
+                c -> c.drawColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+
             @Override
             public void draw(@NonNull Canvas canvas) {
+                final int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
+                liquid = press.drawGlass(canvas, 0, 0, getWidth(), getHeight(), dp(16), cardBackdrop, Theme.multAlpha(text, 0.04f), 0, 255);
                 canvas.save();
                 press.transform(canvas, getWidth(), getHeight());
                 super.draw(canvas);
@@ -315,8 +324,10 @@ public final class GlassgramSettingsCells {
                 // The frame
                 final float strokeWidth = AndroidUtilities.lerp(AndroidUtilities.dpf2(1), AndroidUtilities.dpf2(2.33f), t);
                 rect.set(strokeWidth / 2f, strokeWidth / 2f, getWidth() - strokeWidth / 2f, getHeight() - strokeWidth / 2f);
-                fill.setColor(Theme.multAlpha(text, 0.04f));
-                canvas.drawRoundRect(rect, outer, outer, fill);
+                if (!liquid) {
+                    fill.setColor(Theme.multAlpha(text, 0.04f));
+                    canvas.drawRoundRect(rect, outer, outer, fill);
+                }
                 stroke.setStrokeWidth(strokeWidth);
                 stroke.setColor(ColorUtils.blendARGB(Theme.multAlpha(text, 0.1f), accent, t));
                 canvas.drawRoundRect(rect, outer, outer, stroke);

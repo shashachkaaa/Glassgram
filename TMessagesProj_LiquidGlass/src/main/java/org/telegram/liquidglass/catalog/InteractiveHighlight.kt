@@ -38,6 +38,34 @@ class InteractiveHighlight(
     val pressProgress: Float get() = pressProgressAnimation.value
     val offset: Offset get() = positionAnimation.value - startPosition
 
+    /** Pressed, or still springing back: the button is drawn moved. */
+    val isActive: Boolean
+        get() = pressProgressAnimation.value != 0f || pressProgressAnimation.isRunning || positionAnimation.isRunning
+
+    /*
+     * The gesture's steps, also for a button whose touches go to something else (a Telegram view
+     * with its own clicks and long presses), which feeds them here itself.
+     */
+
+    fun press(position: Offset) {
+        startPosition = position
+        animationScope.launch {
+            launch { pressProgressAnimation.animateTo(1f, pressProgressAnimationSpec) }
+            launch { positionAnimation.snapTo(startPosition) }
+        }
+    }
+
+    fun move(position: Offset) {
+        animationScope.launch { positionAnimation.snapTo(position) }
+    }
+
+    fun release() {
+        animationScope.launch {
+            launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
+            launch { positionAnimation.animateTo(startPosition, positionAnimationSpec) }
+        }
+    }
+
     private val shader =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             RuntimeShader(
@@ -100,27 +128,11 @@ half4 main(float2 coord) {
                 // отнимать её нельзя, иначе список не пролистать, поставив палец на
                 // кнопку. Порог различения не даёт отменять нажатие дрожанием пальца
                 claimHorizontal = true,
-                onDragStart = { down ->
-                    startPosition = down.position
-                    animationScope.launch {
-                        launch { pressProgressAnimation.animateTo(1f, pressProgressAnimationSpec) }
-                        launch { positionAnimation.snapTo(startPosition) }
-                    }
-                },
-                onDragEnd = {
-                    animationScope.launch {
-                        launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
-                        launch { positionAnimation.animateTo(startPosition, positionAnimationSpec) }
-                    }
-                },
-                onDragCancel = {
-                    animationScope.launch {
-                        launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
-                        launch { positionAnimation.animateTo(startPosition, positionAnimationSpec) }
-                    }
-                }
+                onDragStart = { down -> press(down.position) },
+                onDragEnd = { release() },
+                onDragCancel = { release() }
             ) { change, _ ->
-                animationScope.launch { positionAnimation.snapTo(change.position) }
+                move(change.position)
             }
         }
 }

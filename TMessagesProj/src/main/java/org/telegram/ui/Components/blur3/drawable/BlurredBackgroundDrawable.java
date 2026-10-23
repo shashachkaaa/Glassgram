@@ -230,6 +230,11 @@ public abstract class BlurredBackgroundDrawable extends Drawable {
         return outsetY;
     }
 
+    /** The glass's tint over what it blurs. */
+    public int getBackgroundColor() {
+        return backgroundColor;
+    }
+
     @CallSuper
     public void updateColors() {
         if (colorProvider == null) return;

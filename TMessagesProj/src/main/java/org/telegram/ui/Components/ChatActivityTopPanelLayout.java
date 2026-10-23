@@ -26,6 +26,10 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         setOrientation(LinearLayout.VERTICAL);
         updateColors();
+        // The card is the library's LiquidButton from the start, not only once pressed
+        press = new LiquidPressEffect(this);
+        // It swells past the layout, whose parent must not cut it
+        press.setUnclipParents(1);
     }
 
     BlurredBackgroundDrawable backgroundDrawable;
@@ -77,11 +81,6 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
         if (action == MotionEvent.ACTION_DOWN) {
             pressTracking = handled && backgroundDrawable != null && getMetadata().getTotalVisibility() > 0
                 && glassRect.contains(ev.getX(), ev.getY());
-            if (pressTracking && press == null) {
-                press = new LiquidPressEffect(this);
-                // It swells past the layout, whose parent must not cut it
-                press.setUnclipParents(1);
-            }
         }
         if (!pressTracking) {
             return;
@@ -150,7 +149,14 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         final boolean pressed = backgroundDrawable != null && press != null && press.isActive()
             && glassRect.width() > 0 && glassRect.height() > 0;
-        if (backgroundDrawable != null) {
+        // glassGram: the card is the library's LiquidButton, its glass and its highlight
+        boolean liquidButton = false;
+        if (backgroundDrawable != null && glassRect.width() > 0 && glassRect.height() > 0) {
+            backgroundDrawable.setBounds(bgBounds);
+            backgroundDrawable.setRadiusScale(1f);
+            liquidButton = press.drawGlass(canvas, glassRect.left, glassRect.top, glassRect.right, glassRect.bottom, glassRadius, backgroundDrawable, backgroundDrawable.getAlpha());
+        }
+        if (backgroundDrawable != null && !liquidButton) {
             float radiusScale = 1f;
             if (pressed) {
                 // The glass goes where the press moved it and blurs what is there, its corners

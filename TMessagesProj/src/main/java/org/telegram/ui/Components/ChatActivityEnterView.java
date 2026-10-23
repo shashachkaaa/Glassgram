@@ -15067,7 +15067,8 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     /** The press of a piece for the glass drawn behind it, or null. */
     public LiquidPressEffect getGlassgramPress(int segment) {
-        return glassgramLastSplit && segment >= 0 && segment < glassgramPress.length ? glassgramPress[segment] : null;
+        // Every piece is the library's LiquidButton, pressed or not: it is made with its glass
+        return glassgramLastSplit && segment >= 0 && segment < glassgramPress.length ? glassgramPress(segment) : null;
     }
 
     private LiquidPressEffect glassgramPress(int segment) {

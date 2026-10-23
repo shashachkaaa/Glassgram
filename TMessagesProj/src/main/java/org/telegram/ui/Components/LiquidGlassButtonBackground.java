@@ -61,6 +61,18 @@ public class LiquidGlassButtonBackground extends Drawable {
     }
 
     /**
+     * The tint of the glass over what it blurs, for the library's LiquidButton drawn in place of
+     * this: frosted for dark icons, a light veil for light ones, as {@link #draw} tints its own.
+     */
+    public int getGlassTint() {
+        final float t = veilFactor();
+        final boolean dark = ColorUtils.calculateLuminance(surfaceColor | 0xFF000000) < 0.5f;
+        final int frosted = ColorUtils.setAlphaComponent(surfaceColor, (int) (255 * BackdropGlass.tintAlpha(dark)));
+        final int light = ColorUtils.setAlphaComponent(0xFFFFFFFF, 0x2E);
+        return ColorUtils.blendARGB(frosted, light, t);
+    }
+
+    /**
      * 0 for dark icons (frosted white glass), 1 for light ones (a light veil), in between while
      * the icons change color, as they do when the profile header opens.
      */

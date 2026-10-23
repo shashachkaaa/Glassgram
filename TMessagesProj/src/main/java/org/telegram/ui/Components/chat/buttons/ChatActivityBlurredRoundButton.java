@@ -79,6 +79,22 @@ public class ChatActivityBlurredRoundButton extends FrameLayout implements Facto
     public void draw(@NonNull Canvas canvas) {
         final float m = dp(CLICK_ZONE_MARGIN);
         final float w = getWidth() - m * 2, h = getHeight() - m * 2;
+        // glassGram: the glass is the library's LiquidButton, and the icon follows its press
+        if (w > 0 && h > 0 && backgroundDrawable != null) {
+            final android.graphics.Rect b = backgroundDrawable.getBounds();
+            if (b.left != 0 || b.top != 0 || b.right != getWidth() || b.bottom != getHeight()) {
+                backgroundDrawable.setBounds(0, 0, getWidth(), getHeight());
+            }
+            if (liquidPress.drawGlass(canvas, m, m, m + w, m + h, Math.min(w, h) / 2f, backgroundDrawable, 255)) {
+                canvas.save();
+                canvas.translate(m, m);
+                liquidPress.transform(canvas, w, h);
+                canvas.translate(-m, -m);
+                super.draw(canvas);
+                canvas.restore();
+                return;
+            }
+        }
         final boolean pressed = liquidPress.isActive() && w > 0 && h > 0;
         if (!pressed) {
             // Back in place after a press (the bounds are left moved until the next frame)
