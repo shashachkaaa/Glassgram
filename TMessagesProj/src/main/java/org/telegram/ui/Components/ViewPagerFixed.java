@@ -43,7 +43,9 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.liquidglass.LiquidTabBarView;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.MessagesController;
@@ -1757,20 +1759,7 @@ public class ViewPagerFixed extends FrameLayout {
             adapter = new ListAdapter(context);
             adapter.setHasStableIds(hasStableIds);
             listView.setAdapter(adapter);
-            listView.setOnItemClickListener((view, position, x, y) -> {
-                if (delegate != null && !delegate.canPerformActions()) {
-                    return;
-                }
-                TabView tabView = (TabView) view;
-                if (position == currentPosition && delegate != null) {
-                    delegate.onSamePageSelected();
-                    return;
-                }
-                if (preTabClick != null && preTabClick.run(tabView.currentTab.id, position)) {
-                    return;
-                }
-                scrollToTab(tabView.currentTab.id, position);
-            });
+            listView.setOnItemClickListener((view, position, x, y) -> onTabClick(((TabView) view).currentTab.id, position));
             listView.setOnItemLongClickListener((view, position) -> {
                 if (onTabLongClick == null) {
                     return false;
@@ -1789,6 +1778,21 @@ public class ViewPagerFixed extends FrameLayout {
             } else {
                 addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             }
+            createLiquidTabs(context);
+        }
+
+        private void onTabClick(int id, int position) {
+            if (delegate != null && !delegate.canPerformActions()) {
+                return;
+            }
+            if (position == currentPosition && delegate != null) {
+                delegate.onSamePageSelected();
+                return;
+            }
+            if (preTabClick != null && preTabClick.run(id, position)) {
+                return;
+            }
+            scrollToTab(id, position);
         }
 
         public void setDelegate(TabsViewDelegate filterTabsViewDelegate) {
@@ -2023,7 +2027,7 @@ public class ViewPagerFixed extends FrameLayout {
         @Override
         protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
             boolean result = super.drawChild(canvas, child, drawingTime);
-            if (child == listView) {
+            if (child == listView && !liquidTabsUsed) {
                 final int height = getMeasuredHeight();
                 boolean invalidate = false;
                 if (isInHiddenMode && hideProgress != 1f) {
@@ -2180,6 +2184,10 @@ public class ViewPagerFixed extends FrameLayout {
                     }
                 }
             }
+            checkLiquidTabs();
+            if (liquidTabs != null && liquidTabs.getVisibility() == VISIBLE) {
+                liquidTabs.layout(0, 0, r - l, b - t);
+            }
         }
 
         public void selectTab(int currentPosition, int nextPosition, float progress) {
@@ -2288,6 +2296,7 @@ public class ViewPagerFixed extends FrameLayout {
             editingForwardAnimation = true;
             listView.invalidateViews();
             invalidate();
+            checkLiquidTabs();
             if (!isEditing && orderChanged) {
                 MessagesStorage.getInstance(UserConfig.selectedAccount).saveDialogFiltersOrder();
                 TLRPC.TL_messages_updateDialogFiltersOrder req = new TLRPC.TL_messages_updateDialogFiltersOrder();
@@ -2306,7 +2315,220 @@ public class ViewPagerFixed extends FrameLayout {
         BlurredBackgroundDrawable blurredBackgroundDrawable;
 
         public void setBlurredBackground(BlurredBackgroundDrawable drawable) {
-            setBackground(blurredBackgroundDrawable = drawable);
+            blurredBackgroundDrawable = drawable;
+            setBackground(liquidTabsUsed ? null : drawable);
+        }
+
+        /*
+         * glassGram: the tabs as the library's LiquidBottomTabs (LiquidTabBarView), like the chats
+         * list's folders: a glass capsule with a drop that rides between the tabs, swells under
+         * the finger, can be dragged and refracts the tabs it passes over. The tabs stay this
+         * view's, laid out but not drawn in the list, and painted into the bar's slots, which are
+         * of one width. Tabs that do not fit side by side, and editing, keep the scrolling list.
+         */
+        private static final int LIQUID_TABS_MAX = 5;
+        private static final float LIQUID_TABS_INSET_DP = 4f;
+
+        private LiquidTabBarView liquidTabs;
+        private boolean liquidTabsUsed;
+        private final ArrayList<View> liquidTabViews = new ArrayList<>();
+        private final ArrayList<View> liquidTabViewsTmp = new ArrayList<>();
+        private final int[] liquidTabsLocation = new int[2];
+        private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
+        private android.view.ViewTreeObserver liquidTabsTree;
+        private final android.view.ViewTreeObserver.OnPreDrawListener liquidTabsWatcher = () -> {
+            // A blurred backdrop is a RenderNode that updates by itself; only a move re-records it
+            if (liquidTabsUsed && liquidTabs != null) {
+                liquidTabs.getLocationInWindow(liquidTabsLocation);
+                if (liquidTabsLocation[0] != liquidTabsLastX || liquidTabsLocation[1] != liquidTabsLastY) {
+                    liquidTabsLastX = liquidTabsLocation[0];
+                    liquidTabsLastY = liquidTabsLocation[1];
+                    liquidTabs.invalidateBackdrop();
+                }
+            }
+            return true;
+        };
+
+        private void createLiquidTabs(Context context) {
+            if (!LiquidTabBarView.isSupported() || !LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+                return;
+            }
+            liquidTabs = new LiquidTabBarView(context);
+            liquidTabs.setSource(new LiquidTabBarView.Source() {
+                @Override
+                public View getSourceView() {
+                    return TabsView.this;
+                }
+
+                @Override
+                public void draw(Canvas canvas) {
+                    drawLiquidBackdrop(canvas);
+                }
+            });
+            liquidTabs.setListener(new LiquidTabBarView.Listener() {
+                @Override
+                public void onTabSelected(int index) {
+                    if (index >= 0 && index < tabs.size() && index != currentPosition) {
+                        onTabClick(tabs.get(index).id, index);
+                        if (currentPosition != index) {
+                            // Turned down (a locked tab): the drop goes back
+                            liquidTabs.resetSelectedIndex();
+                        }
+                    }
+                }
+
+                @Override
+                public void onTabLongPress(int index) {
+                    if (onTabLongClick != null && index >= 0 && index < liquidTabViews.size()) {
+                        onTabLongClick.run(tabs.get(index).id, liquidTabViews.get(index));
+                    }
+                }
+            });
+            liquidTabs.setReselectListener(index -> {
+                if (delegate != null && delegate.canPerformActions()) {
+                    delegate.onSamePageSelected();
+                }
+            });
+            liquidTabs.setTextTabs(true);
+            liquidTabs.setInset(dp(LIQUID_TABS_INSET_DP));
+            liquidTabs.setVisibility(View.GONE);
+            addView(liquidTabs, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            updateLiquidTabsColors();
+        }
+
+        /** What is under the bar: the blur the strip was made of, or its own flat color. */
+        private void drawLiquidBackdrop(Canvas canvas) {
+            if (blurredBackgroundDrawable != null) {
+                final org.telegram.ui.Components.blur3.source.BlurredBackgroundSource source = blurredBackgroundDrawable.getUnwrappedSource();
+                if (source != null) {
+                    final float ox = blurredBackgroundDrawable.getSourceOffsetX(), oy = blurredBackgroundDrawable.getSourceOffsetY();
+                    canvas.save();
+                    canvas.translate(-ox, -oy);
+                    source.draw(canvas, ox, oy, ox + getWidth(), oy + getHeight());
+                    canvas.restore();
+                    return;
+                }
+            }
+            final Drawable background = getBackground();
+            canvas.drawColor(background instanceof android.graphics.drawable.ColorDrawable
+                ? ((android.graphics.drawable.ColorDrawable) background).getColor()
+                : Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        }
+
+        private void updateLiquidTabsColors() {
+            if (liquidTabs == null) {
+                return;
+            }
+            liquidTabs.setAccentColor(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider));
+            final int background = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            liquidTabs.setLight(ColorUtils.calculateLuminance(background | 0xFF000000) >= 0.5f);
+            liquidTabs.invalidateTabs();
+        }
+
+        /** Puts the tabs on the liquid bar when they all fit side by side, or back in the list. */
+        private void checkLiquidTabs() {
+            if (liquidTabs == null) {
+                return;
+            }
+            liquidTabViewsTmp.clear();
+            for (int a = 0, N = listView.getChildCount(); a < N; a++) {
+                final View child = listView.getChildAt(a);
+                if (child instanceof TabView && listView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION) {
+                    liquidTabViewsTmp.add(child);
+                }
+            }
+            java.util.Collections.sort(liquidTabViewsTmp, (a, b) -> Integer.compare(listView.getChildAdapterPosition(a), listView.getChildAdapterPosition(b)));
+
+            final int count = tabs.size();
+            boolean use = isAttachedToWindow() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) && !isEditing && !isInHiddenMode
+                && count >= 2 && count <= LIQUID_TABS_MAX && liquidTabViewsTmp.size() == count && getMeasuredWidth() > 0;
+            if (use) {
+                // Each tab gets the same slot; a title wider than that keeps the list
+                final float slot = (getMeasuredWidth() - dp(LIQUID_TABS_INSET_DP) * 2 - dp(8)) / (float) count;
+                for (int a = 0; a < count; a++) {
+                    if (tabs.get(a).getWidth(false, textPaint) + dp(20) > slot) {
+                        use = false;
+                        break;
+                    }
+                }
+            }
+            if (use) {
+                if (!liquidTabViewsTmp.equals(liquidTabViews)) {
+                    liquidTabViews.clear();
+                    liquidTabViews.addAll(liquidTabViewsTmp);
+                    liquidTabs.setTabs(liquidTabViews);
+                }
+                liquidTabs.setSelectedIndex(currentPosition);
+            }
+            liquidTabViewsTmp.clear();
+            if (liquidTabsUsed != use) {
+                liquidTabsUsed = use;
+                liquidTabs.setVisibility(use ? View.VISIBLE : View.GONE);
+                // The list stays laid out for its tabs, which the bar paints; the bar has its own glass
+                listView.setAlpha(use ? 0f : 1f);
+                if (blurredBackgroundDrawable != null) {
+                    setBackground(use ? null : blurredBackgroundDrawable);
+                }
+                // The pressed drop is taller than the capsule
+                setClipChildren(!use);
+                setClipToPadding(!use);
+                if (use) {
+                    // Measured and placed here, after the list was laid out, as the bar is shown now
+                    liquidTabs.measure(
+                        MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+                    liquidTabs.layout(0, 0, getMeasuredWidth(), getMeasuredHeight());
+                }
+                invalidate();
+            }
+            liquidTabs.invalidateTabs();
+        }
+
+        @Override
+        protected void dispatchDraw(Canvas canvas) {
+            if (liquidTabsUsed && liquidTabs != null) {
+                liquidTabs.setSelectedIndex(currentPosition);
+            }
+            super.dispatchDraw(canvas);
+        }
+
+        @Override
+        public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+            super.onDescendantInvalidated(child, target);
+            if (liquidTabsUsed && liquidTabs != null && child != liquidTabs) {
+                liquidTabs.invalidateTabs();
+            }
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if (liquidTabs != null) {
+                if (liquidTabsTree != null && liquidTabsTree.isAlive()) {
+                    liquidTabsTree.removeOnPreDrawListener(liquidTabsWatcher);
+                }
+                liquidTabsTree = getViewTreeObserver();
+                liquidTabsTree.addOnPreDrawListener(liquidTabsWatcher);
+                requestLayout();
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            if (liquidTabsTree != null && liquidTabsTree.isAlive()) {
+                liquidTabsTree.removeOnPreDrawListener(liquidTabsWatcher);
+            }
+            liquidTabsTree = null;
+            if (liquidTabsUsed) {
+                // Back to the list: the bar can't be measured without a window
+                liquidTabsUsed = false;
+                liquidTabs.setVisibility(View.GONE);
+                listView.setAlpha(1f);
+                if (blurredBackgroundDrawable != null) {
+                    setBackground(blurredBackgroundDrawable);
+                }
+            }
         }
 
         private class ListAdapter extends RecyclerListView.SelectionAdapter {

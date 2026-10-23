@@ -40,6 +40,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DocumentObject;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
+import org.telegram.liquidglass.LiquidTabBarView;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
@@ -419,7 +420,12 @@ public class StarGiftPreviewSheet extends BottomSheetWithRecyclerListView {
         drawable.setPadding(dp(4));
         drawable.setRadius(dp(28));
         drawable.setColorProvider(new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite));
-        tabsSelectorView.setBackground(drawable);
+        if (glassSourceRenderNode != null && LiquidTabBarView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            // glassGram: the library's LiquidBottomTabs, over what the glass was made of
+            tabsSelectorView.setLiquid(container, glassSourceRenderNode, resourcesProvider);
+        } else {
+            tabsSelectorView.setBackground(drawable);
+        }
         containerView.addView(tabsSelectorView, LayoutHelper.createFrame(268, 64, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 5));
 
         selectedAttributes = new Attributes(
@@ -967,6 +973,79 @@ public class StarGiftPreviewSheet extends BottomSheetWithRecyclerListView {
                 selectedTab = tab;
                 animator.animateTo(tab);
                 onTabSelectListener.run(tab);
+            }
+            if (liquidTabs != null) {
+                liquidTabs.setSelectedIndex(tab);
+                liquidTabs.invalidateTabs();
+            }
+        }
+
+        /*
+         * glassGram: the tabs as the library's LiquidBottomTabs (LiquidTabBarView): the glass
+         * capsule with the drop that rides between them. The tabs stay these GlassTabViews,
+         * laid out but not drawn in their row, and painted into the bar's slots.
+         */
+        private LiquidTabBarView liquidTabs;
+        private final int[] liquidTabsLocation = new int[2];
+        private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
+
+        void setLiquid(View sourceView, BlurredBackgroundSourceRenderNode source, Theme.ResourcesProvider resourcesProvider) {
+            liquidTabs = new LiquidTabBarView(getContext());
+            liquidTabs.setSource(new LiquidTabBarView.Source() {
+                @Override
+                public View getSourceView() {
+                    return sourceView;
+                }
+
+                @Override
+                public void draw(Canvas canvas) {
+                    source.draw(canvas, 0, 0, sourceView.getWidth(), sourceView.getHeight());
+                }
+            });
+            liquidTabs.setListener(new LiquidTabBarView.Listener() {
+                @Override
+                public void onTabSelected(int index) {
+                    if (index >= 0 && index < tabs.length) {
+                        selectTab(index);
+                    }
+                }
+
+                @Override
+                public void onTabLongPress(int index) {
+                }
+            });
+            // The glass was padded by 4dp around a 56dp capsule
+            liquidTabs.setInset(dp(4));
+            liquidTabs.setAccentColor(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider));
+            final int background = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            liquidTabs.setLight(androidx.core.graphics.ColorUtils.calculateLuminance(background | 0xFF000000) >= 0.5f);
+            for (GlassTabView tab : tabs) {
+                tab.setLiquidSelector(true);
+            }
+            liquidTabs.setTabs(java.util.Arrays.asList(tabs));
+            liquidTabs.setSelectedIndex(selectedTab);
+            // The row stays laid out for the tabs the bar paints; the bar has its own glass
+            linearLayout.setAlpha(0f);
+            setPadding(0, 0, 0, 0);
+            ((LayoutParams) linearLayout.getLayoutParams()).setMargins(dp(8), dp(8), dp(8), dp(8));
+            addView(liquidTabs, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            org.telegram.ui.Components.GlassgramPreDraw.whileAttached(this, () -> {
+                // What is behind is a RenderNode that updates by itself; only a move re-records it
+                liquidTabs.getLocationInWindow(liquidTabsLocation);
+                if (liquidTabsLocation[0] != liquidTabsLastX || liquidTabsLocation[1] != liquidTabsLastY) {
+                    liquidTabsLastX = liquidTabsLocation[0];
+                    liquidTabsLastY = liquidTabsLocation[1];
+                    liquidTabs.invalidateBackdrop();
+                }
+                return true;
+            });
+        }
+
+        @Override
+        public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+            super.onDescendantInvalidated(child, target);
+            if (liquidTabs != null && child != liquidTabs) {
+                liquidTabs.invalidateTabs();
             }
         }
 

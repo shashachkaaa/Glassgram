@@ -69,6 +69,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
     }
 
     private final LinearLayout tabsContainer;
+    private final ViewGroup tabsWrapper;
     private ScrollSlidingTabStripDelegate delegate;
     private final Theme.ResourcesProvider resourcesProvider;
 
@@ -335,8 +336,31 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         };
         tabsContainer.setOrientation(LinearLayout.HORIZONTAL);
         tabsContainer.setPadding(dp(7), 0, dp(7), 0);
-        tabsContainer.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        addView(tabsContainer);
+        // glassGram: the scroll's one child holds the tabs and, over them, the library's bar
+        tabsWrapper = new ViewGroup(context) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                tabsContainer.measure(widthMeasureSpec, heightMeasureSpec);
+                setMeasuredDimension(tabsContainer.getMeasuredWidth(), tabsContainer.getMeasuredHeight());
+                if (liquidTabs != null && liquidTabs.getVisibility() != GONE && liquidTabs.isAttachedToWindow()) {
+                    liquidTabs.measure(
+                        MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+                }
+            }
+
+            @Override
+            protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                tabsContainer.layout(0, 0, tabsContainer.getMeasuredWidth(), tabsContainer.getMeasuredHeight());
+                if (liquidTabs != null && liquidTabs.getVisibility() != GONE && liquidTabs.isAttachedToWindow()) {
+                    liquidTabs.layout(0, 0, r - l, b - t);
+                }
+            }
+        };
+        tabsWrapper.addView(tabsContainer, new ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        tabsWrapper.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        addView(tabsWrapper);
+        createLiquidTabs(context);
 
         updateColors();
     }
@@ -696,6 +720,12 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        if (liquidTabsUsed) {
+            // The bar is the glass and the selection
+            liquidTabs.setSelectedIndex(currentPosition);
+            super.dispatchDraw(canvas);
+            return;
+        }
         canvas.save();
         if (backgroundDrawable != null) {
             if (rectT.set(1f) < 1) {
@@ -735,7 +765,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-        if (child == tabsContainer) {
+        if (child == tabsWrapper && !liquidTabsUsed) {
             final boolean result = super.drawChild(canvas, child, drawingTime);
 
             final int height = getMeasuredHeight();
@@ -847,6 +877,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
+        checkLiquidTabs();
 
         if (prevLayoutWidth != r - l) {
             prevLayoutWidth = r - l;
@@ -977,5 +1008,204 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         if (this.reordering == reordering) return;
         this.reordering = reordering;
         AndroidUtilities.forEachViews(tabsContainer, View::invalidate);
+        checkLiquidTabs();
+    }
+
+    /*
+     * glassGram: the tabs as the library's LiquidBottomTabs (LiquidTabBarView), like the chats
+     * list's folders: a glass capsule with a drop that rides between the tabs, swells under the
+     * finger, can be dragged and refracts the tabs it passes over. The tabs stay this view's,
+     * laid out but not drawn in their row, and painted into the bar's slots, which are of one
+     * width. Tabs that do not fit side by side, and reordering, keep the scrolling row.
+     */
+    private static final int LIQUID_TABS_MAX = 5;
+    private static final float LIQUID_TABS_INSET_DP = 4f;
+
+    private org.telegram.liquidglass.LiquidTabBarView liquidTabs;
+    private boolean liquidTabsUsed;
+    private final ArrayList<View> liquidTabViews = new ArrayList<>();
+    private final ArrayList<View> liquidTabViewsTmp = new ArrayList<>();
+    private final int[] liquidTabsLocation = new int[2];
+    private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
+    private android.view.ViewTreeObserver liquidTabsTree;
+    private final android.view.ViewTreeObserver.OnPreDrawListener liquidTabsWatcher = () -> {
+        // A blurred backdrop is a RenderNode that updates by itself; only a move re-records it
+        if (liquidTabsUsed && liquidTabs != null) {
+            liquidTabs.getLocationInWindow(liquidTabsLocation);
+            if (liquidTabsLocation[0] != liquidTabsLastX || liquidTabsLocation[1] != liquidTabsLastY) {
+                liquidTabsLastX = liquidTabsLocation[0];
+                liquidTabsLastY = liquidTabsLocation[1];
+                liquidTabs.invalidateBackdrop();
+            }
+        }
+        return true;
+    };
+
+    private void createLiquidTabs(Context context) {
+        if (!org.telegram.liquidglass.LiquidTabBarView.isSupported() || !org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS)) {
+            return;
+        }
+        liquidTabs = new org.telegram.liquidglass.LiquidTabBarView(context);
+        liquidTabs.setSource(new org.telegram.liquidglass.LiquidTabBarView.Source() {
+            @Override
+            public View getSourceView() {
+                return ScrollSlidingTextTabStrip.this;
+            }
+
+            @Override
+            public void draw(Canvas canvas) {
+                drawLiquidBackdrop(canvas);
+            }
+        });
+        liquidTabs.setListener(new org.telegram.liquidglass.LiquidTabBarView.Listener() {
+            @Override
+            public void onTabSelected(int index) {
+                final View tab = tabsContainer.getChildAt(index);
+                if (tab != null && index != currentPosition) {
+                    scrollTo(positionToId.get(index), index, tab);
+                }
+            }
+
+            @Override
+            public void onTabLongPress(int index) {
+                final View tab = tabsContainer.getChildAt(index);
+                if (tab != null && delegate != null) {
+                    delegate.showOptions(positionToId.get(index), tab);
+                }
+            }
+        });
+        liquidTabs.setReselectListener(index -> {
+            if (delegate != null) {
+                delegate.onSamePageSelected();
+            }
+        });
+        liquidTabs.setTextTabs(true);
+        liquidTabs.setInset(dp(LIQUID_TABS_INSET_DP));
+        liquidTabs.setVisibility(View.GONE);
+        tabsWrapper.addView(liquidTabs, new ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        updateLiquidTabsColors();
+    }
+
+    /** What is under the bar: the blur the strip's glass was made of, or the window's color. */
+    private void drawLiquidBackdrop(Canvas canvas) {
+        if (backgroundDrawable != null) {
+            final org.telegram.ui.Components.blur3.source.BlurredBackgroundSource source = backgroundDrawable.getUnwrappedSource();
+            if (source != null) {
+                final float ox = backgroundDrawable.getSourceOffsetX(), oy = backgroundDrawable.getSourceOffsetY();
+                canvas.save();
+                canvas.translate(-ox, -oy);
+                source.draw(canvas, ox, oy, ox + getWidth(), oy + getHeight());
+                canvas.restore();
+                return;
+            }
+        }
+        canvas.drawColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+    }
+
+    private void updateLiquidTabsColors() {
+        if (liquidTabs == null) {
+            return;
+        }
+        liquidTabs.setAccentColor(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider));
+        final int background = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+        liquidTabs.setLight(androidx.core.graphics.ColorUtils.calculateLuminance(background | 0xFF000000) >= 0.5f);
+        liquidTabs.invalidateTabs();
+    }
+
+    /** Puts the tabs on the liquid bar when they all fit side by side, or back in the row. */
+    private void checkLiquidTabs() {
+        if (liquidTabs == null) {
+            return;
+        }
+        final int count = tabsContainer.getChildCount();
+        boolean use = isAttachedToWindow() && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS) && !reordering
+            && count >= 2 && count <= LIQUID_TABS_MAX && getMeasuredWidth() > 0 && tabsWrapper.getMeasuredWidth() <= getMeasuredWidth();
+        if (use) {
+            // Each tab gets the same slot; a title wider than that keeps the row
+            final float slot = (getMeasuredWidth() - dp(LIQUID_TABS_INSET_DP) * 2 - dp(8)) / (float) count;
+            for (int a = 0; a < count; a++) {
+                if (positionToWidth.get(a) - dp(32) + dp(20) > slot) {
+                    use = false;
+                    break;
+                }
+            }
+        }
+        if (use) {
+            liquidTabViewsTmp.clear();
+            for (int a = 0; a < count; a++) {
+                liquidTabViewsTmp.add(tabsContainer.getChildAt(a));
+            }
+            if (!liquidTabViewsTmp.equals(liquidTabViews)) {
+                liquidTabViews.clear();
+                liquidTabViews.addAll(liquidTabViewsTmp);
+                liquidTabs.setTabs(liquidTabViews);
+            }
+            liquidTabViewsTmp.clear();
+            liquidTabs.setSelectedIndex(currentPosition);
+        }
+        if (liquidTabsUsed != use) {
+            liquidTabsUsed = use;
+            liquidTabs.setVisibility(use ? View.VISIBLE : View.GONE);
+            // The row stays laid out for its tabs, which the bar paints; the bar has its own glass
+            tabsContainer.setAlpha(use ? 0f : 1f);
+            // The pressed drop is taller than the capsule
+            setClipChildren(!use);
+            tabsWrapper.setClipChildren(!use);
+            if (use) {
+                scrollTo(0, 0);
+                // Measured and placed here, after the row was laid out, as the bar is shown now
+                liquidTabs.measure(
+                    MeasureSpec.makeMeasureSpec(tabsWrapper.getMeasuredWidth(), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(tabsWrapper.getMeasuredHeight(), MeasureSpec.EXACTLY));
+                liquidTabs.layout(0, 0, tabsWrapper.getMeasuredWidth(), tabsWrapper.getMeasuredHeight());
+            }
+            invalidate();
+        }
+        liquidTabs.invalidateTabs();
+    }
+
+    @Override
+    public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+        super.onDescendantInvalidated(child, target);
+        if (liquidTabsUsed && liquidTabs != null && target != liquidTabs && !isDescendantOf(target, liquidTabs)) {
+            liquidTabs.invalidateTabs();
+        }
+    }
+
+    private static boolean isDescendantOf(View view, View ancestor) {
+        for (android.view.ViewParent p = view.getParent(); p instanceof View; p = p.getParent()) {
+            if (p == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (liquidTabs != null) {
+            if (liquidTabsTree != null && liquidTabsTree.isAlive()) {
+                liquidTabsTree.removeOnPreDrawListener(liquidTabsWatcher);
+            }
+            liquidTabsTree = getViewTreeObserver();
+            liquidTabsTree.addOnPreDrawListener(liquidTabsWatcher);
+            requestLayout();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (liquidTabsTree != null && liquidTabsTree.isAlive()) {
+            liquidTabsTree.removeOnPreDrawListener(liquidTabsWatcher);
+        }
+        liquidTabsTree = null;
+        if (liquidTabsUsed) {
+            // Back to the row: the bar can't be measured without a window
+            liquidTabsUsed = false;
+            liquidTabs.setVisibility(View.GONE);
+            tabsContainer.setAlpha(1f);
+        }
     }
 }

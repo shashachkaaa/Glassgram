@@ -49,6 +49,7 @@ import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
+import org.telegram.liquidglass.LiquidTabBarView;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LruCache;
@@ -781,6 +782,10 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         contentLayout.addView(actionBar);
         if (showTabs) {
             contentLayout.addView(tabsView, LayoutHelper.createFrame(328 + DialogsActivity.MAIN_TABS_MARGIN * 2, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+            if (useLiquidTabs()) {
+                createLiquidTabs(context, contentLayout);
+                contentLayout.addView(liquidTabs, LayoutHelper.createFrame(328 + DialogsActivity.MAIN_TABS_MARGIN * 2, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+            }
             Bulletin.addDelegate(this, new Bulletin.Delegate() {
                 @Override
                 public int getBottomOffset(int tag) {
@@ -1044,7 +1049,7 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
             recyclerListView.setVisibility(View.VISIBLE);
         }
 
-        if (tabViews != null) {
+        if (tabViews != null && liquidTabs == null) {
             BlurredBackgroundDrawable tabsViewBackground = iBlur3FactoryLiquidGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
             tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
             tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
@@ -3603,6 +3608,96 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         for (int a = 0; a < tabs.length; a++) {
             GlassTabView tab = tabs[a];
             tab.setSelected(a == position, animated);
+        }
+        if (liquidTabs != null) {
+            liquidTabs.setSelectedIndex(position);
+            liquidTabs.invalidateTabs();
+        }
+    }
+
+    /*
+     * glassGram: the tabs as the library's LiquidBottomTabs (LiquidTabBarView), as on the main
+     * screen: the glass capsule with the drop that rides between the tabs. The tabs stay these
+     * GlassTabViews, laid out but not drawn in their layout, and painted into the bar's slots.
+     */
+    private LiquidTabBarView liquidTabs;
+    private final ArrayList<View> liquidVisibleTabs = new ArrayList<>();
+    private final int[] liquidTabsLocation = new int[2];
+    private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
+
+    private boolean useLiquidTabs() {
+        return LiquidTabBarView.isSupported() && iBlur3SourceGlass != null && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
+    }
+
+    private void createLiquidTabs(Context context, View sourceView) {
+        liquidTabs = new LiquidTabBarView(context);
+        liquidTabs.setSource(new LiquidTabBarView.Source() {
+            @Override
+            public View getSourceView() {
+                return sourceView;
+            }
+
+            @Override
+            public void draw(Canvas canvas) {
+                if (iBlur3SourceGlass != null) {
+                    iBlur3SourceGlass.draw(canvas, 0, 0, sourceView.getWidth(), sourceView.getHeight());
+                }
+            }
+        });
+        liquidTabs.setListener(new LiquidTabBarView.Listener() {
+            @Override
+            public void onTabSelected(int index) {
+                if (index >= 0 && index < liquidVisibleTabs.size()) {
+                    liquidVisibleTabs.get(index).performClick();
+                }
+            }
+
+            @Override
+            public void onTabLongPress(int index) {
+            }
+        });
+        liquidTabs.setInset(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        liquidTabs.setAccentColor(getThemedColor(Theme.key_glass_tabSelected));
+        liquidTabs.setLight(!Theme.isCurrentThemeDark());
+        tabsView.setExternalRenderer(() -> {
+            if (liquidTabs != null) {
+                liquidTabs.invalidateTabs();
+            }
+        });
+        liquidVisibleTabs.clear();
+        for (GlassTabView tab : tabs) {
+            liquidVisibleTabs.add(tab);
+        }
+        liquidTabs.setTabs(liquidVisibleTabs);
+        liquidTabs.setSelectedIndex(viewPagerFixed != null ? viewPagerFixed.getCurrentPosition() : 0);
+        org.telegram.ui.Components.GlassgramPreDraw.whileAttached(tabsView, () -> {
+            checkUi_liquidTabsBounds();
+            return true;
+        });
+    }
+
+    /** Keeps the bar on top of the (undrawn) tabs layout: same bounds and transforms. */
+    private void checkUi_liquidTabsBounds() {
+        if (liquidTabs == null || tabsView == null) {
+            return;
+        }
+        final int l = tabsView.getLeft(), t = tabsView.getTop(), r = tabsView.getRight(), b = tabsView.getBottom();
+        if (liquidTabs.getLeft() != l || liquidTabs.getTop() != t || liquidTabs.getRight() != r || liquidTabs.getBottom() != b) {
+            liquidTabs.measure(
+                View.MeasureSpec.makeMeasureSpec(r - l, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(b - t, View.MeasureSpec.EXACTLY));
+            liquidTabs.layout(l, t, r, b);
+        }
+        liquidTabs.setTranslationX(tabsView.getTranslationX());
+        liquidTabs.setTranslationY(tabsView.getTranslationY());
+        liquidTabs.setAlpha(tabsView.getAlpha());
+        liquidTabs.setVisibility(tabsView.getVisibility());
+        // What is behind is a RenderNode that updates by itself; only a move of the bar re-records it
+        liquidTabs.getLocationInWindow(liquidTabsLocation);
+        if (liquidTabsLocation[0] != liquidTabsLastX || liquidTabsLocation[1] != liquidTabsLastY) {
+            liquidTabsLastX = liquidTabsLocation[0];
+            liquidTabsLastY = liquidTabsLocation[1];
+            liquidTabs.invalidateBackdrop();
         }
     }
 
