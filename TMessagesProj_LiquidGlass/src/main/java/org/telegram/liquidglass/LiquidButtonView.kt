@@ -227,16 +227,19 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
     @Composable
     override fun Content() {
         val density = LocalDensity.current
-        val radius = cornerRadiusState
+        // Read as the button is drawn: the owner draws it right after setting them
         LiquidButton(
             backdrop = backdrop,
             interactiveHighlight = highlight,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(with(density) { overflow.toDp() }),
-            tint = if (tintState != 0) Color(tintState) else Color.Unspecified,
-            surfaceColor = if (surfaceColorState != 0) Color(surfaceColorState) else Color.Unspecified,
-            cornerRadius = if (radius.isInfinite()) Dp.Infinity else with(density) { radius.toDp() }
+            tint = { if (tintState != 0) Color(tintState) else Color.Unspecified },
+            surfaceColor = { if (surfaceColorState != 0) Color(surfaceColorState) else Color.Unspecified },
+            cornerRadius = {
+                val radius = cornerRadiusState
+                if (radius.isInfinite()) Dp.Infinity else with(density) { radius.toDp() }
+            }
         )
     }
 

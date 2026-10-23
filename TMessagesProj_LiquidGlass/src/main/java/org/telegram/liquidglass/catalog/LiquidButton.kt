@@ -7,7 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -33,9 +32,11 @@ import kotlin.math.tanh
  * Telegram's views (icons, the avatar and the name), which follow it with the same transform
  * ([LiquidButtonMotion]); it is pressed through the [interactiveHighlight] its owner drives, as
  * the touches go to those views with their own clicks and long presses; its corners can be
- * smaller than a capsule's ([cornerRadius]), for cards; and a wide button swells and stretches
+ * smaller than a capsule's ([cornerRadius]), for cards; a wide button swells and stretches
  * by the catalog's 4dp along each side rather than by 4dp of its height on both, which grew
- * the full-width ones by tens of dp past the edges of their sheets.
+ * the full-width ones by tens of dp past the edges of their sheets; and its tint, surface and
+ * corners are read as it is drawn, not composed, as its owner draws it at once after setting
+ * them (a composition would come a frame later, after the owner's last drawing).
  */
 @Composable
 fun LiquidButton(
@@ -43,17 +44,19 @@ fun LiquidButton(
     interactiveHighlight: InteractiveHighlight,
     modifier: Modifier = Modifier,
     isInteractive: Boolean = true,
-    tint: Color = Color.Unspecified,
-    surfaceColor: Color = Color.Unspecified,
-    cornerRadius: Dp = Dp.Infinity
+    tint: () -> Color = { Color.Unspecified },
+    surfaceColor: () -> Color = { Color.Unspecified },
+    cornerRadius: () -> Dp = { Dp.Infinity }
 ) {
     val motion = remember { LiquidButtonMotion() }
-    val shape: Shape = if (cornerRadius == Dp.Infinity) Capsule() else RoundedRectangle(cornerRadius)
     Box(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { shape },
+                shape = {
+                    val radius = cornerRadius()
+                    if (radius == Dp.Infinity) Capsule() else RoundedRectangle(radius)
+                },
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
@@ -77,12 +80,14 @@ fun LiquidButton(
                     null
                 },
                 onDrawSurface = {
-                    if (tint.isSpecified) {
-                        drawRect(tint, blendMode = BlendMode.Hue)
-                        drawRect(tint.copy(alpha = 0.75f))
+                    val tintColor = tint()
+                    val surface = surfaceColor()
+                    if (tintColor.isSpecified) {
+                        drawRect(tintColor, blendMode = BlendMode.Hue)
+                        drawRect(tintColor.copy(alpha = 0.75f))
                     }
-                    if (surfaceColor.isSpecified) {
-                        drawRect(surfaceColor)
+                    if (surface.isSpecified) {
+                        drawRect(surface)
                     }
                 }
             )

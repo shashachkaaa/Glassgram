@@ -136,9 +136,9 @@ public class LiquidPressEffect {
         // The glass's source is laid out like the canvas it is drawn in, moved by its offset
         final float sx = buttonLeft + glass.getSourceOffsetX();
         final float sy = buttonTop + glass.getSourceOffsetY();
-        // Pressed, the button swells and leans past its place, and shows what is there: the
-        // source keeps 8dp around its glass
-        final float m = AndroidUtilities.dp(8);
+        // Pressed, the button swells and leans past its place, and shows what is there (see
+        // sourceMargin)
+        final float m = sourceMargin(0);
         canvas.save();
         canvas.translate(-sx, -sy);
         source.draw(canvas, sx - m, sy - m, sx + buttonWidth + m, sy + buttonHeight + m);
@@ -452,6 +452,18 @@ public class LiquidPressEffect {
             return 1f;
         }
         return Math.max(1f, Math.max(moved.width() / width, moved.height() / height));
+    }
+
+    /**
+     * How far around its glass a source that keeps only what is around the glass (the chat's)
+     * must keep it: the library's button, pulled, swells and leans past its place and shows what
+     * is there, and was empty, flat, past Telegram's own margin.
+     */
+    public static int sourceMargin(int margin) {
+        if (LiquidButtonView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
+            return Math.max(margin, AndroidUtilities.dp(LiquidButtonView.OVERFLOW_DP));
+        }
+        return margin;
     }
 
     /**

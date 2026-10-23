@@ -47808,7 +47808,8 @@ public class ChatActivity extends BaseFragment implements
             }
 
             if (glassBackgroundSourceRenderNode != null) {
-                count += glassBackgroundSourceRenderNode.getVisiblePositions(positions, count, dp(8));
+                // glassGram: wider for the library's buttons, which show what is past their place when pulled
+                count += glassBackgroundSourceRenderNode.getVisiblePositions(positions, count, LiquidPressEffect.sourceMargin(dp(8)));
             }
 
             return count;

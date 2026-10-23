@@ -4234,7 +4234,8 @@ public class PeerColorActivity extends BaseFragment implements NotificationCente
             int count = 0;
 
             if (glassBackgroundSourceRenderNode != null) {
-                count += glassBackgroundSourceRenderNode.getVisiblePositions(positions, count, dp(8));
+                // glassGram: wider for the library's buttons, which show what is past their place when pulled
+                count += glassBackgroundSourceRenderNode.getVisiblePositions(positions, count, org.telegram.ui.Components.LiquidPressEffect.sourceMargin(dp(8)));
             }
 
             return count;
