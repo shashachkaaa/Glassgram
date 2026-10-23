@@ -911,6 +911,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return s > 0;
         }
         if (child != menu && glassExtraButtons.contains(child)) {
+            // Shared media's options button is only a touch area over another button's icon, and
+            // stays visible without it at the top of the profile: no capsule of its own
+            if (child instanceof ImageView && ((ImageView) child).getDrawable() == null) {
+                return false;
+            }
             if (child.getVisibility() != VISIBLE || child.getAlpha() <= 0f || child.getWidth() <= 0 || isActionModeShowed()) {
                 return false;
             }

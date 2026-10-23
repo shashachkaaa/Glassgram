@@ -26,10 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
@@ -193,10 +195,30 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
             backdropTick
             val source = source ?: return
             val sourceView = source.getSourceView() ?: return
-            val position = coordinates?.positionInWindow() ?: return
+            val coordinates = coordinates ?: return
+            val position = coordinates.positionInWindow()
+            // The bar and the drop swell and stretch as graphics layers; as with the library's own
+            // backdrops, what is behind them must not: the glass shows it as it lies there
+            // (their own scale, in their parent: not a whole screen's while it slides in)
+            val w = coordinates.size.width.toFloat()
+            val h = coordinates.size.height.toFloat()
+            val parent = coordinates.parentLayoutCoordinates
+            var sx = 1f
+            var sy = 1f
+            if (parent != null && w > 0f && h > 0f) {
+                val origin = parent.localPositionOf(coordinates, Offset.Zero)
+                sx = (parent.localPositionOf(coordinates, Offset(w, 0f)).x - origin.x) / w
+                sy = (parent.localPositionOf(coordinates, Offset(0f, h)).y - origin.y) / h
+            }
+            if (sx <= 0f || sy <= 0f) {
+                sx = 1f
+                sy = 1f
+            }
             sourceView.getLocationInWindow(sourceLocation)
-            translate(sourceLocation[0] - position.x, sourceLocation[1] - position.y) {
-                drawIntoCanvas { source.draw(it.nativeCanvas) }
+            scale(1f / sx, 1f / sy, Offset.Zero) {
+                translate(sourceLocation[0] - position.x, sourceLocation[1] - position.y) {
+                    drawIntoCanvas { source.draw(it.nativeCanvas) }
+                }
             }
         }
     }

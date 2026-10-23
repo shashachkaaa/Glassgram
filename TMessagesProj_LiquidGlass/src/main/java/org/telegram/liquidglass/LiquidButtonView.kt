@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.AbstractComposeView
@@ -199,16 +200,26 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
         ) {
             backdropTick
             val source = source ?: return
-            // As the library's own backdrops: what is behind does not swell with the button
+            // As the library's own backdrops: what is behind does not swell or move with the
+            // button, the glass shows what is under it where the press took it
             var sx = 1f
             var sy = 1f
-            if (layerBlock != null) {
-                motion.update(size.width, size.height, FOUR_DP * density.density, highlight.pressProgress, highlight.offset)
+            var dx = 0f
+            var dy = 0f
+            if (layerBlock != null && buttonWidth > 0 && buttonHeight > 0) {
+                val w = buttonWidth.toFloat()
+                val h = buttonHeight.toFloat()
+                motion.update(w, h, FOUR_DP * density.density, highlight.pressProgress, highlight.offset)
                 sx = motion.scaleX
                 sy = motion.scaleY
+                // Where its top-left corner went: scaled about its middle, then moved
+                dx = w / 2f * (1f - sx) + motion.translationX
+                dy = h / 2f * (1f - sy) + motion.translationY
             }
             scale(1f / sx, 1f / sy, Offset.Zero) {
-                drawIntoCanvas { source.draw(it.nativeCanvas) }
+                translate(-dx, -dy) {
+                    drawIntoCanvas { source.draw(it.nativeCanvas) }
+                }
             }
         }
     }

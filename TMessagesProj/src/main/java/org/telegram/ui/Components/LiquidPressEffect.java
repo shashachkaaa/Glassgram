@@ -136,9 +136,12 @@ public class LiquidPressEffect {
         // The glass's source is laid out like the canvas it is drawn in, moved by its offset
         final float sx = buttonLeft + glass.getSourceOffsetX();
         final float sy = buttonTop + glass.getSourceOffsetY();
+        // Pressed, the button swells and leans past its place, and shows what is there: the
+        // source keeps 8dp around its glass
+        final float m = AndroidUtilities.dp(8);
         canvas.save();
         canvas.translate(-sx, -sy);
-        source.draw(canvas, sx, sy, sx + buttonWidth, sy + buttonHeight);
+        source.draw(canvas, sx - m, sy - m, sx + buttonWidth + m, sy + buttonHeight + m);
         canvas.restore();
     }
 
