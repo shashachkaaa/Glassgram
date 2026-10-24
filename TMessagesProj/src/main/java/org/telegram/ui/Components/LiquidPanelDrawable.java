@@ -16,7 +16,9 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.RecordingCanvas;
+import android.graphics.RenderEffect;
 import android.graphics.RenderNode;
+import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.hardware.HardwareBuffer;
 import android.media.Image;
@@ -289,7 +291,10 @@ public class LiquidPanelDrawable extends Drawable {
         // their drawing; a panel sliding or fading over it doesn't need it anew in every frame
         final long now = android.os.SystemClock.uptimeMillis();
         final boolean resized = node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight();
-        final boolean moved = hostLocation[0] != drawnLocation[0] || hostLocation[1] != drawnLocation[1];
+        // A menu or a dialog growing or shrinking as it opens or closes moves too: the screen behind
+        // is recorded again once it stands still, not in the middle of that, where recording it (and
+        // drawing its animations once more, out of their frame) made what moves behind it stutter
+        final boolean moved = hostLocation[0] != drawnLocation[0] || hostLocation[1] != drawnLocation[1] || scaleChanged(host);
         // drawn again after a while unseen, as under the photo viewer: that frame records the whole sheet anew already
         final boolean afterGap = now - lastGlassDrawAt > BACKDROP_REFRESH_MS;
         lastGlassDrawAt = now;
@@ -376,11 +381,15 @@ public class LiquidPanelDrawable extends Drawable {
             glassDx = backdropDx;
             glassDy = backdropDy;
             gn.setPosition(0, 0, w, h);
+            // The picture of the screen comes blurred already (see requestSnapshot): a menu or a
+            // dialog following its scale makes its glass anew in each frame of its opening and
+            // closing, and blurring the screen in each of them held up every window's frames
+            final float blur = snapshot != null ? 0f : AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius);
             final RecordingCanvas gc = gn.beginRecording(w, h);
             try {
                 ((GlassLayer) glass).draw(gc, rect.width(), rect.height(), radius, AndroidUtilities.density,
                     dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
-                    AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius),
+                    blur,
                     AndroidUtilities.dpf2(24), AndroidUtilities.dpf2(24),
                     true, false, dark,
                     backdrop, tint, dark ? 0.7f : 1f, 1f);
@@ -499,14 +508,16 @@ public class LiquidPanelDrawable extends Drawable {
      * glass made of it was made anew whenever anything there changed (a video or a round message
      * playing in the chat): the whole screen rendered, blurred and refracted again for each of its
      * frames, on the render thread every window shares, and the sheet and anything opening over it
-     * stuttered. It is rendered into a half-size buffer when it is recorded, and the glass is made
-     * of that, so it is worked out again only when a new picture is taken.
+     * stuttered. It is rendered into a half-size buffer when it is recorded, blurred there, and the
+     * glass is made of that, so it is worked out again only when a new picture is taken, and then
+     * without blurring it again.
      */
     private static final int SNAPSHOT_SCALE = 2;
     private final Paint snapshotPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private HardwareRenderer snapshotRenderer;
     private ImageReader snapshotReader;
     private RenderNode snapshotRoot;
+    private RenderNode snapshotBlurNode;
     private Image snapshotImage;
     private Bitmap snapshot;
     private View snapshotHost;
@@ -538,6 +549,7 @@ public class LiquidPanelDrawable extends Drawable {
                     HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT);
                 snapshotReader.setOnImageAvailableListener(this::onSnapshot, snapshotHandler);
                 snapshotRoot = new RenderNode("LiquidPanelSnapshot");
+                snapshotBlurNode = new RenderNode("LiquidPanelSnapshotBlur");
                 snapshotRenderer = new HardwareRenderer();
                 snapshotRenderer.setOpaque(false);
                 snapshotRenderer.setSurface(snapshotReader.getSurface());
@@ -550,11 +562,22 @@ public class LiquidPanelDrawable extends Drawable {
                 snapshotHost = host;
                 host.addOnAttachStateChangeListener(snapshotDetach);
             }
+            // Blurred once here, at the picture's half size, as the glass would blur it: the glass
+            // made of the picture is then only refracted and toned in each frame
+            final float blur = AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius) / SNAPSHOT_SCALE;
+            snapshotBlurNode.setPosition(0, 0, w, h);
+            snapshotBlurNode.setRenderEffect(blur > 0 ? RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP) : null);
+            final RecordingCanvas bc = snapshotBlurNode.beginRecording(w, h);
+            try {
+                bc.scale(1f / SNAPSHOT_SCALE, 1f / SNAPSHOT_SCALE);
+                bc.drawRenderNode((RenderNode) decorNode);
+            } finally {
+                snapshotBlurNode.endRecording();
+            }
             snapshotRoot.setPosition(0, 0, w, h);
             final RecordingCanvas c = snapshotRoot.beginRecording(w, h);
             try {
-                c.scale(1f / SNAPSHOT_SCALE, 1f / SNAPSHOT_SCALE);
-                c.drawRenderNode((RenderNode) decorNode);
+                c.drawRenderNode(snapshotBlurNode);
             } finally {
                 snapshotRoot.endRecording();
             }
@@ -660,6 +683,7 @@ public class LiquidPanelDrawable extends Drawable {
             snapshotReader = null;
         }
         snapshotRoot = null;
+        snapshotBlurNode = null;
         if (snapshotHost != null) {
             snapshotHost.removeOnAttachStateChangeListener(snapshotDetach);
             snapshotHost = null;
