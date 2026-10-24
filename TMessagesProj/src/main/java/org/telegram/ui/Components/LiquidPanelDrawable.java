@@ -1,12 +1,9 @@
 package org.telegram.ui.Components;
 
 import android.app.Activity;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
-import android.graphics.ColorSpace;
-import android.graphics.HardwareRenderer;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -20,9 +17,6 @@ import android.graphics.RenderEffect;
 import android.graphics.RenderNode;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-import android.hardware.HardwareBuffer;
-import android.media.Image;
-import android.media.ImageReader;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -54,8 +48,7 @@ import java.util.function.IntSupplier;
  * These live in their own windows, so the backdrop is the activity's window, recorded from
  * its decor view and placed by screen coordinates (ward does the same for the same reason).
  * A panel that lives inside the activity window itself would record itself, which is a loop;
- * it gets an opaque fill instead. Menus and dialogs show it live (see watchLive); sheets, which
- * are large, a picture of it (see requestSnapshot).
+ * it gets an opaque fill instead. The panels show it live (see updateLiveNode).
  * <p>
  * Wraps the old 9-patch only for its padding, so layouts built around it do not move.
  */
@@ -281,58 +274,22 @@ public class LiquidPanelDrawable extends Drawable {
         if (glass == null) {
             glass = new GlassLayer();
             decorNode = new RenderNode("LiquidPanelBackdrop");
-            // The glass is made of a picture of it (see requestSnapshot), or, where that fails, of
-            // a texture of it, so the chat with its own glass isn't redrawn whole for the panel;
-            // a live panel draws only what lies under it (see updateLiveNode)
-            ((RenderNode) decorNode).setUseCompositingLayer(snapshotFailed && !isLive(), null);
         }
         final RenderNode node = (RenderNode) decorNode;
         decor.getLocationOnScreen(decorLocation);
         layoutLocationOnScreen(host, hostLocation);
-        // Recording the screen and the windows under the panel costs the UI thread a whole frame of
-        // their drawing; a panel sliding or fading over it doesn't need it anew in every frame
-        final long now = android.os.SystemClock.uptimeMillis();
         final boolean resized = node.getWidth() != decor.getWidth() || node.getHeight() != decor.getHeight();
-        // A menu or a dialog growing or shrinking as it opens or closes moves too: the screen behind
-        // is recorded again once it stands still, not in the middle of that, where recording it (and
-        // drawing its animations once more, out of their frame) made what moves behind it stutter
-        final boolean moved = hostLocation[0] != drawnLocation[0] || hostLocation[1] != drawnLocation[1] || scaleChanged(host);
-        // drawn again after a while unseen, as under the photo viewer: that frame records the whole sheet anew already
-        final boolean afterGap = now - lastGlassDrawAt > BACKDROP_REFRESH_MS;
-        lastGlassDrawAt = now;
-        final boolean stale = now - backdropRecordedAt >= BACKDROP_REFRESH_MS;
-        if (isLive()) {
-            // The recording holds the windows' views themselves, so it shows them as they are now:
-            // recorded again only when the windows behind are no longer the same views
-            final int signature = decorSignature(decor);
-            if (!backdropRecorded || resized || !node.hasDisplayList() || signature != liveDecorSignature) {
-                liveDecorSignature = signature;
-                backdropRecorded = true;
-                backdropRecordedAt = now;
-                recordDecor(node, activity, decor, host);
-                backdropVersion++;
-            }
-            watchLive(decor, host);
-        } else if (!backdropRecorded || resized || snapshot == null && !node.hasDisplayList()
-                || stale && (snapshot == null || !moved && (!afterGap || refreshRequested))) {
-            refreshRequested = false;
+        // The recording holds the windows' views themselves, so it shows them as they are now (see
+        // updateLiveNode): recorded again only when the windows behind are other views. Recording
+        // them draws their animations once more, out of their frame, and made them stutter
+        final int signature = decorSignature(decor);
+        if (!backdropRecorded || resized || !node.hasDisplayList() || signature != recordedDecorSignature) {
+            recordedDecorSignature = signature;
             backdropRecorded = true;
-            backdropRecordedAt = now;
             recordDecor(node, activity, decor, host);
-            if (resized) {
-                dropSnapshot();
-            }
-            // Until its picture comes the glass is made of the live recording; after that the old
-            // picture stays until the new one is ready
-            if (!requestSnapshot(host, decor.getWidth(), decor.getHeight()) || snapshot == null) {
-                backdropVersion++;
-            }
-        } else if (stale && !refreshPosted) {
-            // Moving, or just shown again: the old picture stays, and a new one is taken once the
-            // panel stands still, in a frame of its own
-            refreshPosted = true;
-            snapshotHandler.postDelayed(refreshBackdrop, BACKDROP_REFRESH_MS);
+            backdropVersion++;
         }
+        watchLive(decor, host);
 
         drawnLocation[0] = hostLocation[0];
         drawnLocation[1] = hostLocation[1];
@@ -355,17 +312,15 @@ public class LiquidPanelDrawable extends Drawable {
             backdropScaled = scaled;
             glassVersion = -1;
         }
-        if (isLive()) {
-            updateLiveNode(node);
-        }
+        updateLiveNode(node, decor);
 
         // ward's glassPanel: the window is denser than in-screen glass so text stays readable
         // The panel's alpha goes on the finished glass below, so fading doesn't redo it
         final int tint = ColorUtils.setAlphaComponent(baseColor, (int) (255 * (dark ? 0.62f : 0.68f)));
 
-        // The finished glass is kept as a texture: the blur and the lens are worked out again only
-        // when the panel moved, the backdrop was recorded anew, or its shape or color changed, not
-        // whenever the sheet's content redraws (a gallery scrolling in it, a photo opening over it)
+        // The finished glass is kept as a texture: the lens is worked out again only when the panel
+        // moved, the screen under it drew, or its shape or color changed, not whenever the panel's
+        // own content redraws (a gallery scrolling in a sheet, a photo opening over it)
         if (glassNode == null) {
             glassNode = new RenderNode("LiquidPanelGlass");
             ((RenderNode) glassNode).setUseCompositingLayer(true, null);
@@ -384,15 +339,14 @@ public class LiquidPanelDrawable extends Drawable {
             glassDx = backdropDx;
             glassDy = backdropDy;
             gn.setPosition(0, 0, w, h);
-            // The picture of the screen comes blurred already (see requestSnapshot): a menu or a
-            // dialog following its scale makes its glass anew in each frame of its opening and
-            // closing, and blurring the screen in each of them held up every window's frames
-            final float blur = snapshot != null || isLive() && liveNode != null ? 0f : AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius);
             final RecordingCanvas gc = gn.beginRecording(w, h);
             try {
+                // no blur here: what is under the panel comes blurred already (see updateLiveNode),
+                // and a menu or a dialog following its scale makes its glass anew in each frame of
+                // its opening and closing
                 ((GlassLayer) glass).draw(gc, rect.width(), rect.height(), radius, AndroidUtilities.density,
                     dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
-                    blur,
+                    0f,
                     AndroidUtilities.dpf2(24), AndroidUtilities.dpf2(24),
                     true, false, dark,
                     backdrop, tint, dark ? 0.7f : 1f, 1f);
@@ -414,23 +368,8 @@ public class LiquidPanelDrawable extends Drawable {
     private float glassRadius = -1, glassDx = Float.NaN, glassDy = Float.NaN;
     private int glassTint;
     private boolean glassDark;
-
-    // How old the recorded backdrop may get before a redraw of the panel records it again
-    private static final long BACKDROP_REFRESH_MS = 250;
     private boolean backdropRecorded;
-    private long backdropRecordedAt;
-    private long lastGlassDrawAt;
-    private boolean refreshPosted;
-    // the delayed redraw that takes the new picture: a gap of its own must not put it off again
-    private boolean refreshRequested;
-    private final Runnable refreshBackdrop = () -> {
-        refreshPosted = false;
-        refreshRequested = true;
-        final View h = host();
-        if (h != null && h.isAttachedToWindow()) {
-            h.invalidate();
-        }
-    };
+    private int recordedDecorSignature;
 
     /** Records the activity's window and the windows between it and the panel into [node]. */
     private void recordDecor(RenderNode node, Activity activity, View decor, View host) {
@@ -452,36 +391,33 @@ public class LiquidPanelDrawable extends Drawable {
     }
 
     /*
-     * Menus and dialogs show the screen behind them as it is: a chat scrolling under a menu opened
-     * over it, a sticker, a video or a GIF playing there, instead of a picture of the moment they
+     * The panels show the screen behind them as it is: a chat scrolling under a menu opened over
+     * it, a sticker, a video or a GIF playing under a sheet, not a picture of the moment they
      * opened. The recorded window holds its views themselves, so what is drawn of it is always
      * their latest drawing; only what lies under the panel is drawn, at half size, and blurred
-     * there, and the panel is drawn again whenever the window behind draws. Sheets, as large as
-     * half the screen, keep the picture (see requestSnapshot).
+     * there, and the panel is drawn again whenever the window behind draws. (The whole screen,
+     * blurred and refracted again in each of its frames, held up every window: a picture of it
+     * was kept instead, until the panels showed it frozen.)
      */
     private static final int LIVE_SCALE = 2;
     private static final int LIVE_MARGIN_DP = 48;
     private Object liveNode;
     private final RectF liveArea = new RectF();
+    private final RectF liveLastArea = new RectF();
     private final RectF liveDrawnArea = new RectF();
     private boolean liveDirty;
-    private int liveDecorSignature;
     private View liveHost;
     private ViewTreeObserver liveTree;
     private boolean liveDetachWatched;
     private final ViewTreeObserver.OnDrawListener liveWatcher = this::onLiveWindowDraw;
     private final Runnable unwatchLive = this::unwatchLive;
-
-    private boolean isLive() {
-        // the panels that follow their scale are the menus and the dialogs
-        return followScale;
-    }
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private void onLiveWindowDraw() {
         final View h = liveHost;
         if (h == null || !h.isAttachedToWindow()) {
             // not from inside the window's drawing, which may not lose a listener
-            snapshotHandler.post(unwatchLive);
+            handler.post(unwatchLive);
             return;
         }
         liveDirty = true;
@@ -501,7 +437,7 @@ public class LiquidPanelDrawable extends Drawable {
                 public void onViewDetachedFromWindow(@NonNull View v) {
                     // recorded anew when shown again; the window behind no longer keeps the panel
                     backdropRecorded = false;
-                    snapshotHandler.post(unwatchLive);
+                    handler.post(unwatchLive);
                 }
             });
         }
@@ -540,27 +476,46 @@ public class LiquidPanelDrawable extends Drawable {
      * What lies under the panel, from the recorded window, at half size and blurred: drawn again
      * in each frame the window behind drew (its views drawn anew), so the glass is made anew too.
      */
-    private void updateLiveNode(RenderNode decorNode) {
+    private void updateLiveNode(RenderNode decorNode, View decor) {
         final float margin = AndroidUtilities.dp(LIVE_MARGIN_DP);
         // The panel's place in the window behind, by its layout: a menu or a dialog scaled as it
-        // opens shows what is under it from the same place
+        // opens shows what is under it from the same place; what is off the screen is left out
         liveArea.set(-backdropDx - margin, -backdropDy - margin, -backdropDx + rect.width() + margin, -backdropDy + rect.height() + margin);
+        if (!liveArea.intersect(-margin, -margin, decor.getWidth() + margin, decor.getHeight() + margin)) {
+            liveArea.set(0, 0, 1, 1);
+        }
         if (liveNode == null) {
             liveNode = new RenderNode("LiquidPanelLive");
+            final float blur = AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius) / LIVE_SCALE;
+            ((RenderNode) liveNode).setRenderEffect(RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP));
         }
         final RenderNode ln = (RenderNode) liveNode;
-        final boolean moved = !liveArea.equals(liveDrawnArea);
-        if (!moved && !liveDirty && ln.hasDisplayList()) {
+        final boolean still = liveArea.equals(liveLastArea);
+        liveLastArea.set(liveArea);
+        boolean area = !ln.hasDisplayList();
+        if (area || !liveDrawnArea.contains(liveArea)) {
+            // Past what was drawn: a sheet sliding in or out gets room for its next frames, so
+            // what is under it isn't drawn and blurred anew for each of them
+            liveDrawnArea.set(liveArea);
+            if (!still && !followScale) {
+                final float slack = decor.getHeight() / 4f;
+                liveDrawnArea.top = Math.max(-margin, liveDrawnArea.top - slack);
+                liveDrawnArea.bottom = Math.min(decor.getHeight() + margin, liveDrawnArea.bottom + slack);
+            }
+            area = true;
+        } else if (still && !liveDrawnArea.equals(liveArea)) {
+            // standing still: only what lies under it
+            liveDrawnArea.set(liveArea);
+            area = true;
+        }
+        if (!area && !liveDirty) {
             return;
         }
         liveDirty = false;
-        final int w = Math.max(1, (int) Math.ceil(liveArea.width() / LIVE_SCALE));
-        final int h = Math.max(1, (int) Math.ceil(liveArea.height() / LIVE_SCALE));
-        if (moved || !ln.hasDisplayList()) {
-            liveDrawnArea.set(liveArea);
+        final int w = Math.max(1, (int) Math.ceil(liveDrawnArea.width() / LIVE_SCALE));
+        final int h = Math.max(1, (int) Math.ceil(liveDrawnArea.height() / LIVE_SCALE));
+        if (area) {
             ln.setPosition(0, 0, w, h);
-            final float blur = AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius) / LIVE_SCALE;
-            ln.setRenderEffect(blur > 0 ? RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP) : null);
             // the glass draws it from another place
             backdropVersion++;
         }
@@ -642,202 +597,10 @@ public class LiquidPanelDrawable extends Drawable {
         } else {
             c.translate(backdropDx, backdropDy);
         }
-        if (isLive() && liveNode != null) {
+        if (liveNode != null) {
             c.translate(liveDrawnArea.left, liveDrawnArea.top);
             c.scale(LIVE_SCALE, LIVE_SCALE);
             c.drawRenderNode((RenderNode) liveNode);
-        } else if (snapshot != null) {
-            c.scale(SNAPSHOT_SCALE, SNAPSHOT_SCALE);
-            c.drawBitmap(snapshot, 0, 0, snapshotPaint);
-        } else {
-            c.drawRenderNode((RenderNode) decorNode);
-        }
-    }
-
-    /*
-     * The backdrop as a picture. The recorded decor holds the live views of the windows behind, so
-     * glass made of it was made anew whenever anything there changed (a video or a round message
-     * playing in the chat): the whole screen rendered, blurred and refracted again for each of its
-     * frames, on the render thread every window shares, and the sheet and anything opening over it
-     * stuttered. It is rendered into a half-size buffer when it is recorded, blurred there, and the
-     * glass is made of that, so it is worked out again only when a new picture is taken, and then
-     * without blurring it again.
-     */
-    private static final int SNAPSHOT_SCALE = 2;
-    private final Paint snapshotPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private HardwareRenderer snapshotRenderer;
-    private ImageReader snapshotReader;
-    private RenderNode snapshotRoot;
-    private RenderNode snapshotBlurNode;
-    private Image snapshotImage;
-    private Bitmap snapshot;
-    private View snapshotHost;
-    private boolean snapshotFailed;
-
-    private final View.OnAttachStateChangeListener snapshotDetach = new View.OnAttachStateChangeListener() {
-        @Override
-        public void onViewAttachedToWindow(@NonNull View v) {
-        }
-
-        @Override
-        public void onViewDetachedFromWindow(@NonNull View v) {
-            releaseSnapshot();
-            backdropRecorded = false;
-        }
-    };
-
-    /** Renders the recorded backdrop into the picture; false when it can't, and the live recording is used. */
-    private boolean requestSnapshot(View host, int width, int height) {
-        if (snapshotFailed || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            return false;
-        }
-        try {
-            final int w = Math.max(1, width / SNAPSHOT_SCALE), h = Math.max(1, height / SNAPSHOT_SCALE);
-            if (snapshotReader == null || snapshotReader.getWidth() != w || snapshotReader.getHeight() != h) {
-                releaseSnapshot();
-                // three: the one drawn, one waiting and one being rendered
-                snapshotReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3,
-                    HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT);
-                snapshotReader.setOnImageAvailableListener(this::onSnapshot, snapshotHandler);
-                snapshotRoot = new RenderNode("LiquidPanelSnapshot");
-                snapshotBlurNode = new RenderNode("LiquidPanelSnapshotBlur");
-                snapshotRenderer = new HardwareRenderer();
-                snapshotRenderer.setOpaque(false);
-                snapshotRenderer.setSurface(snapshotReader.getSurface());
-                snapshotRenderer.setContentRoot(snapshotRoot);
-            }
-            if (snapshotHost != host) {
-                if (snapshotHost != null) {
-                    snapshotHost.removeOnAttachStateChangeListener(snapshotDetach);
-                }
-                snapshotHost = host;
-                host.addOnAttachStateChangeListener(snapshotDetach);
-            }
-            // Blurred once here, at the picture's half size, as the glass would blur it: the glass
-            // made of the picture is then only refracted and toned in each frame
-            final float blur = AndroidUtilities.dpf2(BackdropGlass.PanelBlurRadius) / SNAPSHOT_SCALE;
-            snapshotBlurNode.setPosition(0, 0, w, h);
-            snapshotBlurNode.setRenderEffect(blur > 0 ? RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP) : null);
-            final RecordingCanvas bc = snapshotBlurNode.beginRecording(w, h);
-            try {
-                bc.scale(1f / SNAPSHOT_SCALE, 1f / SNAPSHOT_SCALE);
-                bc.drawRenderNode((RenderNode) decorNode);
-            } finally {
-                snapshotBlurNode.endRecording();
-            }
-            snapshotRoot.setPosition(0, 0, w, h);
-            final RecordingCanvas c = snapshotRoot.beginRecording(w, h);
-            try {
-                c.drawRenderNode(snapshotBlurNode);
-            } finally {
-                snapshotRoot.endRecording();
-            }
-            // rendered after the frame being drawn now, not from inside its drawing
-            if (!snapshotPending) {
-                snapshotPending = true;
-                snapshotHandler.post(renderSnapshot);
-            }
-            return true;
-        } catch (Throwable e) {
-            org.telegram.messenger.FileLog.e(e);
-            snapshotFailed();
-            return false;
-        }
-    }
-
-    private void snapshotFailed() {
-        snapshotFailed = true;
-        releaseSnapshot();
-        if (decorNode != null && !isLive()) {
-            ((RenderNode) decorNode).setUseCompositingLayer(true, null);
-        }
-    }
-
-    private final Handler snapshotHandler = new Handler(Looper.getMainLooper());
-    private boolean snapshotPending;
-    private final Runnable renderSnapshot = () -> {
-        snapshotPending = false;
-        if (snapshotRenderer == null) {
-            return;
-        }
-        try {
-            snapshotRenderer.createRenderRequest().syncAndDraw();
-        } catch (Throwable e) {
-            org.telegram.messenger.FileLog.e(e);
-            snapshotFailed();
-            backdropVersion++;
-            invalidateSelf();
-        }
-    };
-
-    private void onSnapshot(ImageReader reader) {
-        if (reader != snapshotReader) {
-            return;
-        }
-        Image image = null;
-        try {
-            image = reader.acquireLatestImage();
-            if (image == null) {
-                return;
-            }
-            final HardwareBuffer buffer = image.getHardwareBuffer();
-            final Bitmap bitmap = buffer == null ? null : Bitmap.wrapHardwareBuffer(buffer, ColorSpace.get(ColorSpace.Named.SRGB));
-            if (buffer != null) {
-                buffer.close();
-            }
-            if (bitmap == null) {
-                image.close();
-                return;
-            }
-            // the old buffer goes back to be rendered into only when the next picture is asked for,
-            // by when the glass no longer draws it
-            if (snapshotImage != null) {
-                snapshotImage.close();
-            }
-            snapshotImage = image;
-            snapshot = bitmap;
-        } catch (Throwable e) {
-            org.telegram.messenger.FileLog.e(e);
-            if (image != null && image != snapshotImage) {
-                image.close();
-            }
-            return;
-        }
-        backdropVersion++;
-        invalidateSelf();
-        final View h = host();
-        if (h != null) {
-            h.invalidate();
-        }
-    }
-
-    private void dropSnapshot() {
-        snapshot = null;
-        if (snapshotImage != null) {
-            snapshotImage.close();
-            snapshotImage = null;
-        }
-    }
-
-    private void releaseSnapshot() {
-        dropSnapshot();
-        snapshotHandler.removeCallbacks(renderSnapshot);
-        snapshotPending = false;
-        snapshotHandler.removeCallbacks(refreshBackdrop);
-        refreshPosted = false;
-        if (snapshotRenderer != null) {
-            snapshotRenderer.destroy();
-            snapshotRenderer = null;
-        }
-        if (snapshotReader != null) {
-            snapshotReader.close();
-            snapshotReader = null;
-        }
-        snapshotRoot = null;
-        snapshotBlurNode = null;
-        if (snapshotHost != null) {
-            snapshotHost.removeOnAttachStateChangeListener(snapshotDetach);
-            snapshotHost = null;
         }
     }
 
