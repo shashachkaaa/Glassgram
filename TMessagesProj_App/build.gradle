@@ -162,7 +162,12 @@ android {
         }
     }
 
-    defaultConfig.versionCode = Integer.parseInt(APP_VERSION_CODE)
+    // glassGram: its own version code, from its own version (1.13.0 → 1013000), not Telegram's,
+    // which stays the same through glassGram's versions: a store (RuStore) takes a new version
+    // only with a higher code. Its last digit stays the ABI's, which the app reads
+    def glassgramVersion = (project.findProperty("GLASSGRAM_VERSION_NAME") ?: "0").toString().tokenize('.-')
+    def glassgramPart = { int i -> i < glassgramVersion.size() && glassgramVersion[i].isInteger() ? glassgramVersion[i].toInteger() : 0 }
+    defaultConfig.versionCode = glassgramPart(0) * 1000000 + glassgramPart(1) * 1000 + glassgramPart(2)
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
