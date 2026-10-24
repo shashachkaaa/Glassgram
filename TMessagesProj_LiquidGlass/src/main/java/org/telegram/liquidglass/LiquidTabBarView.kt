@@ -381,6 +381,9 @@ class LiquidTabBarView(context: Context) : AbstractComposeView(context) {
                             val canvas = it.nativeCanvas
                             canvas.save()
                             canvas.translate((size.width - w) / 2f, (size.height - h) / 2f)
+                            // As a parent draws a child: a single-line title centered in its
+                            // view (a text tab) is scrolled to the middle of its very wide line
+                            canvas.translate(-view.scrollX.toFloat(), -view.scrollY.toFloat())
                             view.draw(canvas)
                             canvas.restore()
                         }
