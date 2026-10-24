@@ -61,6 +61,8 @@
 
 # Glassgram plugins: Python plugins reach app classes, fields and methods by name
 -keep class org.telegram.** { *; }
+# exteraGram's classes that plugins made for it import (com.exteragram.messenger.ExteraConfig)
+-keep class com.exteragram.** { *; }
 -keep class com.chaquo.python.** { *; }
 -keep class de.robv.android.xposed.** { *; }
 -keep class com.aliucord.hook.** { *; }
