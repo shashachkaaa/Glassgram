@@ -551,6 +551,13 @@ public class UItem extends AdapterWithDiffUtils.Item {
         return item;
     }
 
+    /** exteraGram's: an expandable switch whose switch, apart from the row, calls onSwitchClick (for plugins). */
+    public static UItem asExteraExpandableSwitch(int id, CharSequence text, CharSequence subText, View.OnClickListener onSwitchClick) {
+        UItem item = asExpandableSwitch(id, text, subText);
+        item.clickCallback = onSwitchClick;
+        return item;
+    }
+
     public static UItem asGraySection(CharSequence text) {
         UItem item = new UItem(UniversalAdapter.VIEW_TYPE_GRAY_SECTION, false);
         item.text = text;

@@ -65,11 +65,13 @@ public class PluginXposedHook extends XC_MethodHook {
         }
     }
 
-    private static Class<?> returnType(Member member) {
+    /** The hooked method's return type, or null for a constructor. */
+    public static Class<?> returnType(Member member) {
         return member instanceof Method ? ((Method) member).getReturnType() : null;
     }
 
-    private static void fixArgs(MethodHookParam param) {
+    /** The call's arguments set from Python, as the hooked method's own types. */
+    public static void fixArgs(MethodHookParam param) {
         if (param.args == null) {
             return;
         }
@@ -86,7 +88,7 @@ public class PluginXposedHook extends XC_MethodHook {
         }
     }
 
-    static Object coerce(Class<?> type, Object value) {
+    public static Object coerce(Class<?> type, Object value) {
         if (type == null || value == null || type == void.class || type == Void.class) {
             return value;
         }

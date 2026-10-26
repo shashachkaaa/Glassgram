@@ -3,6 +3,7 @@
 Called from org.telegram.messenger.plugins.PluginsController.
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -21,6 +22,9 @@ from extera_utils.metadata_parser import get_metadata, get_metadata_from_source
 _PluginsController = jclass("org.telegram.messenger.plugins.PluginsController")
 
 PLUGIN_EXTENSIONS = (".plugin", ".py")
+# Installed plugins are kept as {id}.py, as exteraGram keeps them: plugins made for it read each
+# other there (zwylib looks there for the plugins using it), and import each other by id
+PLUGIN_FILE_EXTENSION = ".py"
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{1,31}$")
 
 _lock = threading.RLock()
@@ -59,8 +63,13 @@ def start(plugins_dir: str):
         os.makedirs(_libs_dir, exist_ok=True)
         if _libs_dir not in sys.path:
             sys.path.append(_libs_dir)
+        # as in exteraGram: a plugin imports another by its id (import zwylib), and plugins keep
+        # modules of their own there (zwylib_companion); after the app's own, which come first
+        if _plugins_dir not in sys.path:
+            sys.path.append(_plugins_dir)
         plugin_settings.init(_plugins_dir)
         _load_state()
+        _rename_plugin_files()
         for name in sorted(os.listdir(_plugins_dir)):
             path = os.path.join(_plugins_dir, name)
             if not os.path.isfile(path) or not name.endswith(PLUGIN_EXTENSIONS):
@@ -75,11 +84,56 @@ def start(plugins_dir: str):
             _records[meta["id"]] = _Record(meta["id"], path, meta)
         for record in list(_records.values()):
             _publish(record)
-        for record in list(_records.values()):
-            if record.enabled:
-                _load(record)
+        for record in _load_order([r for r in _records.values() if r.enabled]):
+            _load(record)
         hooks_changed()
     app_event("start")
+
+
+def _rename_plugin_files():
+    """Plugins installed as {id}.plugin, as glassGram kept them before, become {id}.py."""
+    for name in os.listdir(_plugins_dir):
+        if not name.endswith(".plugin"):
+            continue
+        path = os.path.join(_plugins_dir, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            target = os.path.join(_plugins_dir, _read_meta(path)["id"] + PLUGIN_FILE_EXTENSION)
+            if not os.path.exists(target):
+                os.replace(path, target)
+        except Exception as e:
+            _log("plugins", "Cannot rename %s: %s" % (name, e))
+
+
+def _load_order(records):
+    """The plugins another one imports (import zwylib) first, so they are there for it."""
+    by_id = {r.id: r for r in records}
+    imports = {}
+    for record in records:
+        try:
+            with open(record.path, "r", encoding="utf-8-sig") as f:
+                source = f.read()
+        except Exception:
+            source = ""
+        imports[record.id] = [other for other in sorted(by_id) if other != record.id and re.search(
+            r"^\s*(?:from\s+%s\s+import\b|import\s+%s\b)" % (re.escape(other), re.escape(other)), source, re.M)]
+    ordered = []
+    done = set()
+
+    def visit(plugin_id, path):
+        if plugin_id in done or plugin_id in path:
+            return
+        path.add(plugin_id)
+        for other in imports.get(plugin_id, ()):
+            visit(other, path)
+        path.discard(plugin_id)
+        done.add(plugin_id)
+        ordered.append(by_id[plugin_id])
+
+    for record in records:
+        visit(record.id, set())
+    return ordered
 
 
 def stop():
@@ -206,6 +260,9 @@ def _load(record: _Record) -> bool:
         module.__file__ = record.path
         module.__dict__["__glassgram_plugin_id__"] = record.id
         sys.modules[module_name] = module
+        # others import it by its id (import zwylib), this very module and not a copy of its file
+        if _may_take_name(record.id):
+            sys.modules[record.id] = module
         # Plugins set __name__ to their display name, which becomes the module of their classes
         display_name = record.meta["name"]
         registered_display = display_name not in sys.modules
@@ -235,9 +292,12 @@ def _load(record: _Record) -> bool:
         instance.on_plugin_load()
         instance.enabled = True
         instance.initialized = True
+        _compat_engine_call("onPluginLoaded", record.id, instance)
     except Exception:
         record.error = traceback.format_exc()
         _log(record.id, "Failed to load:\n" + record.error)
+        _compat_engine_call("unloadPlugin", record.id)
+        _release_name(record.id, record.module or sys.modules.get("plugins." + record.id.replace("-", "_")))
         if record.instance is not None:
             try:
                 _base()._cleanup(record.instance)
@@ -250,6 +310,46 @@ def _load(record: _Record) -> bool:
     _publish(record)
     hooks_changed()
     return True
+
+
+def _may_take_name(plugin_id):
+    """Whether a plugin's module may go by its id: not when that is a module of the app's or a
+    library's (a plugin named "json" stays plugins.json)."""
+    if not plugin_id.isidentifier():
+        return False
+    existing = sys.modules.get(plugin_id)
+    if existing is not None:
+        return _is_plugins_module(existing)
+    try:
+        spec = importlib.util.find_spec(plugin_id)
+    except Exception:
+        return False
+    return spec is None or _in_plugins_dir(getattr(spec, "origin", None))
+
+
+def _is_plugins_module(module):
+    return "__glassgram_plugin_id__" in module.__dict__ or _in_plugins_dir(getattr(module, "__file__", None))
+
+
+def _in_plugins_dir(path):
+    if not path or not _plugins_dir:
+        return False
+    return os.path.dirname(os.path.abspath(path)) == os.path.abspath(_plugins_dir)
+
+
+def _release_name(plugin_id, module):
+    if module is not None and sys.modules.get(plugin_id) is module:
+        sys.modules.pop(plugin_id, None)
+
+
+def _compat_engine_call(method, *args):
+    """Tells exteraGram's engine (com.exteragram.messenger.plugins.PythonPluginsEngine), which
+    plugins made for exteraGram watch, of a plugin loaded or going."""
+    try:
+        engine = jclass("com.exteragram.messenger.plugins.PythonPluginsEngine").INSTANCE
+        getattr(engine, method)(*args)
+    except Exception:
+        _log("plugins", "%s failed:\n%s" % (method, traceback.format_exc()))
 
 
 def _find_plugin_class(module):
@@ -266,6 +366,8 @@ def _unload(record: _Record):
     instance = record.instance
     if instance is None:
         return
+    # first: plugins hooking exteraGram's unloadPlugin see it while the plugin still runs
+    _compat_engine_call("unloadPlugin", record.id)
     try:
         instance.on_plugin_unload()
     except Exception:
@@ -276,6 +378,7 @@ def _unload(record: _Record):
         _log(record.id, traceback.format_exc())
     instance.enabled = False
     record.instance = None
+    _release_name(record.id, record.module)
     record.module = None
     sys.modules.pop("plugins." + record.id.replace("-", "_"), None)
     hooks_changed()
@@ -328,7 +431,7 @@ def install(path: str, enable: bool = True):
             _unload(old)
             if old.path != path and os.path.exists(old.path):
                 os.remove(old.path)
-        target = os.path.join(_plugins_dir, plugin_id + ".plugin")
+        target = os.path.join(_plugins_dir, plugin_id + PLUGIN_FILE_EXTENSION)
         if os.path.abspath(path) != os.path.abspath(target):
             shutil.copyfile(path, target)
         record = _Record(plugin_id, target, meta)
@@ -340,6 +443,26 @@ def install(path: str, enable: bool = True):
         if record.enabled:
             _load(record)
         return plugin_id
+
+
+def load_from_file(plugin_id: str, path: str = None):
+    """exteraGram's PythonPluginsEngine.loadPlugin: reads an installed plugin from its file again
+    (the one named, or its own when that is not there) and loads it when it is on."""
+    with _lock:
+        record = _records.get(plugin_id)
+        if not path or not os.path.isfile(path):
+            path = record.path if record is not None else None
+        if not path or not os.path.isfile(path):
+            raise FileNotFoundError("No file of plugin %r" % (plugin_id,))
+        meta = _read_meta(path)
+        if record is not None:
+            _unload(record)
+        record = _Record(meta["id"], path, meta)
+        _records[record.id] = record
+        _publish(record)
+        if record.enabled:
+            _load(record)
+        return record.id
 
 
 def uninstall(plugin_id: str):

@@ -13,6 +13,8 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import com.chaquo.python.PyObject;
+import com.exteragram.messenger.plugins.Plugin;
+import com.exteragram.messenger.plugins.models.CustomSetting;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
@@ -287,7 +289,18 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
                     } else if (view != null) {
                         item = UItem.asCustom(view.toJava(View.class));
                     } else if (factory != null) {
-                        item = PluginItemFactory.asItem(factory.toJava(PluginItemFactory.Delegate.class), attr(row, "factory_args"));
+                        final Object javaFactory = factory.toJava(Object.class);
+                        if (javaFactory instanceof CustomSetting.Factory) {
+                            // exteraGram's own kind of factory, of plugins made for exteraGram
+                            final CustomSetting.Factory<?> exteraFactory = (CustomSetting.Factory<?>) javaFactory;
+                            final PyObject args = attr(row, "factory_args");
+                            item = exteraFactory.create(exteraPlugin(), new CustomSetting(exteraFactory, args), args);
+                            if (item == null) {
+                                return null;
+                            }
+                        } else {
+                            item = PluginItemFactory.asItem(factory.toJava(PluginItemFactory.Delegate.class), attr(row, "factory_args"));
+                        }
                     } else {
                         return null;
                     }
@@ -310,6 +323,11 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
             item.id = id;
         }
         return item;
+    }
+
+    /** This plugin as exteraGram's engine shows it, for the factories of plugins made for exteraGram. */
+    private Plugin exteraPlugin() {
+        return com.exteragram.messenger.plugins.PluginsController.getInstance().plugins.get(pluginId);
     }
 
     private PyObject rowFor(UItem item) {
@@ -409,6 +427,8 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
             case "custom": {
                 if ("custom".equals(type) && item.object instanceof PluginItemFactory.Delegate) {
                     PluginItemFactory.onClick(PluginsController.getPlugin(pluginId), item, view);
+                } else if ("custom".equals(type) && UItem.findFactory(item.viewType) instanceof CustomSetting.Factory) {
+                    ((CustomSetting.Factory<?>) UItem.findFactory(item.viewType)).onClick(exteraPlugin(), item, view);
                 }
                 call(attr(row, "on_click"), view);
                 PyObject sub = attr(row, "create_sub_fragment");
@@ -429,6 +449,9 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
         }
         if (item.object instanceof PluginItemFactory.Delegate && PluginItemFactory.onLongClick(PluginsController.getPlugin(pluginId), item, view)) {
             return true;
+        }
+        if (UItem.findFactory(item.viewType) instanceof CustomSetting.Factory) {
+            ((CustomSetting.Factory<?>) UItem.findFactory(item.viewType)).onLongClick(exteraPlugin(), item, view);
         }
         PyObject onLongClick = attr(row, "on_long_click");
         if (onLongClick == null) {

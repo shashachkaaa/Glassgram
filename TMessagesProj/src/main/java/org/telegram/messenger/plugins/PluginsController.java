@@ -202,11 +202,14 @@ public final class PluginsController {
     public static void putPluginInfo(String id, String name, String description, String author, String version, String icon, boolean enabled, String error, boolean hasSettings, String path) {
         PluginInfo info = new PluginInfo(id, name, description, author, version, icon, enabled, error, hasSettings, path);
         plugins.put(id, info);
+        // and as exteraGram's engine shows it, to plugins made for exteraGram
+        com.exteragram.messenger.plugins.PluginsController.getInstance().onPluginInfo(info);
         notifyChanged();
     }
 
     public static void removePluginInfo(String id) {
         plugins.remove(id);
+        com.exteragram.messenger.plugins.PluginsController.getInstance().onPluginRemoved(id);
         removeMenuItems(id);
         notifyChanged();
     }
@@ -321,14 +324,8 @@ public final class PluginsController {
 
     public static void setPluginEnabled(String id, boolean enabled, Runnable done) {
         pluginsQueue.postRunnable(() -> {
-            PyObject module = getEngine();
-            if (module != null) {
-                try {
-                    module.callAttr("set_enabled", id, enabled);
-                } catch (Throwable e) {
-                    log(id, Log.getStackTraceString(e));
-                }
-            }
+            // through exteraGram's controller, which plugins made for exteraGram hook to see it
+            com.exteragram.messenger.plugins.PluginsController.getInstance().setPluginEnabled(id, enabled, null);
             if (done != null) {
                 AndroidUtilities.runOnUIThread(done);
             }

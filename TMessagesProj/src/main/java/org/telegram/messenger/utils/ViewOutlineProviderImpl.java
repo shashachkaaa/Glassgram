@@ -43,6 +43,16 @@ public class ViewOutlineProviderImpl {
         };
     }
 
+    /** exteraGram's: the view's bounds with round corners of radius (for plugins made for it). */
+    public static ViewOutlineProvider boundsWithRoundRect(float radius) {
+        return new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+            }
+        };
+    }
+
     public static ViewOutlineProvider boundsWithPaddingFromViewAndRoundRect(float radius) {
         return new ViewOutlineProvider() {
             @Override

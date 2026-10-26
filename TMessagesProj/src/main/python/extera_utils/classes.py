@@ -344,7 +344,12 @@ class _Runtime:
         peer.__init__(*init_args, **init_kwargs)
         for fn in self._hooks("constructor", index):
             fn(peer, *args)
-        peer.on_post_init()
+        # with the constructor's arguments, as exteraGram's SDK gives them, when it takes them
+        post_init = peer.on_post_init
+        if args and _accepts(post_init, len(args)):
+            post_init(*args)
+        else:
+            post_init()
 
     def invoke(self, jself, py_name, super_name, args):
         peer = _Proxy.getPeer(jself)

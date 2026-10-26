@@ -84,6 +84,15 @@ public class TextCheckCell2 extends FrameLayout {
         checkBoxClickArea.setOnClickListener(v -> onCheckClick.run());
     }
 
+    /** exteraGram's: turns the collapse arrow of an expandable switch (for plugins). */
+    public void setCollapsed(boolean collapsed) {
+        if (collapsedArrow == null) {
+            return;
+        }
+        collapsedArrow.animate().cancel();
+        collapsedArrow.animate().rotation(collapsed ? 0 : 180).setDuration(340).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
+    }
+
     /** Clicks the switch area of an expandable switch, if this row has one. */
     public boolean performCheckAreaClick() {
         if (checkBoxClickArea == null || collapseViewContainer == null || collapseViewContainer.getVisibility() != View.VISIBLE || !checkBoxClickArea.hasOnClickListeners()) {

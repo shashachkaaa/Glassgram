@@ -256,6 +256,15 @@ def fn_hook_filters(field_name: str):
     return decorator
 
 
+def _filter_matches(f, param) -> bool:
+    """One filter on a call, for exteraGram's PyMethodHook (Java), which plugins made for exteraGram
+    give their filters to; one it can't read passes."""
+    try:
+        return bool(_filter_data(f).matches(param))
+    except Exception:
+        return True
+
+
 def _passes(filters, param) -> bool:
     for f in filters or ():
         if not _filter_data(f).matches(param):
