@@ -24430,7 +24430,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isStoryQualityFullOnAccount() {
-        return getUserConfig().isPremium() && storyQualityFull;
+        return GlassgramConfig.hasPremiumFeatures(currentAccount) && storyQualityFull;
     }
 
     public static boolean isStoryQualityFull() {

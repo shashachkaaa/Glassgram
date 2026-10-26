@@ -225,6 +225,15 @@ public class GlassgramConfig {
      */
     public static final boolean STORE_BUILD = BuildVars.GLASSGRAM_STORE;
 
+    /**
+     * Telegram Premium's features that are the app's own work, not the server's (translating
+     * whole chats, saving others' stories and watching them in HD, the avatar maker's gradients):
+     * everyone's here, Premium's only in the store's edition, as in Telegram.
+     */
+    public static boolean hasPremiumFeatures(int account) {
+        return !STORE_BUILD || UserConfig.getInstance(account).isPremium();
+    }
+
     private static boolean loaded;
 
     public static synchronized void load() {

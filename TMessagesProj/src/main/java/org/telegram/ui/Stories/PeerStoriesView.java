@@ -82,6 +82,7 @@ import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
@@ -2092,7 +2093,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
                         }
 
                         if (!unsupported && allowSave && !currentStory.isLive) {
-                            if (UserConfig.getInstance(currentAccount).isPremium()) {
+                            if (GlassgramConfig.hasPremiumFeatures(currentAccount)) {
                                 ActionBarMenuItem.addItem(popupLayout, R.drawable.msg_gallery, getString(R.string.SaveToGallery), false, resourcesProvider).setOnClickListener(v -> {
                                     saveToGallery();
                                     if (popupMenu != null) {
@@ -2492,7 +2493,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
 
     private void createQualityItem(ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout) {
         final boolean qualityFull = MessagesController.getInstance(currentAccount).storyQualityFull;
-        if (UserConfig.getInstance(currentAccount).isPremium()) {
+        if (GlassgramConfig.hasPremiumFeatures(currentAccount)) {
             ActionBarMenuItem.addItem(popupLayout, qualityFull ? R.drawable.menu_quality_sd : R.drawable.menu_quality_hd, getString(qualityFull ? R.string.StoryQualityDecrease : R.string.StoryQualityIncrease), false, resourcesProvider).setOnClickListener(v -> {
                 final boolean newQualityFull = !qualityFull;
                 MessagesController.getInstance(currentAccount).setStoryQuality(newQualityFull);

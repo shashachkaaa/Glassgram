@@ -34,6 +34,7 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.ChatObject;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -114,7 +115,7 @@ public class TranslateButton extends FrameLayout implements Theme.Colorable {
         menuView.setImageResource(R.drawable.msg_mini_customize);
         menuView.setOnClickListener(e -> {
             final TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
-            if (UserConfig.getInstance(currentAccount).isPremium() || chat != null && chat.autotranslation) {
+            if (GlassgramConfig.hasPremiumFeatures(currentAccount) || chat != null && chat.autotranslation) {
                 onMenuClick();
             } else {
                 onCloseClick();
@@ -297,7 +298,7 @@ public class TranslateButton extends FrameLayout implements Theme.Colorable {
             popupLayout.getSwipeBack().openForeground(swipeBackIndex);
         });
 
-        if (UserConfig.getInstance(currentAccount).isPremium() && detectedLanguageNameAccusative != null) {
+        if (GlassgramConfig.hasPremiumFeatures(currentAccount) && detectedLanguageNameAccusative != null) {
             final ActionBarMenuSubItem dontTranslateButton = new ActionBarMenuSubItem(getContext(), false, false, resourcesProvider);
             String text;
             if (accusative[0]) {
@@ -412,7 +413,7 @@ public class TranslateButton extends FrameLayout implements Theme.Colorable {
             }
             textView.setText(TextUtils.concat(translateIcon, " ", text));
         }
-        menuView.setImageResource(UserConfig.getInstance(currentAccount).isPremium() || chat != null && chat.autotranslation ? R.drawable.msg_mini_customize : R.drawable.msg_close);
+        menuView.setImageResource(GlassgramConfig.hasPremiumFeatures(currentAccount) || chat != null && chat.autotranslation ? R.drawable.msg_mini_customize : R.drawable.msg_close);
     }
 
     public static void showCocoonAlert(Context context, Theme.ResourcesProvider resourcesProvider) {

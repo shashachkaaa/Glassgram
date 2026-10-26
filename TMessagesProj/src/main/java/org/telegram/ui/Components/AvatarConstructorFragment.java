@@ -44,6 +44,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DocumentObject;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
@@ -536,7 +537,7 @@ public class AvatarConstructorFragment extends BaseFragment {
     }
 
     private boolean isLocked() {
-        if (UserConfig.getInstance(currentAccount).isPremium()) return false;
+        if (GlassgramConfig.hasPremiumFeatures(currentAccount)) return false;
         if (previewView.backgroundGradient != null && previewView.backgroundGradient.premium || previewView.isCustomGradient) {
             return true;
         }
@@ -1063,12 +1064,12 @@ public class AvatarConstructorFragment extends BaseFragment {
                     if (holder.getItemViewType() == VIEW_TYPE_GRADIENT) {
                         view.setCustom(false);
                         final BackgroundGradient gradient = gradients.get(position);
-                        view.setLocked(gradient.premium && !UserConfig.getInstance(currentAccount).isPremium());
+                        view.setLocked(gradient.premium && !GlassgramConfig.hasPremiumFeatures(currentAccount));
                         view.setGradient(gradient);
                         view.setSelectedInternal(selectedItemId == gradients.get(position).stableId, true);
                     } else {
                         view.setCustom(true);
-                        view.setLocked(!UserConfig.getInstance(currentAccount).isPremium());
+                        view.setLocked(!GlassgramConfig.hasPremiumFeatures(currentAccount));
                         view.setGradient(customSelectedGradient);
                         view.setSelectedInternal(selectedItemId == 1, true);
                     }

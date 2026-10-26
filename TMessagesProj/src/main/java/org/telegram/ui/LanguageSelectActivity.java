@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -220,7 +221,7 @@ public class LanguageSelectActivity extends BaseFragment implements Notification
                         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateSearchSettings);
                     } else if (position == autoTranslationPosition) {
                         boolean value = !getChatValue();
-                        if (value && !getUserConfig().isPremium()) {
+                        if (value && !GlassgramConfig.hasPremiumFeatures(currentAccount)) {
                             showDialog(new PremiumFeatureBottomSheet(LanguageSelectActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_TRANSLATIONS, false));
                             return;
                         }
@@ -781,7 +782,7 @@ public class LanguageSelectActivity extends BaseFragment implements Notification
                         cell.setCheckBoxIcon(0);
                     } else if (position == autoTranslationPosition) {
                         cell.setTextAndCheck(LocaleController.getString(R.string.ShowTranslateChatButton), getChatValue(), getContextValue() || getChatValue());
-                        cell.setCheckBoxIcon(!getUserConfig().isPremium() ? R.drawable.permission_locked : 0);
+                        cell.setCheckBoxIcon(!GlassgramConfig.hasPremiumFeatures(currentAccount) ? R.drawable.permission_locked : 0);
                     }
                     break;
                 }
