@@ -216,6 +216,7 @@ public abstract class BaseFragment {
         if (BuildConfig.DEBUG_PRIVATE_VERSION) {
             LeakDetector.getInstance().add(this);
         }
+        org.telegram.messenger.GlassgramCrashReporter.trackScreen(this);
 
         Bulletin.addDelegate(this, new Bulletin.Delegate() {
             @Override
