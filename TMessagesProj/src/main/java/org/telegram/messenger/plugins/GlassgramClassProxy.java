@@ -416,8 +416,7 @@ public final class GlassgramClassProxy {
         final Generated g = runtime.methods.get(index);
         try {
             final PyObject value = runtime.handler.callAttr("invoke", self, g.pyName, g.superName, args);
-            final Object result = value == null ? null : value.toJava(Object.class);
-            return PluginXposedHook.coerce(g.returnType, result);
+            return PluginXposedHook.coerce(g.returnType, toJavaResult(value, g.returnType));
         } catch (Throwable e) {
             // A failing plugin method must not take the app down: the parent's method runs instead
             FileLog.e(e);
@@ -425,6 +424,24 @@ public final class GlassgramClassProxy {
                 return invokeSuper(runtime, self, g, args);
             }
             return defaultValue(g.returnType);
+        }
+    }
+
+    /**
+     * What a Python method returned, for Java. A Python object of its own (no Java value) goes as
+     * the PyObject itself where the method returns an Object, as Chaquopy has no other Java form of it.
+     */
+    private static Object toJavaResult(PyObject value, Class<?> returnType) {
+        if (value == null || returnType == PyObject.class) {
+            return value;
+        }
+        try {
+            return value.toJava(Object.class);
+        } catch (ClassCastException e) {
+            if (returnType == Object.class) {
+                return value;
+            }
+            throw e;
         }
     }
 
@@ -473,7 +490,11 @@ public final class GlassgramClassProxy {
         }
     }
 
-    public static void setPeer(Object self, Object peer) throws IllegalAccessException {
+    /**
+     * The Python object behind a generated object. A PyObject: Chaquopy passes a Python object
+     * only as that, not as an Object, and gives the Python object back from {@link #getPeer}.
+     */
+    public static void setPeer(Object self, PyObject peer) throws IllegalAccessException {
         final Runtime runtime = runtimesByClass.get(self.getClass());
         if (runtime != null) {
             runtime.peerField.set(self, peer);

@@ -3832,6 +3832,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         VoIPHelper.startCall(chat, null, hash, false, this, mainFragmentsStack.get(mainFragmentsStack.size() - 1), accountInstance);
     }
 
+    /** As before poll options: plugins made for exteraGram call this one. */
+    public void openMessage(long dialogId, int messageId, String quote, final Browser.Progress progress, int fromMessageId, final int quoteOffset, Integer task_id) {
+        openMessage(dialogId, messageId, quote, progress, fromMessageId, quoteOffset, task_id, null);
+    }
+
     public void openMessage(long dialogId, int messageId, String quote, final Browser.Progress progress, int fromMessageId, final int quoteOffset, Integer task_id, byte[] pollOption) {
         if (dialogId < 0) {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
