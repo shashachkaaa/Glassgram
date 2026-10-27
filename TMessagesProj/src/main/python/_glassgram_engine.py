@@ -67,6 +67,7 @@ def start(plugins_dir: str):
         # modules of their own there (zwylib_companion); after the app's own, which come first
         if _plugins_dir not in sys.path:
             sys.path.append(_plugins_dir)
+        _accept_class_objects()
         plugin_settings.init(_plugins_dir)
         _load_state()
         _rename_plugin_files()
@@ -88,6 +89,36 @@ def start(plugins_dir: str):
             _load(record)
         hooks_changed()
     app_event("start")
+
+
+def _accept_class_objects():
+    """Chaquopy's dynamic_proxy and cast want a Java class itself (jclass); plugins made for
+    exteraGram also give them a java.lang.Class, as hook_utils.find_class returns it. Both do."""
+    import java
+
+    if getattr(java, "_glassgram_class_objects", False):
+        return
+    class_type = jclass("java.lang.Class")
+
+    def as_java_class(value):
+        if isinstance(value, class_type):
+            return jclass(value.getName())
+        return value
+
+    original_dynamic_proxy = java.dynamic_proxy
+    original_cast = java.cast
+
+    def dynamic_proxy(*implements):
+        return original_dynamic_proxy(*[as_java_class(i) for i in implements])
+
+    def cast(cls, obj):
+        return original_cast(as_java_class(cls), obj)
+
+    dynamic_proxy.__doc__ = original_dynamic_proxy.__doc__
+    cast.__doc__ = original_cast.__doc__
+    java.dynamic_proxy = dynamic_proxy
+    java.cast = cast
+    java._glassgram_class_objects = True
 
 
 def _rename_plugin_files():
