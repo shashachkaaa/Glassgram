@@ -15,6 +15,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.os.Build;
+import android.os.SystemClock;
 import android.util.Pair;
 import android.util.SparseArray;
 
@@ -81,6 +82,8 @@ public class DownloadController extends BaseController implements NotificationCe
     private LongSparseArray<Long> typingTimes = new LongSparseArray<>();
 
     public final ArrayList<MessageObject> downloadingFiles = new ArrayList<>();
+    private static final long MESSAGE_NOT_FOUND_QUIET_MS = 10_000;
+    private long lastMessageNotFoundTime;
     public final ArrayList<MessageObject> recentDownloadingFiles = new ArrayList<>();
     public final SparseArray<MessageObject> unviewedDownloads = new SparseArray<>();
 
@@ -1554,19 +1557,33 @@ public class DownloadController extends BaseController implements NotificationCe
 
         AndroidUtilities.runOnUIThread(() -> {
             boolean removed = false;
+            boolean changed = false;
             TLRPC.Document parentDocument = parentObject.getDocument();
             for (int i = 0; i < downloadingFiles.size(); i++) {
                 TLRPC.Document downloadingDocument = downloadingFiles.get(i).getDocument();
-                if (downloadingDocument == null || parentDocument != null && downloadingDocument.id == parentDocument.id) {
+                if (downloadingDocument == null) {
+                    // glassGram: a download without a file is cleared away, but it isn't the one that
+                    // failed: Telegram took it for any failing file and said the message was not found
+                    downloadingFiles.remove(i--);
+                    changed = true;
+                } else if (parentDocument != null && downloadingDocument.id == parentDocument.id) {
                     downloadingFiles.remove(i);
-                    removed = true;
+                    removed = changed = true;
                     break;
                 }
             }
-            if (removed) {
+            if (changed) {
                 getNotificationCenter().postNotificationName(NotificationCenter.onDownloadingFilesChanged);
+            }
+            if (removed) {
                 if (reason == 0) {
-                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_ERROR, LocaleController.formatString("MessageNotFound", R.string.MessageNotFound));
+                    // glassGram: once for downloads failing one after another (all a deleted chat's
+                    // files), not once for each: again only after a quiet spell
+                    final long now = SystemClock.elapsedRealtime();
+                    if (now - lastMessageNotFoundTime > MESSAGE_NOT_FOUND_QUIET_MS) {
+                        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_ERROR, LocaleController.formatString("MessageNotFound", R.string.MessageNotFound));
+                    }
+                    lastMessageNotFoundTime = now;
                 } else if (reason == -1) {
                     LaunchActivity.checkFreeDiscSpaceStatic(2);
                 }
