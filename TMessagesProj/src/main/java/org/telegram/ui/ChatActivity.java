@@ -9125,8 +9125,8 @@ public class ChatActivity extends BaseFragment implements
 
     // glassGram: a locked chat (GlassgramChatLock) stays covered until the PIN or a fingerprint
 
-    private ActionBarMenuSubItem glassgramLockItem;
-    private ActionBarMenuSubItem glassgramHideItem;
+    private ActionBarMenuItem.Item glassgramLockItem;
+    private ActionBarMenuItem.Item glassgramHideItem;
     private GlassgramChatLockView glassgramLockView;
 
     private void glassgramUpdateLockItems() {
