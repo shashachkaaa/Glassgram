@@ -98,18 +98,12 @@ public final class GlassgramChatLockUi {
         container.addView(field, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 24, 4, 24, 0));
 
         final boolean[] done = new boolean[1];
-        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle(getString(R.string.GlassgramChatLockUnlock));
-        builder.setView(container);
-        builder.setPositiveButton(getString(R.string.OK), null);
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        final AlertDialog dialog = builder.create();
-        dialog.setDismissDialogByButtons(false);
+        final AlertDialog[] dialog = new AlertDialog[1];
         final Runnable check = () -> {
             if (GlassgramChatLock.checkPin(field.getText().toString())) {
                 done[0] = true;
                 AndroidUtilities.hideKeyboard(field);
-                dialog.dismiss();
+                dialog[0].dismiss();
                 onSuccess.run();
             } else {
                 field.setText("");
@@ -117,24 +111,44 @@ public final class GlassgramChatLockUi {
                 field.setHint(getString(R.string.GlassgramChatLockWrongPin));
             }
         };
+        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(getString(R.string.GlassgramChatLockUnlock));
+        builder.setView(container);
+        builder.setPositiveButton(getString(R.string.OK), (d, w) -> check.run());
+        builder.setNegativeButton(getString(R.string.Cancel), (d, w) -> {
+            AndroidUtilities.hideKeyboard(field);
+            d.dismiss();
+        });
+        dialog[0] = builder.create();
+        dialog[0].setDismissDialogByButtons(false);
         field.setImeOptions(EditorInfo.IME_ACTION_DONE);
         field.setOnEditorActionListener((v, actionId, event) -> {
             check.run();
             return true;
         });
-        dialog.setOnDismissListener(d -> {
+        show(fragment, dialog[0], () -> {
             if (!done[0] && onCancel != null) {
                 onCancel.run();
             }
         });
-        fragment.showDialog(dialog);
-        dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> check.run());
-        dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setOnClickListener(v -> {
-            AndroidUtilities.hideKeyboard(field);
-            dialog.dismiss();
-        });
         field.requestFocus();
         AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(field), 200);
+    }
+
+    /**
+     * Shows the dialog over the fragment; straight over the app when the fragment can't show it
+     * now, as when the profile one came from is still sliding away.
+     */
+    private static void show(BaseFragment fragment, AlertDialog dialog, Runnable onDismiss) {
+        final DialogInterface.OnDismissListener listener = d -> {
+            if (onDismiss != null) {
+                onDismiss.run();
+            }
+        };
+        dialog.setOnDismissListener(listener);
+        if (fragment.showDialog(dialog, true, listener) == null) {
+            dialog.show();
+        }
     }
 
     /** Makes the PIN (or a new one), asked twice; onDone once it is set. */
@@ -150,14 +164,7 @@ public final class GlassgramChatLockUi {
         container.addView(first, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 4, 24, 0));
         container.addView(second, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 8, 24, 0));
 
-        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle(getString(R.string.GlassgramChatLockSetPin));
-        builder.setMessage(getString(R.string.GlassgramChatLockSetPinInfo));
-        builder.setView(container);
-        builder.setPositiveButton(getString(R.string.Save), null);
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        final AlertDialog dialog = builder.create();
-        dialog.setDismissDialogByButtons(false);
+        final AlertDialog[] dialog = new AlertDialog[1];
         final Runnable save = () -> {
             final String pin = first.getText().toString();
             if (!GlassgramChatLock.isValidPin(pin)) {
@@ -172,23 +179,29 @@ public final class GlassgramChatLockUi {
             }
             GlassgramChatLock.setPin(pin);
             AndroidUtilities.hideKeyboard(second);
-            dialog.dismiss();
+            dialog[0].dismiss();
             if (onDone != null) {
                 onDone.run();
             }
         };
+        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(getString(R.string.GlassgramChatLockSetPin));
+        builder.setMessage(getString(R.string.GlassgramChatLockSetPinInfo));
+        builder.setView(container);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> save.run());
+        builder.setNegativeButton(getString(R.string.Cancel), (d, w) -> {
+            AndroidUtilities.hideKeyboard(first);
+            d.dismiss();
+        });
+        dialog[0] = builder.create();
+        dialog[0].setDismissDialogByButtons(false);
         first.setImeOptions(EditorInfo.IME_ACTION_NEXT);
         second.setImeOptions(EditorInfo.IME_ACTION_DONE);
         second.setOnEditorActionListener((v, actionId, event) -> {
             save.run();
             return true;
         });
-        fragment.showDialog(dialog);
-        dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> save.run());
-        dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setOnClickListener(v -> {
-            AndroidUtilities.hideKeyboard(first);
-            dialog.dismiss();
-        });
+        show(fragment, dialog[0], null);
         first.requestFocus();
         AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(first), 200);
     }
