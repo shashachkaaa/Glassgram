@@ -18,10 +18,9 @@ import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.provider.Settings;
 
 import androidx.core.app.NotificationCompat;
-
-import org.telegram.ui.LaunchActivity;
 
 /**
  * Keeps the connection to Telegram open in the background, so messages arrive and are
@@ -62,9 +61,14 @@ public class NotificationsService extends Service {
                 channel.enableLights(false);
                 manager.createNotificationChannel(channel);
             }
-            final Intent open = new Intent(this, LaunchActivity.class);
-            open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE);
+            // Tapped, it opens its channel's system settings: Android raises a foreground service's
+            // notification to be seen however the app makes its channel, and only the user can turn
+            // the channel off. The service keeps running then, and messages keep arriving.
+            final Intent hide = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
+                .putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, hide, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             final Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.notification)
                 .setContentTitle(LocaleController.getString(R.string.GlassgramBackgroundTitle))
