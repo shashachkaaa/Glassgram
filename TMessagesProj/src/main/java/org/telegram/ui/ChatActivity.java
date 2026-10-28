@@ -160,6 +160,7 @@ import org.telegram.messenger.EmojiData;
 import org.telegram.messenger.FactCheckController;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramBadges;
 import org.telegram.messenger.GlassgramSpyStorage;
@@ -1711,6 +1712,8 @@ public class ChatActivity extends BaseFragment implements
 
     private final static int chat_menu_topic_create = 73;
     private final static int glassgram_export_chat = 950;
+    private final static int glassgram_lock_chat = 951;
+    private final static int glassgram_hide_chat = 952;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -1947,6 +1950,10 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public boolean hasDoubleTap(View view, int position) {
             if (isQuickRepliesOrWelcomeMessagesMode()) return false;
+            if (GlassgramConfig.doubleTapAction != GlassgramConfig.DOUBLE_TAP_REACTION) {
+                // glassGram: the action one chose; a tap waits for a second one only where it may come
+                return view instanceof ChatMessageCell && !actionBar.isActionModeShowed() && glassgramHasDoubleTap(((ChatMessageCell) view).getPrimaryMessageObject());
+            }
             String reactionStringSetting = getMediaDataController().getDoubleTapReaction();
             TLRPC.TL_availableReaction reaction = getMediaDataController().getReactionsMap().get(reactionStringSetting);
             if (reaction == null && (reactionStringSetting == null || !reactionStringSetting.startsWith("animated_"))) {
@@ -1972,6 +1979,12 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void onDoubleTap(View view, int position, float x, float y) {
+            if (GlassgramConfig.doubleTapAction != GlassgramConfig.DOUBLE_TAP_REACTION) {
+                if (getParentActivity() != null && !isInPreviewMode() && !isQuickRepliesOrWelcomeMessagesMode() && view instanceof ChatMessageCell) {
+                    glassgramDoubleTap(((ChatMessageCell) view).getPrimaryMessageObject());
+                }
+                return;
+            }
             if (getParentActivity() == null || isSecretChat() || isInScheduleMode() || isInPreviewMode() || isQuickRepliesOrWelcomeMessagesMode()) {
                 return;
             }
@@ -3959,6 +3972,10 @@ public class ChatActivity extends BaseFragment implements
                     toggleMute(false);
                 } else if (id == glassgram_export_chat) {
                     GlassgramChatExport.showOptions(ChatActivity.this);
+                } else if (id == glassgram_lock_chat) {
+                    GlassgramChatLockUi.toggleLock(ChatActivity.this, currentAccount, dialog_id, ChatActivity.this::glassgramUpdateLockItems);
+                } else if (id == glassgram_hide_chat) {
+                    GlassgramChatLockUi.toggleHidden(ChatActivity.this, currentAccount, dialog_id, ChatActivity.this::glassgramUpdateLockItems);
                 } else if (id == add_shortcut) {
                     try {
                         getMediaDataController().installShortcut(currentUser.id, MediaDataController.SHORTCUT_TYPE_USER_OR_CHAT);
@@ -4516,6 +4533,12 @@ public class ChatActivity extends BaseFragment implements
             // glassGram: the chat's history into a .zip, as Telegram Desktop exports it
             if (GlassgramChatExport.canExport(this)) {
                 headerItem.lazilyAddSubItem(glassgram_export_chat, R.drawable.msg_download, LocaleController.getString(R.string.GlassgramExportTitle));
+            }
+            // glassGram: the chat behind the chat PIN, or out of the chat lists
+            if (chatMode == MODE_DEFAULT && !isTopic && dialog_id != 0 && !UserObject.isReplyUser(currentUser)) {
+                glassgramLockItem = headerItem.lazilyAddSubItem(glassgram_lock_chat, R.drawable.msg_secret, LocaleController.getString(R.string.GlassgramLockChat));
+                glassgramHideItem = headerItem.lazilyAddSubItem(glassgram_hide_chat, R.drawable.msg_archive_hide, LocaleController.getString(R.string.GlassgramHideChat));
+                glassgramUpdateLockItems();
             }
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
                 clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
@@ -9096,7 +9119,50 @@ public class ChatActivity extends BaseFragment implements
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         Timer.finish(t);
 
+        glassgramCheckLock();
         return fragmentView;
+    }
+
+    // glassGram: a locked chat (GlassgramChatLock) stays covered until the PIN or a fingerprint
+
+    private ActionBarMenuSubItem glassgramLockItem;
+    private ActionBarMenuSubItem glassgramHideItem;
+    private GlassgramChatLockView glassgramLockView;
+
+    private void glassgramUpdateLockItems() {
+        if (glassgramLockItem != null) {
+            glassgramLockItem.setText(LocaleController.getString(GlassgramChatLock.isLocked(currentAccount, dialog_id) ? R.string.GlassgramUnlockChat : R.string.GlassgramLockChat));
+        }
+        if (glassgramHideItem != null) {
+            glassgramHideItem.setText(LocaleController.getString(GlassgramChatLock.isHidden(currentAccount, dialog_id) ? R.string.GlassgramShowChat : R.string.GlassgramHideChat));
+        }
+    }
+
+    private void glassgramCheckLock() {
+        if (glassgramLockView != null || contentView == null || dialog_id == 0 || !GlassgramChatLock.needsUnlock(currentAccount, dialog_id)) {
+            return;
+        }
+        final CharSequence name = currentUser != null ? UserObject.getUserName(currentUser) : currentChat != null ? currentChat.title : null;
+        glassgramLockView = new GlassgramChatLockView(contentView.getContext(), themeDelegate, name, this::glassgramAskUnlock, this::finishFragment);
+        contentView.addView(glassgramLockView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        if (!isInPreviewMode()) {
+            // asked at once, once the chat has slid in
+            AndroidUtilities.runOnUIThread(this::glassgramAskUnlock, 350);
+        }
+    }
+
+    private void glassgramAskUnlock() {
+        if (glassgramLockView == null || getParentActivity() == null || isInPreviewMode() || isFinishing()) {
+            return;
+        }
+        GlassgramChatLockUi.requirePin(this, () -> {
+            GlassgramChatLock.markUnlocked(currentAccount, dialog_id);
+            final View lockView = glassgramLockView;
+            glassgramLockView = null;
+            if (lockView != null) {
+                lockView.animate().alpha(0f).setDuration(200).withEndAction(() -> AndroidUtilities.removeFromParent(lockView)).start();
+            }
+        }, null);
     }
 
     private void createSearchHashtagViewsIfNeeded() {
@@ -18422,7 +18488,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         private boolean isFullSizeIgnoreInsetsChild(View child) {
-            return child != null && (child == backgroundView
+            return child != null && (child == backgroundView || child instanceof GlassgramChatLockView
                 || child == blurredView || child == searchViewPager
                 || child == fireworksOverlay || child == chatActivityFadeView
                 || child == messagesSearchListContainer
@@ -30089,6 +30155,8 @@ public class ChatActivity extends BaseFragment implements
     public void onResume() {
         super.onResume();
         glassgramUpdateBackCounter(false);
+        // back after long away: locked again
+        glassgramCheckLock();
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
@@ -46920,6 +46988,124 @@ public class ChatActivity extends BaseFragment implements
             items.add(getString(R.string.WelcomeMessageRevert));
             options.add(OPTION_WELCOME_REVERT);
             icons.add(R.drawable.outline_revert_24);
+        }
+
+        // glassGram: the menu as one set it, items left out and the rest in one's order
+        if (!glassgramDoubleTapMenu) {
+            GlassgramMessageMenu.apply(options, items, icons);
+        }
+    }
+
+    // glassGram: a double tap doing one of the message's own actions (GlassgramConfig.doubleTapAction)
+
+    /** Set while the menu is made to see what a double tap may do: all of Telegram's items, not one's own menu. */
+    private boolean glassgramDoubleTapMenu;
+
+    /** Whether a double tap may do something to the message: a single tap then waits a little for a second one. */
+    private boolean glassgramHasDoubleTap(MessageObject messageObject) {
+        if (messageObject == null || messageObject.isDateObject || messageObject.isSponsored() || messageObject.isSending()) {
+            return false;
+        }
+        switch (GlassgramConfig.doubleTapAction) {
+            case GlassgramConfig.DOUBLE_TAP_EDIT:
+                return messageObject.canEditMessage(currentChat);
+            case GlassgramConfig.DOUBLE_TAP_COPY:
+            case GlassgramConfig.DOUBLE_TAP_TRANSLATE:
+                return messageObject.type == MessageObject.TYPE_TEXT || !TextUtils.isEmpty(messageObject.caption);
+            case GlassgramConfig.DOUBLE_TAP_SAVE:
+                return getDialogId() != getUserConfig().getClientUserId() && messageObject.getId() > 0 && messageObject.canForwardMessage();
+            case GlassgramConfig.DOUBLE_TAP_REPLY:
+                return !isInScheduleMode();
+            default:
+                return false;
+        }
+    }
+
+    /** Does the action one chose to the message, when its menu offers it here. */
+    private void glassgramDoubleTap(MessageObject messageObject) {
+        if (messageObject == null || !glassgramHasDoubleTap(messageObject)) {
+            return;
+        }
+        final int option;
+        switch (GlassgramConfig.doubleTapAction) {
+            case GlassgramConfig.DOUBLE_TAP_REPLY: option = OPTION_REPLY; break;
+            case GlassgramConfig.DOUBLE_TAP_COPY: option = OPTION_COPY; break;
+            case GlassgramConfig.DOUBLE_TAP_TRANSLATE: option = OPTION_TRANSLATE; break;
+            case GlassgramConfig.DOUBLE_TAP_EDIT: option = OPTION_EDIT; break;
+            case GlassgramConfig.DOUBLE_TAP_SAVE: option = OPTION_FORWARD; break;
+            default: return;
+        }
+        // what the message's menu would offer for it here: what may be done to it
+        selectedObject = messageObject;
+        selectedObjectGroup = getValidGroupedMessage(messageObject);
+        selectedObjectToEditCaption = null;
+        final ArrayList<Integer> options = new ArrayList<>();
+        glassgramDoubleTapMenu = true;
+        try {
+            fillMessageMenu(messageObject, new ArrayList<>(), new ArrayList<>(), options);
+        } catch (Exception e) {
+            FileLog.e(e);
+        } finally {
+            glassgramDoubleTapMenu = false;
+        }
+        if (!options.contains(option)) {
+            selectedObject = null;
+            selectedObjectGroup = null;
+            selectedObjectToEditCaption = null;
+            return;
+        }
+        if (option == OPTION_TRANSLATE) {
+            glassgramTranslate(messageObject, selectedObjectGroup);
+        } else if (option == OPTION_FORWARD) {
+            glassgramSaveToSaved(messageObject, selectedObjectGroup);
+        } else {
+            processSelectedOption(option);
+            return;
+        }
+        selectedObject = null;
+        selectedObjectGroup = null;
+        selectedObjectToEditCaption = null;
+    }
+
+    /** The message translated, as its menu's Translate shows it. */
+    private void glassgramTranslate(MessageObject messageObject, MessageObject.GroupedMessages group) {
+        final String fromLang = messageObject.messageOwner != null ? messageObject.messageOwner.originalLanguage : null;
+        final String toLang = TranslateAlert2.getToLanguage();
+        final String toLangValue = fromLang != null && fromLang.equals(toLang) ? LocaleController.getInstance().getCurrentLocale().getLanguage() : toLang;
+        final boolean byText = messageObject.isPoll() || messageObject.isVoiceTranscriptionOpen() || messageObject.isSponsored() || messageObject.scheduled || chatMode == MODE_QUICK_REPLIES;
+        final TLRPC.InputPeer peer = byText ? null : getMessagesController().getInputPeer(dialog_id);
+        final boolean noforwards = isPeerNoForwards() || messageObject.messageOwner.noforwards || messageObject.type == MessageObject.TYPE_PAID_MEDIA;
+        final Utilities.CallbackReturn<URLSpan, Boolean> onLinkPress = link -> {
+            didPressMessageUrl(link, false, messageObject, null);
+            return true;
+        };
+        final int[] messageId = new int[] { messageObject.getId() };
+        final TL_iv.RichMessage richMessage = messageObject.type == MessageObject.TYPE_ARTICLE ? messageObject.messageOwner.rich_message : null;
+        if (richMessage != null) {
+            TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, peer, messageId[0], fromLang, toLangValue, richMessage, noforwards, onLinkPress, null);
+            return;
+        }
+        final CharSequence text = messageObject.getMessageTextToTranslate(group, messageId);
+        if (TextUtils.isEmpty(text)) {
+            return;
+        }
+        TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, peer, messageId[0], messageObject.summarized, fromLang, toLangValue, text, messageObject.messageOwner.entities, noforwards, onLinkPress, null);
+    }
+
+    /** The message (its whole album) forwarded to Saved Messages. */
+    private void glassgramSaveToSaved(MessageObject messageObject, MessageObject.GroupedMessages group) {
+        final ArrayList<MessageObject> messages = new ArrayList<>();
+        if (group != null && !group.messages.isEmpty()) {
+            messages.addAll(group.messages);
+            Collections.sort(messages, (a, b) -> Integer.compare(a.getId(), b.getId()));
+        } else {
+            messages.add(messageObject);
+        }
+        final long self = getUserConfig().getClientUserId();
+        getSendMessagesHelper().sendMessage(messages, self, false, false, true, 0, 0);
+        createUndoView();
+        if (undoView != null) {
+            undoView.showWithAction(self, UndoView.ACTION_FWD_MESSAGES, messages.size());
         }
     }
 

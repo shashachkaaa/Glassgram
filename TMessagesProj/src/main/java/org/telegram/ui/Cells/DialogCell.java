@@ -2785,6 +2785,13 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             FileLog.e(e);
         }
 
+        // glassGram: a locked chat's last message isn't shown here (GlassgramChatLock)
+        if (isDialogCell && currentDialogFolderId == 0 && org.telegram.messenger.GlassgramChatLock.isLocked(currentAccount, currentDialogId)) {
+            messageString = LocaleController.getString(R.string.GlassgramChatLockPreview);
+            messageNameString = null;
+            thumbsCount = 0;
+        }
+
         try {
             CharSequence messageStringFinal;
             // Removing links and bold spans to get rid of underlining and boldness

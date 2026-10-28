@@ -25,6 +25,7 @@ import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramApi;
+import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.GlassgramFonts;
 import org.telegram.messenger.GlassgramProxy;
@@ -67,6 +68,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     public static final int PAGE_CUSTOMIZATION = 6;
     public static final int PAGE_FILTERS = 7;
     public static final int PAGE_TABS = 8;
+    public static final int PAGE_MESSAGE_MENU = 9;
+    public static final int PAGE_CHAT_LOCK = 10;
 
     private static final int ID_GENERAL = 1;
     private static final int ID_APPEARANCE = 2;
@@ -188,6 +191,16 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TRANSCRIBE_MODEL = 154;
     private static final int ID_BUTTON_DATA = 155;
     private static final int ID_PROXY_MODE = 156;
+    private static final int ID_CHAT_LOCK = 160;
+    private static final int ID_DOUBLE_TAP_ACTION = 161;
+    private static final int ID_MESSAGE_MENU = 162;
+    private static final int ID_MENU_RESET = 163;
+    private static final int ID_LOCK_PIN = 164;
+    private static final int ID_LOCK_FINGERPRINT = 165;
+    private static final int ID_LOCK_REMOVE = 166;
+    private static final int ID_HIDDEN_CHATS = 167;
+    private static final int ID_MENU_ITEM = 300;
+    private static final int ID_LOCKED_CHAT = 400;
 
     private final int page;
     private boolean ghostExpanded;
@@ -235,6 +248,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return getString(R.string.GlassgramMessageFilters);
             case PAGE_TABS:
                 return getString(R.string.GlassgramTabs);
+            case PAGE_MESSAGE_MENU:
+                return getString(R.string.GlassgramMessageMenu);
+            case PAGE_CHAT_LOCK:
+                return getString(R.string.GlassgramChatLockSettings);
             default:
                 // The header below the action bar carries the name
                 return "";
@@ -279,6 +296,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (page == PAGE_TABS) {
             // a tab is dragged to its place
             listView.listenReorder(this::onTabsReordered);
+            listView.allowReorder(true);
+        } else if (page == PAGE_MESSAGE_MENU) {
+            // an item is dragged to its place
+            listView.listenReorder(this::onMenuReordered);
             listView.allowReorder(true);
         }
         return view;
@@ -367,6 +388,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asCheck(ID_HIDE_SEND_AS, getString(R.string.GlassgramHideSendAs)).setChecked(GlassgramConfig.hideSendAsButton));
                 items.add(UItem.asShadow(getString(R.string.GlassgramHideSendAsInfo)));
                 items.add(header(getString(R.string.GlassgramMessages)));
+                items.add(UItem.asButton(ID_DOUBLE_TAP_ACTION, getString(R.string.GlassgramDoubleTapAction), doubleTapNames()[GlassgramConfig.doubleTapAction]));
+                items.add(UItem.asButton(ID_MESSAGE_MENU, getString(R.string.GlassgramMessageMenu), getString(GlassgramMessageMenu.isCustomized() ? R.string.GlassgramMessageMenuOwn : R.string.GlassgramMessageMenuTelegram)));
                 items.add(UItem.asCheck(ID_MESSAGE_TAIL, getString(R.string.GlassgramRemoveMessageTail)).setChecked(GlassgramConfig.removeMessageTail));
                 items.add(UItem.asCheck(ID_EDITED_ICON, getString(R.string.GlassgramEditedIcon)).setChecked(GlassgramConfig.editedIcon));
                 items.add(UItem.asCheck(ID_ONLINE_INDICATOR, getString(R.string.GlassgramOnlineIndicator)).setChecked(GlassgramConfig.showOnlineIndicator));
@@ -432,6 +455,49 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asButton(ID_TABS_RESET, getString(R.string.GlassgramTabsReset)));
                 }
                 items.add(UItem.asShadow(null));
+                break;
+            }
+            case PAGE_MESSAGE_MENU: {
+                final ArrayList<GlassgramMessageMenu.Kind> order = GlassgramMessageMenu.orderedKinds();
+                final java.util.Set<String> hidden = GlassgramMessageMenu.hiddenKeys();
+                items.add(header(getString(R.string.GlassgramMessageMenuHeader)));
+                menuReorderId = adapter.reorderSectionStart();
+                for (GlassgramMessageMenu.Kind kind : order) {
+                    items.add(UItem.asCheck(ID_MENU_ITEM + kindIndex(kind), getString(kind.title)).setChecked(!hidden.contains(kind.key)));
+                }
+                adapter.reorderSectionEnd();
+                items.add(UItem.asShadow(getString(R.string.GlassgramMessageMenuInfo)));
+                if (GlassgramMessageMenu.isCustomized()) {
+                    items.add(UItem.asButton(ID_MENU_RESET, getString(R.string.GlassgramMessageMenuReset)).red());
+                    items.add(UItem.asShadow(null));
+                }
+                break;
+            }
+            case PAGE_CHAT_LOCK: {
+                final boolean hasPin = GlassgramChatLock.hasPin();
+                items.add(header(getString(R.string.GlassgramChatLockPinHeader)));
+                items.add(UItem.asButton(ID_LOCK_PIN, R.drawable.msg_permissions, getString(hasPin ? R.string.GlassgramChatLockChangePin : R.string.GlassgramChatLockSetPin)));
+                if (hasPin && GlassgramChatLockUi.canUseFingerprint(getContext())) {
+                    items.add(UItem.asCheck(ID_LOCK_FINGERPRINT, getString(R.string.GlassgramChatLockFingerprint)).setChecked(GlassgramChatLock.useFingerprint()));
+                }
+                if (hasPin) {
+                    items.add(UItem.asButton(ID_LOCK_REMOVE, R.drawable.msg_delete, getString(R.string.GlassgramChatLockRemovePin)).red());
+                }
+                items.add(UItem.asShadow(getString(R.string.GlassgramChatLockInfo)));
+                items.add(header(getString(R.string.GlassgramHiddenChats)));
+                items.add(UItem.asButton(ID_HIDDEN_CHATS, R.drawable.msg_archive_hide, getString(R.string.GlassgramHiddenChatsOpen)));
+                items.add(UItem.asShadow(getString(R.string.GlassgramHiddenChatsHint)));
+                lockedChats.clear();
+                lockedChats.addAll(GlassgramChatLock.lockedDialogs(currentAccount));
+                if (!lockedChats.isEmpty()) {
+                    items.add(header(getString(R.string.GlassgramLockedChats)));
+                    for (int i = 0; i < lockedChats.size(); i++) {
+                        final UItem chat = UItem.asFilterChat(true, lockedChats.get(i));
+                        chat.id = ID_LOCKED_CHAT + i;
+                        items.add(chat);
+                    }
+                    items.add(UItem.asShadow(getString(R.string.GlassgramLockedChatsInfo)));
+                }
                 break;
             }
             case PAGE_GHOST: {
@@ -516,11 +582,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 if (GlassgramConfig.STORE_BUILD) {
                     // no "Spy & Ghost" section: the filters join the categories
                     items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                    items.add(UItem.asButton(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
                 } else {
                     items.add(header(getString(R.string.GlassgramPrivacySection)));
                     items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
                     items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
                     items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                    items.add(UItem.asButton(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
                 }
                 items.add(header(getString(R.string.GlassgramLinks)));
                 items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
@@ -678,6 +746,43 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_ROUND_CAMERA_INFO:
                 showCameraReport();
                 return;
+            case ID_DOUBLE_TAP_ACTION:
+                showChoice(getString(R.string.GlassgramDoubleTapAction), doubleTapNames(), GlassgramConfig.doubleTapAction, which -> {
+                    GlassgramConfig.doubleTapAction = which;
+                    GlassgramConfig.putInt("doubleTapAction", which);
+                });
+                return;
+            case ID_MESSAGE_MENU:
+                presentFragment(new GlassgramSettingsActivity(PAGE_MESSAGE_MENU));
+                return;
+            case ID_MENU_RESET:
+                GlassgramMessageMenu.reset();
+                if (listView != null) {
+                    listView.adapter.update(true);
+                }
+                return;
+            case ID_CHAT_LOCK:
+                presentFragment(new GlassgramSettingsActivity(PAGE_CHAT_LOCK));
+                return;
+            case ID_LOCK_PIN:
+                if (GlassgramChatLock.hasPin()) {
+                    GlassgramChatLockUi.requirePin(this, () -> GlassgramChatLockUi.createPin(this, this::onPinChanged), null);
+                } else {
+                    GlassgramChatLockUi.createPin(this, this::onPinChanged);
+                }
+                return;
+            case ID_LOCK_FINGERPRINT:
+                GlassgramChatLock.setUseFingerprint(!GlassgramChatLock.useFingerprint());
+                if (listView != null) {
+                    listView.adapter.update(true);
+                }
+                return;
+            case ID_LOCK_REMOVE:
+                GlassgramChatLockUi.requirePin(this, this::confirmRemovePin, null);
+                return;
+            case ID_HIDDEN_CHATS:
+                GlassgramChatLockUi.openHidden(this);
+                return;
             case ID_DOUBLE_TAP_SEEK:
                 showChoice(getString(R.string.GlassgramDoubleTapSeek), seekNames(), seekIndex(), which -> {
                     GlassgramConfig.doubleTapSeekSeconds = SEEK_SECONDS[which];
@@ -765,6 +870,19 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         }
         if (item.id >= ID_TAB && item.id < ID_TAB + GlassgramConfig.TAB_KINDS) {
             toggleTab(item.id - ID_TAB);
+            return;
+        }
+        if (item.id >= ID_MENU_ITEM && item.id < ID_MENU_ITEM + GlassgramMessageMenu.KINDS.length) {
+            toggleMenuItem(GlassgramMessageMenu.KINDS[item.id - ID_MENU_ITEM]);
+            return;
+        }
+        if (item.id >= ID_LOCKED_CHAT && item.id < ID_LOCKED_CHAT + lockedChats.size()) {
+            final long dialogId = lockedChats.get(item.id - ID_LOCKED_CHAT);
+            GlassgramChatLockUi.toggleLock(this, currentAccount, dialogId, () -> {
+                if (listView != null) {
+                    listView.adapter.update(true);
+                }
+            });
             return;
         }
         final boolean value;
@@ -1531,6 +1649,88 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                         .show();
             });
         });
+    }
+
+    // Double tap, message menu, chat lock
+
+    private int menuReorderId = -1;
+    private final ArrayList<Long> lockedChats = new ArrayList<>();
+
+    /** In GlassgramConfig.DOUBLE_TAP_*'s order. */
+    private static String[] doubleTapNames() {
+        return new String[]{
+                getString(R.string.GlassgramDoubleTapReaction),
+                getString(R.string.Reply),
+                getString(R.string.Copy),
+                getString(R.string.TranslateMessage),
+                getString(R.string.Edit),
+                getString(R.string.GlassgramDoubleTapSave),
+                getString(R.string.GlassgramDoubleTapNothing),
+        };
+    }
+
+    private static int kindIndex(GlassgramMessageMenu.Kind kind) {
+        for (int i = 0; i < GlassgramMessageMenu.KINDS.length; i++) {
+            if (GlassgramMessageMenu.KINDS[i] == kind) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void toggleMenuItem(GlassgramMessageMenu.Kind kind) {
+        final java.util.Set<String> hidden = GlassgramMessageMenu.hiddenKeys();
+        if (!hidden.remove(kind.key)) {
+            hidden.add(kind.key);
+        }
+        GlassgramMessageMenu.save(GlassgramMessageMenu.orderedKinds(), hidden);
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private void onMenuReordered(int id, ArrayList<UItem> items) {
+        if (id != menuReorderId) {
+            return;
+        }
+        final ArrayList<GlassgramMessageMenu.Kind> order = new ArrayList<>();
+        for (UItem item : items) {
+            if (item.id >= ID_MENU_ITEM && item.id < ID_MENU_ITEM + GlassgramMessageMenu.KINDS.length) {
+                order.add(GlassgramMessageMenu.KINDS[item.id - ID_MENU_ITEM]);
+            }
+        }
+        if (order.size() == GlassgramMessageMenu.KINDS.length) {
+            GlassgramMessageMenu.save(order, GlassgramMessageMenu.hiddenKeys());
+        }
+    }
+
+    private void onPinChanged() {
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.passcode_lock_close, getString(R.string.GlassgramChatLockPinSaved)).show();
+        if (listView != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private void confirmRemovePin() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog dialog = new AlertDialog.Builder(getParentActivity())
+                .setTitle(getString(R.string.GlassgramChatLockRemovePin))
+                .setMessage(getString(R.string.GlassgramChatLockRemovePinInfo))
+                .setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                    GlassgramChatLock.removePin();
+                    if (listView != null) {
+                        listView.adapter.update(true);
+                    }
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .create();
+        showDialog(dialog);
+        final View button = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
+        if (button instanceof android.widget.TextView) {
+            ((android.widget.TextView) button).setTextColor(Theme.getColor(Theme.key_text_RedBold));
+        }
     }
 
     private void showChoice(CharSequence title, String[] names, int current, org.telegram.messenger.Utilities.Callback<Integer> onChoose) {

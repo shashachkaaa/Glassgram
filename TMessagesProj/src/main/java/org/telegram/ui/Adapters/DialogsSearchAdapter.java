@@ -40,6 +40,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.R;
@@ -1007,6 +1008,21 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 searchResultMessages.clear();
             }
             searchWas = true;
+            // glassGram: hidden chats (GlassgramChatLock) aren't found either
+            if (GlassgramChatLock.hasHidden(currentAccount)) {
+                for (int i = result.size() - 1; i >= 0; i--) {
+                    final Object obj = result.get(i);
+                    final long did = obj instanceof TLRPC.User ? ((TLRPC.User) obj).id
+                            : obj instanceof TLRPC.Chat ? -((TLRPC.Chat) obj).id
+                            : obj instanceof TLRPC.EncryptedChat ? DialogObject.makeEncryptedDialogId(((TLRPC.EncryptedChat) obj).id) : 0;
+                    if (did != 0 && GlassgramChatLock.isHidden(currentAccount, did)) {
+                        result.remove(i);
+                        if (i < names.size()) {
+                            names.remove(i);
+                        }
+                    }
+                }
+            }
             for (int i = 0; i < result.size(); ++i) {
                 if (!filter(result.get(i))) {
                     result.remove(i);
@@ -2349,7 +2365,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             filteredRecentSearchObjects.clear();
             final int count = recentSearchObjects.size();
             for (int i = 0; i < count; ++i) {
-                if (delegate != null && delegate.getSearchForumDialogId() == recentSearchObjects.get(i).did || !filter(recentSearchObjects.get(i).object)) {
+                if (delegate != null && delegate.getSearchForumDialogId() == recentSearchObjects.get(i).did || !filter(recentSearchObjects.get(i).object)
+                        || GlassgramChatLock.isHidden(currentAccount, recentSearchObjects.get(i).did)) {
                     continue;
                 }
                 filteredRecentSearchObjects.add(recentSearchObjects.get(i));
@@ -2363,7 +2380,8 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             if (obj == null || obj.object == null) {
                 continue;
             }
-            if (delegate != null && delegate.getSearchForumDialogId() == obj.did || !filter(recentSearchObjects.get(i).object)) {
+            if (delegate != null && delegate.getSearchForumDialogId() == obj.did || !filter(recentSearchObjects.get(i).object)
+                    || GlassgramChatLock.isHidden(currentAccount, obj.did)) {
                 continue;
             }
             String title = null, username = null;

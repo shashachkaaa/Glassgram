@@ -3636,6 +3636,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 statusDrawable.center = true;
                 // The app's name as text: the stock title is Telegram's wordmark image
                 actionBar.setTitle(org.telegram.messenger.GlassgramConfig.getTitle(), statusDrawable);
+                // glassGram: held, the title opens the hidden chats, after the chat PIN
+                if (initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect) {
+                    actionBar.setOnLongClickListener(v -> {
+                        if (!org.telegram.messenger.GlassgramChatLock.hasPin() || actionBar.isSearchFieldVisible() || actionBar.isActionModeShowed()) {
+                            return false;
+                        }
+                        GlassgramChatLockUi.openHidden(DialogsActivity.this);
+                        return true;
+                    });
+                }
                 if (org.telegram.messenger.GlassgramConfig.glassHeader && initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect) {
                     // Liquid Glass header like the chat's: a pill around the title and a capsule for the buttons
                     glassHeader = true;

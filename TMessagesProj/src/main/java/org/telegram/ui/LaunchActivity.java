@@ -6738,6 +6738,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onPause() {
         super.onPause();
         isResumed = false;
+        org.telegram.messenger.GlassgramChatLock.onAppPaused();
         org.telegram.messenger.plugins.PluginsController.onAppEvent("pause");
         pipActivityHandler.onPause();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 4096);
@@ -7035,6 +7036,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onResume() {
         super.onResume();
         isResumed = true;
+        // before the screens resume: a locked chat open there locks again after long away
+        org.telegram.messenger.GlassgramChatLock.onAppResumed();
         org.telegram.messenger.plugins.PluginsController.onAppEvent("resume");
         org.telegram.messenger.GlassgramBadges.refresh(false);
         AndroidUtilities.runOnUIThread(() -> {

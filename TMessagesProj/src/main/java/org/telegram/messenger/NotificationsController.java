@@ -1863,7 +1863,9 @@ public class NotificationsController extends BaseController implements Notificat
             preview[0] = true;
         }
         SharedPreferences preferences = getAccountInstance().getNotificationsSettings();
-        boolean dialogPreviewEnabled = preferences.getBoolean("content_preview_" + dialogId, true);
+        // glassGram: a locked or hidden chat's messages aren't shown in notifications
+        boolean dialogPreviewEnabled = preferences.getBoolean("content_preview_" + dialogId, true)
+                && !GlassgramChatLock.isLocked(currentAccount, dialogId) && !GlassgramChatLock.isHidden(currentAccount, dialogId);
         if (messageObject.isFcmMessage()) {
             if (chat_id == 0 && fromId != 0) {
                 if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O_MR1) {
@@ -2558,7 +2560,9 @@ public class NotificationsController extends BaseController implements Notificat
             chatId = fromId < 0 ? -fromId : 0;
         }
         SharedPreferences preferences = getAccountInstance().getNotificationsSettings();
-        boolean dialogPreviewEnabled = preferences.getBoolean("content_preview_" + dialogId, true);
+        // glassGram: a locked or hidden chat's messages aren't shown in notifications
+        boolean dialogPreviewEnabled = preferences.getBoolean("content_preview_" + dialogId, true)
+                && !GlassgramChatLock.isLocked(currentAccount, dialogId) && !GlassgramChatLock.isHidden(currentAccount, dialogId);
         if (messageObject.isFcmMessage()) {
             if (chatId == 0 && fromId != 0) {
                 if (!dialogPreviewEnabled || !preferences.getBoolean("EnablePreviewAll", true)) {

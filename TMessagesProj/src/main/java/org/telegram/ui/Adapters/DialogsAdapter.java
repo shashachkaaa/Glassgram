@@ -39,6 +39,7 @@ import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -1206,8 +1207,24 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
         return itemInternals.get(i).viewType;
     }
 
+    /** glassGram: the chats shown, hidden ones (GlassgramChatLock) left out, as the list rows are made of them. */
+    private ArrayList<TLRPC.Dialog> glassgramShown(ArrayList<TLRPC.Dialog> dialogs) {
+        if (dialogs == null || !GlassgramChatLock.hasHidden(currentAccount)) {
+            return dialogs;
+        }
+        final ArrayList<TLRPC.Dialog> shown = new ArrayList<>(dialogs.size());
+        for (int i = 0, n = dialogs.size(); i < n; i++) {
+            final TLRPC.Dialog dialog = dialogs.get(i);
+            if (dialog == null || !GlassgramChatLock.isHidden(currentAccount, dialog.id)) {
+                shown.add(dialog);
+            }
+        }
+        return shown;
+    }
+
     public void moveDialogs(RecyclerListView recyclerView, int fromPosition, int toPosition) {
-        ArrayList<TLRPC.Dialog> dialogs = parentFragment.getDialogsArray(currentAccount, dialogsType, folderId, false);
+        final ArrayList<TLRPC.Dialog> allDialogs = parentFragment.getDialogsArray(currentAccount, dialogsType, folderId, false);
+        ArrayList<TLRPC.Dialog> dialogs = glassgramShown(allDialogs);
         int fromIndex = fixPosition(fromPosition);
         int toIndex = fixPosition(toPosition);
         TLRPC.Dialog fromDialog = dialogs.get(fromIndex);
@@ -1224,6 +1241,13 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             toDialog.pinnedNum = oldNum;
         }
         Collections.swap(dialogs, fromIndex, toIndex);
+        if (dialogs != allDialogs) {
+            // the rows are the shown ones: swapped in the whole list too
+            final int a = allDialogs.indexOf(fromDialog), b = allDialogs.indexOf(toDialog);
+            if (a >= 0 && b >= 0) {
+                Collections.swap(allDialogs, a, b);
+            }
+        }
         updateList(null);
     }
 
@@ -1619,7 +1643,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
         if (communityId != 0) {
             array = messagesController.getDialogsByCommunity(communityId);
         } else {
-            array = parentFragment.getDialogsArray(currentAccount, dialogsType, folderId, dialogsListFrozen);
+            array = glassgramShown(parentFragment.getDialogsArray(currentAccount, dialogsType, folderId, dialogsListFrozen));
             if (array == null) {
                 array = new ArrayList<>();
             }

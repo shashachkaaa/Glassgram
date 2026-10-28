@@ -131,6 +131,21 @@ public class GlassgramConfig {
 
     // Videos
     public static int doubleTapSeekSeconds = 10;
+
+    /** What a double tap on a message does: Telegram's reaction, or one of the message's actions. */
+    public static final int DOUBLE_TAP_REACTION = 0;
+    public static final int DOUBLE_TAP_REPLY = 1;
+    public static final int DOUBLE_TAP_COPY = 2;
+    public static final int DOUBLE_TAP_TRANSLATE = 3;
+    public static final int DOUBLE_TAP_EDIT = 4;
+    public static final int DOUBLE_TAP_SAVE = 5;
+    public static final int DOUBLE_TAP_NOTHING = 6;
+    public static final int DOUBLE_TAP_ACTIONS = 7;
+    public static int doubleTapAction = DOUBLE_TAP_REACTION;
+
+    /** The message menu's items left out, and the order of the rest ("" for Telegram's), by key (GlassgramMessageMenu). */
+    public static String messageMenuHidden = "";
+    public static String messageMenuOrder = "";
     public static boolean preferOriginalQuality;
     public static boolean volumeUnmute;
     public static boolean autoPause;
@@ -314,6 +329,12 @@ public class GlassgramConfig {
         offlineTranscription = p.getBoolean("offlineTranscription", false);
         offlineTranscriptionLang = p.getString("offlineTranscriptionLang", GlassgramVoice.LANG_RU);
         doubleTapSeekSeconds = p.getInt("doubleTapSeekSeconds", 10);
+        doubleTapAction = p.getInt("doubleTapAction", DOUBLE_TAP_REACTION);
+        if (doubleTapAction < 0 || doubleTapAction >= DOUBLE_TAP_ACTIONS) {
+            doubleTapAction = DOUBLE_TAP_REACTION;
+        }
+        messageMenuHidden = p.getString("messageMenuHidden", "");
+        messageMenuOrder = p.getString("messageMenuOrder", "");
         preferOriginalQuality = p.getBoolean("preferOriginalQuality", false);
         volumeUnmute = p.getBoolean("volumeUnmute", false);
         autoPause = p.getBoolean("autoPause", false);
