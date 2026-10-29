@@ -845,4 +845,21 @@
     <string name="GlassgramHiddenChatsInfo">Нажмите на чат, чтобы открыть его. Удерживайте, чтобы вернуть его в список чатов.</string>
     <string name="GlassgramLockedChats">Защищённые чаты</string>
     <string name="GlassgramLockedChatsInfo">Нажмите на чат, чтобы снять с него защиту.</string>
+    <string name="GlassgramPluginScanDanger">Плагин может быть опасен</string>
+    <string name="GlassgramPluginScanWarning">Проверьте плагин перед установкой</string>
+    <string name="GlassgramPluginScanKnown">Совпадает с известным вредоносным загрузчиком (%1$s).</string>
+    <string name="GlassgramPluginScanAntiReview">Просит ИИ не проверять свой код.</string>
+    <string name="GlassgramPluginScanHiddenCode">Расшифровывает спрятанный в нём код и запускает его — что этот код делает, до запуска не видно.</string>
+    <string name="GlassgramPluginScanRemoteCode">Может скачать код из интернета и запустить его.</string>
+    <string name="GlassgramPluginScanDynamicCode">Запускает код, собранный во время работы.</string>
+    <string name="GlassgramPluginScanBytecode">Запускает скомпилированный байт-код Python.</string>
+    <string name="GlassgramPluginScanSession">Обращается к файлам сессии Telegram (%1$s) — так крадут аккаунты.</string>
+    <string name="GlassgramPluginScanNativeCode">Загружает скомпилированный Java-код — его не проверить.</string>
+    <string name="GlassgramPluginScanShell">Запускает системные команды.</string>
+    <string name="GlassgramPluginScanBlob">Содержит большой закодированный блок данных.</string>
+    <string name="GlassgramPluginScanHosts">Адреса в коде: %1$s</string>
+    <string name="GlassgramPluginScanNote">Проверка читает код, не запуская его, и ловит не всё.</string>
+    <string name="GlassgramPluginInstallAnyway">Всё равно установить</string>
+    <string name="GlassgramPluginDangerConfirmTitle">Установить опасный плагин?</string>
+    <string name="GlassgramPluginDangerConfirm">Плагин работает внутри glassGram с доступом к аккаунту: чатам, контактам и сессии. Устанавливайте, только если доверяете источнику.</string>
 </resources>

@@ -7,6 +7,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -42,6 +43,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.plugins.PluginsController;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
@@ -166,12 +168,24 @@ public final class GlassgramPluginInstaller {
         layout.addView(createPluginHeader(activity, fragment.getCurrentAccount(), name, meta[2], meta[3], meta[4], meta[5], resourcesProvider),
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+        // what the check of its code found (_glassgram_scan.py)
+        final String[] findings = meta.length > 7 && !TextUtils.isEmpty(meta[7]) ? meta[7].split("\n") : new String[0];
+        boolean dangerFound = false;
+        for (String finding : findings) {
+            dangerFound |= finding.startsWith("danger|");
+        }
+        final boolean danger = dangerFound;
+        final View findingsCard = createFindingsCard(activity, findings, danger, resourcesProvider);
+        if (findingsCard != null) {
+            layout.addView(findingsCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 20, 0, 0));
+        }
+
         final boolean[] enableAfter = {update || GlassgramConfig.pluginsEnableAfterInstall};
 
         ButtonWithCounterView button = new ButtonWithCounterView(activity, resourcesProvider);
-        button.setText(getString(update ? R.string.GlassgramPluginUpdate : R.string.GlassgramPluginInstall), false);
+        button.setText(getString(danger ? R.string.GlassgramPluginInstallAnyway : update ? R.string.GlassgramPluginUpdate : R.string.GlassgramPluginInstall), false);
         layout.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 20, 0, 0));
-        button.setOnClickListener(v -> {
+        final Runnable install = () -> {
             button.setLoading(true);
             if (!update) {
                 GlassgramConfig.pluginsEnableAfterInstall = enableAfter[0];
@@ -189,6 +203,13 @@ public final class GlassgramPluginInstaller {
                             () -> fragment.presentFragment(new GlassgramPluginSettingsActivity(id))).show();
                 }
             });
+        };
+        button.setOnClickListener(v -> {
+            if (danger) {
+                confirmDangerous(activity, resourcesProvider, install);
+            } else {
+                install.run();
+            }
         });
 
         if (!update) {
@@ -231,6 +252,91 @@ public final class GlassgramPluginInstaller {
 
         sheet.setCustomView(container);
         fragment.showDialog(sheet);
+    }
+
+    /**
+     * What the check of the plugin's code found, as a card: red with something dangerous, orange
+     * otherwise. Null when it found nothing. A finding is "level|code|detail".
+     */
+    private static View createFindingsCard(Context context, String[] findings, boolean danger, Theme.ResourcesProvider resourcesProvider) {
+        final LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        int count = 0;
+        for (String finding : findings) {
+            final String[] parts = finding.split("\\|", 3);
+            if (parts.length < 2) {
+                continue;
+            }
+            final String text = findingText(parts[1], parts.length > 2 ? parts[2] : "");
+            if (text == null) {
+                continue;
+            }
+            final boolean info = "info".equals(parts[0]);
+            final TextView line = new TextView(context);
+            line.setText(info ? text : "• " + text);
+            line.setTextSize(TypedValue.COMPLEX_UNIT_DIP, info ? 13 : 14);
+            line.setTextColor(Theme.getColor(info ? Theme.key_windowBackgroundWhiteGrayText : Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            line.setLineSpacing(dp(1), 1f);
+            list.addView(line, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, count == 0 ? 0 : 6, 0, 0));
+            if (!info) {
+                count++;
+            }
+        }
+        if (count == 0) {
+            return null;
+        }
+        final int color = Theme.getColor(danger ? Theme.key_text_RedBold : Theme.key_color_orange, resourcesProvider);
+        final LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Theme.createRoundRectDrawable(dp(12), Theme.multAlpha(color, 0.12f)));
+
+        final TextView title = new TextView(context);
+        title.setText(getString(danger ? R.string.GlassgramPluginScanDanger : R.string.GlassgramPluginScanWarning));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        title.setTypeface(AndroidUtilities.bold());
+        title.setTextColor(color);
+        card.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
+        card.addView(list, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        final TextView note = new TextView(context);
+        note.setText(getString(R.string.GlassgramPluginScanNote));
+        note.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        note.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
+        card.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
+        return card;
+    }
+
+    private static String findingText(String code, String detail) {
+        switch (code) {
+            case "known": return formatString(R.string.GlassgramPluginScanKnown, detail);
+            case "anti_review": return getString(R.string.GlassgramPluginScanAntiReview);
+            case "hidden_code": return getString(R.string.GlassgramPluginScanHiddenCode);
+            case "remote_code": return getString(R.string.GlassgramPluginScanRemoteCode);
+            case "dynamic_code": return getString(R.string.GlassgramPluginScanDynamicCode);
+            case "bytecode": return getString(R.string.GlassgramPluginScanBytecode);
+            case "session": return formatString(R.string.GlassgramPluginScanSession, detail);
+            case "native_code": return getString(R.string.GlassgramPluginScanNativeCode);
+            case "shell": return getString(R.string.GlassgramPluginScanShell);
+            case "blob": return getString(R.string.GlassgramPluginScanBlob);
+            case "hosts": return TextUtils.isEmpty(detail) ? null : formatString(R.string.GlassgramPluginScanHosts, detail);
+            default: return null;
+        }
+    }
+
+    /** Asks once more before a plugin the check found dangerous is installed. */
+    private static void confirmDangerous(Activity activity, Theme.ResourcesProvider resourcesProvider, Runnable install) {
+        final AlertDialog dialog = new AlertDialog.Builder(activity, resourcesProvider)
+                .setTitle(getString(R.string.GlassgramPluginDangerConfirmTitle))
+                .setMessage(getString(R.string.GlassgramPluginDangerConfirm))
+                .setPositiveButton(getString(R.string.GlassgramPluginInstallAnyway), (d, w) -> install.run())
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .create();
+        dialog.show();
+        final View positive = dialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (positive instanceof TextView) {
+            ((TextView) positive).setTextColor(Theme.getColor(Theme.key_text_RedBold, resourcesProvider));
+        }
     }
 
     /** Opens the plugin's code in an app the user picks: a copy named .py, which the app can only read. */

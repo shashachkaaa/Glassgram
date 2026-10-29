@@ -227,12 +227,21 @@ def _read_meta(path: str) -> dict:
 
 
 def read_metadata(path: str):
-    """[id, name, version, author, description, icon] of a plugin file, for the install dialog."""
+    """[id, name, version, author, description, icon, installed, findings] of a plugin file, for the
+    install dialog; findings are what _glassgram_scan saw in its code, one a line."""
     with open(path, "r", encoding="utf-8-sig") as f:
         source = f.read()
     meta = _normalize_meta(get_metadata_from_source(source), "")
+    try:
+        import _glassgram_scan
+
+        findings = "\n".join(_glassgram_scan.scan_source(source))
+    except Exception:
+        # the check failing never keeps a plugin from being installed
+        traceback.print_exc()
+        findings = ""
     return jarray(JObject)([meta["id"], meta["name"], meta["version"], meta["author"], meta["description"],
-                           meta["icon"], "1" if meta["id"] in _records else "0"])
+                           meta["icon"], "1" if meta["id"] in _records else "0", findings])
 
 
 def _publish(record: _Record):

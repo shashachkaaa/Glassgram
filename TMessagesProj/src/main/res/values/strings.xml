@@ -12113,4 +12113,21 @@
     <string name="GlassgramHiddenChatsInfo">Tap a chat to open it. Hold it to return it to the chat list.</string>
     <string name="GlassgramLockedChats">Locked chats</string>
     <string name="GlassgramLockedChatsInfo">Tap a chat to remove its lock.</string>
+    <string name="GlassgramPluginScanDanger">This plugin may be dangerous</string>
+    <string name="GlassgramPluginScanWarning">Check this plugin before installing</string>
+    <string name="GlassgramPluginScanKnown">Matches a known malicious loader (%1$s).</string>
+    <string name="GlassgramPluginScanAntiReview">Asks AI not to examine its code.</string>
+    <string name="GlassgramPluginScanHiddenCode">Decodes code hidden in it and runs it: what that code does can\'t be seen before it runs.</string>
+    <string name="GlassgramPluginScanRemoteCode">Can download code from the internet and run it.</string>
+    <string name="GlassgramPluginScanDynamicCode">Runs code it puts together while running.</string>
+    <string name="GlassgramPluginScanBytecode">Runs compiled Python bytecode.</string>
+    <string name="GlassgramPluginScanSession">Refers to Telegram\'s session files (%1$s): that is how accounts are stolen.</string>
+    <string name="GlassgramPluginScanNativeCode">Loads compiled Java code, which can\'t be checked.</string>
+    <string name="GlassgramPluginScanShell">Runs system commands.</string>
+    <string name="GlassgramPluginScanBlob">Holds a large encoded block of data.</string>
+    <string name="GlassgramPluginScanHosts">Addresses in its code: %1$s</string>
+    <string name="GlassgramPluginScanNote">The check reads the code without running it and can\'t catch everything.</string>
+    <string name="GlassgramPluginInstallAnyway">Install anyway</string>
+    <string name="GlassgramPluginDangerConfirmTitle">Install a dangerous plugin?</string>
+    <string name="GlassgramPluginDangerConfirm">A plugin runs inside glassGram with access to your account: chats, contacts and the session. Install it only if you trust where it came from.</string>
 </resources>
