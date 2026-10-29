@@ -252,7 +252,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             HintDialogCell cell = (HintDialogCell) holder.itemView;
 
-            TLRPC.TL_topPeer peer = MediaDataController.getInstance(currentAccount).hints.get(position);
+            TLRPC.TL_topPeer peer = getPeer(position);
+            if (peer == null) {
+                return;
+            }
             TLRPC.Dialog dialog = new TLRPC.TL_dialog();
             TLRPC.Chat chat = null;
             TLRPC.User user = null;
@@ -279,7 +282,13 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
 
         @Override
         public int getItemCount() {
-            return MediaDataController.getInstance(currentAccount).hints.size();
+            return GlassgramChatLock.visibleHints(currentAccount).size();
+        }
+
+        /** glassGram: the suggested chat at the position, hidden chats (GlassgramChatLock) left out. */
+        public TLRPC.TL_topPeer getPeer(int position) {
+            final ArrayList<TLRPC.TL_topPeer> peers = GlassgramChatLock.visibleHints(currentAccount);
+            return position >= 0 && position < peers.size() ? peers.get(position) : null;
         }
     }
 
@@ -1739,7 +1748,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
     }
 
     private boolean hasHints() {
-        return !searchWas && !MediaDataController.getInstance(currentAccount).hints.isEmpty() && (dialogsType != DialogsActivity.DIALOGS_TYPE_START_ATTACH_BOT || dialogsActivity.allowUsers);
+        return !searchWas && !GlassgramChatLock.visibleHints(currentAccount).isEmpty() && (dialogsType != DialogsActivity.DIALOGS_TYPE_START_ATTACH_BOT || dialogsActivity.allowUsers);
     }
 
     private int messagesSectionPosition = -1;

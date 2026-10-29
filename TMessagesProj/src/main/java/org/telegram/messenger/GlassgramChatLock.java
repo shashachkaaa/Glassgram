@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.text.TextUtils;
 
+import org.telegram.tgnet.TLRPC;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -163,9 +165,28 @@ public final class GlassgramChatLock {
             prefs().edit().putStringSet("hidden", new HashSet<>(set)).apply();
             hidden = Collections.unmodifiableSet(set);
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.glassgramChatsHiddenChanged);
-            // the chat lists are made again without it, or with it
-            NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.dialogsNeedReload);
+            // the chat lists, and search's recent chats and hints, are made again without it, or with it
+            final NotificationCenter center = NotificationCenter.getInstance(account);
+            center.postNotificationName(NotificationCenter.dialogsNeedReload);
+            center.postNotificationName(NotificationCenter.needReloadRecentDialogsSearch);
+            center.postNotificationName(NotificationCenter.reloadHints);
         }
+    }
+
+    /** The chats suggested in search and in the share sheet (top peers), hidden ones left out. */
+    public static ArrayList<TLRPC.TL_topPeer> visibleHints(int account) {
+        final ArrayList<TLRPC.TL_topPeer> hints = MediaDataController.getInstance(account).hints;
+        if (!hasHidden(account)) {
+            return hints;
+        }
+        final ArrayList<TLRPC.TL_topPeer> shown = new ArrayList<>(hints.size());
+        for (int i = 0, n = hints.size(); i < n; i++) {
+            final TLRPC.TL_topPeer peer = hints.get(i);
+            if (peer == null || peer.peer == null || !isHidden(account, DialogObject.getPeerDialogId(peer.peer))) {
+                shown.add(peer);
+            }
+        }
+        return shown;
     }
 
     public static ArrayList<Long> lockedDialogs(int account) {
