@@ -3,14 +3,16 @@
     glassGram: merged over the app's manifest in the RuStore edition (-PGLASSGRAM_STORE=true, see
     TMessagesProj_App/build.gradle). RuStore refuses an app that can ask to install packages
     (rules 2.14, 5.3, 6.3, 10.1), and the edition updates only through the store. Nor does it take
-    one that can remove home screen shortcuts: without UNINSTALL_SHORTCUT, removing a chat's
-    shortcut on Android 7 and older (by a launcher broadcast) does nothing; Android 8 and newer
-    go through ShortcutManager, which needs no permission.
+    one that can remove home screen shortcuts, and the permissions to add them go with it: without
+    them, adding or removing a chat's shortcut on Android 7 and older (by a launcher broadcast)
+    does nothing; Android 8 and newer go through ShortcutManager, which needs no permission.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.INSTALL_SHORTCUT" tools:node="remove" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" tools:node="remove" />
     <uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT" tools:node="remove" />
 
 </manifest>
