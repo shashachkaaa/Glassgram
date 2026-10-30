@@ -93,6 +93,17 @@ public class LiquidPressEffect {
         pressAnimation = spring(press, 0.001f);
         offsetXAnimation = spring(offsetX, 0.5f);
         offsetYAnimation = spring(offsetY, 0.5f);
+        // Taken out of the window mid-press, the view gets no end of its gesture: let go
+        view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View v) {
+            }
+
+            @Override
+            public void onViewDetachedFromWindow(View v) {
+                cancelPress();
+            }
+        });
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             glowPaint.setBlendMode(BlendMode.PLUS);
         } else {
@@ -311,10 +322,37 @@ public class LiquidPressEffect {
     }
 
     public void onTouchEvent(MotionEvent event) {
-        if (!view.isEnabled() || !view.isClickable()) {
+        // Only a press starts on whether the view takes clicks: the one under way ends whatever
+        // the click made of the view (a button that turns itself off kept swelling, lit)
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && (!view.isEnabled() || !view.isClickable())) {
             return;
         }
         onTouch(event.getActionMasked(), event.getX(), event.getY());
+    }
+
+    // The presses under way, each until its gesture ends
+    private static final java.util.ArrayList<LiquidPressEffect> touching = new java.util.ArrayList<>();
+    private boolean touched;
+
+    /**
+     * Lets go of the presses of views in this window still waiting for their gesture's end, as
+     * a new gesture starts (call before it is dispatched): when nothing in a view took the first
+     * touch, Android sends it no more, and its press stayed swollen and lit.
+     */
+    public static void releaseStale(View root) {
+        for (int i = touching.size() - 1; i >= 0; i--) {
+            final LiquidPressEffect effect = touching.get(i);
+            if (!effect.view.isAttachedToWindow() || effect.view.getRootView() == root) {
+                effect.cancelPress();
+            }
+        }
+    }
+
+    /** Ends a press under way as if the gesture had been cancelled; nothing when there is none. */
+    public void cancelPress() {
+        if (touched) {
+            onTouch(MotionEvent.ACTION_CANCEL, touchX, touchY);
+        }
     }
 
     /**
@@ -322,6 +360,18 @@ public class LiquidPressEffect {
      * the action bar); the view's own clickable state does not matter.
      */
     public void onTouch(int action, float x, float y) {
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (!touched) {
+                touched = true;
+                touching.add(this);
+            }
+        } else if (!touched) {
+            // the rest of a gesture whose press never started, or has ended already
+            return;
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            touched = false;
+            touching.remove(this);
+        }
         if (isButton()) {
             switch (action) {
                 case MotionEvent.ACTION_DOWN:

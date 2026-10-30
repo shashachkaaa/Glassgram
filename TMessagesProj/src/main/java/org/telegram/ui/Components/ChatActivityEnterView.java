@@ -15119,15 +15119,20 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        glassgramTouch(ev);
-        return super.dispatchTouchEvent(ev);
+        final boolean handled = super.dispatchTouchEvent(ev);
+        glassgramTouch(ev, handled);
+        return handled;
     }
 
-    private void glassgramTouch(MotionEvent ev) {
+    /**
+     * Presses the piece under the finger. Only for a touch something here took: the rest of an
+     * untaken one never comes here, and the piece stayed swollen and lit, never let go.
+     */
+    private void glassgramTouch(MotionEvent ev, boolean handled) {
         final int action = ev.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             glassgramPressed = -1;
-            if (glassgramSplit() && getGlassgramSegments(glassgramSegments)) {
+            if (handled && glassgramSplit() && getGlassgramSegments(glassgramSegments)) {
                 glassgramUpdateRects(glassgramSegments);
                 for (int segment : new int[]{GLASSGRAM_SEGMENT_ATTACH, GLASSGRAM_SEGMENT_SEND, GLASSGRAM_SEGMENT_MENU, GLASSGRAM_SEGMENT_FIELD}) {
                     if (glassgramRects[segment].contains(ev.getX(), ev.getY())) {
