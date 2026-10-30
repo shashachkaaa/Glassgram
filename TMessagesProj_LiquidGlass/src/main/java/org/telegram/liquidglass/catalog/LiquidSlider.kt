@@ -234,9 +234,12 @@ fun LiquidSlider(
                         effects = {
                             val progress = dampedDragAnimation.pressProgress
                             blur(8f.dp.toPx() * (1f - progress))
+                            // glassGram: bent at its edges as strongly as the buttons' glass (the catalog's
+                            // 10 and 14dp barely showed on the flat panels the sliders lie on)
                             lens(
-                                10f.dp.toPx() * progress,
-                                14f.dp.toPx() * progress,
+                                12f.dp.toPx() * progress,
+                                24f.dp.toPx() * progress,
+                                depthEffect = true,
                                 chromaticAberration = true
                             )
                         },

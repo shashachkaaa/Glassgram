@@ -126,6 +126,17 @@ public class Switch extends FrameLayout {
             // The toggle itself is the library's: LiquidToggle from the Kyant0/AndroidLiquidGlass catalog
             toggleView = new LiquidToggleView(context);
             toggleView.setListener(this::onToggleRequested);
+            // What is behind this view (its parent's background, the views drawn before it), for the
+            // glass to bend at its edges as the buttons' glass does
+            final ViewBehindBackdrop behind = new ViewBehindBackdrop(this);
+            final android.graphics.RectF behindArea = new android.graphics.RectF();
+            toggleView.setSource(canvas -> {
+                behindArea.set(toggleView.getLeft(), toggleView.getTop(), toggleView.getRight(), toggleView.getBottom());
+                behind.setArea(behindArea);
+                if (!behind.isDrawing() && behind.isAvailable()) {
+                    behind.draw(canvas);
+                }
+            });
             final int overflow = LiquidToggleView.OVERFLOW_DP;
             addView(toggleView, LayoutHelper.createFrame(LiquidToggleView.WIDTH_DP + 2 * overflow, LiquidToggleView.HEIGHT_DP + 2 * overflow, android.view.Gravity.CENTER));
         }

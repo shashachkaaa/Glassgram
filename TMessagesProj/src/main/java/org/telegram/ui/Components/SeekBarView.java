@@ -149,6 +149,17 @@ public class SeekBarView extends FrameLayout {
             // the layout until then; it is sized by hand, larger than this view (see onMeasure)
             liquidView = new LiquidSliderView(context);
             liquidView.setVisibility(GONE);
+            // What is behind this view (its parent's background, the views drawn before it), for the
+            // glass to bend at its edges as the buttons' glass does
+            final ViewBehindBackdrop behind = new ViewBehindBackdrop(this);
+            final android.graphics.RectF behindArea = new android.graphics.RectF();
+            liquidView.setSource(canvas -> {
+                behindArea.set(liquidView.getLeft(), liquidView.getTop(), liquidView.getRight(), liquidView.getBottom());
+                behind.setArea(behindArea);
+                if (!behind.isDrawing() && behind.isAvailable()) {
+                    behind.draw(canvas);
+                }
+            });
             liquidView.setListener(new LiquidSliderView.Listener() {
                 @Override
                 public void onValueChange(float value, boolean stop) {

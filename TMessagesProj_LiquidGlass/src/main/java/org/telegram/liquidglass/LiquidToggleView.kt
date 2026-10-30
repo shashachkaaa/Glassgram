@@ -9,14 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import com.kyant.backdrop.backdrops.emptyBackdrop
 import org.telegram.liquidglass.catalog.LiquidToggle
 
 /**
@@ -45,6 +43,15 @@ class LiquidToggleView(context: Context) : AbstractComposeView(context) {
 
     fun setListener(listener: Listener?) {
         this.listener = listener
+    }
+
+    // What is behind the view, for the glass to bend at its edges; nothing until the owner gives it
+    private val sourceBackdrop = SourceBackdrop()
+
+    /** What is behind the view, drawn from its top-left corner; null for nothing. */
+    fun setSource(source: SourceBackdrop.Source?) {
+        sourceBackdrop.source = source
+        invalidate()
     }
 
     fun setChecked(checked: Boolean, animated: Boolean) {
@@ -81,12 +88,11 @@ class LiquidToggleView(context: Context) : AbstractComposeView(context) {
 
     @Composable
     override fun Content() {
-        val backdrop = remember { emptyBackdrop() }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             LiquidToggle(
                 selected = { checkedState },
                 onSelect = { listener?.onToggle(it) },
-                backdrop = backdrop,
+                backdrop = sourceBackdrop,
                 accentColor = Color(accentColorState),
                 trackColor = Color(trackColorState),
                 syncTick = { syncTickState },

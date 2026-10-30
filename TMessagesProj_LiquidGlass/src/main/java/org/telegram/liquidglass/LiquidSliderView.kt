@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
@@ -16,7 +15,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.LayoutDirection
-import com.kyant.backdrop.backdrops.emptyBackdrop
 import org.telegram.liquidglass.catalog.LiquidSlider
 
 /**
@@ -55,6 +53,15 @@ class LiquidSliderView(context: Context) : AbstractComposeView(context) {
 
     fun setListener(listener: Listener?) {
         this.listener = listener
+    }
+
+    // What is behind the view, for the glass to bend at its edges; nothing until the owner gives it
+    private val sourceBackdrop = SourceBackdrop()
+
+    /** What is behind the view, drawn from its top-left corner; null for nothing. */
+    fun setSource(source: SourceBackdrop.Source?) {
+        sourceBackdrop.source = source
+        invalidate()
     }
 
     /** Puts the thumb at [value], a fraction of the track; not while the user holds it. */
@@ -109,7 +116,6 @@ class LiquidSliderView(context: Context) : AbstractComposeView(context) {
 
     @Composable
     override fun Content() {
-        val backdrop = remember { emptyBackdrop() }
         val density = LocalDensity.current
         // Telegram's sliders go left to right in every language
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -117,7 +123,7 @@ class LiquidSliderView(context: Context) : AbstractComposeView(context) {
                 value = { valueState },
                 onValueChange = { value, stop -> listener?.onValueChange(value, stop) },
                 onPressedChange = { pressed -> listener?.onPressedChange(pressed) },
-                backdrop = backdrop,
+                backdrop = sourceBackdrop,
                 accentColor = Color(accentColorState),
                 trackColor = Color(trackColorState),
                 trackInset = with(density) { trackInsetState.toDp() },

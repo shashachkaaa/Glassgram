@@ -166,9 +166,12 @@ fun LiquidToggle(
                     effects = {
                         val progress = dampedDragAnimation.pressProgress
                         blur(8f.dp.toPx() * (1f - progress))
+                        // glassGram: bent at its edges as the buttons' glass is (the catalog's 5 and
+                        // 10dp hardly showed)
                         lens(
-                            5f.dp.toPx() * progress,
                             10f.dp.toPx() * progress,
+                            20f.dp.toPx() * progress,
+                            depthEffect = true,
                             chromaticAberration = true
                         )
                     },
