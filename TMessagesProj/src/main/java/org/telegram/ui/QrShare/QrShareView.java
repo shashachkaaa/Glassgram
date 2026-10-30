@@ -2152,8 +2152,8 @@ public class QrShareView extends View {
         // the blur only once the open has finished (a separate offscreen pipeline, GPU programs of its own); until then
         // the glass shows the backdrop picture itself (see drawBlurStandIn), then the blur replaces it at once
         if (blurAllowed() && blurNow() && canvas.isHardwareAccelerated()) {
-            if (bgNode == null) {
-                bgNode = QrRender.createNode("qrBg");
+            if (blurNode == null) {
+                if (bgNode == null) bgNode = QrRender.createNode("qrBg");
                 blurNode = QrRender.createNode("qrBlur");
                 // the glass blur runs at 1/4 resolution (16× fewer pixels to blur), drawn back scaled ×4
                 QrRender.setBlur(blurNode, dpf2(17.6f) / BLUR_DS, Shader.TileMode.CLAMP); // 22dp × 0.8
@@ -2169,6 +2169,13 @@ public class QrShareView extends View {
             bc.scale(1f / BLUR_DS, 1f / BLUR_DS);
             QrRender.draw(bc, bgNode);
             QrRender.endRecording(blurNode);
+            QrRender.draw(canvas, bgNode);
+        } else if (canvas.isHardwareAccelerated() && QrRender.hasNodes() && liquidSupported()) {
+            // glassGram: the buttons' Liquid Glass (the library's LiquidButton) is made of the backdrop as it is, from
+            // the open on: recorded once a frame, and drawn here as before
+            if (bgNode == null) bgNode = QrRender.createNode("qrBg");
+            drawBackground(QrRender.beginRecording(bgNode, w, h), w, h, now);
+            QrRender.endRecording(bgNode);
             QrRender.draw(canvas, bgNode);
         } else {
             drawBackground(canvas, w, h, now);
@@ -5167,6 +5174,83 @@ public class QrShareView extends View {
         }
     }
 
+    // --- glassGram: the buttons are the Liquid Glass of the rest of the app (the library's LiquidButton, Kyant's):
+    // made of the backdrop under them, swelling and leaning towards the finger, lit under it
+
+    private static final int LQ_CLOSE = 0, LQ_SCAN = 1, LQ_SHARE = 2, LQ_SAVE = 3, LQ_TABS = 4;
+    private final org.telegram.ui.Components.LiquidPressEffect[] liquid = new org.telegram.ui.Components.LiquidPressEffect[5];
+    private final org.telegram.liquidglass.GlassLayer.Backdrop[] liquidBackdrops = new org.telegram.liquidglass.GlassLayer.Backdrop[5];
+    // whether each button was drawn so last time: only then its touches go to it
+    private final boolean[] liquidDrawn = new boolean[5];
+    private int liquidPressed = -1;
+
+    private static boolean liquidSupported() {
+        return org.telegram.liquidglass.LiquidButtonView.isSupported() && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_LIQUID_GLASS);
+    }
+
+    private RectF liquidRect(int i) {
+        switch (i) {
+            case LQ_CLOSE: return closeRect;
+            case LQ_SCAN: return scanRect;
+            case LQ_SHARE: return shareRect;
+            case LQ_SAVE: return saveRect;
+            default: return tabsRect;
+        }
+    }
+
+    private org.telegram.ui.Components.LiquidPressEffect liquid(int i) {
+        if (liquid[i] == null) {
+            liquid[i] = new org.telegram.ui.Components.LiquidPressEffect(this);
+            final RectF r = liquidRect(i);
+            // what is under the button: the backdrop as it is (recorded this frame), from the button's corner
+            liquidBackdrops[i] = canvas -> {
+                if (bgNode == null || !QrRender.hasDisplayList(bgNode)) return;
+                canvas.save();
+                canvas.translate(-r.left, -r.top);
+                QrRender.draw(canvas, bgNode);
+                canvas.restore();
+            };
+        }
+        return liquid[i];
+    }
+
+    /** The button's glass as the library's LiquidButton; false where there is none (the view's own glass then). */
+    private boolean liquidGlass(Canvas c, int i, RectF r, float radius, boolean light, float alpha) {
+        liquidDrawn[i] = false;
+        if (!liquidSupported() || !c.isHardwareAccelerated() || bgNode == null || !QrRender.hasDisplayList(bgNode)) {
+            return false;
+        }
+        final int surface = light ? 0x12000000 : QrGlass.controlFill();
+        liquidDrawn[i] = liquid(i).drawGlass(c, r.left, r.top, r.right, r.bottom, radius, liquidBackdrops[i], surface, 0, (int) (255 * Utilities.clamp01(alpha)));
+        if (liquid[i].isActive()) invalidate();
+        return liquidDrawn[i];
+    }
+
+    /** The icons on a pressed button move with its glass. */
+    private void liquidMove(Canvas c, int i, RectF r) {
+        final org.telegram.ui.Components.LiquidPressEffect effect = liquid[i];
+        if (effect == null || !effect.isActive()) return;
+        c.translate(r.left, r.top);
+        effect.transform(c, r.width(), r.height());
+        c.translate(-r.left, -r.top);
+    }
+
+    private void liquidTouch(MotionEvent e) {
+        final int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            liquidPressed = -1;
+            final int t = rippleTarget(e.getX(), e.getY());
+            final int i = t == RP_CLOSE ? LQ_CLOSE : t == RP_SCAN ? LQ_SCAN : t == RP_SHARE ? LQ_SHARE : t == RP_SAVE ? LQ_SAVE
+                : t >= RP_TAB && t < RP_TAB + 3 ? LQ_TABS : -1;
+            if (i >= 0 && liquidDrawn[i]) liquidPressed = i;
+        }
+        if (liquidPressed < 0) return;
+        final RectF r = liquidRect(liquidPressed);
+        liquid(liquidPressed).onTouch(action, e.getX() - r.left, e.getY() - r.top);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) liquidPressed = -1;
+        invalidate();
+    }
+
     private void drawTopBar(Canvas c, boolean glass) {
         // round buttons are 40dp; centred where the profile's glass back button sits (29dp in, middle of the action bar)
         final float cy = insetTop + ActionBar.getCurrentActionBarHeight() / 2f;
@@ -5174,10 +5258,14 @@ public class QrShareView extends View {
         final float es = elemScale(uiK);
         c.save();
         c.scale(es, es, closeRect.centerX(), closeRect.centerY());
-        glassButton = true;
-        drawGlass(c, closeRect, dp(20), scene != null && scene.light, 1f);
-        glassButton = false;
-        drawRipple(c, RP_CLOSE, closeRect, scene != null && scene.light);
+        if (liquidGlass(c, LQ_CLOSE, closeRect, dp(20), scene != null && scene.light, 1f)) {
+            liquidMove(c, LQ_CLOSE, closeRect);
+        } else {
+            glassButton = true;
+            drawGlass(c, closeRect, dp(20), scene != null && scene.light, 1f);
+            glassButton = false;
+            drawRipple(c, RP_CLOSE, closeRect, scene != null && scene.light);
+        }
         icClose.setColor(glassIconColor());
         c.save();
         c.translate(closeRect.centerX() - icClose.getIntrinsicWidth() / 2f, cy - icClose.getIntrinsicHeight() / 2f);
@@ -5192,10 +5280,14 @@ public class QrShareView extends View {
             scanRect.set(getWidth() - dp(9) - pw, cy - dp(20), getWidth() - dp(9), cy + dp(20));
             c.save();
             c.scale(es, es, scanRect.centerX(), scanRect.centerY());
-            glassButton = true;
-            drawGlass(c, scanRect, dp(20), light, 1f);
-            glassButton = false;
-            drawRipple(c, RP_SCAN, scanRect, light);
+            if (liquidGlass(c, LQ_SCAN, scanRect, dp(20), light, 1f)) {
+                liquidMove(c, LQ_SCAN, scanRect);
+            } else {
+                glassButton = true;
+                drawGlass(c, scanRect, dp(20), light, 1f);
+                glassButton = false;
+                drawRipple(c, RP_SCAN, scanRect, light);
+            }
             icon(c, icScan, scanRect.left + dp(12) + dp(10), cy, dp(20), glassIconColor(), 1f);
             scanText.setColor(glassIconColor());
             final Paint.FontMetrics fm = scanText.getFontMetrics();
@@ -5259,19 +5351,27 @@ public class QrShareView extends View {
         if (a > 0) {
             c.save();
             c.scale(bs * shareScale, bs * shareScale, shareRect.centerX(), cy);
-            glassButton = true;
-            drawGlass(c, shareRect, dp(20), light, a);
-            glassButton = false;
-            drawRipple(c, RP_SHARE, shareRect, light);
+            if (liquidGlass(c, LQ_SHARE, shareRect, dp(20), light, a)) {
+                liquidMove(c, LQ_SHARE, shareRect);
+            } else {
+                glassButton = true;
+                drawGlass(c, shareRect, dp(20), light, a);
+                glassButton = false;
+                drawRipple(c, RP_SHARE, shareRect, light);
+            }
             icon(c, icShare, shareRect.centerX(), cy, dp(22), glassIconColor(), a);
             c.restore();
             // download: the QR to the gallery (same glass, size and ripple as share; collapses with the bar)
             c.save();
             c.scale(bs * mscale, bs * mscale, saveRect.centerX(), cy);
-            glassButton = true;
-            drawGlass(c, saveRect, dp(20), light, a);
-            glassButton = false;
-            drawRipple(c, RP_SAVE, saveRect, light);
+            if (liquidGlass(c, LQ_SAVE, saveRect, dp(20), light, a)) {
+                liquidMove(c, LQ_SAVE, saveRect);
+            } else {
+                glassButton = true;
+                drawGlass(c, saveRect, dp(20), light, a);
+                glassButton = false;
+                drawRipple(c, RP_SAVE, saveRect, light);
+            }
             icon(c, icDownload, saveRect.centerX(), cy, dp(24), glassIconColor(), a);
             c.restore();
         }
@@ -5279,19 +5379,23 @@ public class QrShareView extends View {
         final float ts = elemScale(uiK) * mscale;
         c.save();
         c.scale(ts, ts, tabsRect.centerX(), tabsRect.centerY());
-        glassButton = true;
-        drawGlass(c, tabsRect, dp(20), light, ma);
-        glassButton = false;
         final float seg = tabsRect.width() / 3f;
-        c.save();
-        path.rewind();
-        path.addRoundRect(tabsRect, dp(20), dp(20), Path.Direction.CW);
-        c.clipPath(path);
-        for (int i = 0; i < 3; i++) {
-            rect3.set(tabsRect.left + seg * i, tabsRect.top, tabsRect.left + seg * (i + 1), tabsRect.bottom);
-            drawRipple(c, RP_TAB + i, rect3, light);
+        if (liquidGlass(c, LQ_TABS, tabsRect, dp(20), light, ma)) {
+            liquidMove(c, LQ_TABS, tabsRect);
+        } else {
+            glassButton = true;
+            drawGlass(c, tabsRect, dp(20), light, ma);
+            glassButton = false;
+            c.save();
+            path.rewind();
+            path.addRoundRect(tabsRect, dp(20), dp(20), Path.Direction.CW);
+            c.clipPath(path);
+            for (int i = 0; i < 3; i++) {
+                rect3.set(tabsRect.left + seg * i, tabsRect.top, tabsRect.left + seg * (i + 1), tabsRect.bottom);
+                drawRipple(c, RP_TAB + i, rect3, light);
+            }
+            c.restore();
         }
-        c.restore();
         final Drawable[] icons = tabIcons;
         for (int i = 0; i < 3; i++) {
             icon(c, icons[i], tabsRect.left + seg * (i + 0.5f), cy, dp(i == 1 ? 24.5f : 22), glassIconColor(), ma); // the smile glyph is optically smaller
@@ -6650,6 +6754,7 @@ public class QrShareView extends View {
             }
             return true;
         }
+        liquidTouch(e);
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 caughtFling = !scroller.isFinished();
