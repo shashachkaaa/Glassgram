@@ -316,6 +316,67 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public void open(Context context, TL_stories.StoryItem storyItem, PlaceProvider placeProvider) {
         open(UserConfig.selectedAccount, context, storyItem, placeProvider);
     }
+
+    // glassGram: set while the stories open after the ghost mode question was answered
+    private boolean glassgramGhostAnswered;
+
+    /**
+     * glassGram: before someone's unread stories open, seen by them, ghost mode is offered (ghost
+     * settings → Story Ghost Mode Alert). True when the question is up: the stories open, or not,
+     * on its answer.
+     */
+    private boolean glassgramAskGhost(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
+        if (glassgramGhostAnswered) {
+            glassgramGhostAnswered = false;
+            return false;
+        }
+        if (org.telegram.messenger.GlassgramConfig.STORE_BUILD || !org.telegram.messenger.GlassgramConfig.ghostStoryAlert
+                || org.telegram.messenger.GlassgramConfig.ghostNoReadStories() || isShowing || openCloseAnimator != null) {
+            return false;
+        }
+        final long dialogId = storyItem != null ? storyItem.dialogId
+                : userStories != null ? DialogObject.getPeerDialogId(userStories.peer)
+                : peerIds != null && position >= 0 && position < peerIds.size() ? peerIds.get(position) : 0;
+        if (dialogId == 0 || dialogId == UserConfig.getInstance(account).getClientUserId()
+                || !MessagesController.getInstance(account).getStoriesController().hasUnreadStories(dialogId)) {
+            return false;
+        }
+        final android.app.Activity activity = AndroidUtilities.findActivity(context);
+        if (activity == null) {
+            return false;
+        }
+        // the answer, and the stories open (or not) once the question has gone
+        final boolean[] answered = new boolean[1];
+        final org.telegram.ui.ActionBar.AlertDialog dialog = new org.telegram.ui.ActionBar.AlertDialog.Builder(activity)
+                .setTitle(org.telegram.messenger.LocaleController.getString(R.string.GlassgramGhostStoryAlertTitle))
+                .setMessage(org.telegram.messenger.LocaleController.getString(R.string.GlassgramGhostStoryAlertText))
+                .setPositiveButton(org.telegram.messenger.LocaleController.getString(R.string.GlassgramGhostStoryAlertEnable), (d, w) -> {
+                    org.telegram.messenger.GlassgramConfig.ghostNoReadStories = true;
+                    org.telegram.messenger.GlassgramConfig.putBoolean("ghostNoReadStories", true);
+                    org.telegram.messenger.GlassgramConfig.setGhostMode(true);
+                    answered[0] = true;
+                })
+                .setNegativeButton(org.telegram.messenger.LocaleController.getString(R.string.GlassgramGhostStoryAlertView), (d, w) -> answered[0] = true)
+                .setNeutralButton(org.telegram.messenger.LocaleController.getString(R.string.GlassgramGhostStoryAlertNever), (d, w) -> {
+                    org.telegram.messenger.GlassgramConfig.ghostStoryAlert = false;
+                    org.telegram.messenger.GlassgramConfig.putBoolean("ghostStoryAlert", false);
+                    answered[0] = true;
+                })
+                .create();
+        dialog.setOnDismissListener(d -> {
+            if (!answered[0]) {
+                // closed without an answer: the stories stay closed
+                doOnAnimationReadyRunnables.clear();
+                return;
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                glassgramGhostAnswered = true;
+                open(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed);
+            });
+        });
+        dialog.show();
+        return true;
+    }
     public void open(int account, Context context, TL_stories.StoryItem storyItem, PlaceProvider placeProvider) {
         if (storyItem == null) {
             return;
@@ -375,6 +436,9 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public void open(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
         if (!isContextSafe(context)) {
             doOnAnimationReadyRunnables.clear();
+            return;
+        }
+        if (glassgramAskGhost(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed)) {
             return;
         }
         if (openCloseAnimator != null) {

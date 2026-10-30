@@ -2238,6 +2238,18 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
+        // glassGram's ghost: forwards too go without sound, and scheduled a few seconds ahead, when set
+        final boolean ghostNotify = notify && !GlassgramConfig.ghostSilent();
+        final boolean ghostSchedule = scheduleDate == 0 && scheduleRepeatPeriod == 0 && payStars == 0 && monoForumPeerId == 0
+                && suggestionParams == null && glassgramMaySchedule(peer);
+        if (ghostNotify != notify || ghostSchedule) {
+            if (ghostSchedule) {
+                glassgramScheduledAt.put(peer, SystemClock.elapsedRealtime());
+            }
+            return sendMessage(messages, peer, forwardFromMyName, hideCaption, ghostNotify,
+                    ghostSchedule ? getConnectionsManager().getCurrentTime() + GLASSGRAM_SCHEDULE_AHEAD : scheduleDate,
+                    scheduleRepeatPeriod, replyToTopMsg, video_timestamp, payStars, monoForumPeerId, suggestionParams);
+        }
         if ((GlassgramConfig.ignoreContentProtection || GlassgramConfig.spyDisableSelfDestruct) && !DialogObject.isEncryptedDialog(peer)) {
             // Telegram refuses to forward these; they go as copies instead
             ArrayList<MessageObject> forwardable = new ArrayList<>(messages.size());
@@ -4447,6 +4459,60 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         glassgramSendMessage(sendMessageParams);
     }
 
+    // glassGram's ghost: outgoing messages go as scheduled ones this far ahead, so the server sends
+    // them and one is not seen online for sending
+    private static final int GLASSGRAM_SCHEDULE_AHEAD = 12;
+    // The server sends nothing scheduled closer than this
+    private static final int GLASSGRAM_SCHEDULE_MIN = 10;
+    private static final java.util.concurrent.ConcurrentHashMap<Long, Long> glassgramScheduledAt = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Whether the chat had a message scheduled by ghost mode a moment ago: it does not open its scheduled messages for it. */
+    public static boolean glassgramJustScheduled(long dialogId) {
+        final Long at = glassgramScheduledAt.get(dialogId);
+        return at != null && SystemClock.elapsedRealtime() - at < 5000;
+    }
+
+    private boolean glassgramMaySchedule(long peer) {
+        return GlassgramConfig.ghostScheduleMessages && peer != 0 && !DialogObject.isEncryptedDialog(peer)
+                && peer != getUserConfig().getClientUserId();
+    }
+
+    /** Whether the message is one scheduling suits: not a quick reply, a story's reply, a paid one, a game or an invoice. */
+    private static boolean glassgramMaySchedule(SendMessageParams p) {
+        return p.scheduleRepeatPeriod == 0 && p.quick_reply_shortcut == null && p.quick_reply_shortcut_id == 0
+                && p.replyToStoryItem == null && p.sendingStory == null && p.payStars == 0 && p.stars == 0
+                && p.monoForumPeer == 0 && p.ephemeralReceiverBotId == 0 && p.invoice == null
+                && p.game == null && p.dice_stake == 0;
+    }
+
+    /**
+     * A message scheduled a few seconds ahead by ghost mode goes only after its media uploaded, or
+     * again after failing: its time, passed by then, moves ahead again.
+     */
+    private void glassgramKeepScheduleAhead(TLObject req, boolean scheduled) {
+        if (!scheduled || !GlassgramConfig.ghostScheduleMessages) {
+            return;
+        }
+        final int min = getConnectionsManager().getCurrentTime() + GLASSGRAM_SCHEDULE_MIN;
+        final int ahead = getConnectionsManager().getCurrentTime() + GLASSGRAM_SCHEDULE_AHEAD;
+        if (req instanceof TLRPC.TL_messages_sendMessage) {
+            final TLRPC.TL_messages_sendMessage r = (TLRPC.TL_messages_sendMessage) req;
+            if (r.schedule_date != 0 && r.schedule_date < min) r.schedule_date = ahead;
+        } else if (req instanceof TLRPC.TL_messages_sendMedia) {
+            final TLRPC.TL_messages_sendMedia r = (TLRPC.TL_messages_sendMedia) req;
+            if (r.schedule_date != 0 && r.schedule_date < min) r.schedule_date = ahead;
+        } else if (req instanceof TLRPC.TL_messages_sendMultiMedia) {
+            final TLRPC.TL_messages_sendMultiMedia r = (TLRPC.TL_messages_sendMultiMedia) req;
+            if (r.schedule_date != 0 && r.schedule_date < min) r.schedule_date = ahead;
+        } else if (req instanceof TLRPC.TL_messages_forwardMessages) {
+            final TLRPC.TL_messages_forwardMessages r = (TLRPC.TL_messages_forwardMessages) req;
+            if (r.schedule_date != 0 && r.schedule_date < min) r.schedule_date = ahead;
+        } else if (req instanceof TLRPC.TL_messages_sendInlineBotResult) {
+            final TLRPC.TL_messages_sendInlineBotResult r = (TLRPC.TL_messages_sendInlineBotResult) req;
+            if (r.schedule_date != 0 && r.schedule_date < min) r.schedule_date = ahead;
+        }
+    }
+
     private void glassgramSendMessage(SendMessageParams sendMessageParams) {
         if (GlassgramConfig.ghostMode && sendMessageParams != null && sendMessageParams.peer != 0) {
             final long ghostPeer = sendMessageParams.peer;
@@ -4455,6 +4521,16 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             }
             if (GlassgramConfig.ghostAutoOffline()) {
                 Utilities.stageQueue.postRunnable(() -> getMessagesController().glassgramGoOffline(), 2500);
+            }
+        }
+        if (sendMessageParams != null && sendMessageParams.retryMessageObject == null) {
+            if (GlassgramConfig.ghostSilent()) {
+                sendMessageParams.notify = false;
+            }
+            if (sendMessageParams.scheduleDate == 0 && glassgramMaySchedule(sendMessageParams.peer)
+                    && glassgramMaySchedule(sendMessageParams)) {
+                sendMessageParams.scheduleDate = getConnectionsManager().getCurrentTime() + GLASSGRAM_SCHEDULE_AHEAD;
+                glassgramScheduledAt.put(sendMessageParams.peer, SystemClock.elapsedRealtime());
             }
         }
         final SendMessageChatArguments sendMessageChatArguments = sendMessageParams.sendMessageChatArguments != null ?
@@ -7728,6 +7804,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     protected void performSendMessageRequestMulti(final TLObject request, final ArrayList<MessageObject> msgObjs, final ArrayList<String> originalPaths, final ArrayList<Object> parentObjects, DelayedMessage delayedMessage, boolean scheduled) {
+        glassgramKeepScheduleAhead(request, scheduled);
         for (int a = 0, size = msgObjs.size(); a < size; a++) {
             putToSendingMessages(msgObjs.get(a).messageOwner, scheduled);
         }
@@ -8067,6 +8144,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     protected void performSendMessageRequest(final TLObject req, final MessageObject msgObj, final String originalPath, DelayedMessage parentMessage, boolean check, DelayedMessage delayedMessage, Object parentObject, HashMap<String, String> params, boolean scheduled) {
+        glassgramKeepScheduleAhead(req, scheduled);
         if (req instanceof TLRPC.TL_messages_addPollAnswer) {
             TLRPC.TL_messages_addPollAnswer r = (TLRPC.TL_messages_addPollAnswer) req;
             if (r.answer.input_media instanceof TLRPC.TL_inputMediaUploadedDocument || r.answer.input_media instanceof TLRPC.TL_inputMediaUploadedPhoto) {

@@ -39,6 +39,30 @@ public class GlassgramConfig {
     public static boolean ghostNoTyping = true;
     public static boolean ghostAutoOffline = true;
     public static boolean ghostReadOnInteract = true;
+    /** Outgoing messages go as scheduled ones ~12 s ahead: the server sends them, so one is not seen online. */
+    public static boolean ghostScheduleMessages;
+    /** Outgoing messages without sound: never, in ghost mode, always. */
+    public static int ghostSilentSend;
+    public static final int SILENT_NEVER = 0, SILENT_IN_GHOST = 1, SILENT_ALWAYS = 2;
+    /** Before someone's unread stories open, seen by them, ghost mode is offered. */
+    public static boolean ghostStoryAlert = true;
+
+    public static boolean ghostSilent() {
+        return ghostSilentSend == SILENT_ALWAYS || ghostSilentSend == SILENT_IN_GHOST && ghostMode;
+    }
+
+    /** Turns ghost mode on or off, offline at once when it hides being online. */
+    public static void setGhostMode(boolean value) {
+        ghostMode = value;
+        putBoolean("ghostMode", value);
+        if (value && ghostNoOnline) {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).glassgramGoOffline();
+                }
+            }
+        }
+    }
 
     public static boolean ghostNoReadMessages() { return ghostMode && ghostNoReadMessages; }
     public static boolean ghostNoReadStories() { return ghostMode && ghostNoReadStories; }
@@ -272,6 +296,12 @@ public class GlassgramConfig {
         ghostNoTyping = p.getBoolean("ghostNoTyping", true);
         ghostAutoOffline = p.getBoolean("ghostAutoOffline", true);
         ghostReadOnInteract = p.getBoolean("ghostReadOnInteract", true);
+        ghostScheduleMessages = p.getBoolean("ghostScheduleMessages", false);
+        ghostSilentSend = p.getInt("ghostSilentSend", SILENT_NEVER);
+        if (ghostSilentSend < SILENT_NEVER || ghostSilentSend > SILENT_ALWAYS) {
+            ghostSilentSend = SILENT_NEVER;
+        }
+        ghostStoryAlert = p.getBoolean("ghostStoryAlert", true);
         hideStories = p.getBoolean("hideStories", false);
         headerBadge = p.getBoolean("headerBadge", true);
         glassHeader = p.getBoolean("glassHeader", true);
@@ -352,6 +382,9 @@ public class GlassgramConfig {
         proxyMode = p.getInt("proxyMode", GlassgramProxy.MODE_AUTO);
         if (STORE_BUILD) {
             ghostMode = false;
+            ghostScheduleMessages = false;
+            ghostSilentSend = SILENT_NEVER;
+            ghostStoryAlert = false;
             spySaveDeletedMessages = false;
             spySaveEditsHistory = false;
             spySaveInBotDialogs = false;

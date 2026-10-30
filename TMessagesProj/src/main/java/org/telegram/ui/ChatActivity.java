@@ -22266,7 +22266,9 @@ public class ChatActivity extends BaseFragment implements
                 boolean scheduled = (Boolean) args[2];
                 int mode = (Integer) args[3];
                 if (mode != chatMode && chatMode != MODE_SAVED && chatMode != MODE_SUGGESTIONS) {
-                    if (chatMode != MODE_SCHEDULED && mode == MODE_SCHEDULED && !isPaused && LaunchActivity.getSafeLastFragment() == this && messagePreviewParams == null) {
+                    // glassGram: a message ghost mode scheduled a few seconds ahead comes here by itself; the chat stays
+                    if (chatMode != MODE_SCHEDULED && mode == MODE_SCHEDULED && !isPaused && LaunchActivity.getSafeLastFragment() == this && messagePreviewParams == null
+                            && !SendMessagesHelper.glassgramJustScheduled(dialog_id)) {
                         if (!arr.isEmpty() && arr.get(0).getId() < 0) {
                             openScheduledMessages(arr.get(0).getId(), arr.get(0).messageOwner != null && arr.get(0).messageOwner.video_processing_pending);
                         }

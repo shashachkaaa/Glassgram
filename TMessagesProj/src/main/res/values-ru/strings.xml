@@ -862,4 +862,18 @@
     <string name="GlassgramPluginInstallAnyway">Всё равно установить</string>
     <string name="GlassgramPluginDangerConfirmTitle">Установить опасный плагин?</string>
     <string name="GlassgramPluginDangerConfirm">Плагин работает внутри glassGram с доступом к аккаунту: чатам, контактам и сессии. Устанавливайте, только если доверяете источнику.</string>
+    <string name="GlassgramGhostSchedule">Отложенная отправка</string>
+    <string name="GlassgramGhostScheduleInfo">Исходящие сообщения уходят как запланированные примерно через 12 секунд (медиа — через 12 секунд после загрузки): их отправляет сервер Telegram, поэтому вы не появляетесь в сети. До отправки они ждут в отложенных сообщениях чата. Не включайте при плохой связи.</string>
+    <string name="GlassgramGhostSilent">Отправка без звука</string>
+    <string name="GlassgramGhostSilentInfo">Исходящие сообщения уходят без звука и не звенят у собеседника.</string>
+    <string name="GlassgramGhostSilentNever">Никогда</string>
+    <string name="GlassgramGhostSilentInGhost">В режиме призрака</string>
+    <string name="GlassgramGhostSilentAlways">Всегда</string>
+    <string name="GlassgramGhostStoryAlert">Предупреждать перед историями</string>
+    <string name="GlassgramGhostStoryAlertInfo">Перед открытием новых историй предлагает включить режим призрака, чтобы автор не увидел ваш просмотр.</string>
+    <string name="GlassgramGhostStoryAlertTitle">Смотреть незаметно?</string>
+    <string name="GlassgramGhostStoryAlertText">Включите режим призрака, и автор истории не увидит, что вы её смотрели.</string>
+    <string name="GlassgramGhostStoryAlertEnable">Включить и смотреть</string>
+    <string name="GlassgramGhostStoryAlertView">Смотреть</string>
+    <string name="GlassgramGhostStoryAlertNever">Не спрашивать</string>
 </resources>

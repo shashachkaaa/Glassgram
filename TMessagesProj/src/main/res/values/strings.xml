@@ -12130,4 +12130,18 @@
     <string name="GlassgramPluginInstallAnyway">Install anyway</string>
     <string name="GlassgramPluginDangerConfirmTitle">Install a dangerous plugin?</string>
     <string name="GlassgramPluginDangerConfirm">A plugin runs inside glassGram with access to your account: chats, contacts and the session. Install it only if you trust where it came from.</string>
+    <string name="GlassgramGhostSchedule">Schedule Messages</string>
+    <string name="GlassgramGhostScheduleInfo">Outgoing messages go as scheduled ones about 12 seconds ahead (media, 12 seconds after uploading): Telegram\'s server sends them, so you don\'t appear online for sending. Until then they wait among the chat\'s scheduled messages. Avoid on an unreliable network.</string>
+    <string name="GlassgramGhostSilent">Send without Sound</string>
+    <string name="GlassgramGhostSilentInfo">Sends outgoing messages without sound, so they don\'t ring for the other side.</string>
+    <string name="GlassgramGhostSilentNever">Never</string>
+    <string name="GlassgramGhostSilentInGhost">In Ghost Mode</string>
+    <string name="GlassgramGhostSilentAlways">Always</string>
+    <string name="GlassgramGhostStoryAlert">Story Ghost Mode Alert</string>
+    <string name="GlassgramGhostStoryAlertInfo">Before someone\'s new stories open, offers to turn on Ghost Mode so they don\'t see you watched them.</string>
+    <string name="GlassgramGhostStoryAlertTitle">Watch unseen?</string>
+    <string name="GlassgramGhostStoryAlertText">Turn on Ghost Mode, and the story\'s author won\'t see you watched it.</string>
+    <string name="GlassgramGhostStoryAlertEnable">Turn On and Watch</string>
+    <string name="GlassgramGhostStoryAlertView">Watch</string>
+    <string name="GlassgramGhostStoryAlertNever">Don\'t Ask</string>
 </resources>

@@ -199,6 +199,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_LOCK_FINGERPRINT = 165;
     private static final int ID_LOCK_REMOVE = 166;
     private static final int ID_HIDDEN_CHATS = 167;
+    private static final int ID_GHOST_SCHEDULE = 168;
+    private static final int ID_GHOST_SILENT = 169;
+    private static final int ID_GHOST_STORY_ALERT = 170;
     private static final int ID_MENU_ITEM = 300;
     private static final int ID_LOCKED_CHAT = 400;
 
@@ -516,6 +519,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 }
                 items.add(UItem.asCheck(ID_GHOST_READ_ON_INTERACT, getString(R.string.GlassgramGhostReadOnInteract)).setChecked(GlassgramConfig.ghostReadOnInteract));
                 items.add(UItem.asShadow(getString(R.string.GlassgramGhostInfo) + "\n\n" + getString(R.string.GlassgramGhostReadOnInteractInfo2)));
+                items.add(UItem.asCheck(ID_GHOST_SCHEDULE, getString(R.string.GlassgramGhostSchedule)).setChecked(GlassgramConfig.ghostScheduleMessages));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostScheduleInfo)));
+                items.add(UItem.asButton(ID_GHOST_SILENT, getString(R.string.GlassgramGhostSilent), ghostSilentNames()[GlassgramConfig.ghostSilentSend]));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostSilentInfo)));
+                items.add(UItem.asCheck(ID_GHOST_STORY_ALERT, getString(R.string.GlassgramGhostStoryAlert)).setChecked(GlassgramConfig.ghostStoryAlert));
+                items.add(UItem.asShadow(getString(R.string.GlassgramGhostStoryAlertInfo)));
                 break;
             }
             case PAGE_SPY:
@@ -746,6 +755,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_ROUND_CAMERA_INFO:
                 showCameraReport();
                 return;
+            case ID_GHOST_SILENT:
+                showChoice(getString(R.string.GlassgramGhostSilent), ghostSilentNames(), GlassgramConfig.ghostSilentSend, which -> {
+                    GlassgramConfig.ghostSilentSend = which;
+                    GlassgramConfig.putInt("ghostSilentSend", which);
+                });
+                return;
             case ID_DOUBLE_TAP_ACTION:
                 showChoice(getString(R.string.GlassgramDoubleTapAction), doubleTapNames(), GlassgramConfig.doubleTapAction, which -> {
                     GlassgramConfig.doubleTapAction = which;
@@ -928,6 +943,14 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_GHOST_READ_ON_INTERACT:
                 value = GlassgramConfig.ghostReadOnInteract = !GlassgramConfig.ghostReadOnInteract;
                 GlassgramConfig.putBoolean("ghostReadOnInteract", value);
+                break;
+            case ID_GHOST_SCHEDULE:
+                value = GlassgramConfig.ghostScheduleMessages = !GlassgramConfig.ghostScheduleMessages;
+                GlassgramConfig.putBoolean("ghostScheduleMessages", value);
+                break;
+            case ID_GHOST_STORY_ALERT:
+                value = GlassgramConfig.ghostStoryAlert = !GlassgramConfig.ghostStoryAlert;
+                GlassgramConfig.putBoolean("ghostStoryAlert", value);
                 break;
             case ID_YANDEX_MAPS:
                 value = GlassgramConfig.useYandexMaps = !GlassgramConfig.useYandexMaps;
@@ -1286,19 +1309,16 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     }
 
     private void toggleGhostMode() {
-        boolean value = GlassgramConfig.ghostMode = !GlassgramConfig.ghostMode;
-        GlassgramConfig.putBoolean("ghostMode", value);
-        if (value && GlassgramConfig.ghostNoOnline) {
-            for (int a = 0; a < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                if (org.telegram.messenger.UserConfig.getInstance(a).isClientActivated()) {
-                    MessagesController.getInstance(a).glassgramGoOffline();
-                }
-            }
-        }
+        GlassgramConfig.setGhostMode(!GlassgramConfig.ghostMode);
         if (listView != null) listView.adapter.update(true);
         if (parentLayout != null) {
             parentLayout.rebuildAllFragmentViews(false, false);
         }
+    }
+
+    /** "Send without sound", in GlassgramConfig.SILENT_*'s order. */
+    private static String[] ghostSilentNames() {
+        return new String[]{getString(R.string.GlassgramGhostSilentNever), getString(R.string.GlassgramGhostSilentInGhost), getString(R.string.GlassgramGhostSilentAlways)};
     }
 
     private static String[] folderSizeNames() {
