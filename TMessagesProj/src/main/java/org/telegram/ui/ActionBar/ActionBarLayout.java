@@ -129,6 +129,54 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             setWillNotDraw(false);
         }
 
+        // glassGram: while the iOS slide moves this page as a still picture (its hardware layer),
+        // what changes in it waits for the slide's end: a fading tap highlight or a list update
+        // redrew the whole page, glass and all, into its layer every frame, and frames were missed
+        private boolean glassgramFrozen;
+        private boolean glassgramMissed;
+
+        void glassgramSetFrozen(boolean frozen) {
+            if (glassgramFrozen == frozen) {
+                return;
+            }
+            glassgramFrozen = frozen;
+            if (!frozen && glassgramMissed) {
+                glassgramMissed = false;
+                // the views that changed are still marked so; this draws them now
+                invalidate();
+            }
+        }
+
+        /** Whether a change inside waits now; a page left frozen past its slide lets go here. */
+        private boolean glassgramHoldsChange() {
+            if (!glassgramFrozen) {
+                return false;
+            }
+            if (!transitionAnimationInProgress) {
+                glassgramSetFrozen(false);
+                return false;
+            }
+            glassgramMissed = true;
+            return true;
+        }
+
+        @Override
+        public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+            if (glassgramHoldsChange()) {
+                return;
+            }
+            super.onDescendantInvalidated(child, target);
+        }
+
+        @Override
+        public android.view.ViewParent invalidateChildInParent(int[] location, Rect dirty) {
+            // the same for Android 7 and older, which pass invalidations up this way
+            if (glassgramHoldsChange()) {
+                return null;
+            }
+            return super.invalidateChildInParent(location, dirty);
+        }
+
         @Override
         public void onViewAdded(View child) {
             super.onViewAdded(child);
@@ -1780,6 +1828,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         containerViewBack.setAlpha(1.0f);
         containerViewBack.setScaleX(1.0f);
         containerViewBack.setScaleY(1.0f);
+        // what changed in the pages during the slide is drawn now
+        containerView.glassgramSetFrozen(false);
+        containerViewBack.glassgramSetFrozen(false);
         if (glassgramLayerView != null) {
             glassgramLayerView.setLayerType(LAYER_TYPE_NONE, null);
             glassgramLayerView = null;
@@ -1884,6 +1935,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         if (first) {
             animationProgress = 0.0f;
             lastFrameTime = System.nanoTime() / 1000000;
+            // a slide cut short must not leave a page still for the next one
+            containerView.glassgramSetFrozen(false);
+            containerViewBack.glassgramSetFrozen(false);
         }
         // glassGram: the iOS slide steps once per display frame (Choreographer), on the frame's
         // own time, instead of as often as the main thread's queue runs: smooth at 90 and 120 Hz
@@ -1990,6 +2044,16 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     glassgramSlideTop = top;
                     glassgramSlideUnder = under;
                     glassgramSlideCover = cover;
+                    if (!first) {
+                        // Drawn into their layers on the first frame, the page underneath and a
+                        // closing page are still pictures from now on; the page opening stays live
+                        if (under instanceof LayoutContainer) {
+                            ((LayoutContainer) under).glassgramSetFrozen(true);
+                        }
+                        if (!open && top instanceof LayoutContainer) {
+                            ((LayoutContainer) top).glassgramSetFrozen(true);
+                        }
+                    }
                     invalidate();
                 } else if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);

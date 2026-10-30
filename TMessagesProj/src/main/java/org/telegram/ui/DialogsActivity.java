@@ -10646,6 +10646,47 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // glassGram: a reload that came while a page slid over the list (or off it), done after
+    private boolean glassgramReloadPending, glassgramReloadNewMessage;
+    private final Runnable glassgramPendingReload = () -> {
+        if (!glassgramReloadPending) {
+            return;
+        }
+        if (glassgramSlideRunning()) {
+            AndroidUtilities.runOnUIThread(this.glassgramPendingReload, 32);
+            return;
+        }
+        glassgramReloadPending = false;
+        final boolean newMessage = glassgramReloadNewMessage;
+        glassgramReloadNewMessage = false;
+        if (newMessage) {
+            didReceivedNotification(NotificationCenter.dialogsNeedReload, currentAccount, true);
+        } else {
+            didReceivedNotification(NotificationCenter.dialogsNeedReload, currentAccount);
+        }
+    };
+
+    private boolean glassgramSlideRunning() {
+        final INavigationLayout layout = getParentLayout();
+        return org.telegram.messenger.GlassgramConfig.iosTransitions && layout != null && layout.isTransitionAnimationInProgress();
+    }
+
+    /**
+     * Holds a reload of the list while a page slides over it: its rows moving made the list, under
+     * the slide, draw again every frame, and the slide missed frames. True when held.
+     */
+    private boolean glassgramReloadAfterSlide(boolean newMessage) {
+        if (!glassgramSlideRunning()) {
+            return false;
+        }
+        glassgramReloadNewMessage |= newMessage;
+        if (!glassgramReloadPending) {
+            glassgramReloadPending = true;
+            AndroidUtilities.runOnUIThread(glassgramPendingReload, 32);
+        }
+        return true;
+    }
+
     private void reloadViewPageDialogs(ViewPage viewPage, boolean newMessage) {
         if (viewPage.getVisibility() != View.VISIBLE) {
             return;
@@ -10693,6 +10734,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.dialogsNeedReload) {
             if (viewPages == null || dialogsListFrozen) {
+                return;
+            }
+            if (glassgramReloadAfterSlide(args.length > 0)) {
                 return;
             }
             for (int a = 0; a < viewPages.length; a++) {
