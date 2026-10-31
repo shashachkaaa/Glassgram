@@ -17485,6 +17485,22 @@ public class ChatActivity extends BaseFragment implements
             return ChatActivity.this;
         }
 
+        // glassGram: the glass's picture of the chat is made again once the chat is seen again. A photo
+        // opened full screen hides the app under it, and the picture taken meanwhile kept the wallpaper
+        // without the messages over the header and the panels until the chat was scrolled
+        private final Runnable glassgramRecapture = () -> invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_POSITIONS | BLUR_INVALIDATE_FLAG_SCROLL);
+
+        @Override
+        public void onVisibilityAggregated(boolean isVisible) {
+            super.onVisibilityAggregated(isVisible);
+            removeCallbacks(glassgramRecapture);
+            if (isVisible) {
+                // at once, and again once the viewer's closing has settled
+                post(glassgramRecapture);
+                postDelayed(glassgramRecapture, 450);
+            }
+        }
+
         public ChatActivityFragmentView(Context context, INavigationLayout parentLayout) {
             super(context, parentLayout);
             adjustPanLayoutHelper = new AdjustPanLayoutHelper(this) {
