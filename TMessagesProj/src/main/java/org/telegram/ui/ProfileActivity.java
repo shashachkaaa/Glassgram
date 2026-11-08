@@ -2512,9 +2512,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         actionBar.setClipContent(true);
         // a sheet's window is over the status bar (on tablets too), and so is the tablet's right layout
         actionBar.setOccupyStatusBar(hasMainTabs || parentLayout != null && parentLayout.isSheet() || !AndroidUtilities.isTablet() && !inBubbleMode || isInTabletRightLayout());
-        actionBar.setGlassButtons();
-        // glassGram: the back button and the menu where the iOS-like chat header has its own, which the profile opens from
-        actionBar.setGlassButtonsIosLayout(org.telegram.messenger.GlassgramConfig.glassHeader);
 
         if (hasMainTabs) {
             actionBar.setBackButtonDrawable(new BackDrawable(false));

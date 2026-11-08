@@ -39,6 +39,7 @@ import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
 import org.telegram.utils.glass.source.GlassSourceCrossfade;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
@@ -341,7 +342,9 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
             final float hw = backButton.getWidth() / 2f * backButton.getScaleX(), hh = backButton.getHeight() / 2f * backButton.getScaleY();
             glassBack.setBounds((int) (cx - hw) - p, (int) (cy - hh) - p, (int) (cx + hw) + p, (int) (cy + hh) + p);
             glassBack.setAlpha((int) (255 * backButton.getAlpha()));
-            glassBack.draw(canvas);
+            drawGlass(canvas, glassBack, GLASS_BACK, p);
+        } else {
+            glassShown[GLASS_BACK] = false;
         }
 
         if (glassDone != null && doneButton != null && doneButton.drawsGlass() && doneButton.getVisibility() == VISIBLE && doneButton.getAlpha() > 0) {
@@ -349,7 +352,9 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
             final float hw = doneButton.getWidth() / 2f * doneButton.getScaleX(), hh = doneButton.getHeight() / 2f * doneButton.getScaleY();
             glassDone.setBounds((int) (cx - hw) - p, (int) (cy - hh) - p, (int) (cx + hw) + p, (int) (cy + hh) + p);
             glassDone.setAlpha((int) (255 * doneButton.getAlpha()));
-            glassDone.draw(canvas);
+            drawGlass(canvas, glassDone, GLASS_DONE, p);
+        } else {
+            glassShown[GLASS_DONE] = false;
         }
 
         if (glassMenu != null) {
@@ -364,11 +369,129 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
                 }
                 glassMenu.setBounds((int) menuPillRect.left - p, (int) menuPillRect.top - p, (int) menuPillRect.right + p, (int) menuPillRect.bottom + p);
                 glassMenu.setAlpha((int) (255 * alpha));
-                glassMenu.draw(canvas);
+                drawGlass(canvas, glassMenu, GLASS_MENU, p);
+            } else {
+                glassShown[GLASS_MENU] = false;
             }
+        } else {
+            glassShown[GLASS_MENU] = false;
         }
 
         super.dispatchDraw(canvas);
+    }
+
+    /* glassGram: the buttons' glass is the library's LiquidButton (Kyant0/AndroidLiquidGlass), pressed as it is */
+
+    private static final int GLASS_NONE = -1, GLASS_BACK = 0, GLASS_DONE = 1, GLASS_MENU = 2;
+    private final LiquidPressEffect[] glassPress = new LiquidPressEffect[3];
+    private final RectF[] glassRect = {new RectF(), new RectF(), new RectF()};
+    private final boolean[] glassShown = new boolean[3];
+    private final RectF glassMovedRect = new RectF();
+    private int glassPressed = GLASS_NONE;
+
+    private LiquidPressEffect glassPress(int surface) {
+        if (glassPress[surface] == null) {
+            glassPress[surface] = new LiquidPressEffect(this);
+            // The library's LiquidButton swells and has its shadow around it, past the bar
+            glassPress[surface].setUnclipParents(1);
+        }
+        return glassPress[surface];
+    }
+
+    /**
+     * A glass piece of the bar: the library's LiquidButton made of what the glass is made of, its tint as
+     * the surface; without the library (before Android 12, the liquid glass off) Telegram's glass, moved
+     * by the press. {@code padding} is the drawable's inset around the glass.
+     */
+    private void drawGlass(Canvas canvas, BlurredBackgroundDrawable glass, int surface, int padding) {
+        final android.graphics.Rect b = glass.getBounds();
+        final RectF r = glassRect[surface];
+        r.set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
+        glassShown[surface] = true;
+        glass.setRadiusScale(1f);
+        if (r.width() > 0 && r.height() > 0
+                && glassPress(surface).drawGlass(canvas, r.left, r.top, r.right, r.bottom, Math.min(r.width(), r.height()) / 2f, glass, glass.getAlpha())) {
+            return;
+        }
+        final LiquidPressEffect effect = glassPress[surface];
+        if (effect == null || !effect.isActive()) {
+            glass.draw(canvas);
+            return;
+        }
+        // The glass goes where the press moved it, its corners growing with it
+        effect.mapRect(r.left, r.top, r.right, r.bottom, glassMovedRect);
+        glass.setRadiusScale(LiquidPressEffect.radiusScale(r.width(), r.height(), glassMovedRect));
+        glass.setBounds(
+            Math.round(glassMovedRect.left) - padding, Math.round(glassMovedRect.top) - padding,
+            Math.round(glassMovedRect.right) + padding, Math.round(glassMovedRect.bottom) + padding);
+        glass.draw(canvas);
+        canvas.save();
+        canvas.translate(glassMovedRect.left, glassMovedRect.top);
+        effect.drawGlow(canvas, glassMovedRect.width(), glassMovedRect.height(), Math.min(glassMovedRect.width(), glassMovedRect.height()) / 2f);
+        canvas.restore();
+    }
+
+    private int glassSurfaceOf(View child) {
+        if (child == backButton) {
+            return GLASS_BACK;
+        }
+        if (child != null && child == doneButton) {
+            return GLASS_DONE;
+        }
+        if (child != null && (child == menu || child == actionMode)) {
+            return GLASS_MENU;
+        }
+        return GLASS_NONE;
+    }
+
+    /** What sits on a glass piece follows its press. */
+    private void glassTransform(Canvas canvas, int surface) {
+        final LiquidPressEffect effect = surface == GLASS_NONE ? null : glassPress[surface];
+        if (effect == null || !effect.isActive() || !glassShown[surface]) {
+            return;
+        }
+        final RectF r = glassRect[surface];
+        canvas.translate(r.left, r.top);
+        effect.transform(canvas, r.width(), r.height());
+        canvas.translate(-r.left, -r.top);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            LiquidPressEffect.releaseStale(getRootView());
+        }
+        final boolean handled = super.dispatchTouchEvent(ev);
+        glassTouch(ev, handled);
+        return handled;
+    }
+
+    private void glassTouch(MotionEvent ev, boolean handled) {
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassPressed = GLASS_NONE;
+            if (!handled) {
+                return;
+            }
+            for (int surface : new int[]{GLASS_BACK, GLASS_DONE, GLASS_MENU}) {
+                // the search field on the pill is typed in, not pressed
+                if (surface == GLASS_MENU && getSearchFactor() > 0) {
+                    continue;
+                }
+                if (glassShown[surface] && glassRect[surface].contains(ev.getX(), ev.getY())) {
+                    glassPressed = surface;
+                    break;
+                }
+            }
+        }
+        if (glassPressed == GLASS_NONE) {
+            return;
+        }
+        final RectF r = glassRect[glassPressed];
+        glassPress(glassPressed).onTouch(action, ev.getX() - r.left, ev.getY() - r.top);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            glassPressed = GLASS_NONE;
+        }
     }
 
     private final RectF menuPillRect = new RectF();
@@ -437,6 +560,15 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
             computeMenuPill(menuPillRect);
             canvas.save();
             canvas.clipRect(menuPillRect);
+            final boolean result = super.drawChild(canvas, child, drawingTime);
+            canvas.restore();
+            return result;
+        }
+        final int surface = glassSurfaceOf(child);
+        if (surface != GLASS_NONE) {
+            // glassGram: the icons go with the glass as it swells and stretches
+            canvas.save();
+            glassTransform(canvas, surface);
             final boolean result = super.drawChild(canvas, child, drawingTime);
             canvas.restore();
             return result;
