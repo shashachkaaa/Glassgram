@@ -809,6 +809,8 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
     @Override
     protected void onGlassSettingsChanged(GlassSettings glassSettings) {
         implInvalidated = true;
+        // glassGram: the library draws frosted glass too while the liquid glass is on: record it again
+        invalidateDisplayList();
         // the tint depends on them too
         updateColors();
         invalidateSelf();
