@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public final class GlassgramApi {
 
-    public static final String BASE_URL = "https://glassgram-api.vanguardvpn.xyz:8444/api/v1";
+    public static final String BASE_URL = "https://glassgram-api.vanguard-cloud.xyz:8444/api/v1";
     public static final String BOT_USERNAME = "glassGramBot";
 
     /** The rights the server gives: by the bot's admin levels, or to an admin one by one. */
