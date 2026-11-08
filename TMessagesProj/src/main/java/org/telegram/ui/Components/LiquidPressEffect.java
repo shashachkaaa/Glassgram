@@ -22,7 +22,7 @@ import org.telegram.liquidglass.LiquidButtonView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LiteMode;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
+import org.telegram.utils.glass.source.GlassSource;
 
 /**
  * A glass button of the Kyant0/AndroidLiquidGlass catalog's LiquidButton for a plain View.
@@ -140,7 +140,7 @@ public class LiquidPressEffect {
         if (glass == null) {
             return;
         }
-        final BlurredBackgroundSource source = glass.getUnwrappedSource();
+        final GlassSource source = glass.getUnwrappedSource();
         if (source == null) {
             return;
         }
@@ -171,9 +171,9 @@ public class LiquidPressEffect {
         if (!isButton() || glass == null) {
             return false;
         }
-        final BlurredBackgroundSource unwrapped = glass.getUnwrappedSource();
-        if (unwrapped instanceof org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode) {
-            final org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode node = (org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode) unwrapped;
+        final GlassSource unwrapped = glass.getUnwrappedSource();
+        if (unwrapped instanceof org.telegram.utils.glass.source.GlassSourceRenderNode) {
+            final org.telegram.utils.glass.source.GlassSourceRenderNode node = (org.telegram.utils.glass.source.GlassSourceRenderNode) unwrapped;
             if (node.inRecording() || node.isRecordingCanvas(canvas)) {
                 // Drawn into the very picture it is made of (a story's buttons lie on the story): not there
                 return true;
@@ -183,11 +183,7 @@ public class LiquidPressEffect {
         buttonBackdrop = null;
         // The source records only around glass that has been drawn: the glass, not drawn now,
         // still has to count, as it would on its first draw
-        if (glass instanceof org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawableRenderNode && !glass.hasDisplayList()) {
-            final BlurredBackgroundSource source = glass.getSource();
-            if (source != null) {
-                source.dispatchOnDrawablesRelativePositionChange();
-            }
+        if (glass.shouldHaveDisplayList() && !glass.hasDisplayList()) {
             glass.updateDisplayList();
         }
         return drawButton(canvas, left, top, right, bottom, radius, surfaceOf(glass.getBackgroundColor()), tint, alpha);

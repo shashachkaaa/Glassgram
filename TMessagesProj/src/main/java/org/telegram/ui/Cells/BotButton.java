@@ -67,6 +67,7 @@ class BotButton {
     private long shimmerStart;
     private float shimmerAlpha;
     private long shimmerAlphaTime;
+    private int shimmerColor = 0xFFFFFFFF;
     public Drawable selectorDrawable;
     public Drawable iconDrawable;
     public AnimatedEmojiDrawable animatedEmojiDrawable;
@@ -84,6 +85,7 @@ class BotButton {
         RectF rect,
         boolean drawProgress,
         boolean drawBuyCard,
+        boolean compact,
         Theme.ResourcesProvider resourcesProvider
     ) {
         boolean invalidate = false;
@@ -142,7 +144,8 @@ class BotButton {
 
         canvas.save();
         canvas.clipPath(path);
-        if (drawShimmer(canvas, rect, drawProgress)) {
+        // compact buttons have dark text on a light background: the light is tinted like the text
+        if (drawShimmer(canvas, rect, drawProgress, compact ? Theme.getColor(Theme.key_chat_compact_botButtonText, resourcesProvider) : 0xFFFFFFFF)) {
             invalidate = true;
         }
         if (selectorDrawable != null) {
@@ -225,7 +228,7 @@ class BotButton {
     }
 
     /** glassGram: the loading band, fading in and out with the loading; true while it moves. */
-    private boolean drawShimmer(Canvas canvas, RectF rect, boolean loading) {
+    private boolean drawShimmer(Canvas canvas, RectF rect, boolean loading, int color) {
         final long now = SystemClock.elapsedRealtime();
         final float dt = shimmerAlphaTime == 0 ? 0 : Math.min(100, now - shimmerAlphaTime) / 160f;
         shimmerAlphaTime = now;
@@ -245,6 +248,12 @@ class BotButton {
             shimmerStroke.setShader(shimmerGradient);
             shimmerStroke.setStyle(Paint.Style.STROKE);
             shimmerStroke.setStrokeWidth(AndroidUtilities.dpf2(1.33f));
+        }
+        if (shimmerColor != color) {
+            shimmerColor = color;
+            final android.graphics.ColorFilter filter = color == 0xFFFFFFFF ? null : new android.graphics.PorterDuffColorFilter(color | 0xFF000000, android.graphics.PorterDuff.Mode.SRC_IN);
+            shimmerFill.setColorFilter(filter);
+            shimmerStroke.setColorFilter(filter);
         }
         final float band = Math.max(rect.width() * 0.55f, dp(90));
         final float phase = ((now - shimmerStart) % SHIMMER_PERIOD) / (float) SHIMMER_PERIOD;

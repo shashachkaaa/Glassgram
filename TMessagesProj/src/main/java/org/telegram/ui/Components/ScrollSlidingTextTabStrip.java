@@ -51,6 +51,7 @@ import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Stories.recorder.HintView2;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements Theme.Colorable {
 
@@ -695,7 +696,15 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         }
 //        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
         selectorDrawable.setColor(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f));
+        if (backgroundDrawable != null) {
+            // glass background is drawn manually (not the view background), so the theme dispatcher does not reach it
+            backgroundDrawable.updateColors();
+        }
         invalidate();
+    }
+    @Override
+    public void addColorKeys(HashSet<Integer> colors) {
+        colors.add(activeTextColorKey);
     }
 
     public int getCurrentTabId() {
@@ -1099,7 +1108,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
     /** What is under the bar: the blur the strip's glass was made of, or the window's color. */
     private void drawLiquidBackdrop(Canvas canvas) {
         if (backgroundDrawable != null) {
-            final org.telegram.ui.Components.blur3.source.BlurredBackgroundSource source = backgroundDrawable.getUnwrappedSource();
+            final org.telegram.utils.glass.source.GlassSource source = backgroundDrawable.getUnwrappedSource();
             if (source != null) {
                 final float ox = backgroundDrawable.getSourceOffsetX(), oy = backgroundDrawable.getSourceOffsetY();
                 canvas.save();

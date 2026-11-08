@@ -5,6 +5,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
 import android.graphics.Path;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -21,6 +22,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
@@ -39,6 +41,7 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.EditTextCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Components.AnimatedFloat;
@@ -68,6 +71,27 @@ public class ReportBottomSheet extends BottomSheet {
     // On Liquid Glass the panel is glass and the rows on it lose their own fills
     private final boolean glass = LiquidPanelDrawable.isSupported();
     private LiquidPanelDrawable glassBackground;
+    private int fixedNavBarColor;
+
+    @Override
+    public void onThemeColorsChanged() {
+        super.onThemeColorsChanged();
+        try {
+            final int color = Theme.getColor(Theme.key_dialogBackground, resourcesProvider);
+            if (backgroundPaint.getColor() != color) {
+                backgroundPaint.setColor(color);
+                if (containerView != null) {
+                    containerView.invalidate();
+                }
+            }
+            if (navBarColorKey < 0 && navBarColor == fixedNavBarColor && color != navBarColor) {
+                fixedNavBarColor = navBarColor = color;
+                setOverlayNavBarColor(color);
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
     private final boolean sponsored;
     private final boolean stories;
     private final boolean ephemeral;
@@ -120,7 +144,8 @@ public class ReportBottomSheet extends BottomSheet {
         this.sponsoredId = sponsoredId;
         this.dialogId = dialogId;
         backgroundPaint.setColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
-        fixNavigationBar(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+        fixNavigationBarKey(Theme.key_dialogBackground);
+        fixedNavBarColor = navBarColor;
         smoothKeyboardAnimationEnabled = true;
         smoothKeyboardByBottom = true;
         containerView = new ContainerView(context);
@@ -428,8 +453,19 @@ public class ReportBottomSheet extends BottomSheet {
         }
     }
 
-    private class Page extends FrameLayout {
+    private class Page extends FrameLayout implements Theme.Colorable {
         int pageType;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (headerView != null && headerView.backDrawable != null) {
+                    headerView.backDrawable.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
 
         TLRPC.TL_channels_sponsoredMessageReportResultChooseOption sponsoredOption;
         TLRPC.TL_reportResultChooseOption option;
@@ -463,7 +499,11 @@ public class ReportBottomSheet extends BottomSheet {
                 headerView.setText(LocaleController.getString(R.string.Report2));
             }
             headerView.backDrawable.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
-            headerView.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+            if (glass) {
+                headerView.setBackgroundColor(0);
+            } else {
+                ThemeBind.backgroundColor(headerView, Theme.key_dialogBackground, resourcesProvider);
+            }
             addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
             listView = new UniversalRecyclerView(context, currentAccount, 0, true, this::fillItems, this::onClick, null, resourcesProvider);
@@ -589,7 +629,11 @@ public class ReportBottomSheet extends BottomSheet {
                     } else if (option != null) {
                         headerCell.setText(option.title);
                     }
-                    headerCell.setBackgroundColor(glass ? 0 : getThemedColor(Theme.key_dialogBackground));
+                    if (glass) {
+                        headerCell.setBackgroundColor(0);
+                    } else {
+                        ThemeBind.backgroundColor(headerCell, Theme.key_dialogBackground, ReportBottomSheet.this.resourcesProvider);
+                    }
                     UItem headerItem = UItem.asCustom(headerCell);
                     headerItem.id = -2;
                     items.add(headerItem);
@@ -648,11 +692,15 @@ public class ReportBottomSheet extends BottomSheet {
                         button.setText(LocaleController.getString(R.string.Report2Send), false);
 
                         buttonContainer = new FrameLayout(getContext());
-                        buttonContainer.setBackgroundColor(glass ? 0 : Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+                        if (glass) {
+                            buttonContainer.setBackgroundColor(0);
+                        } else {
+                            ThemeBind.backgroundColor(buttonContainer, Theme.key_dialogBackground, resourcesProvider);
+                        }
                         buttonContainer.addView(button, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.FILL, 12, 12, 12, 12));
 
                         View buttonShadow = new View(getContext());
-                        buttonShadow.setBackgroundColor(Theme.getColor(Theme.key_divider, resourcesProvider));
+                        ThemeBind.backgroundColor(buttonShadow, Theme.key_divider, resourcesProvider);
                         buttonContainer.addView(buttonShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.TOP));
                     }
                     button.setEnabled(commentOption.optional || !TextUtils.isEmpty(editTextCell.getText()));
@@ -671,15 +719,17 @@ public class ReportBottomSheet extends BottomSheet {
 
                 if (sponsored && pageType == PAGE_TYPE_OPTIONS) {
                     FrameLayout frameLayout = new FrameLayout(getContext());
-                    Drawable shadowDrawable = Theme.getThemedDrawable(getContext(), R.drawable.greydivider, Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider));
-                    Drawable background = new ColorDrawable(glass ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), .35f) : getThemedColor(Theme.key_windowBackgroundGray));
+                    Drawable shadowDrawable = getContext().getResources().getDrawable(R.drawable.greydivider).mutate();
+                    ThemeBind.drawableColorFilter(frameLayout, shadowDrawable, Theme.key_windowBackgroundGrayShadow, resourcesProvider, PorterDuff.Mode.MULTIPLY);
+                    Drawable background = new ColorDrawable(0xFFFFFFFF);
+                    ThemeBind.drawableColorFilter(frameLayout, background, glass ? ThemeBind.multAlpha(Theme.key_windowBackgroundGray, .35f) : ThemeBind.of(Theme.key_windowBackgroundGray), resourcesProvider, PorterDuff.Mode.SRC_IN);
                     CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
                     combinedDrawable.setFullsize(true);
                     frameLayout.setBackground(combinedDrawable);
                     LinkSpanDrawable.LinksTextView textView = new LinkSpanDrawable.LinksTextView(getContext());
                     textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
                     textView.setText(AndroidUtilities.replaceLinks(LocaleController.getString(R.string.ReportAdLearnMore), resourcesProvider));
-                    textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3, resourcesProvider));
+                    ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteGrayText3, resourcesProvider);
                     textView.setGravity(Gravity.CENTER);
                     frameLayout.addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 16, 16, 16, 16));
                     UItem bottomItem = UItem.asCustom(frameLayout);
@@ -737,7 +787,7 @@ public class ReportBottomSheet extends BottomSheet {
                 textView.setTypeface(AndroidUtilities.bold());
                 textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
                 textView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-                textView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+                ThemeBind.textColor(textView, Theme.key_dialogTextBlack, resourcesProvider);
                 addView(textView);
 
                 btnBack = new ImageView(context);

@@ -617,6 +617,7 @@ public class LiquidPanelDrawable extends Drawable {
 
     @Override
     public void setColorFilter(int color, @NonNull PorterDuff.Mode mode) {
+        colorFilter = new PorterDuffColorFilter(color, mode);
         setFilterColor(color);
     }
 
@@ -657,8 +658,17 @@ public class LiquidPanelDrawable extends Drawable {
         return null;
     }
 
+    // The filter as set: sheets compare it to tell their own theme filter from one set by others
+    private ColorFilter colorFilter;
+
+    @Override
+    public ColorFilter getColorFilter() {
+        return colorFilter;
+    }
+
     @Override
     public void setColorFilter(@Nullable ColorFilter colorFilter) {
+        this.colorFilter = colorFilter;
         final Integer filterColor = colorFilter == null ? null : colorOf(colorFilter);
         if (filterColor != null) {
             setFilterColor(filterColor);

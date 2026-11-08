@@ -50,15 +50,19 @@ public abstract class InstantCameraViewBase extends FrameLayout {
             Theme.ResourcesProvider resourcesProvider,
             boolean isNewDesign
     ) {
-        final boolean useCamera2Impl = SharedSettings.roundVideoCamera2Enabled.isSet() ?
-            SharedSettings.roundVideoCamera2Enabled.get() :
-            AppGlobalConfig.getInstance(UserConfig.selectedAccount).roundVideoRecorder2Allowed.get();
         // glassGram: the video message options in glassGram settings live in the first recorder
         final boolean glassgramOptions = org.telegram.messenger.GlassgramConfig.roundCameraTweaks() || org.telegram.messenger.GlassgramConfig.roundKeepZoom;
 
-        return useCamera2Impl && !glassgramOptions
+        return isCamera2Enabled(UserConfig.selectedAccount) && !glassgramOptions
                 ? new InstantCameraView2(context, delegate, resourcesProvider, isNewDesign)
                 : new InstantCameraView(context, delegate, resourcesProvider, isNewDesign);
+    }
+
+    /** Returns whether the Camera2 implementation is used: the local choice, else the server flag. */
+    public static boolean isCamera2Enabled(int account) {
+        return SharedSettings.roundVideoCamera2Enabled.isSet() ?
+            SharedSettings.roundVideoCamera2Enabled.get() :
+            !AppGlobalConfig.getInstance(account).roundVideoRecorderV2Disabled.get();
     }
 
     /** Sets the host animation callback. */

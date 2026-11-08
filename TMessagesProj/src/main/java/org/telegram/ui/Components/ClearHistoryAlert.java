@@ -8,6 +8,7 @@
 
 package org.telegram.ui.Components;
 
+import org.telegram.messenger.FileLog;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
@@ -33,6 +34,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
@@ -43,6 +45,7 @@ import androidx.core.widget.NestedScrollView;
 public class ClearHistoryAlert extends BottomSheet {
 
     private Drawable shadowDrawable;
+    private final java.util.ArrayList<CombinedDrawable> themedSectionBackgrounds = new java.util.ArrayList<>();
     private LinearLayout linearLayout;
     private BottomSheetCell setTimerButton;
     private CheckBoxCell cell;
@@ -82,7 +85,7 @@ public class ClearHistoryAlert extends BottomSheet {
             this.resourcesProvider = resourcesProvider;
 
             background = new View(context);
-            background.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(4), getThemedColor(Theme.key_featuredStickers_addButton), getThemedColor(Theme.key_featuredStickers_addButtonPressed)));
+            ThemeBind.selectorBackground(background, Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(4), getThemedColor(Theme.key_featuredStickers_addButton), getThemedColor(Theme.key_featuredStickers_addButtonPressed)), ThemeBind.of(Theme.key_featuredStickers_addButton), ThemeBind.of(Theme.key_featuredStickers_addButtonPressed), resourcesProvider);
             addView(background, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, 0, 16, 16, 16, 16));
 
             textView = new TextView(context);
@@ -91,7 +94,7 @@ public class ClearHistoryAlert extends BottomSheet {
             textView.setGravity(Gravity.CENTER_HORIZONTAL);
             textView.setEllipsize(TextUtils.TruncateAt.END);
             textView.setGravity(Gravity.CENTER);
-            textView.setTextColor(getThemedColor(Theme.key_featuredStickers_buttonText));
+            ThemeBind.textColor(textView, Theme.key_featuredStickers_buttonText, resourcesProvider);
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             textView.setTypeface(AndroidUtilities.bold());
             addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
@@ -251,17 +254,17 @@ public class ClearHistoryAlert extends BottomSheet {
             TextView textView = new TextView(context);
             textView.setTypeface(AndroidUtilities.bold());
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
-            textView.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+            ThemeBind.textColor(textView, Theme.key_dialogTextBlack, resourcesProvider);
             textView.setText(LocaleController.getString(R.string.ClearHistory));
             textView.setSingleLine(true);
             textView.setEllipsize(TextUtils.TruncateAt.END);
             linearLayout.addView(textView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 23, 20, 23, 0));
 
             TextView messageTextView = new TextView(getContext());
-            messageTextView.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+            ThemeBind.textColor(messageTextView, Theme.key_dialogTextBlack, resourcesProvider);
             messageTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
             messageTextView.setMovementMethod(new AndroidUtilities.LinkMovementMethodMy());
-            messageTextView.setLinkTextColor(getThemedColor(Theme.key_dialogTextLink));
+            ThemeBind.linkTextColor(messageTextView, Theme.key_dialogTextLink, resourcesProvider);
             messageTextView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP);
             linearLayout.addView(messageTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 23, 16, 23, 5));
             if (user != null) {
@@ -306,6 +309,7 @@ public class ClearHistoryAlert extends BottomSheet {
             CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), 0.35f) : getThemedColor(Theme.key_windowBackgroundGray)), drawable);
             combinedDrawable.setFullsize(true);
             shadowSectionCell.setBackgroundDrawable(combinedDrawable);
+            themedSectionBackgrounds.add(combinedDrawable);
             linearLayout.addView(shadowSectionCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
             HeaderCell headerCell = new HeaderCell(context, resourcesProvider);
@@ -322,13 +326,13 @@ public class ClearHistoryAlert extends BottomSheet {
             TextView percentTextView = new TextView(context);
             percentTextView.setTypeface(AndroidUtilities.bold());
             percentTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
-            percentTextView.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+            ThemeBind.textColor(percentTextView, Theme.key_dialogTextBlack, resourcesProvider);
             percentTextView.setText(LocaleController.getString(R.string.AutoDeleteAlertTitle));
             linearLayout.addView(percentTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 17, 18, 17, 0));
 
             TextView infoTextView = new TextView(context);
             infoTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            infoTextView.setTextColor(getThemedColor(Theme.key_dialogTextGray3));
+            ThemeBind.textColor(infoTextView, Theme.key_dialogTextGray3, resourcesProvider);
             infoTextView.setGravity(Gravity.CENTER_HORIZONTAL);
             if (user != null) {
                 infoTextView.setText(LocaleController.formatString("AutoDeleteAlertUserInfo", R.string.AutoDeleteAlertUserInfo, UserObject.getFirstName(user)));
@@ -369,6 +373,7 @@ public class ClearHistoryAlert extends BottomSheet {
         CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(LiquidPanelDrawable.isSupported() ? Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundGray), 0.35f) : getThemedColor(Theme.key_windowBackgroundGray)), drawable);
         combinedDrawable.setFullsize(true);
         buttonContainer.setBackgroundDrawable(combinedDrawable);
+        themedSectionBackgrounds.add(combinedDrawable);
         linearLayout.addView(buttonContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         TextInfoPrivacyCell infoCell = new TextInfoPrivacyCell(context, resourcesProvider);
@@ -376,7 +381,11 @@ public class ClearHistoryAlert extends BottomSheet {
         buttonContainer.addView(infoCell);
 
         setTimerButton = new BottomSheetCell(context, resourcesProvider);
-        setTimerButton.setBackgroundColor(LiquidPanelDrawable.isSupported() ? 0 : getThemedColor(Theme.key_dialogBackground));
+        if (LiquidPanelDrawable.isSupported()) {
+            setTimerButton.setBackgroundColor(0);
+        } else {
+            ThemeBind.backgroundColor(setTimerButton, Theme.key_dialogBackground, resourcesProvider);
+        }
         if (autoDeleteOnly) {
             setTimerButton.setText(LocaleController.getString(R.string.AutoDeleteSet));
         } else if (full && currentTimer == 0) {
@@ -454,5 +463,36 @@ public class ClearHistoryAlert extends BottomSheet {
 
     public void setDelegate(ClearHistoryAlertDelegate clearHistoryAlertDelegate) {
         delegate = clearHistoryAlertDelegate;
+    }
+
+    private int lastShadowColor, lastSectionColor, lastSectionShadowColor;
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            super.onThemeColorsChanged();
+            final int sectionColor = getThemedColor(Theme.key_windowBackgroundGray);
+            final int sectionShadowColor = getThemedColor(Theme.key_windowBackgroundGrayShadow);
+            if (sectionColor != lastSectionColor || sectionShadowColor != lastSectionShadowColor) {
+                lastSectionColor = sectionColor;
+                lastSectionShadowColor = sectionShadowColor;
+                for (int i = 0; i < themedSectionBackgrounds.size(); ++i) {
+                    final CombinedDrawable d = themedSectionBackgrounds.get(i);
+                    Theme.setCombinedDrawableColor(d, sectionColor, false);
+                    if (d.getIcon() != null) {
+                        Theme.setCombinedDrawableColor(d, sectionShadowColor, true);
+                    }
+                    d.invalidateSelf();
+                }
+            }
+            final int shadowColor = getThemedColor(Theme.key_dialogBackground);
+            if (shadowDrawable != null && shadowColor != lastShadowColor) {
+                lastShadowColor = shadowColor;
+                shadowDrawable.setColorFilter(new PorterDuffColorFilter(shadowColor, PorterDuff.Mode.MULTIPLY));
+            }
+    
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 }

@@ -47,6 +47,10 @@ public class BuildVars {
 
     // works only on official app ids, disable on your forks
     public static boolean SUPPORTS_PASSKEYS = BuildConfig.TG_APP_ID == 4;
+    // the second main tab: News, or Contacts as before them
+
+    // glassGram: Firebase phone number verification is tied to the official app as well
+    public static boolean SUPPORTS_FPNV = BuildConfig.TG_APP_ID == 4;
 
     static {
         if (ApplicationLoader.applicationContext != null) {
