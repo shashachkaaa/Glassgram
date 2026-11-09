@@ -341,6 +341,13 @@
     <string name="GlassgramAnimations">Анимации</string>
     <string name="GlassgramIosTransitions">Анимации как в iOS</string>
     <string name="GlassgramIosTransitionsInfo">Экраны выезжают справа поверх предыдущего, меню и шторки появляются на пружине, вкладки переключаются плавным затуханием, отправленные сообщения вылетают из поля ввода, а новые плавно появляются в чате, как на iPhone.</string>
+    <string name="GlassgramFrameStats">Счётчик кадров</string>
+    <string name="GlassgramFrameStatsInfo">После каждого перехода между экранами показывает, сколько кадров отрисовано и на что ушло их время, чтобы найти, что мешает плавности.</string>
+    <string name="GlassgramFrameStatsOpen">Открытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>
+    <string name="GlassgramFrameStatsClose">Закрытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>
+    <string name="GlassgramFrameStatsFrames">%1$d кадров за %2$d мс, пропущено %3$d, долгих %4$d</string>
+    <string name="GlassgramFrameStatsTimes">Сред/макс, мс: UI %1$s/%2$s · RT %3$s/%4$s · GPU %5$s/%6$s</string>
+    <string name="GlassgramFrameStatsPage">Страницы просили перерисовку в %1$d из %2$d кадров: %3$s</string>
     <string name="GlassgramChatListInfo">Изменения появятся, когда вы вернётесь к списку чатов.</string>
     <string name="GlassgramStickers">Стикеры и эмодзи</string>
     <string name="GlassgramHideStickerTime">Скрыть время на стикерах</string>

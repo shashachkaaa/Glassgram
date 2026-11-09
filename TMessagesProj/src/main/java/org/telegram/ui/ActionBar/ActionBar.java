@@ -336,11 +336,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         glassgramAppear = appear;
         if (appear >= 1f) {
             setRenderEffect(null);
+            setTransitionAlpha(1f);
             invalidateGlassgramExtraViews();
             return;
         }
-        // Hidden (ActionBarLayout draws it in place of the page): no blur to work out
-        final float radius = appear <= 0f ? 0f : dp(10) * (1f - appear);
+        if (appear <= 0f) {
+            // Hidden (ActionBarLayout draws it in place of the page): its node is skipped. Faded
+            // out by an effect, it was drawn with all its glass into a layer to show nothing
+            setRenderEffect(null);
+            setTransitionAlpha(0f);
+            return;
+        }
+        setTransitionAlpha(1f);
+        final float radius = dp(10) * (1f - appear);
         final android.graphics.ColorMatrix fade = new android.graphics.ColorMatrix();
         fade.setScale(1f, 1f, 1f, appear);
         final android.graphics.RenderEffect fadeEffect = android.graphics.RenderEffect.createColorFilterEffect(new android.graphics.ColorMatrixColorFilter(fade));

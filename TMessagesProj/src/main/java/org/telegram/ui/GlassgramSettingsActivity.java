@@ -217,6 +217,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_INLINE_ANGLES = 178;
     private static final int ID_INLINE_CURRENCY = 179;
     private static final int ID_INLINE_MEASURE = 180;
+    private static final int ID_FRAME_STATS = 181;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
     private static final int ID_MENU_ITEM = 300;
@@ -391,6 +392,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramAnimations)));
                 items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
                 items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    items.add(UItem.asCheck(ID_FRAME_STATS, getString(R.string.GlassgramFrameStats)).setChecked(GlassgramConfig.frameStats));
+                    items.add(UItem.asShadow(getString(R.string.GlassgramFrameStatsInfo)));
+                }
                 break;
             case PAGE_CHATS: {
                 // Sticker size with a chat preview, as one card
@@ -1074,6 +1079,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_IOS_TRANSITIONS:
                 value = GlassgramConfig.iosTransitions = !GlassgramConfig.iosTransitions;
                 GlassgramConfig.putBoolean("iosTransitions", value);
+                break;
+            case ID_FRAME_STATS:
+                value = GlassgramConfig.frameStats = !GlassgramConfig.frameStats;
+                GlassgramConfig.putBoolean("frameStats", value);
                 break;
             case ID_HIDE_STICKER_TIME:
                 value = GlassgramConfig.hideTimeOnStickers = !GlassgramConfig.hideTimeOnStickers;

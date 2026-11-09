@@ -86,6 +86,8 @@ public class GlassgramConfig {
     public static boolean splitInput = true;
     /** Pages slide in over each other the whole width, like on iOS, instead of Android's short fade. */
     public static boolean iosTransitions = true;
+    /** After every page slide, a bulletin with its frames: how many, and where their time went. */
+    public static boolean frameStats;
     /** The app's font (GlassgramFonts), taken at start. */
     public static String font = GlassgramFonts.SYSTEM;
     public static boolean hideFloatingButton;
@@ -324,6 +326,7 @@ public class GlassgramConfig {
         glassPanels = p.getBoolean("glassPanels", true);
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
+        frameStats = p.getBoolean("frameStats", false);
         font = p.getString("font", GlassgramFonts.SYSTEM);
         mainTabs = p.getString("mainTabs", "");
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);

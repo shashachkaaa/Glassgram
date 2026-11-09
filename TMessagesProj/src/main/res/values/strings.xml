@@ -11383,6 +11383,13 @@
     <string name="GlassgramAnimations">Animations</string>
     <string name="GlassgramIosTransitions">iOS-style Animations</string>
     <string name="GlassgramIosTransitionsInfo">Screens slide in from the right over the previous one, menus and sheets come out on a spring, tabs switch with a quick fade, sent messages fly out of the field and new ones spring into the chat, like on iPhone.</string>
+    <string name="GlassgramFrameStats">Frame counter</string>
+    <string name="GlassgramFrameStatsInfo">After every slide between screens, shows how many frames were drawn and where their time went: to find what makes an animation less smooth.</string>
+    <string name="GlassgramFrameStatsOpen">Opening: %1$d fps (display %2$d Hz, app %3$d Hz)</string>
+    <string name="GlassgramFrameStatsClose">Closing: %1$d fps (display %2$d Hz, app %3$d Hz)</string>
+    <string name="GlassgramFrameStatsFrames">%1$d frames in %2$d ms, %3$d missed, %4$d late</string>
+    <string name="GlassgramFrameStatsTimes">Avg/max, ms: UI %1$s/%2$s · RT %3$s/%4$s · GPU %5$s/%6$s</string>
+    <string name="GlassgramFrameStatsPage">Pages asked to redraw in %1$d of %2$d frames: %3$s</string>
     <string name="GlassgramChatListInfo">Changes appear when you return to the chat list.</string>
     <string name="GlassgramStickers">Stickers and Emoji</string>
     <string name="GlassgramHideStickerTime">Hide Time on Stickers</string>

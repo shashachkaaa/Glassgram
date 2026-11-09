@@ -162,6 +162,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
         @Override
         public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+            if (transitionAnimationInProgress && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                GlassgramFrameStats.pageInvalidated(target);
+            }
             if (glassgramHoldsChange()) {
                 return;
             }
@@ -688,6 +691,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     // glassGram: iOS-like pushes and pops. The page on top slides the whole width over the one
     // underneath, which moves a third of the way under it and dims.
     private static final float GLASSGRAM_PARALLAX = 0.3f;
+    /** The part of the slide (by time) in which the page opening is drawn live, before it is a still picture. */
+    private static final float GLASSGRAM_OPENING_LIVE = 0.12f;
     private static final CubicBezierInterpolator glassgramSlideInterpolator = new CubicBezierInterpolator(0.25, 0.9, 0.3, 1.0);
     private View glassgramSlideTop, glassgramSlideUnder, glassgramLayerView, glassgramLayerTop;
     private boolean glassgramHeavyPaused;
@@ -1254,7 +1259,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             boolean separateTitle = false;
             ActionBar.glassgramContentOnly = true;
             try {
-                separateTitle = record(barOut, out, true);
+                // Gone and its glass flowed away, the leaving bar is not drawn again (its pieces stay as last drawn)
+                if (outAppear > 0f || morph < 1f) {
+                    separateTitle = record(barOut, out, true);
+                }
                 record(barIn, in, false);
             } finally {
                 ActionBar.glassgramContentOnly = false;
@@ -1396,21 +1404,30 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             return separateTitle;
         }
 
-        private static void drawContent(Canvas canvas, android.graphics.RenderNode node, float x, float y, float appear) {
+        // The blur each content node has now (px, 0 for none): made again only when it changes by a step
+        private float outBlur, inBlur;
+
+        private void drawContent(Canvas canvas, android.graphics.RenderNode node, float x, float y, float appear) {
             if (appear <= 0f) {
                 return;
             }
-            if (appear >= 1f) {
-                node.setRenderEffect(null);
-            } else {
-                final float radius = AndroidUtilities.dp(12) * (1f - appear);
-                final android.graphics.ColorMatrix fade = new android.graphics.ColorMatrix();
-                fade.setScale(1f, 1f, 1f, appear);
-                final android.graphics.RenderEffect fadeEffect = android.graphics.RenderEffect.createColorFilterEffect(new android.graphics.ColorMatrixColorFilter(fade));
-                node.setRenderEffect(radius >= 0.5f
-                    ? android.graphics.RenderEffect.createChainEffect(android.graphics.RenderEffect.createBlurEffect(radius, radius, android.graphics.Shader.TileMode.DECAL), fadeEffect)
-                    : fadeEffect);
+            // Faded by the node's alpha, blurred in half-pixel steps: no effects made every frame
+            float radius = appear >= 1f ? 0f : Math.round(AndroidUtilities.dp(12) * (1f - appear) * 2f) / 2f;
+            if (radius < 0.5f) {
+                radius = 0f;
             }
+            final boolean isOut = node == out;
+            if (radius != (isOut ? outBlur : inBlur)) {
+                node.setRenderEffect(radius > 0f
+                    ? android.graphics.RenderEffect.createBlurEffect(radius, radius, android.graphics.Shader.TileMode.DECAL)
+                    : null);
+                if (isOut) {
+                    outBlur = radius;
+                } else {
+                    inBlur = radius;
+                }
+            }
+            node.setAlpha(Math.min(1f, appear));
             canvas.save();
             canvas.translate(x, y);
             canvas.drawRenderNode(node);
@@ -2312,6 +2329,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             invalidate();
         }
         glassgramResetHeaderAppear();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            GlassgramFrameStats.end();
+        }
     }
 
     public BaseFragment getLastFragment() {
@@ -2421,6 +2441,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     // glassGram: the first frame only draws both pages into their layers (the page
                     // coming back was just attached and laid out); the slide moves from the next one
                     dt = 0;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        GlassgramFrameStats.start(parentActivity, open);
+                    }
                 } else if (dt > 40 && first) {
                     dt = 0;
                 } else if (dt > (iosSlide ? 20 : 18)) {
@@ -2428,6 +2451,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     dt = iosSlide ? 20 : 18;
                 }
                 lastFrameTime = newTime;
+                if (iosSlide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    GlassgramFrameStats.step();
+                }
                 float duration = iosSlide ? 420.0f : preview && open ? 190.0f : 150.0f;
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
@@ -2512,11 +2538,14 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     glassgramSlideCover = cover;
                     if (!first) {
                         // Drawn into their layers on the first frame, the page underneath and a
-                        // closing page are still pictures from now on; the page opening stays live
+                        // closing page are still pictures from now on. The page opening is too, after
+                        // its first frames, in which what it loaded just before shows: anything that
+                        // changed in it (a picture loaded, a list laid out again, a shimmer) drew the
+                        // whole page into its layer again, glass and all, and the slide missed frames
                         if (under instanceof LayoutContainer) {
                             ((LayoutContainer) under).glassgramSetFrozen(true);
                         }
-                        if (!open && top instanceof LayoutContainer) {
+                        if ((!open || animationProgress >= GLASSGRAM_OPENING_LIVE) && top instanceof LayoutContainer) {
                             ((LayoutContainer) top).glassgramSetFrozen(true);
                         }
                     }
@@ -2559,6 +2588,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (animationProgress < 1) {
                     startLayoutAnimation(open, false, preview);
                 } else {
+                    if (iosSlide && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        GlassgramFrameStats.end();
+                    }
                     onAnimationEndCheck(false);
                 }
             }
