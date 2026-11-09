@@ -65,7 +65,7 @@ public class GlassgramHeaderButton extends FrameLayout {
         }
     }
 
-    private void drawMerge(Canvas canvas, float left, float right, float h) {
+    private void drawMerge(Canvas canvas, float left, float right, float h, boolean merged) {
         if (mergeNeighbor == null || !mergeNeighbor.getGlass(mergeOther)) {
             return;
         }
@@ -75,13 +75,28 @@ public class GlassgramHeaderButton extends FrameLayout {
         if (!press.isActive()) {
             // The gap at rest: the bridge grows as it shrinks from it
             mergeRestGap = gap;
+            if (mergeGlass.getAlpha() != 0) {
+                mergeGlass.setAlpha(0);
+            }
             return;
         }
+        if (merged) {
+            // One glass with the neighbor, over both after this button's own glass: the neighbor's
+            // contents are drawn already (only its edge goes into it), this button's after
+            final int surface = LiquidPressEffect.surfaceOf(mergeGlass.getBackgroundColor());
+            final boolean drawn = neighborFirst
+                ? merge.drawMerged(canvas, mergeOther, mergeMine, mergeRestGap, mergeGlass, 0, tint, surface, surface, false, true)
+                : merge.drawMerged(canvas, mergeMine, mergeOther, mergeRestGap, mergeGlass, tint, 0, surface, surface, true, false);
+            if (drawn) {
+                return;
+            }
+        }
         // The button is drawn over the bridge after it: only the neighbor, drawn before, is cut out
+        // (both are, when the bridge comes after the button's glass, as the merged glass would)
         if (neighborFirst) {
-            merge.draw(canvas, mergeOther, mergeMine, mergeRestGap, mergeGlass, 0, tint, true, false);
+            merge.draw(canvas, mergeOther, mergeMine, mergeRestGap, mergeGlass, 0, tint, true, merged);
         } else {
-            merge.draw(canvas, mergeMine, mergeOther, mergeRestGap, mergeGlass, tint, 0, false, true);
+            merge.draw(canvas, mergeMine, mergeOther, mergeRestGap, mergeGlass, tint, 0, merged, true);
         }
     }
 
@@ -215,7 +230,11 @@ public class GlassgramHeaderButton extends FrameLayout {
             super.dispatchDraw(canvas);
             return;
         }
-        drawMerge(canvas, left, right, h);
+        // The bridge goes under the button; the merged glass over both, after it
+        final boolean merged = GlassMerge.isMergedSupported(canvas);
+        if (!merged) {
+            drawMerge(canvas, left, right, h, false);
+        }
         final int p = dp(GLASS_PADDING_DP);
         glass.setBounds(Math.round(left) - p, -p, Math.round(right) + p, Math.round(h) + p);
         glass.setRadius(radius);
@@ -233,6 +252,9 @@ public class GlassgramHeaderButton extends FrameLayout {
                 press.drawGlow(canvas, w, h, radius);
                 canvas.restore();
             }
+        }
+        if (merged) {
+            drawMerge(canvas, left, right, h, true);
         }
         canvas.save();
         if (press.isActive()) {

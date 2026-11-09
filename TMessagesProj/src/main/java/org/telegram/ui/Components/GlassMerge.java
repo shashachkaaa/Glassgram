@@ -6,6 +6,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.os.Build;
 
 import org.telegram.messenger.AndroidUtilities;
 
@@ -118,6 +119,56 @@ public final class GlassMerge {
         canvas.drawPath(edges, rimPaint);
         canvas.restore();
         return true;
+    }
+
+    // glassGram: the merged shape, where the library's buttons are (Android 13+)
+    private Object mergedShape;
+
+    /** Whether {@link #drawMerged} draws here; otherwise the bridge ({@link #draw}) is drawn, under the pieces. */
+    public static boolean isMergedSupported(Canvas canvas) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && GlassMergeShape.isSupported(canvas);
+    }
+
+    /**
+     * The two capsules (left before right) as one glass as far as their gap has shrunk from restGap:
+     * one outline and one rim, their edges where they meet gone into it, their colors (a tint, the
+     * glass's surface color; 0 for none) poured into each other as far as they have merged. Drawn
+     * over the pieces after their glass; a piece whose contents are drawn already (innerLeft,
+     * innerRight false) has only its edge covered. Clears the glass (alpha 0) while they are apart.
+     * False when it was not drawn: the caller draws the bridge.
+     */
+    public boolean drawMerged(Canvas canvas, RectF left, RectF right, float restGap, BlurredBackgroundDrawable glass,
+                              int tintLeft, int tintRight, int surfaceLeft, int surfaceRight, boolean innerLeft, boolean innerRight) {
+        if (glass == null || !isMergedSupported(canvas)) {
+            return false;
+        }
+        final float strength = strength(left, right, restGap);
+        if (strength <= 0f) {
+            // apart: the glass is out of the capture
+            if (glass.getAlpha() != 0) {
+                glass.setAlpha(0);
+            }
+            return true;
+        }
+        if (mergedShape == null) {
+            mergedShape = new GlassMergeShape();
+        }
+        return ((GlassMergeShape) mergedShape).draw(canvas, left, right, right.left - left.right, strength, glass,
+            tintLeft, tintRight, surfaceLeft, surfaceRight, innerLeft, innerRight);
+    }
+
+    /** How far the pieces have merged, 0 to 1, from their gap at rest. */
+    private static float strength(RectF left, RectF right, float restGap) {
+        if (restGap <= 0 || left.isEmpty() || right.isEmpty()) {
+            return 0f;
+        }
+        final float gap = right.left - left.right;
+        // Nothing at rest, nor until they come nearly together; fully joined as they touch
+        final float joinGap = Math.min(AndroidUtilities.dpf2(JOIN_GAP_DP), restGap - AndroidUtilities.dpf2(1));
+        if (joinGap <= 0f) {
+            return 0f;
+        }
+        return Math.max(0f, Math.min(1f, (joinGap - gap) / joinGap));
     }
 
     /** As above, cutting both pieces out: for a bridge drawn over both. */

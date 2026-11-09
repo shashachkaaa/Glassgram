@@ -272,7 +272,7 @@ public class LiquidPressEffect {
     }
 
     /** The glass's tint as the surface of the button: as light as the library's other glass. */
-    private static int surfaceOf(int backgroundColor) {
+    public static int surfaceOf(int backgroundColor) {
         if (Color.alpha(backgroundColor) == 0) {
             return 0;
         }

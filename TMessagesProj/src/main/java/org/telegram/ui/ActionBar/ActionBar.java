@@ -400,6 +400,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final LiquidPressEffect pa = glassPress[a], pb = glassPress[b];
             if ((pa == null || !pa.isActive()) && (pb == null || !pb.isActive())) {
                 glassNeckRestGap[i] = right.left - left.right;
+                // at rest the merge's glass is out of the capture
+                if (glassNeckDrawables[i] != null && glassNeckDrawables[i].getAlpha() != 0) {
+                    glassNeckDrawables[i].setAlpha(0);
+                }
                 continue;
             }
             if (glassMerge == null) {
@@ -408,8 +412,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             if (glassNeckDrawables[i] == null) {
                 glassNeckDrawables[i] = glassFactory.create(this).setColorProvider(glassColorProvider);
             }
-            glassMerge.draw(canvas, left, right, glassNeckRestGap[i], glassNeckDrawables[i], 0, 0);
+            // The pieces become one glass: their contents (the icons, the name) are drawn after it
+            final int surfaceA = glassSurfaceColor(a), surfaceB = glassSurfaceColor(b);
+            if (!glassMerge.drawMerged(canvas, left, right, glassNeckRestGap[i], glassNeckDrawables[i], 0, 0,
+                    aFirst ? surfaceA : surfaceB, aFirst ? surfaceB : surfaceA, true, true)) {
+                glassMerge.draw(canvas, left, right, glassNeckRestGap[i], glassNeckDrawables[i], 0, 0);
+            }
         }
+    }
+
+    /** The surface color the library's button of a piece has: its glass's tint. */
+    private int glassSurfaceColor(int surface) {
+        final Drawable drawable = surface == GLASS_BACK ? glassDrawableBack : surface == GLASS_MENU ? glassDrawableMenu : glassDrawable;
+        return drawable instanceof BlurredBackgroundDrawable
+            ? LiquidPressEffect.surfaceOf(((BlurredBackgroundDrawable) drawable).getBackgroundColor()) : 0;
     }
 
     // glassGram: as on iOS, between the chats list and a chat the glass of one header flows into the
