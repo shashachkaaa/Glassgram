@@ -138,8 +138,10 @@ public final class GlassgramPluginInstaller {
         }
         PluginsController.pluginsQueue.postRunnable(() -> {
             String[] meta;
+            boolean trustedSource = false;
             try {
                 meta = PluginsController.readPluginFile(file);
+                trustedSource = isVouched(file);
             } catch (Throwable e) {
                 FileLog.e(e);
                 final String details = PluginsController.startError != null ? PluginsController.startError : e.getMessage() != null ? e.getMessage() : e.toString();
@@ -147,11 +149,42 @@ public final class GlassgramPluginInstaller {
                 AndroidUtilities.runOnUIThread(() -> showError(fragment, reason, details));
                 return;
             }
-            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, meta));
+            final boolean trusted = trustedSource;
+            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, meta, trusted));
         });
     }
 
-    private static void showConfirm(BaseFragment fragment, File file, String[] meta) {
+    /** Whether the glassGram team vouches for this very file: it is in the catalog (GlassgramPluginCatalog). */
+    private static boolean isVouched(File file) {
+        final java.util.ArrayList<org.telegram.messenger.GlassgramPluginCatalog.Entry> entries = org.telegram.messenger.GlassgramPluginCatalog.entries();
+        if (entries == null || entries.isEmpty() || file.length() > 4 * 1024 * 1024) {
+            return false;
+        }
+        try {
+            final byte[] data = new byte[(int) file.length()];
+            try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                int read = 0;
+                while (read < data.length) {
+                    final int n = in.read(data, read, data.length - read);
+                    if (n < 0) {
+                        break;
+                    }
+                    read += n;
+                }
+            }
+            final String sha256 = Utilities.bytesToHex(Utilities.computeSHA256(data));
+            for (org.telegram.messenger.GlassgramPluginCatalog.Entry entry : entries) {
+                if (sha256.equalsIgnoreCase(entry.sha256)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return false;
+    }
+
+    private static void showConfirm(BaseFragment fragment, File file, String[] meta, boolean trusted) {
         Activity activity = fragment.getParentActivity();
         if (activity == null) {
             return;
@@ -165,19 +198,35 @@ public final class GlassgramPluginInstaller {
         LinearLayout layout = new LinearLayout(activity);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(16), dp(20), dp(16), dp(8));
-        layout.addView(createPluginHeader(activity, fragment.getCurrentAccount(), name, meta[2], meta[3], meta[4], meta[5], resourcesProvider),
+        layout.addView(createPluginHeader(activity, fragment.getCurrentAccount(), name, meta[2], meta[3], null, meta[5], resourcesProvider),
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        if (trusted) {
+            layout.addView(GlassgramPluginAnalysis.createTrustedBadge(activity, resourcesProvider),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 14, 0, 0));
+        }
+        final String description = meta[4];
+        if (!TextUtils.isEmpty(description)) {
+            layout.addView(GlassgramPluginAnalysis.createDescriptionCard(activity, description, resourcesProvider),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 20, 0, 0));
+        }
 
-        // what the check of its code found (_glassgram_scan.py)
+        // what the plugin can do, read from its code (_glassgram_analysis.py), or before it, what
+        // the check of its code found (_glassgram_scan.py)
+        final GlassgramPluginAnalysis analysis = GlassgramPluginAnalysis.parse(meta.length > 8 ? meta[8] : null);
         final String[] findings = meta.length > 7 && !TextUtils.isEmpty(meta[7]) ? meta[7].split("\n") : new String[0];
-        boolean dangerFound = false;
+        boolean dangerFound = analysis != null && analysis.isDanger();
         for (String finding : findings) {
             dangerFound |= finding.startsWith("danger|");
         }
         final boolean danger = dangerFound;
-        final View findingsCard = createFindingsCard(activity, findings, danger, resourcesProvider);
-        if (findingsCard != null) {
-            layout.addView(findingsCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 20, 0, 0));
+        if (analysis != null) {
+            layout.addView(analysis.createSummaryCard(activity, () -> analysis.showReport(fragment, name), resourcesProvider),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        } else {
+            final View findingsCard = createFindingsCard(activity, findings, danger, resourcesProvider);
+            if (findingsCard != null) {
+                layout.addView(findingsCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 20, 0, 0));
+            }
         }
 
         final boolean[] enableAfter = {update || GlassgramConfig.pluginsEnableAfterInstall};
@@ -240,18 +289,36 @@ public final class GlassgramPluginInstaller {
         }
 
         FrameLayout container = new FrameLayout(activity);
-        container.addView(layout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        ImageView source = new ImageView(activity);
-        source.setScaleType(ImageView.ScaleType.CENTER);
-        source.setImageResource(R.drawable.formatting_code);
-        source.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider), PorterDuff.Mode.SRC_IN));
-        source.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), Theme.RIPPLE_MASK_CIRCLE_20DP));
-        source.setContentDescription(getString(R.string.GlassgramPluginSource));
-        source.setOnClickListener(v -> openSource(fragment, file, name));
-        container.addView(source, LayoutHelper.createFrame(40, 40, Gravity.TOP | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 8, 8, 8, 0));
+        android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(layout, new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        container.addView(scroll, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        // As exteraGram: translating the description and the code, in a capsule at the top
+        final LinearLayout actions = new LinearLayout(activity);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setBackground(Theme.createRoundRectDrawable(dp(22), Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.06f)));
+        if (!TextUtils.isEmpty(description)) {
+            actions.addView(actionButton(activity, R.drawable.msg_translate, getString(R.string.TranslateMessage), v ->
+                    org.telegram.ui.Components.TranslateAlert2.showAlert(activity, fragment, fragment.getCurrentAccount(), null, null,
+                            AndroidUtilities.replaceTags(description), null, false, null, null), resourcesProvider), LayoutHelper.createLinear(44, 44));
+        }
+        actions.addView(actionButton(activity, R.drawable.msg_openin, getString(R.string.GlassgramPluginSource), v -> openSource(fragment, file, name), resourcesProvider),
+                LayoutHelper.createLinear(44, 44));
+        container.addView(actions, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.TOP | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 12, 12, 12, 0));
 
         sheet.setCustomView(container);
         fragment.showDialog(sheet);
+    }
+
+    private static View actionButton(Context context, int icon, String description, View.OnClickListener click, Theme.ResourcesProvider resourcesProvider) {
+        final ImageView button = new ImageView(context);
+        button.setScaleType(ImageView.ScaleType.CENTER);
+        button.setImageResource(icon);
+        button.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), PorterDuff.Mode.SRC_IN));
+        button.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), Theme.RIPPLE_MASK_CIRCLE_20DP));
+        button.setContentDescription(description);
+        button.setOnClickListener(click);
+        return button;
     }
 
     /**

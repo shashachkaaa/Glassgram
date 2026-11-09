@@ -227,8 +227,9 @@ def _read_meta(path: str) -> dict:
 
 
 def read_metadata(path: str):
-    """[id, name, version, author, description, icon, installed, findings] of a plugin file, for the
-    install dialog; findings are what _glassgram_scan saw in its code, one a line."""
+    """[id, name, version, author, description, icon, installed, findings, analysis] of a plugin file,
+    for the install dialog; findings are what _glassgram_scan saw in its code, one a line, and the
+    analysis what the plugin can do (_glassgram_analysis, JSON)."""
     with open(path, "r", encoding="utf-8-sig") as f:
         source = f.read()
     meta = _normalize_meta(get_metadata_from_source(source), "")
@@ -240,8 +241,27 @@ def read_metadata(path: str):
         # the check failing never keeps a plugin from being installed
         traceback.print_exc()
         findings = ""
+    try:
+        import _glassgram_analysis
+
+        analysis = _glassgram_analysis.analyze_source(source)
+    except Exception:
+        traceback.print_exc()
+        analysis = ""
     return jarray(JObject)([meta["id"], meta["name"], meta["version"], meta["author"], meta["description"],
-                           meta["icon"], "1" if meta["id"] in _records else "0", findings])
+                           meta["icon"], "1" if meta["id"] in _records else "0", findings, analysis])
+
+
+def caller_plugin():
+    """The plugin whose code is on this thread's stack, innermost first, or "" when none is: who sent a
+    request the app asks about (PluginActionGuard). Its frames are there under the Java call it made."""
+    frame = sys._getframe(1)
+    while frame is not None:
+        plugin_id = frame.f_globals.get("__glassgram_plugin_id__")
+        if plugin_id:
+            return plugin_id
+        frame = frame.f_back
+    return ""
 
 
 def _publish(record: _Record):
@@ -635,6 +655,11 @@ def _hooked(name: str):
                 break
     result.sort(key=lambda x: -x[0])
     return result
+
+
+def hooking_plugins(name: str):
+    """The ids of the plugins hooking a request, comma-separated (PluginActionGuard)."""
+    return ",".join(plugin_id for _priority, plugin_id, _instance in _hooked(name))
 
 
 def _apply(result, current, attr):

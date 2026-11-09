@@ -409,12 +409,19 @@ public class ConnectionsManager extends BaseController {
 
     public int sendRequestSync(final TLObject object, final RequestDelegate onComplete, final QuickAckDelegate onQuickAck, final WriteToSocketDelegate onWriteToSocket, final int flags, final int datacenterId, final int connectionType, final boolean immediate) {
         final int requestToken = lastRequestToken.getAndIncrement();
+        final String pluginCaller = guardedCaller(object);
         TLObject request = object;
-        if (org.telegram.messenger.plugins.PluginsController.hasHook(request)) {
+        final boolean hooked = org.telegram.messenger.plugins.PluginsController.hasHook(request);
+        final byte[] before = hooked && pluginCaller == null && org.telegram.messenger.plugins.PluginActionGuard.kindOf(request) != 0
+            ? org.telegram.messenger.plugins.PluginActionGuard.bytesOf(request) : null;
+        if (hooked) {
             request = org.telegram.messenger.plugins.PluginsController.onPreRequest(currentAccount, request);
             if (request == null) {
                 return requestToken;
             }
+        }
+        if (guard(object, before, request, pluginCaller, onComplete, null, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken)) {
+            return requestToken;
         }
         sendRequestInternal(request, onComplete, null, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
         return requestToken;
@@ -422,18 +429,71 @@ public class ConnectionsManager extends BaseController {
 
     public int sendRequest(final TLObject object, final RequestDelegate onComplete, final RequestDelegateTimestamp onCompleteTimestamp, final QuickAckDelegate onQuickAck, final WriteToSocketDelegate onWriteToSocket, final int flags, final int datacenterId, final int connectionType, final boolean immediate) {
         final int requestToken = lastRequestToken.getAndIncrement();
+        // Who sends it is known only here, on the sender's thread
+        final String pluginCaller = guardedCaller(object);
         Utilities.stageQueue.postRunnable(() -> {
             TLObject request = object;
-            if (org.telegram.messenger.plugins.PluginsController.hasHook(request)) {
+            final boolean hooked = org.telegram.messenger.plugins.PluginsController.hasHook(request);
+            final byte[] before = hooked && pluginCaller == null && org.telegram.messenger.plugins.PluginActionGuard.kindOf(request) != 0
+                ? org.telegram.messenger.plugins.PluginActionGuard.bytesOf(request) : null;
+            if (hooked) {
                 // Plugins may change the request, or cancel it by returning nothing
                 request = org.telegram.messenger.plugins.PluginsController.onPreRequest(currentAccount, request);
                 if (request == null) {
                     return;
                 }
             }
+            if (guard(object, before, request, pluginCaller, onComplete, onCompleteTimestamp, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken)) {
+                return;
+            }
             sendRequestInternal(request, onComplete, onCompleteTimestamp, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
         });
         return requestToken;
+    }
+
+    // glassGram: a request of a plugin's that spends Stars, gives a gift away, changes the account's
+    // security or manages a chat waits for the user (PluginActionGuard)
+
+    /** The plugin sending the request from this thread when it is one the user decides; null otherwise. */
+    private static String guardedCaller(TLObject request) {
+        if (!org.telegram.messenger.plugins.PluginsController.isStarted() || org.telegram.messenger.plugins.PluginActionGuard.kindOf(request) == 0) {
+            return null;
+        }
+        return org.telegram.messenger.plugins.PluginActionGuard.caller();
+    }
+
+    /** Whether the request waits for the user: a plugin's, or made or changed by a plugin's request hook. */
+    private boolean guard(TLObject original, byte[] before, TLObject request, String pluginCaller, RequestDelegate onComplete, RequestDelegateTimestamp onCompleteTimestamp, QuickAckDelegate onQuickAck, WriteToSocketDelegate onWriteToSocket, int flags, int datacenterId, int connectionType, boolean immediate, int requestToken) {
+        if (org.telegram.messenger.plugins.PluginActionGuard.kindOf(request) == 0) {
+            return false;
+        }
+        String asker = pluginCaller;
+        if (asker == null) {
+            if (org.telegram.messenger.plugins.PluginActionGuard.kindOf(original) == 0 || org.telegram.messenger.plugins.PluginActionGuard.changed(original, before, request)) {
+                if (!org.telegram.messenger.plugins.PluginsController.hasHook(original)) {
+                    return false;
+                }
+                asker = org.telegram.messenger.plugins.PluginActionGuard.hookingPlugins(original);
+            } else {
+                return false;
+            }
+        }
+        final TLObject guarded = request;
+        org.telegram.messenger.plugins.PluginActionGuard.confirm(currentAccount, asker, guarded, allowed -> Utilities.stageQueue.postRunnable(() -> {
+            if (allowed) {
+                sendRequestInternal(guarded, onComplete, onCompleteTimestamp, onQuickAck, onWriteToSocket, flags, datacenterId, connectionType, immediate, requestToken);
+                return;
+            }
+            final TLRPC.TL_error error = new TLRPC.TL_error();
+            error.code = 403;
+            error.text = org.telegram.messenger.plugins.PluginActionGuard.DENIED;
+            if (onComplete != null) {
+                onComplete.run(null, error);
+            } else if (onCompleteTimestamp != null) {
+                onCompleteTimestamp.run(null, error, 0);
+            }
+        }));
+        return true;
     }
 
     private void sendRequestInternal(TLObject object, RequestDelegate onComplete, RequestDelegateTimestamp onCompleteTimestamp, QuickAckDelegate onQuickAck, WriteToSocketDelegate onWriteToSocket, int flags, int datacenterId, int connectionType, boolean immediate, int requestToken) {
@@ -494,6 +554,10 @@ public class ConnectionsManager extends BaseController {
                     }
                     if (resp != null) {
                         resp.networkType = networkType;
+                        if (object instanceof TLRPC.TL_payments_getPaymentForm) {
+                            // what paying the form costs, for a plugin's payment asked about
+                            org.telegram.messenger.plugins.PluginActionGuard.rememberForm(resp);
+                        }
                     }
                     if (BuildVars.LOGS_ENABLED) {
                         FileLog.d("java received " + resp + (error != null ? " error = " + error : "") + " messageId = 0x" + Long.toHexString(requestMsgId));
