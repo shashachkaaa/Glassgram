@@ -201,6 +201,11 @@ public class GlassgramHeaderButton extends FrameLayout {
         return Math.max(height, (int) Math.ceil(width) + dp(TEXT_PADDING_DP) * 2);
     }
 
+    /** Whether the button is pressed, or springing back from a press. */
+    public boolean isPressActive() {
+        return press.isActive();
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         press.onTouchEvent(event);

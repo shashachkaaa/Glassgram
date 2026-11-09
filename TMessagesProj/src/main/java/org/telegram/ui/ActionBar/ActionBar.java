@@ -3045,7 +3045,67 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         final boolean handled = super.dispatchTouchEvent(ev);
         glassTouch(ev, handled);
+        glassRaiseTouch(ev);
         return handled;
+    }
+
+    // glassGram: a pressed glass piece swells and is pulled past the bar, over what lies under it
+    // (the chats list's search field, laid out after the bar, drew over it): meanwhile the bar is
+    // raised above the views beside it, and set back once no piece is pressed or springing back
+
+    private boolean glassRaised;
+    private boolean glassRaiseTouching;
+    private android.view.ViewOutlineProvider glassRaisedOutline;
+    private final Runnable glassRaiseCheck = this::glassRaiseCheck;
+
+    private void glassRaiseTouch(MotionEvent ev) {
+        if (!hasLiquidGlassButtons()) {
+            return;
+        }
+        final int action = ev.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            glassRaiseTouching = true;
+            if (!glassRaised) {
+                glassRaised = true;
+                // no shadow for being raised
+                glassRaisedOutline = getOutlineProvider();
+                setOutlineProvider(null);
+                setTranslationZ(dp(1));
+                postOnAnimation(glassRaiseCheck);
+            }
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            glassRaiseTouching = false;
+        }
+    }
+
+    private boolean anyGlassPressActive() {
+        for (LiquidPressEffect effect : glassPress) {
+            if (effect != null && effect.isActive()) {
+                return true;
+            }
+        }
+        if (glassgramExtraViews != null) {
+            for (View view : glassgramExtraViews) {
+                if (view instanceof org.telegram.ui.Components.GlassgramHeaderButton && ((org.telegram.ui.Components.GlassgramHeaderButton) view).isPressActive()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void glassRaiseCheck() {
+        if (!glassRaised) {
+            return;
+        }
+        if (glassRaiseTouching && isAttachedToWindow() || anyGlassPressActive()) {
+            postOnAnimation(glassRaiseCheck);
+            return;
+        }
+        glassRaised = false;
+        setTranslationZ(0);
+        setOutlineProvider(glassRaisedOutline);
+        glassRaisedOutline = null;
     }
 
     public static View findChildUnder(ViewGroup parent, float x, float y, View exclude) {

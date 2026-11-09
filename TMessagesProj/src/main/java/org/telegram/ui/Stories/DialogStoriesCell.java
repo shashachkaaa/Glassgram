@@ -2338,6 +2338,44 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         }
     }
 
+    // glassGram: lying over the bar, the stories (collapsed beside the title, with its badge) took
+    // the taps meant for the bar's glass buttons under them, the stories' + in the menu's capsule
+    // among them; those go to the bar
+    private final android.graphics.RectF[] glassgramBarPieces = new android.graphics.RectF[6];
+    private final int[] glassgramBarTints = new int[6];
+    private final int[] glassgramBarLocation = new int[2];
+
+    private boolean glassgramOverBarButton(MotionEvent event) {
+        if (actionBar == null || actionBar.getVisibility() != VISIBLE || !actionBar.hasLiquidGlassButtons() || !actionBar.isAttachedToWindow()) {
+            return false;
+        }
+        if (glassgramBarPieces[0] == null) {
+            for (int i = 0; i < glassgramBarPieces.length; i++) {
+                glassgramBarPieces[i] = new android.graphics.RectF();
+            }
+        }
+        actionBar.getLocationOnScreen(glassgramBarLocation);
+        final float x = event.getRawX() - glassgramBarLocation[0];
+        final float y = event.getRawY() - glassgramBarLocation[1];
+        final int count = actionBar.getGlassgramPieces(glassgramBarPieces, glassgramBarTints);
+        final float slop = dp(4);
+        for (int i = 0; i < count; i++) {
+            final android.graphics.RectF piece = glassgramBarPieces[i];
+            if (x >= piece.left - slop && x <= piece.right + slop && y >= piece.top - slop && y <= piece.bottom + slop) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && glassgramOverBarButton(event)) {
+            return false;
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (currentState == COLLAPSED_STATE) {
