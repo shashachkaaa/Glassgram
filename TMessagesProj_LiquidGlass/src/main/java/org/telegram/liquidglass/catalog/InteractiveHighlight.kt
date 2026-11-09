@@ -66,6 +66,14 @@ class InteractiveHighlight(
         }
     }
 
+    /** At rest at once, no spring back: for a button handed to another owner. */
+    fun reset() {
+        animationScope.launch {
+            launch { pressProgressAnimation.snapTo(0f) }
+            launch { positionAnimation.snapTo(startPosition) }
+        }
+    }
+
     private val shader =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             RuntimeShader(

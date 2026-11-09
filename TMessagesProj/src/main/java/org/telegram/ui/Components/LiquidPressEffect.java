@@ -67,27 +67,21 @@ public class LiquidPressEffect {
     public LiquidPressEffect(View view) {
         this.view = view;
         if (LiquidButtonView.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
-            button = new LiquidButtonView(view.getContext());
-            button.setSource(this::drawButtonSource);
-            button.setInvalidateListener(() -> {
-                view.invalidate();
-                restoreClipping();
-            });
-            // The button needs a window: it goes, out of sight, into the root of the view's own,
-            // after the frame being drawn (the root must not get a child while it draws)
+            // The button is held while the view is in a window, and given back to the window's pool after
             view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                 @Override
                 public void onViewAttachedToWindow(View v) {
-                    attachButton();
+                    obtainButton();
                 }
 
                 @Override
                 public void onViewDetachedFromWindow(View v) {
-                    button.detach();
+                    cancelPress();
+                    releaseButton();
                 }
             });
             if (view.isAttachedToWindow()) {
-                attachButton();
+                obtainButton();
             }
         }
         pressAnimation = spring(press, 0.001f);
@@ -111,13 +105,59 @@ public class LiquidPressEffect {
         }
     }
 
-    private void attachButton() {
+    private final LiquidButtonView.Source buttonSource = this::drawButtonSource;
+    private final LiquidButtonView.InvalidateListener buttonInvalidateListener = this::onButtonInvalidate;
+
+    private void onButtonInvalidate() {
+        view.invalidate();
+        restoreClipping();
+    }
+
+    /**
+     * The library's button for the view: one at rest in its window if there is one (composed, its shaders
+     * compiled by the screen before), otherwise a new one, put out of sight into the root of the window
+     * after the frame being drawn (the root must not get a child while it draws).
+     */
+    private void obtainButton() {
+        if (button != null) {
+            return;
+        }
+        final LiquidButtonView pooled = LiquidButtonView.obtainPooled(view);
+        if (pooled != null) {
+            bindButton(pooled);
+            return;
+        }
         view.post(() -> {
-            if (view.isAttachedToWindow()) {
-                button.attach(view);
-                view.invalidate();
+            if (!view.isAttachedToWindow() || button != null) {
+                return;
             }
+            LiquidButtonView b = LiquidButtonView.obtainPooled(view);
+            if (b == null) {
+                b = new LiquidButtonView(view.getContext());
+                b.attach(view);
+            }
+            bindButton(b);
         });
+    }
+
+    private void bindButton(LiquidButtonView b) {
+        button = b;
+        b.setSource(buttonSource);
+        b.setInvalidateListener(buttonInvalidateListener);
+        view.invalidate();
+    }
+
+    /** The view left its window: its button stays there for the next screen. */
+    private void releaseButton() {
+        final LiquidButtonView b = button;
+        if (b == null) {
+            return;
+        }
+        button = null;
+        buttonDrawn = false;
+        buttonGlass = null;
+        buttonBackdrop = null;
+        LiquidButtonView.recycle(b);
     }
 
     /** Whether the library's LiquidButton was drawn last time, so its owner keeps room for its shadow. */

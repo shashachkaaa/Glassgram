@@ -243,10 +243,75 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
         )
     }
 
+    /** Back at rest, without an owner: no source, no colors, no press. */
+    private fun resetForPool() {
+        source = null
+        invalidateListener = null
+        tintState = 0
+        surfaceColorState = 0
+        cornerRadiusState = Float.POSITIVE_INFINITY
+        highlight.reset()
+    }
+
     companion object {
         /** Room around the button for its swell, the lean towards the finger and the library's shadow (24dp, 4dp down). */
         const val OVERFLOW_DP = 32
         private const val FOUR_DP = 4f
+
+        /*
+         * Buttons kept, out of sight, in the root of their window for the next owner there. A new button
+         * goes into the window's root (a layout of the whole window), composes, and its glass compiles its
+         * shaders on its first draw (the library caches them per button): a chat opening made a dozen of
+         * them, and threw them away as it closed. A button let go stays in the root, composed, its shaders
+         * ready, and the next screen takes it.
+         */
+        private const val MAX_POOLED = 16
+        private val pools = HashMap<View, ArrayList<LiquidButtonView>>()
+
+        /** A button already in [owner]'s window, composed and at rest; null when there is none to take. */
+        @JvmStatic
+        fun obtainPooled(owner: View): LiquidButtonView? {
+            val list = pools[owner.rootView] ?: return null
+            while (list.isNotEmpty()) {
+                val button = list.removeAt(list.size - 1)
+                if (button.parent === owner.rootView && button.isAttachedToWindow) {
+                    return button
+                }
+            }
+            return null
+        }
+
+        /** Lets [button] go: kept in its window for the next owner, or taken out of it. */
+        @JvmStatic
+        fun recycle(button: LiquidButtonView) {
+            button.resetForPool()
+            val root = button.parent as? View
+            if (root == null || !button.isAttachedToWindow) {
+                button.detach()
+                return
+            }
+            var list = pools[root]
+            if (list == null) {
+                list = ArrayList()
+                pools[root] = list
+                // The window going away takes its buttons with it
+                root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(v: View) {}
+
+                    override fun onViewDetachedFromWindow(v: View) {
+                        v.removeOnAttachStateChangeListener(this)
+                        pools.remove(v)
+                    }
+                })
+            }
+            if (list.size >= MAX_POOLED || list.contains(button)) {
+                if (!list.contains(button)) {
+                    button.detach()
+                }
+                return
+            }
+            list.add(button)
+        }
 
         /** The glass needs RenderEffect. */
         @JvmStatic
