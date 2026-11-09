@@ -1403,8 +1403,42 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    // glassGram: the screen's own glass buttons on the bar (the chats list's new message button)
+    // flow into the menu's capsule as one glass, drawn over both: the menu's items (the capsule's
+    // contents) are drawn after those buttons then, or the merged glass would cover them
+    private View glassMenuDrawnAfter;
+    private boolean glassDrawingMenuAfter;
+
+    /** Draws the menu's items after the given child of the bar (a layer of the screen's glass buttons). */
+    public void setGlassMenuDrawnAfter(View child) {
+        glassMenuDrawnAfter = child;
+        invalidate();
+    }
+
+    private boolean glassMenuDeferred() {
+        return glassMenuDrawnAfter != null && menu != null && glassMenuDrawnAfter.getParent() == this
+            && glassMenuDrawnAfter.getVisibility() == VISIBLE && indexOfChild(glassMenuDrawnAfter) > indexOfChild(menu);
+    }
+
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        if (child == menu && !glassDrawingMenuAfter && glassMenuDeferred()) {
+            // drawn after glassMenuDrawnAfter
+            return false;
+        }
+        final boolean result = drawChildGlass(canvas, child, drawingTime);
+        if (child == glassMenuDrawnAfter && glassMenuDeferred()) {
+            glassDrawingMenuAfter = true;
+            try {
+                drawChildGlass(canvas, menu, drawingTime);
+            } finally {
+                glassDrawingMenuAfter = false;
+            }
+        }
+        return result;
+    }
+
+    private boolean drawChildGlass(Canvas canvas, View child, long drawingTime) {
         final int surface = glassSurfaceOf(child);
         if (surface == GLASS_NONE) {
             return drawChildContent(canvas, child, drawingTime);

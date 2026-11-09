@@ -3089,14 +3089,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         composeParams.rightMargin = margin;
         composeParams.bottomMargin = bottom;
         glassgramHeaderButtons.addView(glassgramComposeButton, composeParams);
-        // Pressed, it flows into the menu's capsule beside it, as on iOS
+        // Pressed, it flows into the menu's capsule beside it, as on iOS: one glass over both, with
+        // the capsule's items (the stories' +, the proxy) drawn after the header's buttons
+        actionBar.setGlassMenuDrawnAfter(glassgramHeaderButtons);
         glassgramComposeButton.setMergeNeighbor(out -> {
             if (!actionBar.getGlassMenuShape(out)) {
                 return false;
             }
             out.offset(-(glassgramHeaderButtons.getX() + glassgramComposeButton.getX()), -(glassgramHeaderButtons.getY() + glassgramComposeButton.getY()));
             return true;
-        }, iBlur3FactoryLiquidGlass, colors);
+        }, true, iBlur3FactoryLiquidGlass, colors);
 
         // Edit and the new message button are the header's glass too when it flows into a chat's
         actionBar.setGlassgramExtraPieces((out, tints, start) -> {

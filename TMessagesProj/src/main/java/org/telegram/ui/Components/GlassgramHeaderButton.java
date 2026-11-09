@@ -50,6 +50,7 @@ public class GlassgramHeaderButton extends FrameLayout {
     }
 
     private MergeNeighbor mergeNeighbor;
+    private boolean mergeNeighborContentsAfter;
     private GlassMerge merge;
     private BlurredBackgroundDrawable mergeGlass;
     private float mergeRestGap = -1;
@@ -58,7 +59,17 @@ public class GlassgramHeaderButton extends FrameLayout {
 
     /** As on iOS, pressed, the button flows into the glass beside it (GlassMerge); null for none. */
     public void setMergeNeighbor(MergeNeighbor neighbor, BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colors) {
+        setMergeNeighbor(neighbor, false, factory, colors);
+    }
+
+    /**
+     * As above; contentsAfter when the neighbor's contents are drawn after this button (as the bar
+     * does with ActionBar.setGlassMenuDrawnAfter): the two become one glass all over then, the
+     * neighbor's glass and its rim under it, not only the neighbor's edge.
+     */
+    public void setMergeNeighbor(MergeNeighbor neighbor, boolean contentsAfter, BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colors) {
         mergeNeighbor = neighbor;
+        mergeNeighborContentsAfter = contentsAfter;
         if (neighbor != null && merge == null) {
             merge = new GlassMerge();
             mergeGlass = factory.create(this, colors);
@@ -81,12 +92,14 @@ public class GlassgramHeaderButton extends FrameLayout {
             return;
         }
         if (merged) {
-            // One glass with the neighbor, over both after this button's own glass: the neighbor's
-            // contents are drawn already (only its edge goes into it), this button's after
+            // One glass with the neighbor, over both after this button's own glass; this button's
+            // contents are drawn after it, the neighbor's too when the bar draws them after this
+            // button (else they are drawn already, and only the neighbor's edge goes into it)
             final int surface = LiquidPressEffect.surfaceOf(mergeGlass.getBackgroundColor());
+            final boolean neighborInner = mergeNeighborContentsAfter;
             final boolean drawn = neighborFirst
-                ? merge.drawMerged(canvas, mergeOther, mergeMine, mergeRestGap, mergeGlass, 0, tint, surface, surface, false, true)
-                : merge.drawMerged(canvas, mergeMine, mergeOther, mergeRestGap, mergeGlass, tint, 0, surface, surface, true, false);
+                ? merge.drawMerged(canvas, mergeOther, mergeMine, mergeRestGap, mergeGlass, 0, tint, surface, surface, neighborInner, true)
+                : merge.drawMerged(canvas, mergeMine, mergeOther, mergeRestGap, mergeGlass, tint, 0, surface, surface, true, neighborInner);
             if (drawn) {
                 return;
             }
