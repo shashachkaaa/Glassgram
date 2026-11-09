@@ -271,7 +271,40 @@ public class GlassEngine {
 
     private int onDrawUpdateFlags;
 
+    /**
+     * glassGram: a parent that holds what is in it still for a while, as a picture of it (a page
+     * sliding in or out in its hardware layer, ActionBarLayout). The engine waits meanwhile: its
+     * captures and glass recorded again changed the picture, which was drawn again on every frame of
+     * the slide, glass and all. What changed is caught up with once the parent lets go.
+     */
+    public interface StillParent {
+        boolean isHoldingStill();
+    }
+
+    private boolean heldStill;
+
+    private boolean isHeldStill() {
+        View view = rootView;
+        while (view != null) {
+            final ViewParent parent = view.getParent();
+            if (parent instanceof StillParent && ((StillParent) parent).isHoldingStill()) {
+                return true;
+            }
+            view = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
     private void onDraw() {
+        if (isHeldStill()) {
+            heldStill = true;
+            return;
+        }
+        if (heldStill) {
+            heldStill = false;
+            // whatever moved in the page while it was still: its captures are made again at once
+            otherGenerationId++;
+        }
         int flags = 0;
         if (lastGlassSettingsGenerationId != glassSettingsGenerationId) {
             lastGlassSettingsGenerationId = glassSettingsGenerationId;
@@ -321,6 +354,9 @@ public class GlassEngine {
     }
 
     private void onPostDraw() {
+        if (heldStill) {
+            return;
+        }
         Trace.beginSection("G.CheckPositions");
         hasInvalidatedDrawables = false;
         final boolean hasInvalidatedPositionsOrVisibility = checkDrawablePositionsIfNeeded();

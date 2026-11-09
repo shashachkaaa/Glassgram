@@ -420,6 +420,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             if (glassNeckDrawables[i] == null) {
                 glassNeckDrawables[i] = glassFactory.create(this).setColorProvider(glassColorProvider);
             }
+            // its shape changes with every frame of the press: captured once for the whole bar
+            glassNeckDrawables[i].setReservedBounds(-dp(24), -dp(24), getWidth() + dp(24), getHeight() + dp(24));
             // The pieces become one glass: their contents (the icons, the name) are drawn after it
             final int surfaceA = glassSurfaceColor(a), surfaceB = glassSurfaceColor(b);
             if (!glassMerge.drawMerged(canvas, left, right, glassNeckRestGap[i], glassNeckDrawables[i], 0, 0,
@@ -511,7 +513,22 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (glassgramMorphGlass[slot] == null) {
             glassgramMorphGlass[slot] = glassFactory.create(this).setColorProvider(glassColorProvider);
         }
-        return glassgramMorphGlass[slot];
+        final BlurredBackgroundDrawable glass = glassgramMorphGlass[slot];
+        // It changes its shape on every frame of the slide: what is under it is captured once for
+        // the whole bar, or its page's glass engine captured the page again on every frame, and drew
+        // all of its glass again
+        final int m = dp(12);
+        glass.setReservedBounds(-m, -m, getWidth() + m, getHeight() + dp(24));
+        return glass;
+    }
+
+    /** After a slide: the morphing pieces' glass is out of its page's captures until the next one. */
+    public void hideGlassgramMorphGlass() {
+        for (BlurredBackgroundDrawable glass : glassgramMorphGlass) {
+            if (glass != null && glass.getAlpha() != 0) {
+                glass.setAlpha(0);
+            }
+        }
     }
 
     // glassGram: the chats list's iOS-like header. The menu's capsule moves in from the end for a

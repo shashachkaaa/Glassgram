@@ -113,7 +113,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         return lastFragment != null && lastFragment.getLastStoryViewer() != null && lastFragment.getLastStoryViewer().attachedToParent();
     }
 
-    public class LayoutContainer extends FrameLayout {
+    public class LayoutContainer extends FrameLayout implements org.telegram.utils.glass.GlassEngine.StillParent {
 
         private Rect rect = new Rect();
         private boolean isKeyboardVisible;
@@ -134,6 +134,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         // redrew the whole page, glass and all, into its layer every frame, and frames were missed
         private boolean glassgramFrozen;
         private boolean glassgramMissed;
+
+        @Override
+        public boolean isHoldingStill() {
+            // the pages' glass engines wait while the page is a still picture
+            return glassgramFrozen && transitionAnimationInProgress;
+        }
 
         void glassgramSetFrozen(boolean frozen) {
             if (glassgramFrozen == frozen) {
@@ -1193,9 +1199,11 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private void glassgramResetHeaderAppear() {
         if (glassgramHeaderOut != null) {
             glassgramHeaderOut.setGlassgramAppear(1f);
+            glassgramHeaderOut.hideGlassgramMorphGlass();
         }
         if (glassgramHeaderIn != null) {
             glassgramHeaderIn.setGlassgramAppear(1f);
+            glassgramHeaderIn.hideGlassgramMorphGlass();
         }
         if (glassgramHeaderOut != null || glassgramHeaderIn != null) {
             glassgramHeaderOut = glassgramHeaderIn = null;
@@ -1359,7 +1367,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 canvas.translate(bx, by);
                 glass.setBounds(Math.round(rect.left - bx), Math.round(rect.top - by), Math.round(rect.right - bx), Math.round(rect.bottom - by));
                 glass.setRadius(radius);
-                glass.setAlpha((int) (255 * alpha));
+                // never 0 while it is drawn: its page's glass engine would take it for gone and come back
+                glass.setAlpha(Math.max(1, (int) (255 * alpha)));
                 glass.draw(canvas);
                 canvas.restore();
             }

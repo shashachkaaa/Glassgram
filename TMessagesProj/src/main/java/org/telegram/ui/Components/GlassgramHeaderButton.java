@@ -54,6 +54,7 @@ public class GlassgramHeaderButton extends FrameLayout {
     private GlassMerge merge;
     private BlurredBackgroundDrawable mergeGlass;
     private float mergeRestGap = -1;
+    private boolean mergeReserved;
     private final android.graphics.RectF mergeMine = new android.graphics.RectF();
     private final android.graphics.RectF mergeOther = new android.graphics.RectF();
 
@@ -89,7 +90,17 @@ public class GlassgramHeaderButton extends FrameLayout {
             if (mergeGlass.getAlpha() != 0) {
                 mergeGlass.setAlpha(0);
             }
+            mergeReserved = false;
             return;
+        }
+        if (!mergeReserved) {
+            // Its shape changes with every frame of the press: what is under the button and its
+            // neighbor, with room for the press, is captured once, not on every frame
+            mergeReserved = true;
+            final float room = h;
+            mergeGlass.setReservedBounds(
+                (int) Math.floor(Math.min(0, mergeOther.left) - room), (int) Math.floor(Math.min(0, mergeOther.top) - room),
+                (int) Math.ceil(Math.max(getWidth(), mergeOther.right) + room), (int) Math.ceil(Math.max(h, mergeOther.bottom) + room));
         }
         if (merged) {
             // One glass with the neighbor, over both after this button's own glass; this button's
