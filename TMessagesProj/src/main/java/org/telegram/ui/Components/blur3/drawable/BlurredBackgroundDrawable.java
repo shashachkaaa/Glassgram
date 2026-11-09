@@ -778,10 +778,12 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
      * How far around the glass the source must be captured. Telegram's own liquid shader
      * reads only inside the shape, so its screens capture with a few dp of outset; the
      * library's blur and lens read past the edge, and with that outset they ran into the
-     * border of the captured copy and showed it as a thin dotted rectangle. Capture as much
-     * as frosted blur does.
+     * border of the captured copy and showed it as a thin dotted rectangle. The library's
+     * blur (8dp at most) reaches some 14dp past the glass: 24dp is clear of it. The 48dp of
+     * frosted blur made every screen capture and blur far more than the glass shows, on
+     * every frame of a transition (the chats' screen adds 48dp of its own around it all).
      */
-    private static final int LIBRARY_GLASS_OUTSET_DP = 48;
+    private static final int LIBRARY_GLASS_OUTSET_DP = 24;
 
     /** Every glass surface, frosted ones included, is drawn by the library while the liquid glass is on. */
     private boolean isLibraryGlassEnabled() {
@@ -1387,19 +1389,34 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
             return renderNode.hasDisplayList();
         }
 
+        // glassGram: wanted by the screen; Telegram's lens is made only where it draws (see useLibraryGlass)
+        private boolean liquidGlassWanted;
+
         @Override
         void setLiquidGlassEnabled(boolean enabled) {
-            if (enabled == (liquidGlassEffect != null) || Build.VERSION.SDK_INT < 33) {
+            if (enabled == liquidGlassWanted || Build.VERSION.SDK_INT < 33) {
                 return;
             }
-            if (enabled) {
-                liquidGlassEffect = new LiquidGlassEffect(renderNodeFill);
-            } else {
+            liquidGlassWanted = enabled;
+            if (!enabled && liquidGlassEffect != null) {
                 liquidGlassEffect = null;
-                renderNodeFill.setRenderEffect(null);
+                if (!libraryEffectSet) {
+                    renderNodeFill.setRenderEffect(null);
+                }
             }
-            libraryEffectSet = false;
             invalidated = true;
+        }
+
+        /**
+         * Telegram's lens for the glass the library does not draw (a hint's arrow): made on its first use, as it
+         * compiles its shader. Everything else is the library's glass, and made one for every glass piece of a
+         * screen, it was a dozen of shaders compiled as a chat opened.
+         */
+        private void ensureLiquidGlassEffect() {
+            if (liquidGlassWanted && liquidGlassEffect == null && Build.VERSION.SDK_INT >= 33) {
+                liquidGlassEffect = new LiquidGlassEffect(renderNodeFill);
+                libraryEffectSet = false;
+            }
         }
 
         /* glassGram: the library's glass */
@@ -1524,6 +1541,7 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
             }
             drawnByLibrary = false;
             dropLibraryEffect();
+            ensureLiquidGlassEffect();
             final Rect b = boundProps.boundsWithPadding;
             final float sL = b.left + getSourceOffsetX();
             final float sT = b.top + getSourceOffsetY();

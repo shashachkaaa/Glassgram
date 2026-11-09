@@ -1,5 +1,8 @@
 package org.telegram.liquidglass;
 
+import android.graphics.RuntimeShader;
+
+import androidx.annotation.NonNull;
 import androidx.compose.ui.graphics.RectangleShapeKt;
 import androidx.compose.ui.graphics.Shape;
 import androidx.compose.ui.graphics.drawscope.DrawScope;
@@ -21,6 +24,27 @@ import com.kyant.backdrop.RuntimeShaderCache;
 final class GlassEffectScope extends BackdropEffectScopeImpl {
 
     private Shape shape = RectangleShapeKt.getRectangleShape();
+
+    /*
+     * One compiled shader of each kind (the lens, the highlights) for all the glass of the app.
+     * The library keeps a cache per scope, and every glass has its own scope: a screen with a
+     * dozen pieces of glass (a chat's header, input, buttons) parsed the same shaders a dozen
+     * times as it opened. Sharing them is safe: an effect made from a shader keeps the uniforms
+     * it was made with (Skia copies them on the next write), and a highlight's paint takes its
+     * shader as it is when drawn. All of it happens on the main thread.
+     */
+    private static final java.util.HashMap<String, RuntimeShader> sharedShaders = new java.util.HashMap<>();
+
+    @NonNull
+    @Override
+    public RuntimeShader obtainRuntimeShader(@NonNull String key, @NonNull String string) {
+        RuntimeShader shader = sharedShaders.get(string);
+        if (shader == null) {
+            shader = new RuntimeShader(string);
+            sharedShaders.put(string, shader);
+        }
+        return shader;
+    }
 
     @Override
     public Shape getShape() {

@@ -17,6 +17,7 @@ public class LiquidGlassEffect {
 
     private final RenderNode node;
     // the arrow costs the shader a lot: a shape without it keeps the plain one
+    private static String plainCode, arrowCode;
     private final RuntimeShader plainShader;
     private RuntimeShader arrowShader;
     private RuntimeShader shader;
@@ -29,7 +30,11 @@ public class LiquidGlassEffect {
 
     public LiquidGlassEffect(RenderNode node) {
         this.node = node;
-        final String code = AndroidUtilities.readRes(R.raw.liquid_glass_shader);
+        // glassGram: the shaders' text is read from the resources once
+        if (plainCode == null) {
+            plainCode = AndroidUtilities.readRes(R.raw.liquid_glass_shader);
+        }
+        final String code = plainCode;
         shader = plainShader = new RuntimeShader(code);
         node.setRenderEffect(effect = RenderEffect.createRuntimeShaderEffect(shader, "img"));
     }
@@ -119,7 +124,10 @@ public class LiquidGlassEffect {
             arrowChanged = false;
             if (arrowHeight > 0) {
                 if (arrowShader == null) {
-                    arrowShader = new RuntimeShader(AndroidUtilities.readRes(R.raw.liquid_glass_arrow_shader));
+                    if (arrowCode == null) {
+                        arrowCode = AndroidUtilities.readRes(R.raw.liquid_glass_arrow_shader);
+                    }
+                    arrowShader = new RuntimeShader(arrowCode);
                 }
                 shader = arrowShader;
             } else {
