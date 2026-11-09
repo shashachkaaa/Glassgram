@@ -14,6 +14,10 @@ import android.text.TextUtils.TruncateAt;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -29,6 +33,7 @@ import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 
 import java.util.ArrayList;
@@ -444,10 +449,12 @@ public final class GlassgramPluginAnalysis {
             arrow.setColorFilter(new PorterDuffColorFilter(text(resourcesProvider), PorterDuff.Mode.SRC_IN));
             row.addView(arrow, LayoutHelper.createLinear(24, 24, Gravity.CENTER_VERTICAL));
             details.setVisibility(View.GONE);
+            final boolean[] expanded = {false};
             row.setOnClickListener(v -> {
-                final boolean open = details.getVisibility() != View.VISIBLE;
-                details.setVisibility(open ? View.VISIBLE : View.GONE);
-                arrow.animate().rotation(open ? 180 : 0).setDuration(200).start();
+                expanded[0] = !expanded[0];
+                arrow.animate().rotation(expanded[0] ? 180 : 0).setDuration(EXPAND_DURATION)
+                        .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
+                expand(box, details, expanded[0]);
             });
         }
         box.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -455,6 +462,73 @@ public final class GlassgramPluginAnalysis {
             box.addView(details, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         }
         return box;
+    }
+
+    private static final long EXPAND_DURATION = 380;
+
+    /**
+     * Opens or closes a finding's details smoothly: their height grows from nothing to what they
+     * need (or back) while they fade in, and the sheet grows with them; opened, the finding is
+     * scrolled into sight. A tap in the middle turns it back from where it is.
+     */
+    private static void expand(View item, View details, boolean open) {
+        final Object running = details.getTag();
+        if (running instanceof ValueAnimator) {
+            ((ValueAnimator) running).cancel();
+        }
+        final ViewGroup.LayoutParams params = details.getLayoutParams();
+        final int from = details.getVisibility() == View.VISIBLE ? details.getHeight() : 0;
+        int to = 0;
+        if (open) {
+            final int width = item.getWidth() > 0 ? item.getWidth() : ((View) item.getParent()).getWidth();
+            details.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            to = details.getMeasuredHeight();
+        }
+        final float fromAlpha = details.getVisibility() == View.VISIBLE ? details.getAlpha() : 0f;
+        final int target = to;
+        details.setVisibility(View.VISIBLE);
+        params.height = from;
+        details.setLayoutParams(params);
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(EXPAND_DURATION);
+        animator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        animator.addUpdateListener(a -> {
+            final float t = (float) a.getAnimatedValue();
+            params.height = Math.round(from + (target - from) * t);
+            details.setLayoutParams(params);
+            // the text shows a little after the space opens, and goes first when it closes
+            details.setAlpha(open ? fromAlpha + (1f - fromAlpha) * Math.min(1f, t * 1.6f) : fromAlpha * Math.max(0f, 1f - t * 1.8f));
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            private boolean cancelled;
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                cancelled = true;
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (cancelled) {
+                    return;
+                }
+                details.setTag(null);
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                details.setLayoutParams(params);
+                details.setAlpha(1f);
+                if (!open) {
+                    details.setVisibility(View.GONE);
+                }
+            }
+        });
+        if (open) {
+            // keeps the opening finding in sight as it grows
+            animator.addUpdateListener(a -> item.requestRectangleOnScreen(
+                    new android.graphics.Rect(0, 0, item.getWidth(), item.getHeight()), false));
+        }
+        details.setTag(animator);
+        animator.start();
     }
 
     private static LinearLayout createDetails(Context context, Item item, Theme.ResourcesProvider resourcesProvider) {
