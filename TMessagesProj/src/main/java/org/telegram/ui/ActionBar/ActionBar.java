@@ -2601,16 +2601,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (menu != null && menu.getVisibility() != GONE) {
             int menuWidth;
             boolean searchFieldIsVisible = menu.searchFieldVisible();
+            // glassGram: the back glass widened for the unread badge, and the search pill moved right
+            // with it: the search field starts as far right, or its text stood out of the pill's left
+            final int searchBackExtra = !menuOccupyBack && backButtonImageView != null && backButtonImageView.getVisibility() != GONE
+                ? glassBackCounterTouchExtra : 0;
             if (searchFieldIsVisible && !this.isSearchFieldVisible) {
                 menuWidth = MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST);
                 menu.measure(menuWidth, actionBarHeightSpec);
                 int itemsWidth = menu.getItemsMeasuredWidth(true);
-                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) + menu.getItemsMeasuredWidth(true), MeasureSpec.EXACTLY);
+                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) - searchBackExtra + menu.getItemsMeasuredWidth(true), MeasureSpec.EXACTLY);
                 if (!isMenuOffsetSuppressed) {
                     menu.translateXItems(-itemsWidth);
                 }
             } else if (isSearchFieldVisible) {
-                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66), MeasureSpec.EXACTLY);
+                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) - searchBackExtra, MeasureSpec.EXACTLY);
                 if (!isMenuOffsetSuppressed) {
                     menu.translateXItems(0);
                 }
@@ -2730,7 +2734,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         textLeft += additionalTextLeft;
 
         if (menu != null && menu.getVisibility() != GONE) {
-            int menuLeft = menu.searchFieldVisible() ? dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) : (getMeasuredWidth()) - menu.getMeasuredWidth() - glassButtonsIosShift(dp(24)) - glassMenuEndInset
+            // with the search field, after the back glass, widened for the unread badge too (onMeasure)
+            final int searchBackExtra = !menuOccupyBack && backButtonImageView != null && backButtonImageView.getVisibility() != GONE
+                ? glassBackCounterTouchExtra : 0;
+            int menuLeft = menu.searchFieldVisible() ? dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) + searchBackExtra : (getMeasuredWidth()) - menu.getMeasuredWidth() - glassButtonsIosShift(dp(24)) - glassMenuEndInset
                 - (glassMode && glassIosSizes ? iosHeaderSize(IOS_MARGIN) - dp(6) : 0);
             menu.layout(menuLeft, additionalTop, menuLeft + menu.getMeasuredWidth(), additionalTop + menu.getMeasuredHeight());
         }
