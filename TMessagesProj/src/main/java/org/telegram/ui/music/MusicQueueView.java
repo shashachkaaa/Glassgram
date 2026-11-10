@@ -104,8 +104,10 @@ public class MusicQueueView extends LinearLayout {
         addView(searchBox, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 40, 0, 0, 0, 8));
 
         listView = new RecyclerListView(context);
+        // no change animations: a track starting marked the rows again, and each one crossfaded
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setAdapter(adapter);
+        listView.setItemAnimator(null);
         listView.setVerticalScrollBarEnabled(false);
         listView.setClipToPadding(false);
         listView.setPadding(0, 0, 0, AndroidUtilities.dp(8));
@@ -158,6 +160,22 @@ public class MusicQueueView extends LinearLayout {
 
     /** Takes the playlist again (it changed, a track started) and keeps the search. */
     public void update() {
+        // The track at the top of the list and where it is: the list is laid out again from it.
+        // A track starting loads more of the playlist, put before the others, and the list kept
+        // its place by number: the tracks in view jumped to others, then back as it scrolled.
+        MessageObject anchor = null;
+        int anchorTop = 0;
+        final LinearLayoutManager lm = (LinearLayoutManager) listView.getLayoutManager();
+        if (lm != null && !shown.isEmpty()) {
+            final int first = lm.findFirstVisibleItemPosition();
+            final View firstView = first >= 0 ? lm.findViewByPosition(first) : null;
+            if (first >= 0 && first < shown.size() && firstView != null) {
+                anchor = shown.get(first);
+                anchorTop = firstView.getTop() - listView.getPaddingTop();
+            }
+        }
+        final ArrayList<MessageObject> before = new ArrayList<>(shown);
+
         shown.clear();
         final ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaylist();
         if (playlist != null) {
@@ -175,7 +193,42 @@ public class MusicQueueView extends LinearLayout {
                 shown.add(m);
             }
         }
+
+        if (sameTracks(before, shown)) {
+            // the same list: only the playing mark changes
+            adapter.notifyItemRangeChanged(0, shown.size());
+            return;
+        }
         adapter.notifyDataSetChanged();
+        if (anchor != null && lm != null) {
+            final int index = indexOf(anchor);
+            if (index >= 0) {
+                lm.scrollToPositionWithOffset(index, anchorTop);
+            }
+        }
+    }
+
+    private int indexOf(MessageObject m) {
+        for (int i = 0; i < shown.size(); i++) {
+            final MessageObject o = shown.get(i);
+            if (o.getId() == m.getId() && o.getDialogId() == m.getDialogId()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean sameTracks(ArrayList<MessageObject> a, ArrayList<MessageObject> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            final MessageObject x = a.get(i), y = b.get(i);
+            if (x != y && (x.getId() != y.getId() || x.getDialogId() != y.getDialogId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Scrolls so that the playing track is in view. */
