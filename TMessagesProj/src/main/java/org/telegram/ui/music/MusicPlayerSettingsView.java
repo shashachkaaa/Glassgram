@@ -35,7 +35,7 @@ public class MusicPlayerSettingsView extends FrameLayout {
     public MusicPlayerSettingsView(Context context, Runnable onChanged, Runnable onBack) {
         super(context);
         this.onChanged = onChanged;
-        setBackgroundColor(0xf2141319);
+        setBackgroundColor(0xff141319);
         setClickable(true);
 
         final FrameLayout header = new FrameLayout(context);
@@ -119,7 +119,7 @@ public class MusicPlayerSettingsView extends FrameLayout {
             super(context);
             setOrientation(VERTICAL);
             setWillNotDraw(false);
-            paint.setColor(0x14ffffff);
+            paint.setColor(ROW_COLOR);
         }
 
         @Override
@@ -146,46 +146,6 @@ public class MusicPlayerSettingsView extends FrameLayout {
         boolean toggle();
     }
 
-    /** An iOS-like switch for the player's dark glass: a pill, light when on, with a white knob. */
-    private static class Toggle extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private boolean checked;
-        private float progress;
-
-        Toggle(Context context) {
-            super(context);
-        }
-
-        void setChecked(boolean checked, boolean animated) {
-            this.checked = checked;
-            if (!animated) {
-                progress = checked ? 1f : 0f;
-            }
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(@NonNull Canvas canvas) {
-            final float target = checked ? 1f : 0f;
-            if (progress != target) {
-                progress += (target - progress) * 0.3f;
-                if (Math.abs(progress - target) < 0.01f) {
-                    progress = target;
-                } else {
-                    invalidate();
-                }
-            }
-            final float h = getHeight(), w = getWidth();
-            paint.setColor(androidx.core.graphics.ColorUtils.blendARGB(0x33ffffff, 0xff8e86ff, progress));
-            canvas.drawRoundRect(0, 0, w, h, h / 2f, h / 2f, paint);
-            final float pad = AndroidUtilities.dp(2.5f);
-            final float knob = h - pad * 2;
-            final float x = AndroidUtilities.lerp(pad, w - pad - knob, progress);
-            paint.setColor(0xffffffff);
-            canvas.drawRoundRect(x, pad, x + knob, pad + knob, knob / 2f, knob / 2f, paint);
-        }
-    }
-
     private Row row(Context context, Group group, String title, String info, Action toggle) {
         final Row r = new Row(context, title, info);
         r.setOnClickListener(v -> {
@@ -196,15 +156,19 @@ public class MusicPlayerSettingsView extends FrameLayout {
         return r;
     }
 
+    // the card's color, solid: the background (0x141319) with 8% of white over it
+    private static final int ROW_COLOR = 0xff26252b;
+
     private static class Row extends LinearLayout {
-        private final Toggle check;
+        private final org.telegram.ui.Components.Switch check;
 
         Row(Context context, String title, String info) {
             super(context);
             setOrientation(HORIZONTAL);
             setGravity(Gravity.CENTER_VERTICAL);
             setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
-            setBackground(org.telegram.ui.ActionBar.Theme.createSelectorDrawable(0x14ffffff, 2));
+            setBackground(org.telegram.ui.ActionBar.Theme.createSelectorWithBackgroundDrawable(ROW_COLOR, 0x14ffffff));
+            setClipChildren(false);
             final LinearLayout texts = new LinearLayout(context);
             texts.setOrientation(VERTICAL);
             final TextView t = new TextView(context);
@@ -220,8 +184,9 @@ public class MusicPlayerSettingsView extends FrameLayout {
                 texts.addView(i, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
             }
             addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
-            check = new Toggle(context);
-            addView(check, LayoutHelper.createLinear(50, 30, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
+            // the client's switch: the library's LiquidToggle (Kyant0/AndroidLiquidGlass) where Liquid Glass is on
+            check = new org.telegram.ui.Components.Switch(context, new org.telegram.ui.Stories.DarkThemeResourceProvider());
+            addView(check, LayoutHelper.createLinear(37, 40, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
         }
 
         void setChecked(boolean checked) {

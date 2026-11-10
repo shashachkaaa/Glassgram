@@ -1122,6 +1122,12 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             setClipToPadding(false);
         }
 
+        @Override
+        public WindowInsets onApplyWindowInsets(WindowInsets insets) {
+            requestLayout();
+            return super.onApplyWindowInsets(insets);
+        }
+
         private int exactly(int size) {
             return MeasureSpec.makeMeasureSpec(Math.max(0, size), MeasureSpec.EXACTLY);
         }
@@ -1140,11 +1146,21 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             final int h = MeasureSpec.getSize(heightMeasureSpec);
             topInset = AndroidUtilities.statusBarHeight;
             bottomInset = AndroidUtilities.navigationBarHeight;
-            if (Build.VERSION.SDK_INT >= 23) {
+            // The system bars only: the system window's insets have the keyboard in them while
+            // it is up (the queue's search, or a chat's keyboard as the player opened), and the
+            // player was laid out a keyboard higher, staying so after it went down
+            if (Build.VERSION.SDK_INT >= 30) {
                 final WindowInsets insets = getRootWindowInsets();
                 if (insets != null) {
-                    topInset = Math.max(topInset, insets.getSystemWindowInsetTop());
-                    bottomInset = insets.getSystemWindowInsetBottom();
+                    final android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                    topInset = Math.max(topInset, bars.top);
+                    bottomInset = bars.bottom;
+                }
+            } else if (Build.VERSION.SDK_INT >= 23) {
+                final WindowInsets insets = getRootWindowInsets();
+                if (insets != null) {
+                    topInset = Math.max(topInset, insets.getStableInsetTop());
+                    bottomInset = insets.getStableInsetBottom();
                 }
             }
             // the player's own views are measured again where they are placed; others (a menu's
