@@ -246,6 +246,70 @@ public final class MusicCoverColors {
         }
     }
 
+    /**
+     * The cover of a track without one: a square of the player's own glass colors with a music
+     * note, drawn to the size it is given instead of a small picture stretched.
+     */
+    public static class PlaceholderDrawable extends Drawable {
+        private static final String NOTE = "M21 3v12.5c0 1.93-1.57 3.5-3.5 3.5S14 17.43 14 15.5s1.57-3.5 3.5-3.5c.54 0 1.05.12 1.5.34V6.47L9 8.6v8.9C9 19.43 7.43 21 5.5 21S2 19.43 2 17.5 3.57 14 5.5 14c.54 0 1.05.12 1.5.34V5l14-2z";
+        private final Paint background = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint shine = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint note = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path notePath;
+        private final android.graphics.Path scaled = new android.graphics.Path();
+        private final android.graphics.Matrix matrix = new android.graphics.Matrix();
+
+        public PlaceholderDrawable() {
+            android.graphics.Path p;
+            try {
+                p = androidx.core.graphics.PathParser.createPathFromPathData(NOTE);
+            } catch (Throwable e) {
+                p = new android.graphics.Path();
+            }
+            notePath = p;
+            note.setColor(0x8cffffff);
+        }
+
+        @Override
+        protected void onBoundsChange(@NonNull Rect b) {
+            super.onBoundsChange(b);
+            background.setShader(new LinearGradient(b.left, b.top, b.right, b.bottom,
+                new int[]{0xff4a4466, 0xff2c2940, 0xff1d1b29}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+            shine.setShader(new RadialGradient(b.left + b.width() * 0.25f, b.top + b.height() * 0.15f, Math.max(1, b.width() * 0.8f),
+                new int[]{0x26ffffff, 0x00ffffff}, null, Shader.TileMode.CLAMP));
+            // the note at 44% of the side, in the middle
+            final float size = Math.min(b.width(), b.height()) * 0.44f;
+            matrix.reset();
+            matrix.setScale(size / 24f, size / 24f);
+            matrix.postTranslate(b.centerX() - size / 2f, b.centerY() - size / 2f);
+            scaled.reset();
+            notePath.transform(matrix, scaled);
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas) {
+            final Rect b = getBounds();
+            canvas.drawRect(b, background);
+            canvas.drawRect(b, shine);
+            canvas.drawPath(scaled, note);
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            background.setAlpha(alpha);
+            note.setAlpha((int) (0x8c * alpha / 255f));
+        }
+
+        @Override
+        public void setColorFilter(@Nullable ColorFilter colorFilter) {
+        }
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.OPAQUE;
+        }
+    }
+
     public static boolean isDark(int color) {
         return ColorUtils.calculateLuminance(color | 0xff000000) < 0.5f;
     }

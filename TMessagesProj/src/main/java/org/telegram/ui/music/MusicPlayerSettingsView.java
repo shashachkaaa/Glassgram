@@ -21,7 +21,6 @@ import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.Switch;
 
 /**
  * glassGram's music player: its settings, over the player. The cover's colors for the player and
@@ -143,11 +142,51 @@ public class MusicPlayerSettingsView extends FrameLayout {
         return g;
     }
 
-    private interface Toggle {
+    private interface Action {
         boolean toggle();
     }
 
-    private Row row(Context context, Group group, String title, String info, Toggle toggle) {
+    /** An iOS-like switch for the player's dark glass: a pill, light when on, with a white knob. */
+    private static class Toggle extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean checked;
+        private float progress;
+
+        Toggle(Context context) {
+            super(context);
+        }
+
+        void setChecked(boolean checked, boolean animated) {
+            this.checked = checked;
+            if (!animated) {
+                progress = checked ? 1f : 0f;
+            }
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(@NonNull Canvas canvas) {
+            final float target = checked ? 1f : 0f;
+            if (progress != target) {
+                progress += (target - progress) * 0.3f;
+                if (Math.abs(progress - target) < 0.01f) {
+                    progress = target;
+                } else {
+                    invalidate();
+                }
+            }
+            final float h = getHeight(), w = getWidth();
+            paint.setColor(androidx.core.graphics.ColorUtils.blendARGB(0x33ffffff, 0xff8e86ff, progress));
+            canvas.drawRoundRect(0, 0, w, h, h / 2f, h / 2f, paint);
+            final float pad = AndroidUtilities.dp(2.5f);
+            final float knob = h - pad * 2;
+            final float x = AndroidUtilities.lerp(pad, w - pad - knob, progress);
+            paint.setColor(0xffffffff);
+            canvas.drawRoundRect(x, pad, x + knob, pad + knob, knob / 2f, knob / 2f, paint);
+        }
+    }
+
+    private Row row(Context context, Group group, String title, String info, Action toggle) {
         final Row r = new Row(context, title, info);
         r.setOnClickListener(v -> {
             r.setChecked(toggle.toggle());
@@ -158,7 +197,7 @@ public class MusicPlayerSettingsView extends FrameLayout {
     }
 
     private static class Row extends LinearLayout {
-        private final Switch check;
+        private final Toggle check;
 
         Row(Context context, String title, String info) {
             super(context);
@@ -181,8 +220,8 @@ public class MusicPlayerSettingsView extends FrameLayout {
                 texts.addView(i, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
             }
             addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
-            check = new Switch(context, new org.telegram.ui.Stories.DarkThemeResourceProvider());
-            addView(check, LayoutHelper.createLinear(37, 40, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
+            check = new Toggle(context);
+            addView(check, LayoutHelper.createLinear(50, 30, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
         }
 
         void setChecked(boolean checked) {

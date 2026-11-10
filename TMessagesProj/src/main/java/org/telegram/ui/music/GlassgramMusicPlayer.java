@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Outline;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,7 +14,6 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -181,7 +179,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
         speedButton = button(context, 0, 0);
         speedButton.setOnClickListener(v -> showSpeeds());
-        lyricsButton = button(context, R.drawable.filled_reply_quote, 22);
+        lyricsButton = button(context, R.drawable.formatting_quote, 24);
         lyricsButton.setGlassShown(false);
         lyricsButton.setContentDescription(LocaleController.getString(R.string.GlassgramMusicLyrics));
         lyricsButton.setOnClickListener(v -> setPage(page == PAGE_LYRICS ? PAGE_COVER : PAGE_LYRICS));
@@ -231,14 +229,6 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
         coverView = new BackupImageView(context);
         coverView.setRoundRadius(AndroidUtilities.dp(18));
-        coverView.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), coverView.getImageReceiver().getRoundRadius()[0]);
-            }
-        });
-        coverView.setClipToOutline(true);
-        coverView.setElevation(AndroidUtilities.dp(14));
         coverView.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
             @Override
             public void didSetImage(ImageReceiver imageReceiver, boolean set, boolean thumb, boolean memCache) {
@@ -516,7 +506,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         } else {
             // no cover: the placeholder's gray is not the track's colors
             coverPlaceholder = true;
-            coverView.setImageResource(R.drawable.music_empty);
+            coverView.setImageDrawable(new MusicCoverColors.PlaceholderDrawable());
             coverPlaceholder = false;
             takeCoverColors(null);
         }
@@ -1187,19 +1177,35 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
             final int controlsH = AndroidUtilities.dp(72);
             final int controlsTop = rowTop - AndroidUtilities.dp(18) - controlsH;
-            final int[] sizes = {AndroidUtilities.dp(48), AndroidUtilities.dp(60), AndroidUtilities.dp(104), AndroidUtilities.dp(60), AndroidUtilities.dp(48)};
-            final View[] controls = {shuffleButton, prevButton, playButton, nextButton, repeatButton};
-            final float first = P + AndroidUtilities.dp(20), last = W - P - AndroidUtilities.dp(20);
-            for (int i = 0; i < controls.length; i++) {
-                final float cx = first + (last - first) * i / 4f;
-                final int cw = sizes[i];
-                place(controls[i], Math.round(cx - cw / 2f), controlsTop, cw, controlsH);
+            // the glass of each button: shuffle, previous, play, next, repeat
+            final float[] glass = {42, 52, 88, 52, 42};
+            final float glassH = 60;
+            final float edge = AndroidUtilities.dp(16), inner = AndroidUtilities.dp(14);
+            float scale = 1f;
+            // previous, play and next together in the middle; shuffle and repeat at the edges, the gaps
+            // to them at least as wide as the ones in the middle (else all of them a little smaller)
+            final float middle = AndroidUtilities.dp(glass[1] + glass[2] + glass[3]) + 2 * inner;
+            final float needed = middle + AndroidUtilities.dp(glass[0] + glass[4]) + 2 * inner + 2 * edge;
+            if (needed > W) {
+                scale = Math.max(0.7f, (W - 4 * inner - 2 * edge) / (needed - 4 * inner - 2 * edge));
             }
-            shuffleButton.setGlassSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
-            repeatButton.setGlassSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
-            prevButton.setGlassSize(AndroidUtilities.dp(54), AndroidUtilities.dp(54));
-            nextButton.setGlassSize(AndroidUtilities.dp(54), AndroidUtilities.dp(54));
-            playButton.setGlassSize(AndroidUtilities.dp(96), AndroidUtilities.dp(62));
+            final float cx = W / 2f;
+            final float playW = AndroidUtilities.dp(glass[2]) * scale, sideW = AndroidUtilities.dp(glass[1]) * scale, endW = AndroidUtilities.dp(glass[0]) * scale;
+            final float[] centers = {
+                edge + endW / 2f,
+                cx - playW / 2f - inner - sideW / 2f,
+                cx,
+                cx + playW / 2f + inner + sideW / 2f,
+                W - edge - endW / 2f
+            };
+            final MusicGlassButton[] controls = {shuffleButton, prevButton, playButton, nextButton, repeatButton};
+            for (int i = 0; i < controls.length; i++) {
+                final int gw = Math.round(AndroidUtilities.dp(glass[i]) * scale);
+                final int gh = i == 2 ? Math.round(AndroidUtilities.dp(glassH) * scale) : gw;
+                final int vw = gw + AndroidUtilities.dp(6);
+                place(controls[i], Math.round(centers[i] - vw / 2f), controlsTop, vw, controlsH);
+                controls[i].setGlassSize(gw, gh);
+            }
 
             final int timesTop = controlsTop - AndroidUtilities.dp(26);
             place(timeCurrent, P, timesTop, W / 2 - P, AndroidUtilities.dp(16));
@@ -1231,6 +1237,27 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             applyPage();
         }
 
+        private final android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        @Override
+        protected boolean drawChild(android.graphics.Canvas canvas, View child, long drawingTime) {
+            if (child == coverView && Build.VERSION.SDK_INT >= 28 && coverView.getWidth() > 0) {
+                // the cover's shadow, as the elevation's was, without lifting it over the views
+                // after it (the settings, a menu's dimming)
+                final float s = coverView.getScaleX();
+                final float l = coverView.getLeft() + coverView.getTranslationX();
+                final float t = coverView.getTop() + coverView.getTranslationY();
+                final float size = coverView.getWidth() * s;
+                final float r = coverView.getImageReceiver().getRoundRadius()[0] * s;
+                final float blur = AndroidUtilities.lerp(AndroidUtilities.dp(26), AndroidUtilities.dp(6), pageProgress);
+                // under the cover, in the background's color: unseen where the cover has not loaded yet
+                shadowPaint.setColor(background.getColors().middle);
+                shadowPaint.setShadowLayer(blur, 0, blur * 0.45f, 0x70000000);
+                canvas.drawRoundRect(l + 1, t + 1, l + size - 1, t + size - 1, r, r, shadowPaint);
+            }
+            return super.drawChild(canvas, child, drawingTime);
+        }
+
         /** Places what moves with the page: the cover, the titles, the pages' fade. */
         void applyPage() {
             if (coverBig.isEmpty()) {
@@ -1248,8 +1275,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             coverView.setTranslationY(AndroidUtilities.lerp(coverBig.top, coverSmall.top, t) - coverBig.top);
             final float radius = AndroidUtilities.lerp(AndroidUtilities.dp(18), AndroidUtilities.dp(10), t) / Math.max(0.01f, scale);
             coverView.setRoundRadius((int) radius);
-            coverView.invalidateOutline();
-            coverView.setElevation(AndroidUtilities.lerp(AndroidUtilities.dp(14), AndroidUtilities.dp(3), t));
+            invalidate();
 
             // the titles make room for the small cover
             final int shift = (int) (AndroidUtilities.dp(64) * t);
