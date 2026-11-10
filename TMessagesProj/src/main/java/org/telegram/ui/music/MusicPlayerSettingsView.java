@@ -186,7 +186,11 @@ public class MusicPlayerSettingsView extends FrameLayout {
             addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
             // the client's switch: the library's LiquidToggle (Kyant0/AndroidLiquidGlass) where Liquid Glass is on
             check = new org.telegram.ui.Components.Switch(context, new org.telegram.ui.Stories.DarkThemeResourceProvider());
-            addView(check, LayoutHelper.createLinear(37, 40, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
+            // The library's toggle is wider than the Switch (64dp, its swelling thumb further): room
+            // for it on both sides, as the settings' cells give it, and the row does not cut it at
+            // its padding
+            addView(check, LayoutHelper.createLinear(37, 40, Gravity.CENTER_VERTICAL, 26, 0, 12, 0));
+            setClipToPadding(false);
         }
 
         void setChecked(boolean checked) {
