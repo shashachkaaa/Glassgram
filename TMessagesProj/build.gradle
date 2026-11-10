@@ -191,7 +191,7 @@ android {
                 if (rootProject.glassgramCcache) {
                     arguments '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
                 }
-                targets 'tmessages.49'
+                targets 'tmessages.49', 'glassgramaudio'
             }
         }
     }

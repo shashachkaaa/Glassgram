@@ -93,6 +93,10 @@ public class GlassgramConfig {
     public static boolean musicCoverColorsFull = true;
     public static boolean musicCoverColorsMini = true;
     public static boolean musicOnlineLyrics = true;
+    // glassGram music player: the speed keeps the pitch (Signalsmith Stretch), or the pitch goes
+    // with it as on a record ("speed up / slowed"); and the reverb
+    public static boolean musicKeepPitch = true;
+    public static boolean musicReverb = false;
     /** The app's font (GlassgramFonts), taken at start. */
     public static String font = GlassgramFonts.SYSTEM;
     public static boolean hideFloatingButton;
@@ -336,6 +340,8 @@ public class GlassgramConfig {
         musicCoverColorsFull = p.getBoolean("musicCoverColorsFull", true);
         musicCoverColorsMini = p.getBoolean("musicCoverColorsMini", true);
         musicOnlineLyrics = p.getBoolean("musicOnlineLyrics", true);
+        musicKeepPitch = p.getBoolean("musicKeepPitch", true);
+        musicReverb = p.getBoolean("musicReverb", false);
         font = p.getString("font", GlassgramFonts.SYSTEM);
         mainTabs = p.getString("mainTabs", "");
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);

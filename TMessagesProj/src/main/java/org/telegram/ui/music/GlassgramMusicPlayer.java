@@ -586,7 +586,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             s = s.substring(0, s.length() - 2);
         }
         speedButton.setText(s + "x");
-        speedButton.setActive(Math.abs(speed - 1f) > 0.01f, true);
+        speedButton.setActive(Math.abs(speed - 1f) > 0.01f || GlassgramConfig.musicReverb, true);
     }
 
     private void toggleShuffle() {
@@ -787,7 +787,8 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
     private void showSpeeds() {
         final float current = MediaController.getInstance().getPlaybackSpeed(true);
         final ItemOptions o = ItemOptions.makeOptions(root, dark, speedButton);
-        final float[] speeds = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f};
+        // 0.8 and 0.9 for "slowed", 1.1 and 1.25 for "sped up"
+        final float[] speeds = {0.5f, 0.75f, 0.8f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 2f};
         for (float s : speeds) {
             String label = String.valueOf(s);
             if (label.endsWith(".0")) {
@@ -795,6 +796,19 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             }
             o.addChecked(Math.abs(current - s) < 0.01f, label + "x", () -> MediaController.getInstance().setPlaybackSpeed(true, s));
         }
+        o.addGap();
+        // the pitch kept (Signalsmith Stretch), or going with the speed as on a record
+        o.addChecked(GlassgramConfig.musicKeepPitch, LocaleController.getString(R.string.GlassgramMusicKeepPitch), () -> {
+            GlassgramConfig.musicKeepPitch = !GlassgramConfig.musicKeepPitch;
+            GlassgramConfig.putBoolean("musicKeepPitch", GlassgramConfig.musicKeepPitch);
+            MediaController.getInstance().setPlaybackSpeed(true, MediaController.getInstance().getPlaybackSpeed(true));
+        });
+        o.addChecked(GlassgramConfig.musicReverb, LocaleController.getString(R.string.GlassgramMusicReverb), () -> {
+            GlassgramConfig.musicReverb = !GlassgramConfig.musicReverb;
+            GlassgramConfig.putBoolean("musicReverb", GlassgramConfig.musicReverb);
+            MediaController.getInstance().setPlaybackSpeed(true, MediaController.getInstance().getPlaybackSpeed(true));
+            updateSpeed();
+        });
         o.setGravity(Gravity.LEFT);
         o.show();
     }

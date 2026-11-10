@@ -335,3 +335,13 @@ target_link_libraries(${NATIVE_LIB}
 
 include(AndroidNdkModules)
 android_ndk_import_module_cpufeatures()
+
+# glassGram: the music player's time-stretch, keeping the pitch (Signalsmith Stretch, MIT): a small
+# library of its own, loaded by org.telegram.messenger.glassgramaudio.GlassgramAudioNative
+add_library(glassgramaudio SHARED
+        glassgram_audio/stretch_jni.cpp)
+target_include_directories(glassgramaudio PRIVATE
+        third_party/signalsmith/signalsmith-stretch/include
+        third_party/signalsmith/signalsmith-linear/include)
+target_compile_options(glassgramaudio PRIVATE -O3)
+target_link_libraries(glassgramaudio log)

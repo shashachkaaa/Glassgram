@@ -17,6 +17,10 @@
 -keepclasseswithmembers,includedescriptorclasses class org.telegram.messenger.* {
     native <methods>;
 }
+# glassGram: the music player's time-stretch (jni/glassgram_audio/stretch_jni.cpp)
+-keepclasseswithmembers class org.telegram.messenger.glassgramaudio.GlassgramAudioNative {
+    native <methods>;
+}
 # gifvideo.cpp: FindClass + GetMethodID, called from the native reader.
 -keep class org.telegram.messenger.AnimatedFileDrawableStream {
     int read(int, int);

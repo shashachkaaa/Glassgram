@@ -1061,6 +1061,8 @@
     <string name="GlassgramMusicOnlineLyrics">Текст из сети</string>
     <string name="GlassgramMusicOnlineLyricsInfo">Если в файле нет текста, искать его в LRCLIB. Туда уходят название, исполнитель, альбом и длительность трека.</string>
     <string name="GlassgramMusicPlayerSection">Плеер</string>
+    <string name="GlassgramMusicKeepPitch">Сохранять тон</string>
+    <string name="GlassgramMusicReverb">Реверберация</string>
     <string name="GlassgramMusicClassic">Плеер Telegram</string>
     <string name="GlassgramMusicClassicInfo">Открывать музыку в плеере Telegram вместо этого.</string>
 </resources>

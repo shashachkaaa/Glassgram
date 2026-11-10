@@ -3396,7 +3396,12 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             }
         }
         if (audioPlayer != null) {
-            audioPlayer.setPlaybackSpeed(Math.round(speed * 10f) / 10f);
+            if (music) {
+                // glassGram: the music's speed as it was picked, by the client's processors
+                audioPlayer.setMusicPlaybackSpeed(speed, GlassgramConfig.musicKeepPitch, GlassgramConfig.musicReverb);
+            } else {
+                audioPlayer.setPlaybackSpeed(Math.round(speed * 10f) / 10f);
+            }
         } else if (videoPlayer != null) {
             videoPlayer.setPlaybackSpeed(Math.round(speed * 10f) / 10f);
         }
@@ -3968,6 +3973,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             }
             try {
                 audioPlayer = new VideoPlayer();
+                audioPlayer.setMusicAudioProcessing(true);
                 int tag = ++playerNum;
                 audioPlayer.setDelegate(new VideoPlayer.VideoPlayerDelegate() {
                     @Override
@@ -4075,8 +4081,12 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             messageObject.audioProgress = seekToProgressPending = pos;
                         }
                         shouldSavePositionForCurrentAudio = name;
-                        if (Math.abs(currentMusicPlaybackSpeed - 1.0f) > 0.001f) {
-                            audioPlayer.setPlaybackSpeed(Math.round(currentMusicPlaybackSpeed * 10f) / 10f);
+                    }
+                    // glassGram: the speed (and the reverb) go on to every track in glassGram's
+                    // player; in Telegram's, as there, only to the long ones
+                    if (GlassgramConfig.musicPlayer || !TextUtils.isEmpty(name) && messageObject.getDuration() >= 10 * 60) {
+                        if (Math.abs(currentMusicPlaybackSpeed - 1.0f) > 0.001f || GlassgramConfig.musicReverb) {
+                            audioPlayer.setMusicPlaybackSpeed(currentMusicPlaybackSpeed, GlassgramConfig.musicKeepPitch, GlassgramConfig.musicReverb);
                         }
                     }
                 }

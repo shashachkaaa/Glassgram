@@ -12472,6 +12472,8 @@
     <string name="GlassgramMusicOnlineLyrics">Online lyrics</string>
     <string name="GlassgramMusicOnlineLyricsInfo">When the file has no lyrics, look them up on LRCLIB. It is sent the track\'s title, artist, album and length.</string>
     <string name="GlassgramMusicPlayerSection">Player</string>
+    <string name="GlassgramMusicKeepPitch">Keep pitch</string>
+    <string name="GlassgramMusicReverb">Reverb</string>
     <string name="GlassgramMusicClassic">Telegram\'s player</string>
     <string name="GlassgramMusicClassicInfo">Open music in Telegram\'s own player instead of this one.</string>
 </resources>

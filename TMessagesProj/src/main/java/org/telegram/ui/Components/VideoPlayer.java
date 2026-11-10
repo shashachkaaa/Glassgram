@@ -174,6 +174,9 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
 
     private VideoPlayerDelegate delegate;
     private AudioVisualizerDelegate audioVisualizerDelegate;
+    // glassGram: the music's speed and reverb, for the players that play audio messages
+    private boolean musicAudioProcessing;
+    private org.telegram.messenger.glassgramaudio.GlassgramAudioChain audioChain;
     private int lastReportedPlaybackState;
     private boolean lastReportedPlayWhenReady;
 
@@ -249,7 +252,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
 
         if (player == null) {
             DefaultRenderersFactory factory;
-            if (audioVisualizerDelegate != null) {
+            if (audioVisualizerDelegate != null || musicAudioProcessing) {
                 factory = new AudioVisualizerRenderersFactory(ApplicationLoader.applicationContext);
             } else {
                 factory = new DefaultRenderersFactory(ApplicationLoader.applicationContext);
@@ -1467,8 +1470,35 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
 
     public void setPlaybackSpeed(float speed) {
         try {
+            if (audioChain != null) {
+                audioChain.setMusic(false);
+                audioChain.setReverb(false);
+            }
             if (player != null) {
                 player.setPlaybackParameters(new PlaybackParameters(speed, speed > 1.0f ? 0.98f : 1.0f));
+            }
+        } catch (Exception ignore) {}
+    }
+
+    /**
+     * glassGram: the audio player gets its processors for music: call before it is prepared.
+     */
+    public void setMusicAudioProcessing(boolean enabled) {
+        musicAudioProcessing = enabled;
+    }
+
+    /**
+     * glassGram: music's speed, its pitch kept (Signalsmith Stretch) or going with it as on a record
+     * (a windowed-sinc resampler), and the reverb. Without the processors, Sonic does both.
+     */
+    public void setMusicPlaybackSpeed(float speed, boolean keepPitch, boolean reverb) {
+        try {
+            if (audioChain != null) {
+                audioChain.setMusic(true);
+                audioChain.setReverb(reverb);
+            }
+            if (player != null) {
+                player.setPlaybackParameters(new PlaybackParameters(speed, keepPitch ? 1.0f : speed));
             }
         } catch (Exception ignore) {}
     }
@@ -1810,13 +1840,20 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
                 @NonNull Context context,
                 boolean enableFloatOutput,
                 boolean enableAudioTrackPlaybackParams) {
-            return new DefaultAudioSink.Builder(context)
+            final AudioProcessor[] processors = audioVisualizerDelegate != null
+                    ? new AudioProcessor[]{new TeeAudioProcessor(new VisualizerBufferSink())}
+                    : new AudioProcessor[0];
+            final DefaultAudioSink.Builder builder = new DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(new AudioProcessor[]{
-                            new TeeAudioProcessor(new VisualizerBufferSink())
-                    })
-                    .build();
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams);
+            if (musicAudioProcessing) {
+                // glassGram: the music's own speed and reverb after ExoPlayer's processors
+                audioChain = new org.telegram.messenger.glassgramaudio.GlassgramAudioChain(processors);
+                builder.setAudioProcessorChain(audioChain);
+            } else {
+                builder.setAudioProcessors(processors);
+            }
+            return builder.build();
         }
     }
 
