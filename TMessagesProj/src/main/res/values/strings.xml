@@ -11522,7 +11522,7 @@
     <string name="GlassgramApiProxySaved">Saved. The apps get the new list when opened.</string>
     <string name="GlassgramProxyStatusTunnel">Now: through the glassGram tunnel, with your personal key</string>
     <string name="GlassgramApiTunnel">VLESS tunnel</string>
-    <string name="GlassgramApiTunnelNotSet">The tunnel isn\'t set up: fill in XUI_URL, XUI_USERNAME, XUI_PASSWORD and TUNNEL_SECRET in the bot\'s .env and restart the bot.</string>
+    <string name="GlassgramApiTunnelNotSet">The tunnel isn\'t set up: fill in REMNAWAVE_URL, REMNAWAVE_TOKEN and TUNNEL_SECRET in the bot\'s .env and restart the bot.</string>
     <string name="GlassgramApiTunnelLimits">Limits: %1$d devices · %2$s GB · %3$d days</string>
     <string name="GlassgramApiTunnelNoLimit">no limit</string>
     <string name="GlassgramApiTunnelKeys">Keys in force: %1$d · find an account</string>
@@ -11535,7 +11535,7 @@
     <string name="GlassgramApiTunnelGb">GB per period, 0: no limit</string>
     <string name="GlassgramApiTunnelDays">Period, days (1–365)</string>
     <string name="GlassgramApiTunnelKeyInfo">Made: %1$s\nRenewed: %2$s\nIn force till: %3$s\nRevoked: %4$d times</string>
-    <string name="GlassgramApiTunnelTraffic">Inbound %1$d: ↑ %2$s ↓ %3$s</string>
+    <string name="GlassgramApiTunnelTraffic">Traffic in the panel (user %1$d): ↑ %2$s ↓ %3$s</string>
     <string name="GlassgramApiTunnelRevoke">Revoke</string>
     <string name="GlassgramApiTunnelRevoked">Revoked: this account\'s next key will be another one</string>
     <string name="GlassgramApiTunnelNoKey">This account has no key</string>

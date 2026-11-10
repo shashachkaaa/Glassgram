@@ -1230,7 +1230,7 @@ public final class GlassgramApiUi {
 
     // --- The tunnel's personal keys ---------------------------------------------------------------
 
-    /** The tunnel: its limits, the 3x-ui inbounds and which give glassGram's keys, and an account's key. */
+    /** The tunnel: its limits, the panel's internal squads (Remnawave) and which give glassGram's keys, and an account's key. */
     public static void showTunnel(BaseFragment fragment) {
         if (fragment.getParentActivity() == null) {
             return;
