@@ -768,9 +768,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                     if (messageObject.isMusic()) {
                         final Activity activity = AndroidUtilities.findActivity(getContext());
                         if (activity instanceof LaunchActivity) {
-                            new AudioPlayerAlert(activity, resourcesProvider).show();
+                            org.telegram.ui.music.GlassgramMusicPlayer.create(activity, resourcesProvider).show();
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
-                            new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();
+                            org.telegram.ui.music.GlassgramMusicPlayer.create(LaunchActivity.instance, resourcesProvider).show();
                         }
                     } else {
                         long dialogId = 0;
@@ -1407,6 +1407,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        org.telegram.ui.music.MusicCoverColors.removeListener(coverColorsChanged);
         if (animatorSet != null) {
             animatorSet.cancel();
             animatorSet = null;
@@ -1456,6 +1457,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        org.telegram.ui.music.MusicCoverColors.addListener(coverColorsChanged);
         removeObservers();
 
         if (isLocation) {
@@ -1987,6 +1989,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
             if (lastMessageObject != messageObject || prevStyle != STYLE_AUDIO_PLAYER) {
                 lastMessageObject = messageObject;
+                org.telegram.ui.music.MusicCoverColors.track(messageObject);
                 SpannableStringBuilder stringBuilder;
                 if (lastMessageObject.isVoice() || lastMessageObject.isRoundVideo()) {
                     isMusic = false;
@@ -2669,6 +2672,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         if (drawOverlay && getVisibility() != View.VISIBLE) {
             return;
         }
+        if (currentStyle == STYLE_AUDIO_PLAYER) {
+            drawCoverTint(canvas);
+        }
         if ((currentStyle == STYLE_ACTIVE_GROUP_CALL || currentStyle == STYLE_CONNECTING_GROUP_CALL)) {
 //            boolean mutedByAdmin = GroupCallActivity.groupCallInstance == null && Theme.getFragmentContextViewWavesDrawable().getState() == FragmentContextViewWavesDrawable.MUTE_BUTTON_STATE_MUTED_BY_ADMIN;
             Theme.getFragmentContextViewWavesDrawable().updateState(wasDraw);
@@ -2694,11 +2700,49 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 final float bottom = getMeasuredHeight();
                 final float top = bottom - dpf2(2);
 
-                progressPaint.setColor(getThemedColor(Theme.key_telegram_color));
+                final org.telegram.ui.music.MusicCoverColors colors = coverColors();
+                progressPaint.setColor(colors != null ? colors.accent : getThemedColor(Theme.key_telegram_color));
                 canvas.drawRoundRect(left, top, p, bottom, dpf2(1), dpf2(1), progressPaint);
             }
         }
         wasDraw = true;
+    }
+
+    // glassGram: the mini player tinted with the playing track's cover (the music player's colors)
+    private final Runnable coverColorsChanged = () -> {
+        invalidate();
+        if (frameLayout != null) {
+            frameLayout.invalidate();
+        }
+        if (this.audioProgressDrawer != null) {
+            this.audioProgressDrawer.run();
+        }
+    };
+    private final Paint coverTintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private int coverTintColorA, coverTintColorB, coverTintWidth;
+
+    private org.telegram.ui.music.MusicCoverColors coverColors() {
+        if (!org.telegram.messenger.GlassgramConfig.musicCoverColorsMini || currentStyle != STYLE_AUDIO_PLAYER) {
+            return null;
+        }
+        return org.telegram.ui.music.MusicCoverColors.forTrack(MediaController.getInstance().getPlayingMessageObject());
+    }
+
+    private void drawCoverTint(Canvas canvas) {
+        final org.telegram.ui.music.MusicCoverColors colors = coverColors();
+        if (colors == null || frameLayout.getHeight() <= 0) {
+            return;
+        }
+        final int a = androidx.core.graphics.ColorUtils.setAlphaComponent(colors.accent, 0x52);
+        final int b = androidx.core.graphics.ColorUtils.setAlphaComponent(colors.middle, 0x30);
+        final int w = getMeasuredWidth();
+        if (a != coverTintColorA || b != coverTintColorB || w != coverTintWidth) {
+            coverTintColorA = a;
+            coverTintColorB = b;
+            coverTintWidth = w;
+            coverTintPaint.setShader(new LinearGradient(0, 0, w, 0, new int[]{a, b}, null, Shader.TileMode.CLAMP));
+        }
+        canvas.drawRect(frameLayout.getLeft(), frameLayout.getTop() + frameLayout.getTranslationY(), frameLayout.getRight(), frameLayout.getBottom() + frameLayout.getTranslationY(), coverTintPaint);
     }
 
     /*
@@ -2726,7 +2770,8 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         if (p - left < h) {
             return true;
         }
-        final int color = getThemedColor(Theme.key_inappPlayerPlayPause);
+        final org.telegram.ui.music.MusicCoverColors colors = coverColors();
+        final int color = colors != null ? colors.accent : getThemedColor(Theme.key_inappPlayerPlayPause);
         progressPaint.setColor(color);
         progressPaint.setAlpha((int) (Color.alpha(color) * alpha));
         canvas.drawRoundRect(left, bottom - h, p, bottom, h / 2f, h / 2f, progressPaint);

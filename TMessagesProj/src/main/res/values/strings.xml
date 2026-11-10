@@ -12452,4 +12452,26 @@
     <string name="FpnvConsentCountry">Country</string>
     <string name="FpnvConsentMccMnc">MCC / MNC</string>
     <string name="FpnvConsentPhoneNumber">Phone Number</string>
+    <string name="GlassgramMusicPlayerSetting">Music player</string>
+    <string name="GlassgramMusicPlayerSettingInfo">glassGram\'s player: the cover in its colors, lyrics and the queue on Liquid Glass. Off, music opens in Telegram\'s player.</string>
+    <string name="GlassgramMusicSearchQueue">Search in queue</string>
+    <string name="GlassgramMusicLyrics">Lyrics</string>
+    <string name="GlassgramMusicQueue">Queue</string>
+    <string name="GlassgramMusicTrackOf">Track %1$d of %2$d</string>
+    <string name="GlassgramMusicNoLyrics">No lyrics found</string>
+    <string name="GlassgramMusicNoLyricsInfo">There are no lyrics for this track in the file\'s tags or online.</string>
+    <string name="GlassgramMusicNoLyricsOffline">The file has no lyrics. Online lyrics are off in the player\'s settings.</string>
+    <string name="GlassgramMusicLyricsSearching">Looking for lyrics…</string>
+    <string name="GlassgramMusicLyricsSource">Searching LRCLIB by the track\'s title and artist.</string>
+    <string name="GlassgramMusicSettings">Player settings</string>
+    <string name="GlassgramMusicAppearance">Appearance</string>
+    <string name="GlassgramMusicCoverColorsFull">Cover colors in the player</string>
+    <string name="GlassgramMusicCoverColorsFullInfo">The background and the progress take the colors of the track\'s cover.</string>
+    <string name="GlassgramMusicCoverColorsMini">Cover colors in the mini player</string>
+    <string name="GlassgramMusicCoverColorsMiniInfo">The player bar over chats is tinted with the cover\'s colors.</string>
+    <string name="GlassgramMusicOnlineLyrics">Online lyrics</string>
+    <string name="GlassgramMusicOnlineLyricsInfo">When the file has no lyrics, look them up on LRCLIB. It is sent the track\'s title, artist, album and length.</string>
+    <string name="GlassgramMusicPlayerSection">Player</string>
+    <string name="GlassgramMusicClassic">Telegram\'s player</string>
+    <string name="GlassgramMusicClassicInfo">Open music in Telegram\'s own player instead of this one.</string>
 </resources>

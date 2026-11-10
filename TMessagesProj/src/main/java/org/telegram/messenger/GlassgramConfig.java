@@ -88,6 +88,11 @@ public class GlassgramConfig {
     public static boolean iosTransitions = true;
     /** After every page slide, a bulletin with its frames: how many, and where their time went. */
     public static boolean frameStats;
+    /** glassGram's music player (ui/music) in place of Telegram's; its colors from the cover, its lyrics online. */
+    public static boolean musicPlayer = true;
+    public static boolean musicCoverColorsFull = true;
+    public static boolean musicCoverColorsMini = true;
+    public static boolean musicOnlineLyrics = true;
     /** The app's font (GlassgramFonts), taken at start. */
     public static String font = GlassgramFonts.SYSTEM;
     public static boolean hideFloatingButton;
@@ -327,6 +332,10 @@ public class GlassgramConfig {
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
         frameStats = p.getBoolean("frameStats", false);
+        musicPlayer = p.getBoolean("musicPlayer", true);
+        musicCoverColorsFull = p.getBoolean("musicCoverColorsFull", true);
+        musicCoverColorsMini = p.getBoolean("musicCoverColorsMini", true);
+        musicOnlineLyrics = p.getBoolean("musicOnlineLyrics", true);
         font = p.getString("font", GlassgramFonts.SYSTEM);
         mainTabs = p.getString("mainTabs", "");
         hideFloatingButton = p.getBoolean("hideFloatingButton", false);

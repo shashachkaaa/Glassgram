@@ -218,6 +218,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_INLINE_CURRENCY = 179;
     private static final int ID_INLINE_MEASURE = 180;
     private static final int ID_FRAME_STATS = 181;
+    private static final int ID_MUSIC_PLAYER = 182;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
     private static final int ID_MENU_ITEM = 300;
@@ -389,6 +390,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(header(getString(R.string.GlassgramFontHeader)));
                 items.add(UItem.asButton(ID_FONT, getString(R.string.GlassgramFont), fontName(GlassgramConfig.font)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramFontInfo)));
+                items.add(UItem.asCheck(ID_MUSIC_PLAYER, getString(R.string.GlassgramMusicPlayerSetting)).setChecked(GlassgramConfig.musicPlayer));
+                items.add(UItem.asShadow(getString(R.string.GlassgramMusicPlayerSettingInfo)));
                 items.add(header(getString(R.string.GlassgramAnimations)));
                 items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
                 items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
@@ -1079,6 +1082,10 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_IOS_TRANSITIONS:
                 value = GlassgramConfig.iosTransitions = !GlassgramConfig.iosTransitions;
                 GlassgramConfig.putBoolean("iosTransitions", value);
+                break;
+            case ID_MUSIC_PLAYER:
+                value = GlassgramConfig.musicPlayer = !GlassgramConfig.musicPlayer;
+                GlassgramConfig.putBoolean("musicPlayer", value);
                 break;
             case ID_FRAME_STATS:
                 value = GlassgramConfig.frameStats = !GlassgramConfig.frameStats;

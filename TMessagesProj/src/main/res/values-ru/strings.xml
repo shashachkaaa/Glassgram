@@ -1041,4 +1041,26 @@
     <string name="GlassgramGhostStoryAlertEnable">Включить и смотреть</string>
     <string name="GlassgramGhostStoryAlertView">Смотреть</string>
     <string name="GlassgramGhostStoryAlertNever">Не спрашивать</string>
+    <string name="GlassgramMusicPlayerSetting">Музыкальный плеер</string>
+    <string name="GlassgramMusicPlayerSettingInfo">Плеер glassGram: обложка в её цветах, текст песни и очередь на Liquid Glass. Если выключить, музыка откроется в плеере Telegram.</string>
+    <string name="GlassgramMusicSearchQueue">Поиск в очереди</string>
+    <string name="GlassgramMusicLyrics">Текст песни</string>
+    <string name="GlassgramMusicQueue">Очередь</string>
+    <string name="GlassgramMusicTrackOf">Трек %1$d из %2$d</string>
+    <string name="GlassgramMusicNoLyrics">Текст не найден</string>
+    <string name="GlassgramMusicNoLyricsInfo">Текста этого трека нет ни в тегах файла, ни в сети.</string>
+    <string name="GlassgramMusicNoLyricsOffline">В файле нет текста. Поиск в сети выключен в настройках плеера.</string>
+    <string name="GlassgramMusicLyricsSearching">Ищем текст…</string>
+    <string name="GlassgramMusicLyricsSource">Поиск в LRCLIB по названию и исполнителю.</string>
+    <string name="GlassgramMusicSettings">Настройки плеера</string>
+    <string name="GlassgramMusicAppearance">Внешний вид</string>
+    <string name="GlassgramMusicCoverColorsFull">Цвета обложки в плеере</string>
+    <string name="GlassgramMusicCoverColorsFullInfo">Фон и полоса прогресса берут цвета обложки трека.</string>
+    <string name="GlassgramMusicCoverColorsMini">Цвета обложки в мини-плеере</string>
+    <string name="GlassgramMusicCoverColorsMiniInfo">Панель плеера над чатами окрашивается в цвета обложки.</string>
+    <string name="GlassgramMusicOnlineLyrics">Текст из сети</string>
+    <string name="GlassgramMusicOnlineLyricsInfo">Если в файле нет текста, искать его в LRCLIB. Туда уходят название, исполнитель, альбом и длительность трека.</string>
+    <string name="GlassgramMusicPlayerSection">Плеер</string>
+    <string name="GlassgramMusicClassic">Плеер Telegram</string>
+    <string name="GlassgramMusicClassicInfo">Открывать музыку в плеере Telegram вместо этого.</string>
 </resources>

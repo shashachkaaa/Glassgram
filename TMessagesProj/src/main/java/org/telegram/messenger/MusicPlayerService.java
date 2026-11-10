@@ -203,6 +203,9 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                         if (AudioPlayerAlert.instance != null) {
                             AudioPlayerAlert.instance.updateRepeatButton();
                         }
+                        if (org.telegram.ui.music.GlassgramMusicPlayer.instance != null) {
+                            org.telegram.ui.music.GlassgramMusicPlayer.instance.updateRepeatButton();
+                        }
                     } else if (NOTIFY_SHUFFLE.equals(action)) {
                         if (SharedConfig.shuffleMusic) {
                             MediaController.getInstance().setPlaybackOrderType(0);
@@ -212,6 +215,9 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                         updateShuffleMode();
                         if (AudioPlayerAlert.instance != null) {
                             AudioPlayerAlert.instance.updateRepeatButton();
+                        }
+                        if (org.telegram.ui.music.GlassgramMusicPlayer.instance != null) {
+                            org.telegram.ui.music.GlassgramMusicPlayer.instance.updateRepeatButton();
                         }
                     }
                     MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
