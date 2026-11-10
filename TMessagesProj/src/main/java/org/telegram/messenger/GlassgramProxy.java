@@ -130,6 +130,12 @@ public final class GlassgramProxy {
         refresh();
     }
 
+    /** The team changed the tunnel: the personal key is asked for again now. */
+    public static void tunnelChanged() {
+        GlassgramTunnel.askAgainNow();
+        AndroidUtilities.runOnUIThread(GlassgramProxy::update);
+    }
+
     private static void parse(JSONArray list, ArrayList<ProxySettings> out) {
         for (int i = 0; i < list.length(); i++) {
             final JSONObject item = list.optJSONObject(i);
@@ -315,10 +321,16 @@ public final class GlassgramProxy {
             AndroidUtilities.runOnUIThread(checkConnected, CONNECT_TIMEOUT);
             return;
         }
+        if (index < tunnelCount()) {
+            // the tunnel didn't connect: its key may be a dead one, asked for again with the next update
+            GlassgramTunnel.tunnelFailed();
+        }
         if (++failed >= candidates()) {
             // none of them connected in a row: this one stays a while before the next round
             failed = 0;
             AndroidUtilities.runOnUIThread(checkConnected, ROUND_PAUSE);
+            // the key asked for meanwhile
+            GlassgramTunnel.refreshKey(GlassgramProxy::onKeyChanged);
             return;
         }
         index = (index + 1) % candidates();

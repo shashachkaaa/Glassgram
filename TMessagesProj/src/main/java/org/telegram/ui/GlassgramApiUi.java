@@ -1455,6 +1455,8 @@ public final class GlassgramApiUi {
                 return;
             }
             showDone(fragment, getString(R.string.GlassgramApiTunnelSaved));
+            // this phone's own key follows the change at once, not at its next renewal
+            org.telegram.messenger.GlassgramProxy.tunnelChanged();
             showTunnel(fragment);
         });
     }

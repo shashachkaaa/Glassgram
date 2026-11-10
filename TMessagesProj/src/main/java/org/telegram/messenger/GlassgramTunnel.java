@@ -24,7 +24,7 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /**
  * glassGram's tunnel: Xray-core (XTLS/libXray) in the app's own process, with the account's personal
- * VLESS key from glassGram's server (POST /tunnel/key, made in the team's 3x-ui). Xray listens for
+ * VLESS key from glassGram's server (POST /tunnel/key, made in the team's Remnawave panel). Xray listens for
  * SOCKS5 on a free local port behind a random login made at each start, so no other app on the
  * phone can use it, and GlassgramProxy gives that port to Telegram's connections.
  * <p>
@@ -36,9 +36,16 @@ public final class GlassgramTunnel {
 
     private static final String PREFS = "glassgram_tunnel";
     private static final String KEYSTORE_ALIAS = "glassgram_tunnel";
-    /** After a failed request for the key, how long until the next; after "no tunnel" or "banned", longer. */
+    /**
+     * After a failed request for the key, how long until the next; after "no tunnel now" (the team
+     * setting it up, or its panel moving) a little longer; after "banned", much longer.
+     */
     private static final long RETRY = 10 * 60 * 1000L;
+    private static final long RETRY_OFF = 15 * 60 * 1000L;
     private static final long RETRY_REFUSED = 6 * 60 * 60 * 1000L;
+    /** A tunnel that doesn't connect asks for the key again (a server moved, a key revoked), at most this often. */
+    private static final long FAILED_ASK = 10 * 60 * 1000L;
+    private static long failedAskedAt;
 
     private static Method invoke;
     private static boolean checked, running;
@@ -207,18 +214,44 @@ public final class GlassgramTunnel {
                 keep(got, response.json.optLong("expires_at"), response.json.optLong("refresh_after"));
                 loading = false;
                 onChanged.run();
-            } else if (response.status == 403 || response.status == 503) {
-                // banned, or the tunnel isn't set up now: no key
+            } else if (response.status == 403) {
+                // banned: no key
                 final boolean had = outbounds() != null;
                 forget();
                 failed(RETRY_REFUSED);
                 if (had) {
                     onChanged.run();
                 }
+            } else if (response.status == 503) {
+                // No tunnel now (not set up yet, or its panel moving): asked again soon. A key in force
+                // stays until it ends, as the server's keys do; dropped, it took the connections
+                // straight to Telegram for six hours, if that worked at all
+                failed(RETRY_OFF);
             } else {
                 failed(RETRY);
             }
         });
+    }
+
+    /** The key is asked for at the next refreshKey, whatever its time: the team changed the tunnel. */
+    public static synchronized void askAgainNow() {
+        loadKept();
+        retryAt = 0;
+        refreshAfter = 0;
+    }
+
+    /**
+     * The tunnel didn't connect: its key may be gone (its server moved to another panel, the key
+     * revoked), so it is asked for again at the next refreshKey, at most every FAILED_ASK.
+     */
+    public static synchronized void tunnelFailed() {
+        final long now = System.currentTimeMillis();
+        if (now - failedAskedAt < FAILED_ASK) {
+            return;
+        }
+        failedAskedAt = now;
+        loadKept();
+        refreshAfter = 0;
     }
 
     private static synchronized void failed(long retry) {
