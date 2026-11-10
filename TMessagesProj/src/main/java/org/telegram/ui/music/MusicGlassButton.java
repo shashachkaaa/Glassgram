@@ -17,7 +17,6 @@ import androidx.core.content.ContextCompat;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.Components.LiquidGlassButtonBackground;
 import org.telegram.ui.Components.LiquidPressEffect;
-import org.telegram.ui.Components.ViewBehindBackdrop;
 
 /**
  * glassGram's music player: a button of Liquid Glass, as the header's. Its glass is the library's
@@ -29,7 +28,7 @@ public class MusicGlassButton extends View {
 
     private final LiquidPressEffect press;
     private final LiquidGlassButtonBackground glass = new LiquidGlassButtonBackground();
-    private final ViewBehindBackdrop backdrop;
+    private final BackgroundBackdrop backdrop = new BackgroundBackdrop();
     private final RectF rect = new RectF();
     private final RectF moved = new RectF();
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -49,7 +48,6 @@ public class MusicGlassButton extends View {
         super(context);
         press = new LiquidPressEffect(this);
         press.setUnclipParents(1);
-        backdrop = new ViewBehindBackdrop(this);
         textPaint.setTextSize(AndroidUtilities.dp(14));
         textPaint.setTypeface(AndroidUtilities.bold());
         textPaint.setTextAlign(Paint.Align.CENTER);
@@ -118,6 +116,39 @@ public class MusicGlassButton extends View {
         return active;
     }
 
+    /**
+     * What is behind the glass: the player's background alone. Not the views drawn before the
+     * button, as ViewBehindBackdrop has it: those are the other glass buttons, each drawing its
+     * own glass with the buttons before it behind, so that one button drew the library's lens
+     * over and over again, and the player's animations lost most of their frames.
+     */
+    private final class BackgroundBackdrop implements org.telegram.liquidglass.GlassLayer.Backdrop {
+        private final RectF area = new RectF();
+
+        void setArea(RectF r) {
+            area.set(r);
+        }
+
+        boolean isAvailable() {
+            return getParent() instanceof View && ((View) getParent()).getBackground() != null;
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas) {
+            if (!(getParent() instanceof View)) {
+                return;
+            }
+            final Drawable background = ((View) getParent()).getBackground();
+            if (background == null) {
+                return;
+            }
+            canvas.save();
+            canvas.translate(-(getX() + area.left), -(getY() + area.top));
+            background.draw(canvas);
+            canvas.restore();
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
@@ -154,7 +185,7 @@ public class MusicGlassButton extends View {
             }
             backdrop.setArea(rect);
             final boolean liquid = press.drawGlass(canvas, rect.left, rect.top, rect.right, rect.bottom, radius,
-                !backdrop.isDrawing() && backdrop.isAvailable() ? backdrop : null, fillColor, fillColor, 255);
+                backdrop.isAvailable() ? backdrop : null, fillColor, fillColor, 255);
             if (!liquid) {
                 fillPaint.setColor(fillColor);
                 final float r = Math.min(g.width(), g.height()) / 2f;
@@ -176,11 +207,11 @@ public class MusicGlassButton extends View {
             glass.setAlpha(alpha);
             backdrop.setArea(rect);
             final boolean liquid = press.drawGlass(canvas, rect.left, rect.top, rect.right, rect.bottom, radius,
-                !backdrop.isDrawing() && backdrop.isAvailable() ? backdrop : null, glass.getGlassTint(), 0, alpha);
+                backdrop.isAvailable() ? backdrop : null, glass.getGlassTint(), 0, alpha);
             if (!liquid) {
                 glass.setBounds(Math.round(g.left), Math.round(g.top), Math.round(g.right), Math.round(g.bottom));
                 backdrop.setArea(g);
-                glass.setBackdrop(!backdrop.isDrawing() && backdrop.isAvailable() ? backdrop : null);
+                glass.setBackdrop(backdrop.isAvailable() ? backdrop : null);
                 glass.draw(canvas);
                 if (pressed) {
                     canvas.save();

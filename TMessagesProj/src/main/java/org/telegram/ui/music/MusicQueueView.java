@@ -201,7 +201,10 @@ public class MusicQueueView extends LinearLayout {
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new RecyclerListView.Holder(new Cell(parent.getContext()));
+            // the whole row is the track's: without its own params the list gave it its content's width
+            final Cell cell = new Cell(parent.getContext());
+            cell.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
+            return new RecyclerListView.Holder(cell);
         }
 
         @Override
