@@ -120,7 +120,6 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
     private MessageObject lastMessageObject;
     private String coverKey;
-    private boolean coverPlaceholder;
     private MusicCoverColors.PlaceholderDrawable placeholder;
     private int lastTime = -1, lastRemaining = -1;
     private boolean noforwards;
@@ -233,7 +232,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         coverView.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
             @Override
             public void didSetImage(ImageReceiver imageReceiver, boolean set, boolean thumb, boolean memCache) {
-                if (set && !coverPlaceholder) {
+                if (set && imageReceiver.getBitmap() != null) {
                     takeCoverColors(imageReceiver.getBitmap());
                 }
             }
@@ -501,18 +500,19 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         }
         final String artworkUrl = messageObject.getArtworkUrl(false);
         final ImageLocation thumb = thumbLocation(messageObject);
+        // The drawn cover under the picture: shown until it loads, and for good when there is none,
+        // as for a track whose cover is searched for by its name (iTunes) and not found
+        placeholder = new MusicCoverColors.PlaceholderDrawable();
+        placeholder.setRadius(coverView.getImageReceiver().getRoundRadius()[0]);
+        // the theme's colors (or the ones known for the track) until a picture gives its own
+        takeCoverColors(null);
+        // a picture already in memory comes at once, through the delegate (the drawn one has no bitmap)
         if (!TextUtils.isEmpty(artworkUrl)) {
-            coverView.setImage(ImageLocation.getForPath(artworkUrl), null, thumb, null, null, 0, 1, messageObject);
+            coverView.setImage(ImageLocation.getForPath(artworkUrl), null, thumb, null, placeholder, null, 0, 1, messageObject);
         } else if (thumb != null) {
-            coverView.setImage(null, null, thumb, null, null, 0, 1, messageObject);
+            coverView.setImage(thumb, null, null, null, placeholder, null, 0, 1, messageObject);
         } else {
-            // no cover: the placeholder's gray is not the track's colors
-            coverPlaceholder = true;
-            placeholder = new MusicCoverColors.PlaceholderDrawable();
-            placeholder.setRadius(coverView.getImageReceiver().getRoundRadius()[0]);
             coverView.setImageDrawable(placeholder);
-            coverPlaceholder = false;
-            takeCoverColors(null);
         }
     }
 

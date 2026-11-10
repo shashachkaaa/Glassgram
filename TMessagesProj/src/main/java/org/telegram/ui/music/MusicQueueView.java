@@ -220,6 +220,7 @@ public class MusicQueueView extends LinearLayout {
 
     private class Cell extends FrameLayout {
         private final BackupImageView cover;
+        private final MusicCoverColors.PlaceholderDrawable placeholder;
         private final TextView title, author;
         private final ImageView state;
 
@@ -227,6 +228,8 @@ public class MusicQueueView extends LinearLayout {
             super(context);
             cover = new BackupImageView(context);
             cover.setRoundRadius(AndroidUtilities.dp(8));
+            placeholder = new MusicCoverColors.PlaceholderDrawable();
+            placeholder.setRadius(AndroidUtilities.dp(8));
             addView(cover, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 4, 0, 0, 0));
             state = new ImageView(context);
             state.setScaleType(ImageView.ScaleType.CENTER);
@@ -256,14 +259,16 @@ public class MusicQueueView extends LinearLayout {
             author.setTextColor(androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0x99));
             final TLRPC.Document document = m.getDocument();
             final TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 90) : null;
+            // the drawn cover until the picture loads, and where there is none (a cover searched
+            // for by the track's name and not found)
             if (thumb instanceof TLRPC.TL_photoSize || thumb instanceof TLRPC.TL_photoSizeProgressive) {
-                cover.setImage(ImageLocation.getForDocument(thumb, document), "44_44", null, null, m);
+                cover.setImage(ImageLocation.getForDocument(thumb, document), "44_44", placeholder, m);
             } else {
                 final String artwork = m.getArtworkUrl(true);
                 if (!TextUtils.isEmpty(artwork)) {
-                    cover.setImage(ImageLocation.getForPath(artwork), "44_44", null, null, m);
+                    cover.setImage(ImageLocation.getForPath(artwork), "44_44", placeholder, m);
                 } else {
-                    cover.setImageResource(R.drawable.music_empty);
+                    cover.setImageDrawable(placeholder);
                 }
             }
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
