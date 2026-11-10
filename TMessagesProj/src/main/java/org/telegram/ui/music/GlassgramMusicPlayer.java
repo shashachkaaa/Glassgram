@@ -121,6 +121,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
     private MessageObject lastMessageObject;
     private String coverKey;
     private boolean coverPlaceholder;
+    private MusicCoverColors.PlaceholderDrawable placeholder;
     private int lastTime = -1, lastRemaining = -1;
     private boolean noforwards;
     private MessagesController.SavedMusicList savedMusicList;
@@ -290,8 +291,8 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
         savedMusicList = MediaController.getInstance().currentSavedMusicList;
         final MusicCoverColors known = GlassgramConfig.musicCoverColorsFull ? MusicCoverColors.forTrack(playing) : null;
-        background.setColors(known != null ? known : MusicCoverColors.DEFAULT, false);
-        seekBar.setColor(known != null ? known.accent : 0xffffffff);
+        background.setColors(known != null ? known : MusicCoverColors.theme(), false);
+        seekBar.setColor((known != null ? known : MusicCoverColors.theme()).accent);
         updateOrderButtons(false);
         updateSpeed();
         updateTitle(false);
@@ -492,6 +493,7 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
         final TLRPC.Document document = messageObject.getDocument();
         coverKey = MusicCoverColors.keyOf(messageObject);
+        placeholder = null;
         if (audioInfo != null && audioInfo.getCover() != null) {
             coverView.setImageBitmap(audioInfo.getCover());
             takeCoverColors(audioInfo.getCover());
@@ -506,7 +508,9 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         } else {
             // no cover: the placeholder's gray is not the track's colors
             coverPlaceholder = true;
-            coverView.setImageDrawable(new MusicCoverColors.PlaceholderDrawable());
+            placeholder = new MusicCoverColors.PlaceholderDrawable();
+            placeholder.setRadius(coverView.getImageReceiver().getRoundRadius()[0]);
+            coverView.setImageDrawable(placeholder);
             coverPlaceholder = false;
             takeCoverColors(null);
         }
@@ -529,10 +533,10 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
                 return;
             }
             MusicCoverColors.notifyChanged();
-            if (GlassgramConfig.musicCoverColorsFull) {
-                background.setColors(colors, isShowing());
-            }
-            seekBar.setColor(GlassgramConfig.musicCoverColorsFull ? colors.accent : 0xffffffff);
+            // the cover's colors, or the theme's where they are off
+            final MusicCoverColors shown = GlassgramConfig.musicCoverColorsFull ? colors : MusicCoverColors.theme();
+            background.setColors(shown, isShowing());
+            seekBar.setColor(shown.accent);
         });
     }
 
@@ -606,8 +610,8 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
 
     private void onSettingsChanged() {
         final MusicCoverColors colors = MusicCoverColors.get(coverKey);
-        background.setColors(GlassgramConfig.musicCoverColorsFull ? (colors != null ? colors : MusicCoverColors.DEFAULT) : MusicCoverColors.DEFAULT, true);
-        seekBar.setColor(GlassgramConfig.musicCoverColorsFull && colors != null ? colors.accent : 0xffffffff);
+        background.setColors(GlassgramConfig.musicCoverColorsFull && colors != null ? colors : MusicCoverColors.theme(), true);
+        seekBar.setColor((GlassgramConfig.musicCoverColorsFull && colors != null ? colors : MusicCoverColors.theme()).accent);
         MusicCoverColors.notifyChanged();
         if (page == PAGE_LYRICS && lyricsView.getLyrics() == null) {
             final MessageObject m = MediaController.getInstance().getPlayingMessageObject();
@@ -1343,6 +1347,9 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             coverView.setTranslationY(AndroidUtilities.lerp(coverBig.top, coverSmall.top, t) - coverBig.top);
             final float radius = AndroidUtilities.lerp(AndroidUtilities.dp(18), AndroidUtilities.dp(10), t) / Math.max(0.01f, scale);
             coverView.setRoundRadius((int) radius);
+            if (placeholder != null) {
+                placeholder.setRadius(radius);
+            }
             // the shadow under it moves with it
             invalidate();
 

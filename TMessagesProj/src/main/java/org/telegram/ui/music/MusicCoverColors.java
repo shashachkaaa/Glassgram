@@ -44,6 +44,24 @@ public final class MusicCoverColors {
     /** The colors without a cover: the dark glass of the client. */
     public static final MusicCoverColors DEFAULT = new MusicCoverColors(0xff2b2a33, 0xff1f1e26, 0xff141319, 0xffb8b2ff);
 
+    /**
+     * The colors of a track without a cover: the theme's accent (its floating button's color),
+     * darkened as a cover's would be, so that the player matches the app.
+     */
+    public static MusicCoverColors theme() {
+        int accent = org.telegram.ui.ActionBar.Theme.getColor(org.telegram.ui.ActionBar.Theme.key_chats_actionBackground);
+        if (android.graphics.Color.alpha(accent) == 0) {
+            accent = org.telegram.ui.ActionBar.Theme.getColor(org.telegram.ui.ActionBar.Theme.key_featuredStickers_addButton);
+        }
+        final int background = org.telegram.ui.ActionBar.Theme.getColor(org.telegram.ui.ActionBar.Theme.key_windowBackgroundWhite);
+        return new MusicCoverColors(
+            tone(ColorUtils.blendARGB(accent, background, 0.2f), 0.40f),
+            tone(accent, 0.27f),
+            tone(ColorUtils.blendARGB(accent, 0xff000000, 0.3f), 0.13f),
+            accent(accent)
+        );
+    }
+
     private static final HashMap<String, MusicCoverColors> cache = new HashMap<>();
     private static String lastKey;
     private static MusicCoverColors last;
@@ -71,14 +89,14 @@ public final class MusicCoverColors {
             }
         }
         if (cover == null || cover.isRecycled()) {
-            done.run(DEFAULT);
+            done.run(theme());
             return;
         }
         final Bitmap small;
         try {
             small = Bitmap.createScaledBitmap(cover, 64, 64, true);
         } catch (Throwable e) {
-            done.run(DEFAULT);
+            done.run(theme());
             return;
         }
         Utilities.globalQueue.postRunnable(() -> {
@@ -270,8 +288,23 @@ public final class MusicCoverColors {
         private final android.graphics.Path notePath;
         private final android.graphics.Path scaled = new android.graphics.Path();
         private final android.graphics.Matrix matrix = new android.graphics.Matrix();
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+        private final int light, dark, deep;
+        private float radius;
+
+        /** Its corners: the cover's, set as the cover changes size (the image's rounding is for pictures only). */
+        public void setRadius(float radius) {
+            if (this.radius != radius) {
+                this.radius = radius;
+                invalidateSelf();
+            }
+        }
 
         public PlaceholderDrawable() {
+            final MusicCoverColors c = theme();
+            light = ColorUtils.blendARGB(c.top, c.accent, 0.35f);
+            dark = c.middle;
+            deep = c.bottom;
             android.graphics.Path p;
             try {
                 p = androidx.core.graphics.PathParser.createPathFromPathData(NOTE);
@@ -286,7 +319,7 @@ public final class MusicCoverColors {
         protected void onBoundsChange(@NonNull Rect b) {
             super.onBoundsChange(b);
             background.setShader(new LinearGradient(b.left, b.top, b.right, b.bottom,
-                new int[]{0xff4a4466, 0xff2c2940, 0xff1d1b29}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+                new int[]{light, dark, deep}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
             shine.setShader(new RadialGradient(b.left + b.width() * 0.25f, b.top + b.height() * 0.15f, Math.max(1, b.width() * 0.8f),
                 new int[]{0x26ffffff, 0x00ffffff}, null, Shader.TileMode.CLAMP));
             // the note at 44% of the side, in the middle
@@ -300,9 +333,9 @@ public final class MusicCoverColors {
 
         @Override
         public void draw(@NonNull Canvas canvas) {
-            final Rect b = getBounds();
-            canvas.drawRect(b, background);
-            canvas.drawRect(b, shine);
+            rect.set(getBounds());
+            canvas.drawRoundRect(rect, radius, radius, background);
+            canvas.drawRoundRect(rect, radius, radius, shine);
             canvas.drawPath(scaled, note);
         }
 
@@ -318,7 +351,7 @@ public final class MusicCoverColors {
 
         @Override
         public int getOpacity() {
-            return PixelFormat.OPAQUE;
+            return PixelFormat.TRANSLUCENT;
         }
     }
 
