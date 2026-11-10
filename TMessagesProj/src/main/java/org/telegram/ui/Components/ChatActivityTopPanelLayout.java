@@ -111,6 +111,10 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
             bgBounds.set(getPaddingLeft() - dp(7), 0, getMeasuredWidth() - getPaddingRight() + dp(7), getPaddingTop() + getPaddingBottom() + (int) bgHeight);
             backgroundDrawable.setBounds(bgBounds);
+            // pressed and pulled it stays in this: what is under it is not captured again with
+            // other bounds on every frame of the press, the blur jumping as it ends
+            final int m = dp(24);
+            backgroundDrawable.setReservedBounds(bgBounds.left - m, bgBounds.top - m, bgBounds.right + m, bgBounds.bottom + m);
             glassRadius = Math.min(dp(GLASSGRAM_RADIUS), bgHeight / 2);
             backgroundDrawable.setRadius(glassRadius);
             backgroundDrawable.getPadding(bgPadding);

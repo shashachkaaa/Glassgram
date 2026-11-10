@@ -421,7 +421,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 glassNeckDrawables[i] = glassFactory.create(this).setColorProvider(glassColorProvider);
             }
             // its shape changes with every frame of the press: captured once for the whole bar
-            glassNeckDrawables[i].setReservedBounds(-dp(24), -dp(24), getWidth() + dp(24), getHeight() + dp(24));
+            glassReserve(glassNeckDrawables[i]);
             // The pieces become one glass: their contents (the icons, the name) are drawn after it
             final int surfaceA = glassSurfaceColor(a), surfaceB = glassSurfaceColor(b);
             if (!glassMerge.drawMerged(canvas, left, right, glassNeckRestGap[i], glassNeckDrawables[i], 0, 0,
@@ -517,9 +517,29 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         // It changes its shape on every frame of the slide: what is under it is captured once for
         // the whole bar, or its page's glass engine captured the page again on every frame, and drew
         // all of its glass again
-        final int m = dp(12);
-        glass.setReservedBounds(-m, -m, getWidth() + m, getHeight() + dp(24));
+        glassReserve(glass);
         return glass;
+    }
+
+    // glassGram: the area under the bar's glass that its page captures, the same for all of it: the
+    // pieces at rest, pressed and pulled, the necks merging them and the glass morphing into another
+    // bar's. A piece shown or hidden, a neck coming with a press or the morph's glass with a slide
+    // changed the areas captured, and the page's glass was captured again with other bounds: the blur
+    // under the glass below the bar (the pinned message, the translation and business bot panels)
+    // jumped with every press of the bar and at both ends of a slide
+    private int glassRowTop, glassRowBottom;
+
+    private void glassReserve(Drawable drawable) {
+        if (!(drawable instanceof BlurredBackgroundDrawable)) {
+            return;
+        }
+        final int m = dp(24);
+        if (glassRowBottom > glassRowTop) {
+            // the row of the pieces with room for their press around it
+            ((BlurredBackgroundDrawable) drawable).setReservedBounds(-m, glassRowTop - m, getWidth() + m, glassRowBottom + m);
+        } else {
+            ((BlurredBackgroundDrawable) drawable).setReservedBounds(-m, -m, getWidth() + m, getHeight() + m);
+        }
     }
 
     /** After a slide: the morphing pieces' glass is out of its page's captures until the next one. */
@@ -3673,6 +3693,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         final int t = getHeight() - extraHeight - (getCurrentActionBarHeight() + si) / 2 - p;
         final int b = t + si + p * 2;
+        glassRowTop = t;
+        glassRowBottom = b;
+        glassReserve(glassDrawable);
+        glassReserve(glassDrawableBack);
+        glassReserve(glassDrawableMenu);
 
         if (glassDrawable != null && !glassOnlyBack && drawGlassTitle) {
             if (centerTitleAndGlass && titleTextView[0] != null && titleTextView[0].getVisibility() == View.VISIBLE) {

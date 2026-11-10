@@ -48426,6 +48426,8 @@ public class ChatActivity extends BaseFragment implements
         return topicsTabs != null ? topicsTabs.getTabsVisibleSpaceWithPadding(position, dp(7)) : 0;
     }
 
+    private final GlassPositionsArray blurCapturePositions = new GlassPositionsArray();
+
     private void invalidateBlurCaptures(int flags) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || scrollableViewNoiseSuppressor == null) {
             return;
@@ -48435,6 +48437,14 @@ public class ChatActivity extends BaseFragment implements
             GlassPositionsArray glassPositionsArray = glassEngine.getAllVisibleDrawablesWithDisplayListPositionsMerged();
             glassPositionsArray.outset(dp(48), dp(48));
             glassPositionsArray.clip(0, chatListView.getY(), chatListView.getWidth(), chatListView.getY() + chatListView.getHeight());
+            // glassGram: a glass shown or hidden inside the areas already captured (a header button's
+            // neck as it is pressed, the header's morph at a slide) leaves them as they are: nothing
+            // under the glass changed, and capturing it all again only made its blur jump
+            if (flags == GlassEngine.FLAG_INVALIDATED_POSITIONS && glassPositionsArray.equals(blurCapturePositions)
+                    && scrollableViewNoiseSuppressor.getRenderNodesCount() == blurCapturePositions.size()) {
+                return;
+            }
+            blurCapturePositions.set(glassPositionsArray);
             scrollableViewNoiseSuppressor.setupRenderNodes(glassPositionsArray);
         }
 
