@@ -38,6 +38,7 @@ public class MusicLyricsView extends View {
     private final OverScroller scroller;
     private final GestureDetector gestures;
     private final Paint fadePaint = new Paint();
+    private int fadeHeight;
 
     private MusicLyrics lyrics;
     private int layoutWidth;
@@ -254,10 +255,13 @@ public class MusicLyricsView extends View {
         }
         canvas.translate(-getPaddingLeft(), scrollY);
         // the edges fade
-        final float fade = AndroidUtilities.dp(36);
-        fadePaint.setShader(new LinearGradient(0, 0, 0, getHeight(),
-            new int[]{0, 0xff000000, 0xff000000, 0},
-            new float[]{0f, fade / getHeight(), 1f - fade / getHeight(), 1f}, Shader.TileMode.CLAMP));
+        if (fadeHeight != getHeight()) {
+            fadeHeight = getHeight();
+            final float fade = AndroidUtilities.dp(36);
+            fadePaint.setShader(new LinearGradient(0, 0, 0, getHeight(),
+                new int[]{0, 0xff000000, 0xff000000, 0},
+                new float[]{0f, fade / getHeight(), 1f - fade / getHeight(), 1f}, Shader.TileMode.CLAMP));
+        }
         canvas.drawRect(0, 0, getWidth(), getHeight(), fadePaint);
         canvas.restoreToCount(save);
 

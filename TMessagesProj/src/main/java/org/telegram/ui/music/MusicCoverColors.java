@@ -182,6 +182,7 @@ public final class MusicCoverColors {
             if (!animated) {
                 from = to = shown = colors;
                 updateShaders();
+                notifyChange();
                 return;
             }
             from = shown;
@@ -192,6 +193,12 @@ public final class MusicCoverColors {
             animator.addUpdateListener(a -> {
                 shown = MusicCoverColors.lerp(from, to, (float) a.getAnimatedValue());
                 updateShaders();
+            });
+            animator.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    notifyChange();
+                }
             });
             animator.start();
         }
@@ -210,6 +217,11 @@ public final class MusicCoverColors {
             lastHeight = b.height();
             lastWidth = b.width();
             invalidateSelf();
+        }
+
+        // The glass over the background is told once the colors settled, not on every frame of
+        // their crossfade: each of its buttons drew its lens and blur again for each one
+        private void notifyChange() {
             if (onChange != null) {
                 onChange.run();
             }

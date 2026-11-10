@@ -625,8 +625,9 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
         }
         final int old = page;
         page = newPage;
-        lyricsButton.setActive(page == PAGE_LYRICS, true);
-        queueButton.setActive(page == PAGE_QUEUE, true);
+        // at once: a glass fading in drew its lens again on every frame, over the page's animation
+        lyricsButton.setActive(page == PAGE_LYRICS, false);
+        queueButton.setActive(page == PAGE_QUEUE, false);
         if (old == PAGE_QUEUE) {
             queueView.closeKeyboard();
         }
@@ -655,15 +656,27 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             pageSwitch = old != PAGE_COVER && page != PAGE_COVER ? t : (page == PAGE_COVER ? 0f : 1f);
             root.applyPage();
         });
+        // The pages fade in their own layers: their alpha changing every frame drew them offscreen again
+        setPageLayers(true);
         pageAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(android.animation.Animator animation) {
                 pageSwitch = 1f;
                 updatePageVisibility(-1);
+                setPageLayers(false);
                 root.applyPage();
             }
         });
         pageAnimator.start();
+    }
+
+    private void setPageLayers(boolean on) {
+        for (View v : new View[]{lyricsView, lyricsEmpty, queueView}) {
+            final int type = on && v.getVisibility() == View.VISIBLE ? View.LAYER_TYPE_HARDWARE : View.LAYER_TYPE_NONE;
+            if (v.getLayerType() != type) {
+                v.setLayerType(type, null);
+            }
+        }
     }
 
     // between two pages (lyrics to the queue): 0 the old one shown, 1 the new one
@@ -1237,26 +1250,65 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             applyPage();
         }
 
-        private final android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        private Bitmap shadow;
+        private int shadowFor;
+        private float shadowPad;
+        private final android.graphics.RectF shadowRect = new android.graphics.RectF();
+
+        /**
+         * The cover's shadow, drawn once into a small picture: blurring it on every frame, as a
+         * shadow layer does, cost the page's animation its frames.
+         */
+        private Bitmap shadow(int coverSize) {
+            if (shadow != null && shadowFor == coverSize) {
+                return shadow;
+            }
+            shadowFor = coverSize;
+            // a quarter of the size: the shadow is soft anyway
+            final float k = 0.25f;
+            final float side = coverSize * k;
+            final float blur = AndroidUtilities.dp(26) * k;
+            shadowPad = blur * 2f;
+            final int bs = (int) Math.ceil(side + shadowPad * 2);
+            try {
+                final Bitmap b = Bitmap.createBitmap(bs, bs, Bitmap.Config.ALPHA_8);
+                final android.graphics.Canvas c = new android.graphics.Canvas(b);
+                final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                p.setColor(0x70000000);
+                p.setMaskFilter(new android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL));
+                final float r = AndroidUtilities.dp(18) * k;
+                c.drawRoundRect(shadowPad, shadowPad, shadowPad + side, shadowPad + side, r, r, p);
+                shadow = b;
+            } catch (Throwable e) {
+                shadow = null;
+            }
+            shadowPad /= k;
+            return shadow;
+        }
 
         @Override
         protected boolean drawChild(android.graphics.Canvas canvas, View child, long drawingTime) {
-            if (child == coverView && Build.VERSION.SDK_INT >= 28 && coverView.getWidth() > 0) {
-                // the cover's shadow, as the elevation's was, without lifting it over the views
-                // after it (the settings, a menu's dimming)
-                final float s = coverView.getScaleX();
-                final float l = coverView.getLeft() + coverView.getTranslationX();
-                final float t = coverView.getTop() + coverView.getTranslationY();
-                final float size = coverView.getWidth() * s;
-                final float r = coverView.getImageReceiver().getRoundRadius()[0] * s;
-                final float blur = AndroidUtilities.lerp(AndroidUtilities.dp(26), AndroidUtilities.dp(6), pageProgress);
-                // under the cover, in the background's color: unseen where the cover has not loaded yet
-                shadowPaint.setColor(background.getColors().middle);
-                shadowPaint.setShadowLayer(blur, 0, blur * 0.45f, 0x70000000);
-                canvas.drawRoundRect(l + 1, t + 1, l + size - 1, t + size - 1, r, r, shadowPaint);
+            if (child == coverView && coverView.getWidth() > 0) {
+                // as the elevation's was, without lifting the cover over the views after it (the
+                // settings, a menu's dimming)
+                final Bitmap b = shadow(coverView.getWidth());
+                if (b != null) {
+                    final float s = coverView.getScaleX();
+                    final float l = coverView.getLeft() + coverView.getTranslationX();
+                    final float t = coverView.getTop() + coverView.getTranslationY();
+                    final float size = coverView.getWidth() * s;
+                    final float pad = shadowPad * s;
+                    final float drop = AndroidUtilities.dp(12) * s;
+                    shadowRect.set(l - pad, t - pad + drop, l + size + pad, t + size + pad + drop);
+                    shadowPaint.setColor(0xff000000);
+                    canvas.drawBitmap(b, null, shadowRect, shadowPaint);
+                }
             }
             return super.drawChild(canvas, child, drawingTime);
         }
+
+        private int titlesWidth = -1;
 
         /** Places what moves with the page: the cover, the titles, the pages' fade. */
         void applyPage() {
@@ -1275,16 +1327,24 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
             coverView.setTranslationY(AndroidUtilities.lerp(coverBig.top, coverSmall.top, t) - coverBig.top);
             final float radius = AndroidUtilities.lerp(AndroidUtilities.dp(18), AndroidUtilities.dp(10), t) / Math.max(0.01f, scale);
             coverView.setRoundRadius((int) radius);
+            // the shadow under it moves with it
             invalidate();
 
-            // the titles make room for the small cover
-            final int shift = (int) (AndroidUtilities.dp(64) * t);
+            // the titles make room for the small cover: moved, laid out again only when their
+            // width changes (narrow while a page is open or the cover moves)
+            final int shift = AndroidUtilities.dp(64);
+            final boolean narrow = t > 0f || pageAnimator != null && pageAnimator.isRunning();
+            final int w = narrow ? titleWidth - shift : titleWidth;
             final int P = AndroidUtilities.dp(24);
-            final int w = titleWidth - shift;
-            trackTitle.measure(exactly(w), exactly(AndroidUtilities.dp(28)));
-            trackTitle.layout(P + shift, infoTop + AndroidUtilities.dp(4), P + shift + w, infoTop + AndroidUtilities.dp(32));
-            trackAuthor.measure(exactly(w), exactly(AndroidUtilities.dp(22)));
-            trackAuthor.layout(P + shift, infoTop + AndroidUtilities.dp(34), P + shift + w, infoTop + AndroidUtilities.dp(56));
+            if (w != titlesWidth || trackTitle.getWidth() != w) {
+                titlesWidth = w;
+                trackTitle.measure(exactly(w), exactly(AndroidUtilities.dp(28)));
+                trackTitle.layout(P, infoTop + AndroidUtilities.dp(4), P + w, infoTop + AndroidUtilities.dp(32));
+                trackAuthor.measure(exactly(w), exactly(AndroidUtilities.dp(22)));
+                trackAuthor.layout(P, infoTop + AndroidUtilities.dp(34), P + w, infoTop + AndroidUtilities.dp(56));
+            }
+            trackTitle.setTranslationX(shift * t);
+            trackAuthor.setTranslationX(shift * t);
 
             // the pages fade in as the cover leaves; between two pages they cross
             final float in = t;
@@ -1301,7 +1361,6 @@ public class GlassgramMusicPlayer extends BottomSheet implements NotificationCen
                 v.setAlpha(a);
                 v.setTranslationY(AndroidUtilities.dp(16) * (1f - a));
             }
-            invalidateGlass();
         }
     }
 }
