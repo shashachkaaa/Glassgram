@@ -454,11 +454,17 @@ public class DownscaleScrollableNoiseSuppressor {
         }
 
 
-        private void setPosition(RectF position) {
-            this.position.left = roundDown(position.left, 16);
-            this.position.top = roundDown(position.top, 16);
-            this.position.right = roundUp(position.right, 16);
-            this.position.bottom = roundUp(position.bottom, 16);
+        /** Whether it moved. */
+        private boolean setPosition(RectF position) {
+            final int left = roundDown(position.left, 16);
+            final int top = roundDown(position.top, 16);
+            final int right = roundUp(position.right, 16);
+            final int bottom = roundUp(position.bottom, 16);
+            if (this.position.left == left && this.position.top == top && this.position.right == right && this.position.bottom == bottom) {
+                return false;
+            }
+            this.position.set(left, top, right, bottom);
+            return true;
         }
 
         public void invalidate() {
@@ -487,7 +493,20 @@ public class DownscaleScrollableNoiseSuppressor {
         return rectRenderNodesCount;
     }
 
+    private int positionsGeneration;
+
+    /**
+     * glassGram: changes whenever the captured areas move or come and go. What is drawn of them is
+     * placed at their positions: a picture holding it (the Liquid Glass library's buttons record
+     * their glass into their own) has to be drawn again, or it shows the new captures at the old
+     * places, what is under the glass shifted.
+     */
+    public int getPositionsGeneration() {
+        return positionsGeneration;
+    }
+
     public void setupRenderNodes(GlassPositionsArray positions) {
+        boolean changed = rectRenderNodesCount != positions.size();
         rectRenderNodesCount = positions.size();
 
         while (rectRenderNodesCount > rectRenderNodes.size()) {
@@ -495,11 +514,15 @@ public class DownscaleScrollableNoiseSuppressor {
         }
 
         for (int a = 0; a < rectRenderNodesCount; a++) {
-            rectRenderNodes.get(a).setPosition(positions.get(a));
+            changed |= rectRenderNodes.get(a).setPosition(positions.get(a));
+        }
+        if (changed) {
+            positionsGeneration++;
         }
     }
 
     public void setupRenderNodes(List<RectF> positions, int count) {
+        boolean changed = rectRenderNodesCount != count;
         rectRenderNodesCount = count;
 
         while (rectRenderNodesCount > rectRenderNodes.size()) {
@@ -507,7 +530,10 @@ public class DownscaleScrollableNoiseSuppressor {
         }
 
         for (int a = 0; a < rectRenderNodesCount; a++) {
-            rectRenderNodes.get(a).setPosition(positions.get(a));
+            changed |= rectRenderNodes.get(a).setPosition(positions.get(a));
+        }
+        if (changed) {
+            positionsGeneration++;
         }
     }
 

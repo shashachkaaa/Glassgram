@@ -247,6 +247,23 @@ public class GlassEngine {
 
 
     private final ArrayList<DownscaleScrollableNoiseSuppressor> downscaleScrollableNoiseSuppressors = new ArrayList<>();
+    private long lastSuppressorsPositionsGeneration;
+
+    /** Whether the noise suppressors' captured areas moved since the last call. */
+    private boolean haveCapturesMoved() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return false;
+        }
+        long generation = 0;
+        for (int a = 0, N = downscaleScrollableNoiseSuppressors.size(); a < N; a++) {
+            generation = generation * 31 + downscaleScrollableNoiseSuppressors.get(a).getPositionsGeneration();
+        }
+        if (generation == lastSuppressorsPositionsGeneration) {
+            return false;
+        }
+        lastSuppressorsPositionsGeneration = generation;
+        return true;
+    }
 
     public void addNoiseSuppressor(DownscaleScrollableNoiseSuppressor downscaleScrollableNoiseSuppressor) {
         downscaleScrollableNoiseSuppressors.add(downscaleScrollableNoiseSuppressor);
@@ -403,6 +420,21 @@ public class GlassEngine {
                     glassInvalidationListener.onGlassInvalidated(flags);
                 }
                 Trace.endSection();
+
+                // glassGram: the captures moved (a glass came or moved, as the page-down button
+                // rising over the input): the Liquid Glass library's buttons (the input's pieces,
+                // the header's) draw them, where they were, into a picture of their own, which
+                // only a redraw of their view brings up to date; until then what is under them
+                // was the captures' new content at the old places, shifted with the button. The
+                // drawables' own display lists are recorded again just below.
+                if (haveCapturesMoved()) {
+                    for (int a = 0, N = viewPositionStates.size(); a < N; a++) {
+                        final ViewPositionState state = viewPositionStates.get(a);
+                        if (state.visible) {
+                            state.view.invalidate();
+                        }
+                    }
+                }
             }
 
             final boolean invalidateAll = BitwiseUtils.hasFlag(flags, FLAG_INVALIDATED_POSITIONS);
