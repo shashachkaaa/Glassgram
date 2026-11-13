@@ -196,6 +196,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_TRANSCRIBE_MODEL = 154;
     private static final int ID_BUTTON_DATA = 155;
     private static final int ID_PROXY_MODE = 156;
+    private static final int ID_ROUND_CAMERA = 157;
     private static final int ID_CHAT_LOCK = 160;
     private static final int ID_DOUBLE_TAP_ACTION = 161;
     private static final int ID_MESSAGE_MENU = 162;
@@ -296,6 +297,17 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     if (listView != null) listView.adapter.update(true);
                 });
             }
+        }
+        if (page == PAGE_CHATS && org.telegram.messenger.camera.Camera2Session.roundWideLensKnown() == null) {
+            // whether the ultra-wide lens is among the cameras video messages can start on
+            final int size = GlassgramConfig.roundVideoSize(MessagesController.getInstance(currentAccount).roundVideoSize);
+            org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+                if (org.telegram.messenger.camera.Camera2Session.hasRoundWideLens(size)) {
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (listView != null) listView.adapter.update(true);
+                    });
+                }
+            });
         }
         if (page == PAGE_INLINE_RESULTS) {
             // the rates the examples and the "updated at" show
@@ -468,6 +480,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 }
                 items.add(UItem.asShadow(getString(R.string.GlassgramTranscriptionInfo)));
                 items.add(header(getString(R.string.GlassgramRoundVideos)));
+                items.add(UItem.asButton(ID_ROUND_CAMERA, getString(R.string.GlassgramRoundCamera), roundCameraName(
+                        GlassgramConfig.roundCamera == GlassgramConfig.ROUND_CAMERA_WIDE && !GlassgramConfig.roundWideAllowed() ? GlassgramConfig.ROUND_CAMERA_MAIN : GlassgramConfig.roundCamera)));
                 items.add(buttonCheck(ID_ROUND_60FPS, getString(R.string.GlassgramRound60Fps), getString(R.string.GlassgramRound60FpsInfo)).setChecked(GlassgramConfig.roundFps60));
                 items.add(buttonCheck(ID_ROUND_STABILIZATION, getString(R.string.GlassgramRoundStabilization), getString(R.string.GlassgramRoundStabilizationInfo)).setChecked(GlassgramConfig.roundStabilization));
                 if (GlassgramConfig.roundStabilization) {
@@ -803,6 +817,21 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_ROUND_CAMERA_INFO:
                 showCameraReport();
                 return;
+            case ID_ROUND_CAMERA: {
+                final int[] cameras = roundCameraChoices();
+                final String[] names = new String[cameras.length];
+                int current = -1;
+                for (int i = 0; i < cameras.length; i++) {
+                    names[i] = roundCameraName(cameras[i]);
+                    if (cameras[i] == GlassgramConfig.roundCamera) current = i;
+                }
+                showChoice(getString(R.string.GlassgramRoundCamera), names, current, which -> {
+                    GlassgramConfig.roundCamera = cameras[which];
+                    GlassgramConfig.roundCameraNext = -1;
+                    GlassgramConfig.putInt("roundCamera", cameras[which]);
+                }, false);
+                return;
+            }
             case ID_GHOST_SILENT:
                 showChoice(getString(R.string.GlassgramGhostSilent), ghostSilentNames(), GlassgramConfig.ghostSilentSend, which -> {
                     GlassgramConfig.ghostSilentSend = which;
@@ -1746,6 +1775,24 @@ public class GlassgramSettingsActivity extends UniversalFragment {
 
     private static String[] showIdNames() {
         return new String[] { getString(R.string.GlassgramShowIdOff), "Telegram API", "Bot API" };
+    }
+
+    /** The cameras video messages can start on: the ultra-wide lens only where the back camera gets to one. */
+    private static int[] roundCameraChoices() {
+        final boolean wide = GlassgramConfig.roundWideAllowed()
+                && (Boolean.TRUE.equals(org.telegram.messenger.camera.Camera2Session.roundWideLensKnown()) || GlassgramConfig.roundCamera == GlassgramConfig.ROUND_CAMERA_WIDE);
+        return wide
+                ? new int[]{GlassgramConfig.ROUND_CAMERA_MAIN, GlassgramConfig.ROUND_CAMERA_FRONT, GlassgramConfig.ROUND_CAMERA_WIDE, GlassgramConfig.ROUND_CAMERA_ASK}
+                : new int[]{GlassgramConfig.ROUND_CAMERA_MAIN, GlassgramConfig.ROUND_CAMERA_FRONT, GlassgramConfig.ROUND_CAMERA_ASK};
+    }
+
+    private static String roundCameraName(int camera) {
+        switch (camera) {
+            case GlassgramConfig.ROUND_CAMERA_MAIN: return getString(R.string.GlassgramRoundCameraMain);
+            case GlassgramConfig.ROUND_CAMERA_WIDE: return getString(R.string.GlassgramRoundCameraWide);
+            case GlassgramConfig.ROUND_CAMERA_ASK: return getString(R.string.GlassgramRoundCameraAsk);
+            default: return getString(R.string.GlassgramRoundCameraFront);
+        }
     }
 
     /** What the cameras offer video messages; built off the main thread, as it asks the camera service about many ids. */

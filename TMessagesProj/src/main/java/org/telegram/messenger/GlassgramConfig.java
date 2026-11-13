@@ -210,8 +210,10 @@ public class GlassgramConfig {
     public static boolean roundWideCamera;
     public static boolean roundKeepZoom;
     public static boolean roundHighQuality;
-    // whether the last video message ended on the front camera, for the next one to start on
-    public static boolean roundLastFront = true;
+    // the camera video messages start on: ROUND_CAMERA_*
+    public static int roundCamera = 1; // ROUND_CAMERA_FRONT, as in Telegram
+    // the camera picked when asked, for the video message being started; -1 when none was
+    public static int roundCameraNext = -1;
     // Statistics of devices, versions and the accounts on them, and crash reports, for glassGram's server (GlassgramStats)
     /** The team's proxy (GlassgramProxy): GlassgramProxy.MODE_AUTO, MODE_ALWAYS or MODE_OFF. */
     public static int proxyMode = GlassgramProxy.MODE_AUTO;
@@ -220,9 +222,32 @@ public class GlassgramConfig {
     /** The size video messages are recorded at with high quality. */
     public static final int ROUND_HIGH_QUALITY_SIZE = 640;
 
+    /** The cameras video messages can start on, in the order they're offered; ASK picks one of the others each time. */
+    public static final int ROUND_CAMERA_MAIN = 0, ROUND_CAMERA_FRONT = 1, ROUND_CAMERA_WIDE = 2, ROUND_CAMERA_ASK = 3;
+
     /** Whether video messages use the camera options above, which only Camera2 has. */
     public static boolean roundCameraTweaks() {
-        return roundFps60 || roundStabilization || roundWideCamera || roundHighQuality;
+        // the ultra-wide lens is a zoom of Camera2's below 1x, and asking may pick it
+        return roundFps60 || roundStabilization || roundWideCamera || roundHighQuality
+                || roundCamera == ROUND_CAMERA_WIDE || roundCamera == ROUND_CAMERA_ASK;
+    }
+
+    /** The camera the video message being started is on: the one picked when asked, else the setting; never ASK. */
+    public static int takeRoundCamera() {
+        int camera = roundCameraNext >= 0 ? roundCameraNext : roundCamera;
+        roundCameraNext = -1;
+        if (camera < ROUND_CAMERA_MAIN || camera > ROUND_CAMERA_WIDE) {
+            // asked nowhere, as when the recording started some other way: Telegram's own front camera
+            camera = ROUND_CAMERA_FRONT;
+        } else if (camera == ROUND_CAMERA_WIDE && !roundWideAllowed()) {
+            camera = ROUND_CAMERA_MAIN;
+        }
+        return camera;
+    }
+
+    /** Whether video messages may go onto the ultra-wide lens here: the team turns it off on phones it breaks. */
+    public static boolean roundWideAllowed() {
+        return !GlassgramRemoteConfig.isForced("roundWideCamera");
     }
 
     /** The size video messages are recorded at: the server's, or larger with high quality. */
@@ -420,7 +445,7 @@ public class GlassgramConfig {
         roundHighQuality = p.getBoolean("roundHighQuality", false);
         roundWideCamera = p.getBoolean("roundWideCamera", false);
         roundKeepZoom = p.getBoolean("roundKeepZoom", false);
-        roundLastFront = p.getBoolean("roundLastFront", true);
+        roundCamera = p.getInt("roundCamera", ROUND_CAMERA_FRONT);
         sendStats = p.getBoolean("sendStats", true);
         proxyMode = p.getInt("proxyMode", GlassgramProxy.MODE_AUTO);
         if (STORE_BUILD) {

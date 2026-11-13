@@ -898,10 +898,67 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private boolean recordAudioVideoRunnableStarted;
     private boolean calledRecordRunnable;
+    // glassGram: the camera menu of "Ask" is open; the press that opened it is over for the recording
+    private boolean glassgramAskingCamera;
+    // glassGram: a camera was picked in that menu, so the video message starts now
+    private boolean glassgramCameraPicked;
+
+    /**
+     * glassGram: with "Ask" for the video message camera, the cameras to start on, over the record
+     * button; whether the menu is shown. With a permission still missing, the recording asks for it first.
+     */
+    private boolean askRoundCamera() {
+        if (org.telegram.messenger.GlassgramConfig.roundCamera != org.telegram.messenger.GlassgramConfig.ROUND_CAMERA_ASK
+                || parentActivity == null || sizeNotifierLayout == null || audioVideoButtonContainer == null) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= 23 && (parentActivity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+                || parentActivity.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)) {
+            return false;
+        }
+        final int size = org.telegram.messenger.GlassgramConfig.roundVideoSize(MessagesController.getInstance(currentAccount).roundVideoSize);
+        final boolean wide = org.telegram.messenger.GlassgramConfig.roundWideAllowed()
+                && org.telegram.messenger.camera.Camera2Session.hasRoundWideLens(size);
+        glassgramAskingCamera = true;
+        final ItemOptions options = ItemOptions.makeOptions(sizeNotifierLayout, resourcesProvider, audioVideoButtonContainer);
+        options.add(R.drawable.msg_camera, getString(R.string.GlassgramRoundCameraMain), () -> startRoundOn(org.telegram.messenger.GlassgramConfig.ROUND_CAMERA_MAIN));
+        options.add(R.drawable.msg_photo_switch2, getString(R.string.GlassgramRoundCameraFront), () -> startRoundOn(org.telegram.messenger.GlassgramConfig.ROUND_CAMERA_FRONT));
+        if (wide) {
+            options.add(R.drawable.msg_zoomout, getString(R.string.GlassgramRoundCameraWide), () -> startRoundOn(org.telegram.messenger.GlassgramConfig.ROUND_CAMERA_WIDE));
+        }
+        options.setGravity(Gravity.RIGHT);
+        options.setOnDismiss(() -> glassgramAskingCamera = false);
+        options.show();
+        try {
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+        } catch (Exception ignore) {}
+        return true;
+    }
+
+    /** glassGram: starts the video message on the camera picked; the finger is off the button, so it records hands-free. */
+    private void startRoundOn(int camera) {
+        glassgramAskingCamera = false;
+        if (!isInVideoMode() || recordingAudioVideo) return;
+        org.telegram.messenger.GlassgramConfig.roundCameraNext = camera;
+        glassgramCameraPicked = true;
+        recordAudioVideoRunnable.run();
+        glassgramCameraPicked = false;
+        if (recordingAudioVideo) {
+            sendButtonVisible = true;
+            startLockTransition();
+        } else {
+            org.telegram.messenger.GlassgramConfig.roundCameraNext = -1;
+        }
+    }
+
     private Runnable recordAudioVideoRunnable = new Runnable() {
         @Override
         public void run() {
             if (delegate == null || parentActivity == null) {
+                return;
+            }
+            if (isInVideoMode() && !glassgramCameraPicked && askRoundCamera()) {
+                recordAudioVideoRunnableStarted = false;
                 return;
             }
             delegate.onPreAudioVideoRecord();
@@ -3129,6 +3186,10 @@ public class ChatActivityEnterView extends FrameLayout implements
             public boolean onTouchEvent(MotionEvent motionEvent) {
                 if (isLiveComment) return false;
                 createRecordCircle();
+                if (glassgramAskingCamera) {
+                    // glassGram: the press that opened the camera menu ends here; the menu starts the recording
+                    return true;
+                }
                 if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
                     if (recordCircle.isSendButtonVisible()) {
                         if (!hasRecordVideo || calledRecordRunnable) {

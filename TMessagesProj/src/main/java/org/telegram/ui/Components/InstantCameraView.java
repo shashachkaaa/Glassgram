@@ -200,13 +200,15 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private volatile int legacyCameraSwitchTargetSurface;
     private volatile boolean legacyCameraSwitchAwaitingFrame;
     private volatile String legacyCameraSwitchPath;
+    // glassGram: the video message started on the ultra-wide lens, so the back camera starts zoomed out onto it
+    private boolean startWide;
 
     /** glassGram: a Camera2 session with the video message options from glassGram settings. */
     private Camera2Session createCamera2Session(boolean front) {
         final int size = GlassgramConfig.roundVideoSize(MessagesController.getInstance(UserConfig.selectedAccount).roundVideoSize);
         // both cameras at once only promise to work together as they are, so keep the usual back one then
         // with the ultra-wide option, the back camera is the one that can zoom out onto the ultra-wide lens
-        final boolean wide = !front && GlassgramConfig.roundWideCamera;
+        final boolean wide = !front && (GlassgramConfig.roundWideCamera || startWide);
         final Camera2Session session = Camera2Session.createForRound(front, wide && !bothCameras, GlassgramConfig.roundFps60, size);
         if (session != null) {
             final int stabilization;
@@ -219,16 +221,19 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 stabilization = Camera2Session.STABILIZATION_CAMERA;
             }
             session.setVideoOptions(GlassgramConfig.roundFps60, stabilization, wide);
+            if (wide && startWide) {
+                // as far out as the zoom goes, which is the ultra-wide lens; a pinch comes back here too
+                session.whenDone(() -> {
+                    if (camera2SessionCurrent != session) return;
+                    final float min = session.getMinZoom();
+                    if (min < 1f) {
+                        session.setZoom(min);
+                        session.setDefaultZoom(min);
+                    }
+                });
+            }
         }
         return session;
-    }
-
-    /** glassGram: the camera the video message is on now, front or back, for the next one to start on. */
-    private void rememberCamera() {
-        if (useCamera2 && GlassgramConfig.roundLastFront != isFrontface) {
-            GlassgramConfig.roundLastFront = isFrontface;
-            GlassgramConfig.putBoolean("roundLastFront", isFrontface);
-        }
     }
 
     private boolean isCameraSessionInitiated() {
@@ -811,12 +816,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         cameraReady = false;
         selectedCamera = null;
         if (!fromPaused) {
-            if (!useCamera2) {
-                isFrontface = true;
-            } else {
-                // glassGram: start where the last video message ended
-                isFrontface = GlassgramConfig.roundLastFront;
-            }
+            // glassGram: the camera from glassGram settings, or the one picked when asked
+            final int camera = GlassgramConfig.takeRoundCamera();
+            isFrontface = camera == GlassgramConfig.ROUND_CAMERA_FRONT;
+            startWide = useCamera2 && camera == GlassgramConfig.ROUND_CAMERA_WIDE;
             updateFlash();
             recordedTime = 0;
             progress = 0;
@@ -861,7 +864,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         if (useCamera2) {
             // glassGram: both cameras at once only run at what they can do together, so with 60 FPS or the
             // ultra-wide lens it's one camera at a time
-            bothCameras = DualCameraView.roundDualAvailableStatic(getContext()) && !GlassgramConfig.roundFps60 && !GlassgramConfig.roundWideCamera;
+            bothCameras = DualCameraView.roundDualAvailableStatic(getContext()) && !GlassgramConfig.roundFps60 && !GlassgramConfig.roundWideCamera && !startWide;
             if (bothCameras) {
                 for (int a = 0; a < 2; ++a) {
                     if (camera2Sessions[a] == null) {
@@ -1269,7 +1272,6 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 camera2SessionCurrent.setRecordingVideo(true);
                 previewSize[0] = new Size(camera2SessionCurrent.getPreviewWidth(), camera2SessionCurrent.getPreviewHeight());
                 cameraThread.setCurrentSession(camera2SessionCurrent);
-                rememberCamera();
             }
         } else {
             if (cameraSession != null) {

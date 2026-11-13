@@ -714,6 +714,46 @@ public class Camera2Session {
     /** glassGram: lets hidden cameras that refused be tried again, as when the ultra-wide option is turned on. */
     public static void resetUnavailableCameras() {
         org.telegram.messenger.MessagesController.getGlobalMainSettings().edit().remove(UNAVAILABLE_KEY).apply();
+        roundWideLens = null;
+    }
+
+    private static volatile Boolean roundWideLens;
+
+    /**
+     * glassGram: whether the back camera gets to an ultra-wide lens for video messages, by its own
+     * zoom or by a camera of the lens; null until {@link #hasRoundWideLens} has looked.
+     */
+    public static Boolean roundWideLensKnown() {
+        return roundWideLens;
+    }
+
+    /**
+     * glassGram: whether video messages can start on the ultra-wide lens. Asks the camera service about
+     * many ids, so best off the main thread; the answer is kept.
+     */
+    public static boolean hasRoundWideLens(int videoSize) {
+        final Boolean known = roundWideLens;
+        if (known != null) return known;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && ApplicationLoader.applicationContext.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // without the camera permission the lenses' sizes are hidden: no answer yet, ask again later
+            return false;
+        }
+        boolean result = false;
+        try {
+            final Choice choice = chooseForRound(false, true, org.telegram.messenger.GlassgramConfig.roundFps60, videoSize);
+            if (choice != null) {
+                if (choice.hasWideLens()) {
+                    result = true;
+                } else {
+                    final CameraManager manager = (CameraManager) ApplicationLoader.applicationContext.getSystemService(Context.CAMERA_SERVICE);
+                    result = zoomsOut(manager.getCameraCharacteristics(choice.ids.get(choice.ids.size() - 1)));
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        roundWideLens = result;
+        return result;
     }
 
     /**
