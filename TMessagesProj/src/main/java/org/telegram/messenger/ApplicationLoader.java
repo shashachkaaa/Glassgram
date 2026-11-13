@@ -306,6 +306,10 @@ public class ApplicationLoader extends Application {
         }
 
         super.onCreate();
+        if (isTunnelProcess()) {
+            // glassGram's tunnel process runs only the Xray core (GlassgramTunnelProvider): none of the app
+            return;
+        }
         GlassgramCrashReporter.install(this);
 
         // AndroidUtilities must be initialized before FileLog
@@ -384,6 +388,24 @@ public class ApplicationLoader extends Application {
     private final Runnable debugEverySecondChecks = () -> AndroidUtilities.runOnUIThread(() -> {
         NotificationCenter.sanitize();
     });
+
+    /** glassGram: whether this is the process of the tunnel, ":tunnel", where only the Xray core runs. */
+    private static boolean isTunnelProcess() {
+        String name = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            name = Application.getProcessName();
+        } else {
+            try (java.io.FileInputStream in = new java.io.FileInputStream("/proc/self/cmdline")) {
+                final byte[] bytes = new byte[256];
+                final int read = in.read(bytes);
+                int length = 0;
+                while (length < read && bytes[length] != 0) length++;
+                name = new String(bytes, 0, length);
+            } catch (Throwable ignore) {
+            }
+        }
+        return name != null && name.endsWith(":tunnel");
+    }
 
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();

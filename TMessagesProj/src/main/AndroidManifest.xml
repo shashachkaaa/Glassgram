@@ -1070,6 +1070,13 @@
                 android:resource="@xml/provider_paths"/>
         </provider>
 
+        <!-- glassGram's tunnel: the Xray core (Go) in a process of its own, see GlassgramTunnelProvider -->
+        <provider
+            android:name="org.telegram.messenger.GlassgramTunnelProvider"
+            android:authorities="${applicationId}.tunnel"
+            android:exported="false"
+            android:process=":tunnel"/>
+
         <provider
             android:authorities="${applicationId}.notification_image_provider"
             android:name=".NotificationImageProvider"

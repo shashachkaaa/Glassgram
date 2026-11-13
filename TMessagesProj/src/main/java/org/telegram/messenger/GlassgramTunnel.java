@@ -2,6 +2,7 @@ package org.telegram.messenger;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -13,7 +14,6 @@ import org.telegram.utils.proxy.ProxySettings;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
-import java.lang.reflect.Method;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 
@@ -30,7 +30,8 @@ import javax.crypto.spec.GCMParameterSpec;
  * <p>
  * The key comes as Xray outbounds, not a link, and is kept encrypted by a key of the phone's
  * Android Keystore, which never leaves it; it is shown nowhere. libXray is reached by reflection: the
- * builds without it (the RuStore edition, local builds) just have no tunnel.
+ * builds without it (the RuStore edition, local builds) just have no tunnel. It runs in a process of
+ * its own, through {@link GlassgramTunnelProvider}: Go's signal handlers must not be in the app's.
  */
 public final class GlassgramTunnel {
 
@@ -47,8 +48,9 @@ public final class GlassgramTunnel {
     private static final long FAILED_ASK = 10 * 60 * 1000L;
     private static long failedAskedAt;
 
-    private static Method invoke;
-    private static boolean checked, running;
+    private static boolean checked, available, running;
+    // the tunnel's process, kept: an unstable one, so that its death doesn't take the app's along
+    private static android.content.ContentProviderClient client;
 
     private static JSONArray outbounds;
     private static long refreshAfter, expiresAt, retryAt;
@@ -66,12 +68,14 @@ public final class GlassgramTunnel {
         if (!checked) {
             checked = true;
             try {
-                invoke = Class.forName("libXray.LibXray").getMethod("invoke", String.class);
+                // without initializing it: that would load Go into this process
+                Class.forName("libXray.LibXray", false, GlassgramTunnel.class.getClassLoader());
+                available = true;
             } catch (Throwable e) {
-                invoke = null;
+                available = false;
             }
         }
-        return invoke != null && !GlassgramConfig.STORE_BUILD;
+        return available && !GlassgramConfig.STORE_BUILD;
     }
 
     private static JSONObject call(String method, JSONObject payload) throws Exception {
@@ -79,7 +83,26 @@ public final class GlassgramTunnel {
         if (payload != null) {
             request.put("payload", payload);
         }
-        final JSONObject response = new JSONObject((String) invoke.invoke(null, request.toString()));
+        final Bundle result;
+        try {
+            if (client == null) {
+                client = ApplicationLoader.applicationContext.getContentResolver()
+                        .acquireUnstableContentProviderClient(GlassgramTunnelProvider.authority(ApplicationLoader.applicationContext));
+                if (client == null) {
+                    throw new Exception("no tunnel process");
+                }
+            }
+            result = client.call(GlassgramTunnelProvider.METHOD_INVOKE, request.toString(), null);
+        } catch (android.os.RemoteException e) {
+            // the tunnel's process died, and Xray with it: the next call starts a new one
+            releaseClient();
+            running = false;
+            throw e;
+        }
+        if (result == null || result.getString(GlassgramTunnelProvider.KEY_RESPONSE) == null) {
+            throw new Exception(method + ": " + (result == null ? "no answer" : result.getString(GlassgramTunnelProvider.KEY_ERROR)));
+        }
+        final JSONObject response = new JSONObject(result.getString(GlassgramTunnelProvider.KEY_RESPONSE));
         if (!response.optBoolean("success")) {
             throw new Exception(method + ": " + response.optString("error"));
         }
@@ -146,6 +169,16 @@ public final class GlassgramTunnel {
             call("stopXray", null);
         } catch (Throwable e) {
             FileLog.e(e, false);
+        }
+    }
+
+    private static void releaseClient() {
+        if (client != null) {
+            try {
+                client.release();
+            } catch (Throwable ignore) {
+            }
+            client = null;
         }
     }
 
