@@ -1688,7 +1688,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private float drawTimeY;
     public StaticLayout timeLayout;
     // Glassgram Spy: the message was deleted on the server but is kept in the chat.
+    private static final float SPY_DELETED_ALPHA = 0.8f;
     private boolean spyDeleted;
+
+    private float getSpyMessageAlpha() {
+        return spyDeleted && GlassgramConfig.spyTranslucentDeleted ? SPY_DELETED_ALPHA : 1f;
+    }
     /*
      * Translucent text (deleted messages kept by the spy) is drawn through a layer clipped to the part
      * of the cell on screen when it was drawn. Scrolling only moves the cell, so the layer kept the old
@@ -13944,9 +13949,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         // glassGram: an animation's alpha past 1 would throw in ColorUtils.setAlphaComponent below
         alpha = Math.min(alpha, 1f);
-        if (spyDeleted && GlassgramConfig.spyTranslucentDeleted) {
-            alpha *= 0.5f;
-        }
 
         int firstVisibleBlockNum;
         int lastVisibleBlockNum;
@@ -17522,15 +17524,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return;
         }
 
-        final int sponosoredAlpha = (int) (255 * (1f - isSponsoredMessageHidden.getFloatValue()));
-        if (sponosoredAlpha == 0) {
+        final int messageAlpha = Math.round(255 * (1f - isSponsoredMessageHidden.getFloatValue()) * getSpyMessageAlpha());
+        if (messageAlpha == 0) {
             return;
         }
 
         final int restore = canvas.getSaveCount();
-        int restoreToSponosoredAlpha = -1;
-        if (sponosoredAlpha != 255) {
-            restoreToSponosoredAlpha = canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(), sponosoredAlpha);
+        if (messageAlpha != 255) {
+            canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(), messageAlpha);
         }
 
         setupTextColors();
@@ -17736,10 +17737,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             drawOutboundsContent(canvas);
         }
         updateSelectionTextPosition();
-
-        if (restoreToSponosoredAlpha != -1) {
-            canvas.restoreToCount(restoreToSponosoredAlpha);
-        }
 
         canvas.restoreToCount(restore);
     }
@@ -18106,7 +18103,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if ((drawBackground || transitionParams.animateDrawBackground) && currentBackgroundDrawable != null && (currentPosition == null || isDrawSelectionBackground() && (currentMessageObject.isMusic() || currentMessageObject.isDocument())) && !(enterTransitionInProgress && !currentMessageObject.isVoice())) {
             float alphaInternal = this.alphaInternal;
             if (fromParent) {
-                alphaInternal *= getAlpha();
+                // This bubble is drawn by the list, outside the cell's opacity layer.
+                alphaInternal *= getAlpha() * getSpyMessageAlpha();
             }
             if (hasSelectionOverlay()) {
 //                if ((isPressed() && isCheckPressed || !isCheckPressed && isPressed) && !textIsSelectionMode()) {
@@ -19374,14 +19372,25 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentBackgroundDrawable != null) {
             currentBackgroundDrawable.setTop(keyboardHeight, w, h, (int) parentViewTopOffset, blurredViewTopOffset, blurredViewBottomOffset, pinnedTop, pinnedBottom);
             currentBackgroundDrawable.setBotButtonsBottom(hasInlineBotButtons());
+            float spyAlpha = getSpyMessageAlpha();
+            if (spyAlpha != 1f && currentMessagesGroup != null) {
+                // A shared album bubble only fades after every item has been deleted.
+                for (MessageObject item : currentMessagesGroup.messages) {
+                    if (!GlassgramSpyStorage.isMarkedDeleted(item)) {
+                        spyAlpha = 1f;
+                        break;
+                    }
+                }
+            }
+            final int backgroundAlpha = Math.round(getAlpha() * spyAlpha * 255);
             Drawable currentBackgroundShadowDrawable = currentBackgroundDrawable.getShadowDrawable();
             if (currentBackgroundShadowDrawable != null) {
-                currentBackgroundShadowDrawable.setAlpha((int) (getAlpha() * 255));
+                currentBackgroundShadowDrawable.setAlpha(backgroundAlpha);
                 currentBackgroundShadowDrawable.setBounds(left, top, right, bottom);
                 currentBackgroundShadowDrawable.draw(canvas);
                 currentBackgroundShadowDrawable.setAlpha(255);
             }
-            currentBackgroundDrawable.setAlpha((int) (getAlpha() * 255));
+            currentBackgroundDrawable.setAlpha(backgroundAlpha);
             currentBackgroundDrawable.setBounds(left, top, right, bottom);
             currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
             currentBackgroundDrawable.setAlpha(255);
