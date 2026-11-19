@@ -169,6 +169,7 @@ import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DownloadController;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.GlassgramGallery;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramConfig;
 import org.telegram.messenger.FileStreamLoadOperation;
@@ -4604,6 +4605,17 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         }
     }
 
+    private void showMessagePhotoSaveResult(int saved) {
+        if (containerView == null || !containerView.isAttachedToWindow()) {
+            return;
+        }
+        if (saved > 0) {
+            BulletinFactory.createSaveToGalleryBulletin(containerView, saved, false, 0xf9222222, 0xffffffff).show();
+        } else {
+            BulletinFactory.of(containerView, resourcesProvider).createErrorBulletin(getString(R.string.ErrorOccurred)).show();
+        }
+    }
+
     private void showDownloadAlert() {
         AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity, resourcesProvider);
         builder.setTitle(getString(R.string.AppName));
@@ -4928,13 +4940,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     if (pageBlocksAdapter != null && !allowShare) {
                         return;
                     }
-                    if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && parentActivity.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28 && parentActivity.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                         parentActivity.requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
                         return;
                     }
 
                     ArrayList<MessageObject> msgs = new ArrayList<>(1);
-                    MessageObject.GroupedMessages group = parentChatActivity != null ? parentChatActivity.getGroup(currentMessageObject.getGroupId()) : null;
+                    MessageObject.GroupedMessages group = currentMessageObject != null && parentChatActivity != null
+                            ? parentChatActivity.getGroup(currentMessageObject.getGroupId()) : null;
                     if (group != null) {
                         msgs.addAll(group.messages);
                     } else {
@@ -4942,6 +4955,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     }
 
                     if (msgs.size() <= 1) {
+                        if (GlassgramGallery.canSaveMessagePhoto(currentMessageObject)) {
+                            GlassgramGallery.saveMessagePhoto(currentMessageObject, uri -> showMessagePhotoSaveResult(uri != null ? 1 : 0));
+                            return;
+                        }
                         File f = null;
                         final boolean isVideo;
                         if (currentMessageObject != null) {
@@ -5024,6 +5041,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                                         return;
                                     }
 
+                                    if (GlassgramGallery.canSaveMessagePhoto(currentMessageObject)) {
+                                        GlassgramGallery.saveMessagePhoto(currentMessageObject, uri -> showMessagePhotoSaveResult(uri != null ? 1 : 0));
+                                        return;
+                                    }
                                     File f;
                                     if (MessageObject.getMedia(currentMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaWebPage && MessageObject.getMedia(currentMessageObject.messageOwner).webpage != null && MessageObject.getMedia(currentMessageObject.messageOwner).webpage.document == null) {
                                         TLObject fileLocation = getFileLocation(currentIndex, null);
@@ -5059,17 +5080,39 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                                     }
                                 })
                                 .setPositiveButton((!hasVideo && !hasLivePhoto) ? LocaleController.formatPluralString("AllNPhotos", msgs.size()) : LocaleController.formatPluralString("AllNMedia", msgs.size()), (di, a) -> {
+                                    boolean allOrdinary = true;
+                                    for (MessageObject msg : msgs) {
+                                        allOrdinary &= GlassgramGallery.canSaveMessagePhoto(msg);
+                                    }
+                                    if (allOrdinary) {
+                                        GlassgramGallery.saveMessagePhotos(msgs, this::showMessagePhotoSaveResult);
+                                        return;
+                                    }
                                     final int[] count = new int[1];
                                     final int[] done = new int[1];
-                                    Runnable bulletin = () -> {
+                                    final int[] saved = new int[1];
+                                    Utilities.Callback<Uri> report = uri -> {
                                         done[0]++;
-                                        if (done[0] == count[0]) {
-                                            BulletinFactory.createSaveMediaToGalleryBulletin(containerView, count[0], hasVideo, hasPhoto, hasLivePhoto, 0xf9222222, 0xffffffff).show();
+                                        if (uri != null) {
+                                            saved[0]++;
+                                        }
+                                        if (done[0] == count[0] && containerView != null && containerView.isAttachedToWindow()) {
+                                            if (saved[0] == 0) {
+                                                showMessagePhotoSaveResult(0);
+                                            } else {
+                                                BulletinFactory.createSaveMediaToGalleryBulletin(containerView, saved[0], hasVideo, hasPhoto, hasLivePhoto, 0xf9222222, 0xffffffff).show();
+                                            }
                                         }
                                     };
                                     for (int i = 0; i < msgs.size(); ++i) {
                                         MessageObject msg = msgs.get(i);
                                         if (msg == null) {
+                                            continue;
+                                        }
+
+                                        if (GlassgramGallery.canSaveMessagePhoto(msg)) {
+                                            count[0]++;
+                                            GlassgramGallery.saveMessagePhoto(msg, report);
                                             continue;
                                         }
 
@@ -5097,13 +5140,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                                         if (isThisLivePhoto && f != null && f.exists()) {
                                             count[0]++;
                                             if (videoFileForLivePhoto != null && videoFileForLivePhoto.exists()) {
-                                                MediaController.saveFile(f.toString(), videoFileForLivePhoto.toString(), parentActivity, uri -> AndroidUtilities.runOnUIThread(bulletin));
+                                                MediaController.saveFile(f.toString(), videoFileForLivePhoto.toString(), parentActivity, report);
                                             } else {
-                                                MediaController.saveFile(f.toString(), parentActivity, 0, null, null, uri -> AndroidUtilities.runOnUIThread(bulletin));
+                                                MediaController.saveFile(f.toString(), parentActivity, 0, null, null, report);
                                             }
                                         } else if (!isThisLivePhoto && f != null && f.exists()) {
                                             count[0]++;
-                                            MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, null, null, uri -> AndroidUtilities.runOnUIThread(bulletin));
+                                            MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, null, null, report);
                                         }
                                     }
                                 })

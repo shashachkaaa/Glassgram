@@ -6433,14 +6433,20 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 "<?xpacket end=\"w\"?>";
     }
 
-    private static Uri saveFileInternal(int type, File sourceFile, String filename) {
+    static Uri saveFileInternal(int type, File sourceFile, String filename) {
+        final android.content.ContentResolver resolver = ApplicationLoader.applicationContext.getContentResolver();
+        Uri dstUri = null;
+        boolean published = false;
         try {
+            if (!sourceFile.isFile() || sourceFile.length() <= 0) {
+                return null;
+            }
             int selectedType = type;
             ContentValues contentValues = new ContentValues();
             String extension = FileLoader.getFileExtension(sourceFile);
             String mimeType = null;
             if (extension != null) {
-                mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+                mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase(Locale.ROOT));
             }
             Uri uriToInsert = null;
             if ((type == 0 || type == 1) && mimeType != null) {
@@ -6455,11 +6461,13 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (filename == null) {
                     filename = AndroidUtilities.generateFileName(0, extension);
                 }
+                if (mimeType == null) {
+                    mimeType = "image/jpeg";
+                }
                 uriToInsert = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 File dirDest = new File(Environment.DIRECTORY_PICTURES, AndroidUtilities.getSaveFolderName());
                 contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
-                contentValues.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
             } else if (selectedType == 1) {
                 if (filename == null) {
                     filename = AndroidUtilities.generateFileName(1, extension);
@@ -6486,19 +6494,45 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 contentValues.put(MediaStore.Audio.Media.DISPLAY_NAME, filename);
             }
 
-            contentValues.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
-
-            Uri dstUri = ApplicationLoader.applicationContext.getContentResolver().insert(uriToInsert, contentValues);
-            if (dstUri != null) {
-                FileInputStream fileInputStream = new FileInputStream(sourceFile);
-                OutputStream outputStream = ApplicationLoader.applicationContext.getContentResolver().openOutputStream(dstUri);
-                AndroidUtilities.copyFile(fileInputStream, outputStream);
-                fileInputStream.close();
+            if (mimeType != null) {
+                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
             }
-            return dstUri;
+            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 1);
+            dstUri = resolver.insert(uriToInsert, contentValues);
+            if (dstUri == null) {
+                return null;
+            }
+            try (InputStream input = new FileInputStream(sourceFile);
+                 OutputStream output = resolver.openOutputStream(dstUri, "w")) {
+                if (output == null) {
+                    return null;
+                }
+                byte[] buffer = new byte[32 * 1024];
+                int count;
+                long written = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                    written += count;
+                }
+                if (written == 0) {
+                    return null;
+                }
+            }
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            published = resolver.update(dstUri, ready, null, null) > 0;
+            return published ? dstUri : null;
         } catch (Exception e) {
             FileLog.e(e);
             return null;
+        } finally {
+            if (!published && dstUri != null) {
+                try {
+                    resolver.delete(dstUri, null, null);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
         }
     }
 

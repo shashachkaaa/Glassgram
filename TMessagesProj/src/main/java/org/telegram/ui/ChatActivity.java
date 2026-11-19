@@ -162,6 +162,7 @@ import org.telegram.messenger.Emoji;
 import org.telegram.messenger.EmojiData;
 import org.telegram.messenger.FactCheckController;
 import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.GlassgramGallery;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.GlassgramConfig;
@@ -34474,6 +34475,14 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void saveMessageToGallery(MessageObject messageObject) {
+        if (GlassgramGallery.canSaveMessagePhoto(messageObject)) {
+            GlassgramGallery.saveMessagePhoto(messageObject, uri -> {
+                if (uri == null && getParentActivity() != null) {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.ErrorOccurred)).show();
+                }
+            });
+            return;
+        }
         String path = messageObject.messageOwner.attachPath;
         if (!TextUtils.isEmpty(path)) {
             File temp = new File(path);
@@ -34667,12 +34676,38 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_SAVE_TO_GALLERY: {
-                if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28 && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
                     selectedObject = null;
                     selectedObjectGroup = null;
                     selectedObjectToEditCaption = null;
                     return;
+                }
+                ArrayList<MessageObject> ordinaryPhotos = new ArrayList<>();
+                if (selectedObjectGroup != null) {
+                    for (MessageObject item : selectedObjectGroup.messages) {
+                        if (GlassgramGallery.canSaveMessagePhoto(item)) {
+                            ordinaryPhotos.add(item);
+                        }
+                    }
+                } else if (GlassgramGallery.canSaveMessagePhoto(selectedObject)) {
+                    ordinaryPhotos.add(selectedObject);
+                }
+                int selectedCount = selectedObjectGroup != null ? selectedObjectGroup.messages.size() : 1;
+                if (!ordinaryPhotos.isEmpty() && ordinaryPhotos.size() == selectedCount) {
+                    GlassgramGallery.saveMessagePhotos(ordinaryPhotos, saved -> {
+                        if (getParentActivity() == null) {
+                            return;
+                        }
+                        if (saved == 0) {
+                            BulletinFactory.of(this).createErrorBulletin(getString(R.string.ErrorOccurred)).show();
+                        } else {
+                            BulletinFactory.of(this).createDownloadBulletin(
+                                    saved == 1 ? BulletinFactory.FileType.PHOTO : BulletinFactory.FileType.PHOTOS,
+                                    saved, themeDelegate).show();
+                        }
+                    });
+                    break;
                 }
                 if (selectedObjectGroup != null) {
                     int filesAmount = selectedObjectGroup.messages.size();
@@ -34791,6 +34826,22 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_SAVE_TO_GALLERY2: {
+                if (GlassgramGallery.canSaveMessagePhoto(selectedObject)) {
+                    if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28 && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
+                    } else {
+                        GlassgramGallery.saveMessagePhoto(selectedObject, uri -> {
+                            if (getParentActivity() != null) {
+                                if (uri != null) {
+                                    BulletinFactory.createSaveToGalleryBulletin(this, false, themeDelegate).show();
+                                } else {
+                                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.ErrorOccurred)).show();
+                                }
+                            }
+                        });
+                    }
+                    break;
+                }
                 String path = selectedObject.messageOwner.attachPath;
                 if (path != null && path.length() > 0) {
                     File temp = new File(path);
