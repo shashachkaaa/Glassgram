@@ -485,11 +485,16 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
 
     private float bubbleInputTranlationY;
     public void setInputBubbleTranslationY(float translationY) {
-        this.bubbleInputTranlationY = translationY;
-        invalidate();
+        if (bubbleInputTranlationY != translationY) {
+            bubbleInputTranlationY = translationY;
+            invalidate();
+        }
     }
 
     public void setInputBubbleAlpha(int alpha) {
+        if (glassgramSegmentsAlpha == alpha) {
+            return;
+        }
         glassgramSegmentsAlpha = alpha;
         if (blurredBackgroundDrawable != null) {
             blurredBackgroundDrawable.setAlpha(alpha);

@@ -8,9 +8,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.PriorityQueue;
 
 /** Keeps Spy attachments outside Telegram's evictable media cache. */
 public final class GlassgramSpyMedia {
@@ -18,6 +18,7 @@ public final class GlassgramSpyMedia {
     private static final class Archive {
         static final DispatchQueue2 queue = new DispatchQueue2("glassgramSpyMedia");
         static final HashMap<File, Long> pending = new HashMap<>();
+        static final PriorityQueue<ArchivedFile> oldest = new PriorityQueue<>(Comparator.comparingLong(entry -> entry.modified));
     }
 
     /** A normal media parent for reference refresh, without gallery or download-list side effects. */
@@ -30,6 +31,18 @@ public final class GlassgramSpyMedia {
     private static volatile boolean started;
     private static volatile long size;
     private static boolean indexed;
+
+    private static final class ArchivedFile {
+        final File file;
+        final long bytes;
+        final long modified;
+
+        ArchivedFile(File file, long bytes) {
+            this.file = file;
+            this.bytes = bytes;
+            modified = file.lastModified();
+        }
+    }
 
     private GlassgramSpyMedia() {
     }
@@ -93,21 +106,33 @@ public final class GlassgramSpyMedia {
             }
             MessageObject parent = new ArchiveMessage(account, message);
             if (media instanceof TLRPC.TL_messageMediaPhoto && media.photo != null) {
+                ArrayList<TLRPC.PhotoSize> sizes = new ArrayList<>(media.photo.sizes.size());
                 for (TLRPC.PhotoSize photoSize : media.photo.sizes) {
-                    if (photoSize == null || photoSize.size <= 0 || photoSize.location == null
-                            || photoSize instanceof TLRPC.TL_photoCachedSize) {
-                        continue;
+                    if (photoSize != null && photoSize.size > 0 && photoSize.location != null
+                            && !(photoSize instanceof TLRPC.TL_photoCachedSize)) {
+                        sizes.add(photoSize);
                     }
-                    ImageLocation location = ImageLocation.getForPhoto(photoSize, media.photo);
-                    if (location != null && !location.isEncrypted()) {
-                        preserve(parent, selfId, photoSize, location, photoSize.size);
-                    }
+                }
+                TLRPC.PhotoSize chat = FileLoader.getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize(), false, null, true);
+                TLRPC.PhotoSize viewer = FileLoader.getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize(true), false, null, true);
+                preservePhoto(parent, selfId, media.photo, chat);
+                if (viewer != chat) {
+                    preservePhoto(parent, selfId, media.photo, viewer);
                 }
             } else if (media instanceof TLRPC.TL_messageMediaDocument && media.document instanceof TLRPC.TL_document
                     && media.document.key == null && !parent.isAnyKindOfSticker()) {
                 preserve(parent, selfId, media.document, null, media.document.size);
             }
         });
+    }
+
+    private static void preservePhoto(MessageObject parent, long selfId, TLRPC.Photo photo, TLRPC.PhotoSize size) {
+        if (size != null) {
+            ImageLocation location = ImageLocation.getForPhoto(size, photo);
+            if (location != null && !location.isEncrypted()) {
+                preserve(parent, selfId, size, location, size.size);
+            }
+        }
     }
 
     private static boolean isProtected(int account, long dialogId) {
@@ -189,32 +214,36 @@ public final class GlassgramSpyMedia {
         if (indexed) {
             return;
         }
-        long total = 0;
         for (File file : files()) {
             if (file.getName().endsWith(".part") && file.delete()) {
                 continue;
             }
-            total += file.length();
+            addArchivedFile(file, file.length());
         }
-        size = total;
         indexed = true;
+    }
+
+    private static void addArchivedFile(File file, long bytes) {
+        Archive.oldest.add(new ArchivedFile(file, bytes));
+        size += bytes;
     }
 
     private static void trim(long budget) {
         index();
-        if (size <= budget) {
-            return;
+        ArrayList<ArchivedFile> failed = null;
+        while (size > budget && !Archive.oldest.isEmpty()) {
+            ArchivedFile entry = Archive.oldest.remove();
+            if (entry.file.delete() || !entry.file.exists()) {
+                size -= entry.bytes;
+            } else {
+                if (failed == null) {
+                    failed = new ArrayList<>();
+                }
+                failed.add(entry);
+            }
         }
-        File[] files = files();
-        Arrays.sort(files, Comparator.comparingLong(File::lastModified));
-        for (File file : files) {
-            long bytes = file.length();
-            if (file.delete()) {
-                size -= bytes;
-            }
-            if (size <= budget) {
-                break;
-            }
+        if (failed != null) {
+            Archive.oldest.addAll(failed);
         }
     }
 
@@ -244,7 +273,7 @@ public final class GlassgramSpyMedia {
             if (temporary.length() != bytes || !temporary.renameTo(target)) {
                 throw new IOException("Could not keep Spy attachment");
             }
-            size += bytes;
+            addArchivedFile(target, bytes);
         } catch (IOException e) {
             FileLog.e(e);
         } finally {

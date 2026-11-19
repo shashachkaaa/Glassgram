@@ -102,7 +102,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_SPY_READ_DATE = 53;
     private static final int ID_SPY_LAST_SEEN = 54;
     private static final int ID_SPY_ATTACHMENTS = 55;
-    private static final int ID_SPY_LIMIT = 56;
     private static final int ID_SPY_EXPORT = 57;
     private static final int ID_SPY_IMPORT = 58;
     private static final int ID_SPY_CLEAR = 59;
@@ -786,13 +785,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 return;
             case ID_SOURCE_CODE:
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://github.com/shashachkaaa/Telegram");
-                return;
-            case ID_SPY_LIMIT:
-                showChoice("Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}, GlassgramConfig.spyMaxFolderSize, which -> {
-                    GlassgramConfig.spyMaxFolderSize = which;
-                    GlassgramConfig.putInt("spyMaxFolderSize", which);
-                    GlassgramSpyMedia.refreshSize(this::refreshSpySettings);
-                });
                 return;
             case ID_SPY_EXPORT:
                 startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").putExtra(Intent.EXTRA_TITLE, "glassgram_spy.jsonl"), REQUEST_SPY_EXPORT);
@@ -2499,17 +2491,22 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         }
         if (requestCode == REQUEST_SPY_EXPORT || requestCode == REQUEST_SPY_IMPORT) {
             final android.net.Uri uri = data.getData();
-            org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
-                final boolean ok = requestCode == REQUEST_SPY_EXPORT
-                        ? GlassgramSpyStorage.exportToUri(uri) : GlassgramSpyStorage.importFromUri(uri);
-                AndroidUtilities.runOnUIThread(() -> {
-                    Context context = getParentActivity();
-                    if (context != null && !isFinished) {
-                        Toast.makeText(context, getString(ok ? R.string.GlassgramSpyDone : R.string.GlassgramSpyFailed), Toast.LENGTH_SHORT).show();
-                        refreshSpySettings();
-                    }
+            if (requestCode == REQUEST_SPY_IMPORT) {
+                GlassgramSpyStorage.importFromUri(uri, this::showSpyOperationResult);
+            } else {
+                org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+                    final boolean ok = GlassgramSpyStorage.exportToUri(uri);
+                    AndroidUtilities.runOnUIThread(() -> showSpyOperationResult(ok));
                 });
-            });
+            }
+        }
+    }
+
+    private void showSpyOperationResult(boolean ok) {
+        Context context = getParentActivity();
+        if (context != null && !isFinished) {
+            Toast.makeText(context, getString(ok ? R.string.GlassgramSpyDone : R.string.GlassgramSpyFailed), Toast.LENGTH_SHORT).show();
+            refreshSpySettings();
         }
     }
 

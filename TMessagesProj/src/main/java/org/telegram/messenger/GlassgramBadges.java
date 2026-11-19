@@ -148,6 +148,7 @@ public final class GlassgramBadges {
     private static boolean loadedCache;
     private static long lastFetch;
     private static boolean fetching;
+    private static String appliedJson;
 
     private GlassgramBadges() {
     }
@@ -198,6 +199,9 @@ public final class GlassgramBadges {
     }
 
     private static boolean apply(String json, boolean notify) {
+        if (json.equals(appliedJson)) {
+            return false;
+        }
         try {
             JSONObject root = new JSONObject(json);
             HashMap<String, Badge> badges = new HashMap<>();
@@ -242,6 +246,7 @@ public final class GlassgramBadges {
             }
             byPeer = peers;
             byUsername = usernames;
+            appliedJson = json;
             if (notify) {
                 AndroidUtilities.runOnUIThread(() -> {
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {

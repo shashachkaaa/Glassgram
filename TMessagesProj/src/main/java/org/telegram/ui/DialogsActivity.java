@@ -3210,14 +3210,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             glassgramEditBar.setTranslationY(-navigationBarHeight + dp(16) * (1f - p));
             glassgramEditBar.setVisibility(p > 0f ? View.VISIBLE : View.GONE);
         }
-        checkUi_menuItems();
+        checkUi_glassgramIosItems();
+        invalidateGlassgramEditRows();
+    }
+
+    private void invalidateGlassgramEditRows() {
         for (int i = 0; viewPages != null && i < viewPages.length; i++) {
-            if (viewPages[i] == null) {
+            if (viewPages[i] == null || !viewPages[i].isShown()) {
                 continue;
             }
             final RecyclerListView list = viewPages[i].listView;
             for (int j = 0; j < list.getChildCount(); j++) {
-                list.getChildAt(j).invalidate();
+                final View row = list.getChildAt(j);
+                if (row instanceof DialogCell) {
+                    row.invalidate();
+                }
             }
         }
     }
@@ -3265,7 +3272,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             glassgramEditSelected.add(dialogId);
         }
         glassgramUpdateEditBar();
-        glassgramApplyEditProgress();
+        invalidateGlassgramEditRows();
     }
 
     private void glassgramReadSelected() {

@@ -145,6 +145,13 @@ class LiquidButtonView(context: Context) : AbstractComposeView(context) {
         if (!isAttachedToWindow || !canvas.isHardwareAccelerated || width <= 0 || height <= 0) {
             return false
         }
+        // The surrounding overflow is part of the button's shadow and press animation.
+        @Suppress("DEPRECATION")
+        val clipped = canvas.quickReject(
+            left - overflow, top - overflow, left + width + overflow, top + height + overflow,
+            Canvas.EdgeType.AA
+        )
+        if (clipped) return true
         if (width != buttonWidth || height != buttonHeight || isLayoutRequested) {
             buttonWidth = width
             buttonHeight = height

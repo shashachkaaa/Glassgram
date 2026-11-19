@@ -345,6 +345,7 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
         GlassgramConfig.load();
+        GlassgramSpyStorage.preload();
         // the font chosen in glassGram's settings, before anything draws text
         GlassgramFonts.apply();
 

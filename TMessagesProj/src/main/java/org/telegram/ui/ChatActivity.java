@@ -47898,7 +47898,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
         if (id == ANIMATOR_ID_PULLING_DOWN_CONTAINER_VISIBILITY) {
-            onBottomItemsVisibilityChanged();
+            onBottomItemsVisibilityChanged(false);
         } else if (id == ANIMATOR_ID_ROUND_MESSAGE_CAMERA_VISIBILITY) {
             if (roundVideoRecordBackground != null) {
                 roundVideoRecordBackground.setAlpha(factor);
@@ -47984,6 +47984,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void onBottomItemsVisibilityChanged() {
+        onBottomItemsVisibilityChanged(true);
+    }
+
+    private void onBottomItemsVisibilityChanged(boolean updateGeometry) {
         final float pullProgress = animatorPullingDownContainerVisibility.getFloatValue();
         final boolean hasPullHint = pullingDownDrawable != null && !pullingDownDrawable.emptyStub;
         // Make room for the hint before drawing any of its text over the input island.
@@ -48034,7 +48038,10 @@ public class ChatActivity extends BaseFragment implements
             fragmentView.invalidate();
         }
 
-        checkUi_inputIslandHeight();
+        // Pull hints only crossfade the controls inside an island of the same height.
+        if (updateGeometry) {
+            checkUi_inputIslandHeight();
+        }
     }
 
     /**

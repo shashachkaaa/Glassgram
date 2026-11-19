@@ -229,28 +229,79 @@ public class GlassgramVoice {
      * when it could not be done. It is called on the UI thread.
      */
     public static void transcribe(MessageObject messageObject, Utilities.Callback<String> done) {
-        final int account = messageObject.currentAccount;
-        final TLRPC.Document document = messageObject.getDocument();
-        if (locate(messageObject) == null && document != null) {
-            // not downloaded yet: it loads as when it is played
-            FileLoader.getInstance(account).loadFile(document, messageObject, FileLoader.PRIORITY_HIGH, 0);
-        }
         final String lang = GlassgramConfig.offlineTranscriptionLang;
+        Utilities.globalQueue.postRunnable(() -> {
+            final File file = locate(messageObject);
+            if (file != null) {
+                transcribeFile(file, lang, done);
+            } else {
+                AndroidUtilities.runOnUIThread(() -> waitForFile(messageObject, lang, done));
+            }
+        });
+    }
+
+    private static void waitForFile(MessageObject message, String lang, Utilities.Callback<String> done) {
+        TLRPC.Document document = message.getDocument();
+        if (document == null) {
+            done.run(null);
+            return;
+        }
+        String name = FileLoader.getAttachFileName(document);
+        if (TextUtils.isEmpty(name)) {
+            done.run(null);
+            return;
+        }
+
+        NotificationCenter center = NotificationCenter.getInstance(message.currentAccount);
+        class DownloadWaiter implements NotificationCenter.NotificationCenterDelegate, Runnable {
+            private boolean finished;
+
+            @Override
+            public void didReceivedNotification(int id, int account, Object... args) {
+                if (name.equals(args[0])) {
+                    finish(id == NotificationCenter.fileLoaded && args.length > 1 && args[1] instanceof File
+                            ? (File) args[1] : null);
+                }
+            }
+
+            @Override
+            public void run() {
+                finish(null);
+            }
+
+            private void finish(File file) {
+                if (finished) {
+                    return;
+                }
+                finished = true;
+                AndroidUtilities.cancelRunOnUIThread(this);
+                center.removeObserver(this, NotificationCenter.fileLoaded);
+                center.removeObserver(this, NotificationCenter.fileLoadFailed);
+                if (file != null) {
+                    transcribeFile(file, lang, done);
+                } else {
+                    done.run(null);
+                }
+            }
+        }
+
+        DownloadWaiter waiter = new DownloadWaiter();
+        center.addObserver(waiter, NotificationCenter.fileLoaded);
+        center.addObserver(waiter, NotificationCenter.fileLoadFailed);
+        AndroidUtilities.runOnUIThread(waiter, FILE_WAIT_MS);
+        FileLoader loader = FileLoader.getInstance(message.currentAccount);
+        if (!loader.isLoadingFile(name)) {
+            loader.loadFile(document, message, FileLoader.PRIORITY_HIGH, 0);
+        }
+    }
+
+    private static void transcribeFile(File file, String lang, Utilities.Callback<String> done) {
         queue.postRunnable(() -> {
             String text = null;
             try {
-                File file = locate(messageObject);
-                final long until = System.currentTimeMillis() + FILE_WAIT_MS;
-                while (file == null && System.currentTimeMillis() < until) {
-                    Thread.sleep(250);
-                    file = locate(messageObject);
-                }
-                if (file != null) {
-                    text = recognize(file, lang);
-                }
+                text = recognize(file, lang);
             } catch (Throwable e) {
                 FileLog.e(e);
-                text = null;
             }
             queue.cancelRunnable(releaseModel);
             queue.postRunnable(releaseModel, MODEL_KEEP_MS);
