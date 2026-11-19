@@ -1238,8 +1238,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private class TopView extends FrameLayout {
 
-        private final GradientDrawable personalGradient = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xff454a4d, 0xff303437});
         private int currentColor;
         private Paint paint = new Paint();
 
@@ -1298,9 +1296,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     emojiColor = PeerColorActivity.adaptProfileEmojiColor(getThemedColor(Theme.key_actionBarDefault));
                     btnColor = Theme.multAlpha(PeerColorActivity.adaptProfileEmojiColor(getThemedColor(Theme.key_actionBarDefault)), .15f);
                 }
-            }
-            if (hasPersonalHeader()) {
-                btnColor = 0xff64686b;
             }
             if (!animated) {
                 color1Animated.set(color1, true);
@@ -1402,20 +1397,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (y1 != 0) {
                 paint.setColor(currentColor);
                 updateBackgroundPaint();
-                if (hasPersonalHeader()) {
-                    personalGradient.setBounds(0, 0, getMeasuredWidth(), y1);
-                    personalGradient.draw(canvas);
-                } else {
-                    final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
-                    if (progressToGradient < 1) {
-                        canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
-                    }
-                    if (progressToGradient > 0) {
-                        backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
-                        canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
-                    }
+                final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
+                if (progressToGradient < 1) {
+                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
                 }
-                if (hasEmoji && !capturing && !hasPersonalHeader()) {
+                if (progressToGradient > 0) {
+                    backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
+                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
+                }
+                if (hasEmoji && !capturing) {
                     final float loadedScale = emojiLoadedT.set(isEmojiLoaded());
                     boolean shoudIgnore = openAnimationInProgress && playProfileAnimation == 2;
                     if (!shoudIgnore && loadedScale > 0 && avatarContainer != null) {
@@ -5549,7 +5539,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             public void setTextColor(int color) {
                 // the color of the header's state; over the glass of the hidden avatar the simple screens' title
                 nameTextColor = color;
-                if (hasPersonalHeader()) color = ColorUtils.blendARGB(Color.WHITE, color, mediaHeaderAnimationProgress);
                 super.setTextColor(ColorUtils.blendARGB(color, getThemedColor(Theme.key_windowBackgroundWhiteBlackText), headerBlurFactor));
             }
 
@@ -5620,7 +5609,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             @Override
             public void setTextColor(int color) {
                 onlineTextColor = color;
-                if (hasPersonalHeader()) color = ColorUtils.blendARGB(0xb3ffffff, color, mediaHeaderAnimationProgress);
                 color = ColorUtils.blendARGB(color, getThemedColor(Theme.key_windowBackgroundWhiteGrayText), headerBlurFactor);
                 super.setTextColor(color);
                 if (showStatusButton != null) {
@@ -6120,7 +6108,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (buttonsGlass != null) {
             buttonsGlass.setSimpleProgress(getHeaderSimpleFactor());
         }
-        final int iconsColor = ColorUtils.blendARGB(hasPersonalHeader() ? Color.WHITE : profileIconsColor, getThemedColor(Theme.key_windowBackgroundWhiteBlackText), getHeaderSimpleFactor());
+        final int iconsColor = ColorUtils.blendARGB(profileIconsColor, getThemedColor(Theme.key_windowBackgroundWhiteBlackText), getHeaderSimpleFactor());
         if (headerIconsColor != iconsColor) {
             headerIconsColor = iconsColor;
             simpleActionBar.setItemsColor(iconsColor, false);
@@ -6231,10 +6219,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private float profileNameScale() {
         return userId != 0 ? 1.44f : 1.12f;
-    }
-
-    private boolean hasPersonalHeader() {
-        return userId != 0 && !isBot && !isSettings();
     }
 
     private int profileAvatarSize() {
@@ -16209,8 +16193,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             color = getThemedColor(Theme.key_actionBarActionModeDefault);
         } else if (mediaHeaderVisible || headerBlurFactor > 0.5f) {
             color = getThemedColor(Theme.key_windowBackgroundWhite);
-        } else if (hasPersonalHeader()) {
-            return false;
         } else if (peerColor != null) {
             color = peerColor.getBgColor2(Theme.isCurrentThemeDark());
         } else {
