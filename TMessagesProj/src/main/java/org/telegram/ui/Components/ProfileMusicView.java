@@ -329,7 +329,9 @@ public class ProfileMusicView extends View {
         }
 
         final int padding = dp(12);
-        final int maxWidth = getWidth() - padding * 2;
+        final int available = Math.max(0, getWidth() - padding * 2);
+        final int maxWidth = this instanceof ProfileBalanceView ? available
+                : Math.min(available, Math.round(getWidth() * 0.76f));
 
         final float containerWidth = getPillWidth(maxWidth);
         final float left = (getWidth() - containerWidth) / 2f;

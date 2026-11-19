@@ -9127,7 +9127,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 final float avatarBottom = (float) Math.floor(endNameY) + (avatarContainer.getHeight() * avatarContainer.getScaleY() + dpf2(8)) * (openAnimationInProgress ? avatarAnimationProgress : diff);
                 nameY = avatarBottom + dp(1.3f) + dp(7) * diff + titleAnimationsYDiff * (1f - avatarAnimationProgress);
-                onlineY = avatarBottom + dp(24) + (float) Math.floor(11 * AndroidUtilities.density) * diff;
+                onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 18 : 11) * diff;
                 if (openAnimationInProgress) {
                     nameY += prevNameShiftY() * (1f - diff);
                     onlineY += prevOnlineShiftY() * (1f - diff);
@@ -9290,7 +9290,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         float avatarBottom = (float) Math.floor(endNameY) + (AndroidUtilities.dp(42) * scale + dpf2(8)) * diff;
         nameY = avatarBottom + AndroidUtilities.dp(1.3f) + AndroidUtilities.dp(7) * diff;
-        onlineY = avatarBottom + AndroidUtilities.dp(24) + (float) Math.floor(11 * AndroidUtilities.density) * diff;
+        onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 18 : 11) * diff;
     }
 
     public RecyclerListView getListView() {

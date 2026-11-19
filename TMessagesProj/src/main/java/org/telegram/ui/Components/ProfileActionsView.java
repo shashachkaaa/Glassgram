@@ -130,7 +130,7 @@ public class ProfileActionsView extends View {
         paint.setColor(Color.BLACK);
         paint.setAlpha(40);
 
-        xpadding = dpf2(14);
+        xpadding = dpf2(24);
         ypadding = dpf2(6);
         top = dpf2(8);
         textPadding = dpf2(4);
@@ -239,7 +239,7 @@ public class ProfileActionsView extends View {
     }
 
     private void getCircle(RectF out, Action action) {
-        final float diameter = Math.min(dp(54), Math.min(action.rect.width(), action.rect.height() * 0.73f));
+        final float diameter = Math.min(dp(50), Math.min(action.rect.width(), action.rect.height() * 0.73f));
         final float left = action.rect.centerX() - diameter / 2f;
         out.set(left, action.rect.top, left + diameter, action.rect.top + diameter);
     }
@@ -417,8 +417,9 @@ public class ProfileActionsView extends View {
         final float drawableR = drawableSize * 0.5f;
 
         action.text.setMaxWidth(action.rect.width() - dp(2));
-        action.textScale = action.text.getLineCount() >= 3 ? 0.75f : action.text.getLineCount() >= 2 ? 0.85f : 1.0f;
         getCircle(glassRect, action);
+        final float captionHeight = Math.max(0f, action.rect.bottom - glassRect.bottom - dp(3));
+        action.textScale = Math.min(1f, captionHeight / Math.max(1f, action.text.getHeight()));
         final float drawableTop = glassRect.centerY() - drawableR;
         action.setBounds(
             (int) (cx - drawableR),
@@ -454,7 +455,8 @@ public class ProfileActionsView extends View {
 
         updateBounds(action);
 
-        final float textY = glassRect.bottom + dp(3) + action.text.getHeight() * action.textScale / 2f;
+        // Text.multiline() draws from the top of its layout, including for one-line captions.
+        final float textY = glassRect.bottom + dp(3);
         canvas.save();
         canvas.scale(action.textScale, action.textScale, cx, textY);
         action.text.draw(canvas, cx - action.text.getWidth() / 2f, textY, textColor, alpha);
