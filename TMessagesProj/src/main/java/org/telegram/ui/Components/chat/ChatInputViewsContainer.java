@@ -167,7 +167,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
 
     /** Where the field's glass is (its bounds with the padding, in this view) while the input is split; false otherwise. */
     public boolean getGlassgramFieldBounds(Rect out) {
-        if (glassgramSegmentsProvider == null || inputBubbleOffsetLeft != 0 || inputBubbleOffsetRight != 0
+        if (pullHintVisible || glassgramSegmentsProvider == null || inputBubbleOffsetLeft != 0 || inputBubbleOffsetRight != 0
                 || !glassgramSegmentsProvider.getSegments(glassgramSegments)) {
             return false;
         }
@@ -358,6 +358,14 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
 
     private float inputBubbleOffsetLeft;
     private float inputBubbleOffsetRight;
+    private boolean pullHintVisible;
+
+    public void setPullHintVisible(boolean visible) {
+        if (pullHintVisible != visible) {
+            pullHintVisible = visible;
+            invalidate();
+        }
+    }
 
     private float inputBubbleHeight;
     private int inputBubbleHeightRound;
@@ -403,9 +411,9 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
     private void computeIslandRect(Rect out) {
         final int blurTop = getMeasuredHeight() - currentBlurredHeight;
         out.set(
-            Math.round(inputBubbleOffsetLeft),
+            pullHintVisible ? 0 : Math.round(inputBubbleOffsetLeft),
             0,
-            getMeasuredWidth() - Math.round(inputBubbleOffsetRight),
+            getMeasuredWidth() - (pullHintVisible ? 0 : Math.round(inputBubbleOffsetRight)),
             inputBubbleHeightRound
         );
         out.inset(0, -dp(7));
@@ -424,9 +432,12 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         computeIslandRect(tmpRect);
 
         blurredBackgroundDrawable.setBounds(tmpRect);
-        if (drawInputBackground) {
-            if (!drawGlassgramSegments(canvas, tmpRect))
+        if (pullHintVisible) {
+            blurredBackgroundDrawable.draw(canvas);
+        } else if (drawInputBackground) {
+            if (!drawGlassgramSegments(canvas, tmpRect)) {
                 blurredBackgroundDrawable.draw(canvas);
+            }
         } else if (glassgramMorphing) {
             drawGlassgramSegments(canvas, tmpRect, true);
         }

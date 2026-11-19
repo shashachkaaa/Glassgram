@@ -5389,7 +5389,6 @@ public class ChatActivity extends BaseFragment implements
                     c.translate(0, getMeasuredHeight() - blurredViewBottomOffset - transitionOffset);
                     if (pullingDownDrawable == null) {
                         pullingDownDrawable = new ChatPullingDownDrawable(currentAccount, fragmentView, dialog_id, dialogFolderId, dialogFilterId, getTopicId(), themeDelegate);
-                        pullingDownDrawable.progressToBottomPanel = animatorPullingDownContainerVisibility.getFloatValue();
                         if (nextChannels != null && !nextChannels.isEmpty()) {
                             pullingDownDrawable.updateDialog(nextChannels.get(0));
                         } else if (isTopic) {
@@ -47968,10 +47967,10 @@ public class ChatActivity extends BaseFragment implements
     private final ChatActivityBottomViewsVisibilityController bottomViewsVisibilityController =
             new ChatActivityBottomViewsVisibilityController(this::onBottomItemsVisibilityChanged);
 
-    private void checkBottomViewVisibility(View view, int containerId, boolean allowVisibilityChange) {
+    private void checkBottomViewVisibility(View view, int containerId, boolean allowVisibilityChange, float pullControlsVisibility) {
         if (view != null) {
             final float alpha = bottomViewsVisibilityController.getVisibility(containerId)
-                * (1f - animatorPullingDownContainerVisibility.getFloatValue())
+                * pullControlsVisibility
                 * (1f - animatorPollAddAnswerVisibility.getFloatValue());
 
             view.setAlpha(alpha);
@@ -47985,11 +47984,16 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void onBottomItemsVisibilityChanged() {
-        checkBottomViewVisibility(actionsButtonsLayout, MESSAGE_ACTION_CONTAINER, true);
-        checkBottomViewVisibility(chatActivityEnterView, MESSAGE_INPUT_CONTAINER, false);
-        checkBottomViewVisibility(searchContainer, MESSAGE_SEARCH_CONTAINER, true);
-        checkBottomViewVisibility(bottomChannelButtonsLayout, BOTTOM_OVERLAY_CHAT_CONTAINER, false);
-        checkBottomViewVisibility(bottomOverlay, BOTTOM_OVERLAY_TEXT_CONTAINER, false);
+        final float pullProgress = animatorPullingDownContainerVisibility.getFloatValue();
+        final boolean hasPullHint = pullingDownDrawable != null && !pullingDownDrawable.emptyStub;
+        // Make room for the hint before drawing any of its text over the input island.
+        final float pullControlsVisibility = hasPullHint ? Math.max(0f, 1f - 2f * pullProgress) : 1f - pullProgress;
+        final float pullHintProgress = hasPullHint ? Math.max(0f, 2f * pullProgress - 1f) : 0f;
+        checkBottomViewVisibility(actionsButtonsLayout, MESSAGE_ACTION_CONTAINER, true, pullControlsVisibility);
+        checkBottomViewVisibility(chatActivityEnterView, MESSAGE_INPUT_CONTAINER, false, pullControlsVisibility);
+        checkBottomViewVisibility(searchContainer, MESSAGE_SEARCH_CONTAINER, true, pullControlsVisibility);
+        checkBottomViewVisibility(bottomChannelButtonsLayout, BOTTOM_OVERLAY_CHAT_CONTAINER, false, pullControlsVisibility);
+        checkBottomViewVisibility(bottomOverlay, BOTTOM_OVERLAY_TEXT_CONTAINER, false, pullControlsVisibility);
 
         final float pollAddOptionVisibility = animatorPollAddAnswerVisibility.getFloatValue();
         final float actionFactor = bottomViewsVisibilityController.getVisibility(MESSAGE_ACTION_CONTAINER);
@@ -48014,22 +48018,20 @@ public class ChatActivity extends BaseFragment implements
         if (chatInputViewsContainer != null) {
             chatInputViewsContainer.setInputBubbleAlpha((int) (255 * (1f - hideFactor)));
             chatInputViewsContainer.setInputBubbleTranslationY(dp(54) * hideFactor);
+            chatInputViewsContainer.setPullHintVisible(pullHintProgress > 0f);
         }
 
 
         if (bottomChannelButtonsLayout != null) {
             bottomChannelButtonsLayout.setTotalVisibilityFactor(
                 bottomViewsVisibilityController.getVisibility(BOTTOM_OVERLAY_CHAT_CONTAINER) *
-                (1f - animatorPullingDownContainerVisibility.getFloatValue())
+                pullControlsVisibility
             );
         }
 
-        if (pullingDownDrawable != null) {
-            final float factor = animatorPullingDownContainerVisibility.getFloatValue();
-            if (pullingDownDrawable.progressToBottomPanel != factor) {
-                pullingDownDrawable.progressToBottomPanel = factor;
-                fragmentView.invalidate();
-            }
+        if (pullingDownDrawable != null && pullingDownDrawable.progressToBottomPanel != pullHintProgress) {
+            pullingDownDrawable.progressToBottomPanel = pullHintProgress;
+            fragmentView.invalidate();
         }
 
         checkUi_inputIslandHeight();
