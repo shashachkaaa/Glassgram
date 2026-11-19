@@ -71,6 +71,7 @@ public class ProfileMusicView extends View {
     private final Path clipPath = new Path();
 
     private final LiquidPressEffect press = new LiquidPressEffect(this);
+    private boolean clickEligible;
     private final ButtonBounce bounce = new ButtonBounce(this);
 
     public ProfileMusicView(Context context, Theme.ResourcesProvider resourcesProvider) {
@@ -268,34 +269,30 @@ public class ProfileMusicView extends View {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        final float alpha = Utilities.clamp01((currentHeight) / dp(21));
-        if (alpha <= 0) {
-            press.cancelPress();
-            bounce.setPressed(false);
-            return false;
-        }
         final int action = event.getActionMasked();
-        final boolean inside = rect.contains(event.getX(), event.getY());
-        if (inside && (action == MotionEvent.ACTION_DOWN ? press.isLibraryButton() : bounce.isPressed())) {
-            press.onTouch(action, event.getX() - rect.left, event.getY() - rect.top);
-        } else {
-            press.cancelPress();
-        }
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            bounce.setPressed(rect.contains(event.getX(), event.getY()));
-        } else if (event.getAction() == MotionEvent.ACTION_MOVE && bounce.isPressed()) {
-            if (!rect.contains(event.getX(), event.getY())) {
-                bounce.setPressed(false);
+        final float x = event.getX(), y = event.getY();
+        final boolean inside = rect.contains(x, y);
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (currentHeight <= 0 || !inside) return false;
+            clickEligible = true;
+            bounce.setPressed(true);
+            if (press.isLibraryButton()) {
+                getParent().requestDisallowInterceptTouchEvent(true);
+                press.onTouch(action, x - rect.left, y - rect.top);
             }
-        } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+            return true;
+        }
+        if (!bounce.isPressed()) return false;
+        press.onTouch(action, x - rect.left, y - rect.top);
+        if (action == MotionEvent.ACTION_MOVE) {
+            clickEligible &= inside;
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             bounce.setPressed(false);
-        } else if (event.getAction() == MotionEvent.ACTION_UP) {
-            if (inside && bounce.isPressed()) {
+            if (action == MotionEvent.ACTION_UP && clickEligible && inside && currentHeight > 0) {
                 performClick();
             }
-            bounce.setPressed(false);
         }
-        return bounce.isPressed();
+        return true;
     }
 
     protected float getContentWidth(float maxWidth) {

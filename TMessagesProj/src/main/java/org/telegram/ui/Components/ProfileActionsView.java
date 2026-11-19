@@ -555,6 +555,7 @@ public class ProfileActionsView extends View {
     }
 
     private Action hit = null;
+    private boolean clickEligible;
     private void pressAction(Action action, int event, float x, float y) {
         if (action.press == null || (event == MotionEvent.ACTION_DOWN && !action.press.isLibraryButton())) return;
         getCircle(glassRect, action);
@@ -564,7 +565,7 @@ public class ProfileActionsView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (currentHeight < dp(8)) {
+        if (currentHeight < dp(8) && hit == null) {
             return false;
         }
 
@@ -579,6 +580,10 @@ public class ProfileActionsView extends View {
                 Action a = actions.get(i);
                 if (!a.isDeleting && a.rect.contains(x, y)) {
                     hit = a;
+                    clickEligible = true;
+                    if (a.press != null && a.press.isLibraryButton()) {
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
                     downTime = System.currentTimeMillis();
                     pressAction(hit, eventAction, x, y);
                     hit.bounce.setPressed(true);
@@ -590,19 +595,14 @@ public class ProfileActionsView extends View {
             }
         } else if (eventAction == MotionEvent.ACTION_MOVE) {
             if (hit != null) {
-                if (!hit.rect.contains(x, y)) {
-                    pressAction(hit, MotionEvent.ACTION_CANCEL, x, y);
-                    hit.bounce.setPressed(false);
-                    hit = null;
-                } else {
-                    pressAction(hit, eventAction, x, y);
-                }
+                clickEligible &= hit.rect.contains(x, y);
+                pressAction(hit, eventAction, x, y);
             }
         } else if (eventAction == MotionEvent.ACTION_UP || eventAction == MotionEvent.ACTION_CANCEL) {
             if (hit != null) {
                 pressAction(hit, eventAction, x, y);
                 hit.bounce.setPressed(false);
-                if (eventAction == MotionEvent.ACTION_UP && hit.rect.contains(x, y)) {
+                if (eventAction == MotionEvent.ACTION_UP && clickEligible && !hit.isDeleting && hit.rect.contains(x, y)) {
                     if (System.currentTimeMillis() - downTime > 250) {
                         try {
                             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
