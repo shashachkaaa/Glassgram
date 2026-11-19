@@ -621,6 +621,21 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    private float glassMenuVisibilityFactor = 1f;
+
+    /** Fades the regular menu and its glass together while keeping the items laid out. */
+    public void setGlassMenuVisibilityFactor(float factor) {
+        if (glassMenuVisibilityFactor != factor) {
+            glassMenuVisibilityFactor = factor;
+            if (menu != null) {
+                menu.setAlpha(factor);
+                menu.setImportantForAccessibility(factor > 0f
+                    ? IMPORTANT_FOR_ACCESSIBILITY_AUTO : IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            }
+            invalidate();
+        }
+    }
+
     private float glassMenuLeftDrawn = Float.NaN;
 
     /**
@@ -3765,15 +3780,19 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             glassDrawableBack.setAlpha((int) (255 * glassAlpha * backAlpha));
             drawGlass(canvas, glassDrawableBack, GLASS_BACK, p);
         }
-        if (!(menuWidth > 0)) {
+        final float menuVisibility = lerp(glassMenuVisibilityFactor, 1f, actionModeFactor);
+        if (menuWidth <= 0 || menuVisibility <= 0f) {
             glassMenuLeftDrawn = Float.NaN;
         }
-        if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && !isMenuPillInOverlay() && glassAlpha > 0) {
+        if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack && !doNotDrawGlassMenu && !isMenuPillInOverlay()
+                && glassAlpha > 0 && menuVisibility > 0f) {
             // Moved in from the end for the screen's own button there, back for the selection bar's actions
             final int endInset = (int) (glassMenuEndInset * (1f - actionModeFactor));
-            glassDrawableMenu.setBounds(getWidth() - Math.max(si, menuWidth) - p - mi - endInset, t, getWidth() - mi + p - endInset, b);
-            glassMenuLeftDrawn = getWidth() - Math.max(si, menuWidth) - mi - endInset;
-            glassDrawableMenu.setAlpha((int) (glassAlpha * (hasForcedMenuWidth ? 255 : 255 * Math.max(endFactor, animatorHasMenuItems.getFloatValue()))));
+            final int menuRight = getWidth() - mi - endInset;
+            final int menuLeft = menuRight - Math.max(si, menuWidth);
+            glassDrawableMenu.setBounds(menuLeft - p, t, menuRight + p, b);
+            glassMenuLeftDrawn = lerp(menuRight, menuLeft, menuVisibility);
+            glassDrawableMenu.setAlpha((int) (glassAlpha * menuVisibility * (hasForcedMenuWidth ? 255 : 255 * Math.max(endFactor, animatorHasMenuItems.getFloatValue()))));
             drawGlass(canvas, glassDrawableMenu, GLASS_MENU, p);
             if (glassEndView != null) {
                 // Exactly in the middle of the circle drawn: placing it by margins rounded differently

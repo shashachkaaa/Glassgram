@@ -3173,6 +3173,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         glassgramEditing = editing;
+        actionBar.createMenu().setEnabled(!editing);
         glassgramEditSelected.clear();
         if (glassgramEditButton != null) {
             glassgramEditButton.setText(getString(editing ? R.string.Done : R.string.GlassgramHeaderEdit), true);
@@ -3197,6 +3198,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void glassgramApplyEditProgress() {
         final float p = glassgramEditProgress;
+        actionBar.setGlassMenuVisibilityFactor(1f - p);
         if (glassgramComposeButton != null) {
             glassgramComposeButton.setAlpha(1f - p);
             glassgramComposeButton.setScaleX(lerp(1f, 0.6f, p));
@@ -14323,11 +14325,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         checkUi_glassgramIosItems();
     }
 
-    /** The menu's items give way to Edit on the iOS-like header. */
-    private float glassgramMenuFactor() {
-        return 1f - glassgramEditProgress;
-    }
-
     private void checkUi_glassgramIosItems() {
         if (!glassgramIosHeader) {
             return;
@@ -14335,7 +14332,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final float factor1 = 1f - animatorSearchVisible.getFloatValue();
         final float factor2 = 1f - getRightSlidingProgress();
         final float factor3 = 1f - animatorDoneButtonVisible.getFloatValue();
-        final float factor = factor1 * factor2 * factor3 * glassgramMenuFactor();
+        final float factor = factor1 * factor2 * factor3;
         if (glassgramProxyItem != null) {
             FragmentFloatingButton.setAnimatedVisibility(glassgramProxyItem, glassgramProxyShown() ? factor : 0);
         }
@@ -14387,7 +14384,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final float factor1 = 1f - animatorSearchVisible.getFloatValue();
         final float factor2 = 1f - getRightSlidingProgress();
         final float factor3 = 1f - animatorDoneButtonVisible.getFloatValue();
-        final float factor = factor0 * factor1 * factor2 * factor3 * glassgramMenuFactor();
+        final float factor = factor0 * factor1 * factor2 * factor3;
         FragmentFloatingButton.setAnimatedVisibility(passcodeItem, factor);
     }
 
@@ -14396,7 +14393,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final float factor1 = 1f - animatorSearchVisible.getFloatValue();
         final float factor2 = 1f - getRightSlidingProgress();
         final float factor3 = 1f - animatorDoneButtonVisible.getFloatValue();
-        final float factor = factor0 * factor1 * factor2 * factor3 * glassgramMenuFactor();
+        final float factor = factor0 * factor1 * factor2 * factor3;
         FragmentFloatingButton.setAnimatedVisibility(downloadsItem, factor);
     }
 
@@ -14415,7 +14412,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final float factor1 = animatorSearchButtonVisible.getFloatValue();
         final float factor2 = 1f - getRightSlidingProgress();
         final float factor3 = 1f - animatorDoneButtonVisible.getFloatValue();
-        final float factor = factor0 * factor1 * factor2 * factor3 * glassgramMenuFactor();
+        final float factor = factor0 * factor1 * factor2 * factor3;
         FragmentFloatingButton.setAnimatedVisibility(searchItem, factor);
         if (dialogStoriesCell != null) {
             dialogStoriesCell.invalidate();
