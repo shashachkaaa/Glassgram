@@ -18099,7 +18099,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
             if (!updates.out && user != null && user.status != null && user.status.expires <= 0 && Math.abs(getConnectionsManager().getCurrentTime() - updates.date) < 30) {
                 onlinePrivacy.put(user.id, updates.date);
-                GlassgramSpyStorage.saveLastSeen(user.id, updates.date * 1000L);
+                GlassgramSpyStorage.saveLastSeen(currentAccount, user.id, updates.date * 1000L);
                 updateStatus = true;
             }
 
@@ -19957,6 +19957,7 @@ public class MessagesController extends BaseController implements NotificationCe
         }
 
         if (messagesArr != null) {
+            GlassgramSpyMedia.prefetchPhotos(currentAccount, messagesArr);
             getStatsController().incrementReceivedItemsCount(ApplicationLoader.getCurrentNetworkType(), StatsController.TYPE_MESSAGES, messagesArr.size());
             getMessagesStorage().putMessages(messagesArr, true, true, false, getDownloadController().getAutodownloadMask(), 0, 0);
         }
@@ -20122,6 +20123,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
 
+                        if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
+                            GlassgramSpyStorage.saveLastSeen(currentAccount, update.user_id, update.status.expires * 1000L);
+                        }
                         if (update.status instanceof TLRPC.TL_userStatusRecently) {
                             update.status.expires = -100;
                         } else if (update.status instanceof TLRPC.TL_userStatusLastWeek) {
@@ -21230,15 +21234,15 @@ public class MessagesController extends BaseController implements NotificationCe
             for (int a = 0, size = deletedMessages.size(); a < size; a++) {
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> ids = deletedMessages.valueAt(a);
-                java.util.HashSet<Integer> own = GlassgramSpyStorage.findOwnMessageIds(currentAccount, key, ids);
+                java.util.HashSet<Integer> retained = GlassgramSpyStorage.retainDeletedMessages(currentAccount, key, ids);
                 ArrayList<Integer> keep = new ArrayList<>();
                 ArrayList<Integer> drop = new ArrayList<>();
                 for (int b = 0; b < ids.size(); b++) {
                     Integer id = ids.get(b);
-                    if (own.contains(id) && !GlassgramSpyStorage.isMarkedDeleted(currentAccount, -key, id)) {
-                        drop.add(id);
-                    } else {
+                    if (retained.contains(id)) {
                         keep.add(id);
+                    } else {
+                        drop.add(id);
                     }
                 }
                 if (!keep.isEmpty()) {
@@ -21274,7 +21278,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     for (int b = 0, size = markAsReadMessagesInboxFinal.size(); b < size; b++) {
                         long key = markAsReadMessagesInboxFinal.keyAt(b);
                         int messageId = markAsReadMessagesInboxFinal.valueAt(b);
-                        GlassgramSpyStorage.saveRead(key, messageId, System.currentTimeMillis());
+                        GlassgramSpyStorage.saveRead(currentAccount, key, messageId, false, System.currentTimeMillis());
                         TLRPC.Dialog dialog = dialogs_dict.get(key);
                         if (dialog != null && dialog.top_message > 0 && dialog.top_message <= messageId) {
                             ArrayList<MessageObject> objs = dialogMessage.get(dialog.id);
@@ -21299,7 +21303,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     for (int b = 0, size = markAsReadMessagesOutboxFinal.size(); b < size; b++) {
                         long key = markAsReadMessagesOutboxFinal.keyAt(b);
                         int messageId = markAsReadMessagesOutboxFinal.valueAt(b);
-                        GlassgramSpyStorage.saveRead(key, messageId, System.currentTimeMillis());
+                        GlassgramSpyStorage.saveRead(currentAccount, key, messageId, true, System.currentTimeMillis());
                         TLRPC.Dialog dialog = dialogs_dict.get(key);
                         if (dialog != null && messageId > dialog.read_outbox_max_id) {
                             dialog.read_outbox_max_id = messageId;
@@ -21352,23 +21356,6 @@ public class MessagesController extends BaseController implements NotificationCe
                 for (int a = 0, size = keptDeletedMessagesFinal.size(); a < size; a++) {
                     long dialogId = keptDeletedMessagesFinal.keyAt(a);
                     ArrayList<Integer> arrayList = keptDeletedMessagesFinal.valueAt(a);
-                    for (int b = 0, size2 = arrayList.size(); b < size2; b++) {
-                        MessageObject obj = dialogId == 0 ? dialogMessagesByIds.get(arrayList.get(b)) : null;
-                        if (obj != null) {
-                            GlassgramSpyStorage.saveMessage(obj, "deleted");
-                        }
-                    }
-                    if (dialogId != 0) {
-                        ArrayList<MessageObject> objs = dialogMessage.get(dialogId);
-                        if (objs != null) {
-                            for (int i = 0; i < objs.size(); ++i) {
-                                MessageObject obj = objs.get(i);
-                                if (obj != null && arrayList.contains(obj.getId())) {
-                                    GlassgramSpyStorage.saveMessage(obj, "deleted");
-                                }
-                            }
-                        }
-                    }
                     getNotificationCenter().postNotificationName(NotificationCenter.glassgramMessagesMarkedDeleted, arrayList, -dialogId);
                 }
             }

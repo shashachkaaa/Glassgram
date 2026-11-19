@@ -1059,6 +1059,13 @@ public class FileLoadOperation {
                 cacheFileFinal = new File(storePath, fileNameFinal);
             }
         }
+        if (!encryptFile && key == null && parentObject instanceof MessageObject && !cacheFileFinal.isFile()) {
+            File archived = GlassgramSpyMedia.find(currentAccount, fileName);
+            if (archived != null && (totalBytesCount == 0 || archived.length() == totalBytesCount)) {
+                cacheFileFinal = archived;
+                pathSaveData = null;
+            }
+        }
         boolean finalFileExist = cacheFileFinalReady = cacheFileFinal.exists();
         if (finalFileExist && (parentObject instanceof TLRPC.TL_theme || (totalBytesCount != 0 && !ungzip && totalBytesCount != cacheFileFinal.length())) && !delegate.isLocallyCreatedFile(cacheFileFinal.toString())) {
             if (BuildVars.LOGS_ENABLED) {
@@ -1072,6 +1079,10 @@ public class FileLoadOperation {
 
 
         if (!finalFileExist) {
+            // The archive may have been trimmed since the lookup. Keep downloads in the normal cache.
+            if (!encryptFile && !(parentObject instanceof TLRPC.TL_theme)) {
+                cacheFileFinal = new File(storePath, storeFileName);
+            }
             cacheFileTemp = new File(tempPath, fileNameTemp);
             if (ungzip) {
                 cacheFileGzipTemp = new File(tempPath, fileNameTemp + ".gz");

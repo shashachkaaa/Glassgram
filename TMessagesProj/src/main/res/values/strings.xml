@@ -11570,9 +11570,9 @@
     <string name="GlassgramSpySaveLastSeen">Save Last Seen Date</string>
     <string name="GlassgramSpySaveLastSeenInfo">Saves the last online date for users with hidden online status based on their actions. You\'ll be able to see **very approximately** when they were last online.</string>
     <string name="GlassgramSpySaveAttachments">Save Attachments</string>
-    <string name="GlassgramSpySaveAttachmentsSub">Keep files of saved messages</string>
+    <string name="GlassgramSpySaveAttachmentsSub">Download new photos in advance and keep attachments of saved messages</string>
     <string name="GlassgramSpyMaxFolderSize">Max folder size</string>
-    <string name="GlassgramSpyMaxFolderSizeInfo">The size limit for files kept by Spy on this device.</string>
+    <string name="GlassgramSpyMaxFolderSizeInfo">Limit for saved attachments on this device. The oldest files are removed first.</string>
     <string name="GlassgramSpyNoLimit">No limit</string>
     <string name="GlassgramSpyExport">Export Database</string>
     <string name="GlassgramSpyImport">Import Database</string>

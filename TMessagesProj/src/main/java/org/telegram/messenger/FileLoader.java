@@ -43,6 +43,9 @@ public class FileLoader extends BaseController {
     private static Pattern sentPattern;
 
     public static FilePathDatabase.FileMeta getFileMetadataFromParent(int currentAccount, Object parentObject) {
+        if (parentObject instanceof GlassgramSpyMedia.ArchiveMessage) {
+            return null;
+        }
         if (parentObject instanceof String) {
             String str = (String) parentObject;
             if (str.startsWith("sent_")) {
@@ -988,6 +991,7 @@ public class FileLoader extends BaseController {
         }
 
         final int finalType = type;
+        final long accountUserId = UserConfig.getInstance(currentAccount).getClientUserId();
 
         FileLoadOperation.FileLoadOperationDelegate fileLoadOperationDelegate = new FileLoadOperation.FileLoadOperationDelegate() {
 
@@ -1018,6 +1022,9 @@ public class FileLoader extends BaseController {
                 }
 
                 if (!operation.isPreloadVideoOperation()) {
+                    if (cacheType != ImageLoader.CACHE_TYPE_ENCRYPTED) {
+                        GlassgramSpyMedia.onDownloadFinished(accountUserId, fileName, finalFile);
+                    }
                     loadOperationPathsUI.remove(fileName);
                     if (delegate != null) {
                         delegate.fileDidLoaded(fileName, finalFile, parentObject, finalType);
@@ -1029,6 +1036,9 @@ public class FileLoader extends BaseController {
 
             @Override
             public void didFailedLoadingFile(FileLoadOperation operation, int reason) {
+                if (cacheType != ImageLoader.CACHE_TYPE_ENCRYPTED) {
+                    GlassgramSpyMedia.onDownloadFinished(accountUserId, fileName, null);
+                }
                 loadOperationPathsUI.remove(fileName);
                 checkDownloadQueue(operation, operation.getQueue());
                 if (delegate != null) {
@@ -1431,12 +1441,23 @@ public class FileLoader extends BaseController {
             return new File("");
         }
         if (documentId != 0) {
-            String path = getInstance(UserConfig.selectedAccount).getFileDatabase().getPath(documentId, dcId, type, useFileDatabaseQueue);
+            String path = getFileDatabase().getPath(documentId, dcId, type, useFileDatabaseQueue);
             if (path != null) {
-                return new File(path);
+                File custom = new File(path);
+                if (custom.isFile()) {
+                    return custom;
+                }
             }
         }
-        return new File(dir, getAttachFileName(attach, ext));
+        String name = getAttachFileName(attach, ext);
+        File file = new File(dir, name);
+        if (!file.isFile() && (attach instanceof TLRPC.PhotoSize || attach instanceof TLRPC.TL_document)) {
+            File archived = GlassgramSpyMedia.find(currentAccount, name);
+            if (archived != null) {
+                return archived;
+            }
+        }
+        return file;
     }
 
     public FilePathDatabase getFileDatabase() {

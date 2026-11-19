@@ -3,6 +3,7 @@ package org.telegram.messenger;
 import android.content.Context;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.util.AtomicFile;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,6 +27,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Local-only storage for Glassgram Spy.
@@ -49,61 +52,69 @@ public final class GlassgramSpyStorage {
         return new File(dir, FILE_NAME);
     }
 
-    public static void saveMessage(MessageObject message, String reason) {
-        if (message == null || !GlassgramConfig.spySaveDeletedMessages) {
-            return;
-        }
-        if (!GlassgramConfig.spySaveInBotDialogs && isBotDialog(message.getDialogId())) {
-            return;
-        }
-        JSONObject o = new JSONObject();
+    private static final class Events {
+        private static final DispatchQueue2 queue = new DispatchQueue2("glassgramSpyEvents");
+    }
+
+    private static void saveMessage(int account, TLRPC.Message message) {
         try {
-            o.put("type", reason == null ? "deleted" : reason);
-            o.put("account", message.currentAccount);
-            o.put("dialog_id", message.getDialogId());
-            o.put("message_id", message.getId());
-            o.put("date", message.messageOwner != null ? message.messageOwner.date : 0);
+            JSONObject o = new JSONObject();
+            o.put("type", "deleted");
+            o.put("account", account);
+            o.put("self_id", UserConfig.getInstance(account).getClientUserId());
+            o.put("dialog_id", MessageObject.getDialogId(message));
+            o.put("message_id", message.id);
+            o.put("date", message.date);
             o.put("saved_at", System.currentTimeMillis());
-            o.put("text", message.messageOwner != null && message.messageOwner.message != null ? message.messageOwner.message : "");
-            if (message.messageOwner != null) {
-                o.put("out", message.messageOwner.out);
-                o.put("attach_path", message.messageOwner.attachPath == null ? "" : message.messageOwner.attachPath);
+            o.put("text", message.message);
+            o.put("out", message.out);
+            Events.queue.postRunnable(() -> append(o));
+            GlassgramSpyMedia.capture(account, message);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    public static void saveRead(int account, long dialogId, int maxMessageId, boolean outgoing, long timestamp) {
+        if (!GlassgramConfig.spySaveReadDate || !GlassgramConfig.spySaveInBotDialogs && isBotDialog(account, dialogId)) {
+            return;
+        }
+        long selfId = UserConfig.getInstance(account).getClientUserId();
+        Events.queue.postRunnable(() -> {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("type", "read");
+                o.put("account", account);
+                o.put("self_id", selfId);
+                o.put("dialog_id", dialogId);
+                o.put("message_id", maxMessageId);
+                o.put("outgoing", outgoing);
+                o.put("saved_at", timestamp);
+                append(o);
+            } catch (Exception e) {
+                FileLog.e(e);
             }
-            append(o);
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
+        });
     }
 
-    public static void saveRead(long dialogId, int maxMessageId, long timestamp) {
-        if (!GlassgramConfig.spySaveReadDate) {
+    public static void saveLastSeen(int account, long userId, long timestamp) {
+        if (!GlassgramConfig.spySaveLastSeenDate || !GlassgramConfig.spySaveInBotDialogs && isBotDialog(account, userId)) {
             return;
         }
-        try {
-            JSONObject o = new JSONObject();
-            o.put("type", "read");
-            o.put("dialog_id", dialogId);
-            o.put("message_id", maxMessageId);
-            o.put("saved_at", timestamp);
-            append(o);
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
-    }
-
-    public static void saveLastSeen(long userId, long timestamp) {
-        if (!GlassgramConfig.spySaveLastSeenDate) {
-            return;
-        }
-        try {
-            JSONObject o = new JSONObject();
-            o.put("type", "last_seen");
-            o.put("user_id", userId);
-            o.put("saved_at", timestamp);
-            append(o);
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
+        long selfId = UserConfig.getInstance(account).getClientUserId();
+        Events.queue.postRunnable(() -> {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("type", "last_seen");
+                o.put("account", account);
+                o.put("self_id", selfId);
+                o.put("user_id", userId);
+                o.put("saved_at", timestamp);
+                append(o);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        });
     }
 
     /** One earlier text of an edited message. date is when that text became current. */
@@ -277,11 +288,14 @@ public final class GlassgramSpyStorage {
                             o.put("old_media", media);
                         }
                     }
-                    append(o);
                     synchronized (LOCK) {
-                        if (editIndex != null) {
+                        if (append(o) && editIndex != null) {
                             editIndex.add(editKey(selfId, dialogId, edited.getId()));
                         }
+                    }
+                    if (isRealMedia(old.media) && mediaId(old.media) != mediaId(edited.messageOwner.media)) {
+                        GlassgramSpyMedia.capture(account, old);
+                        GlassgramSpyMedia.capture(account, edited.messageOwner);
                     }
                 } catch (Exception e) {
                     FileLog.e(e);
@@ -351,6 +365,7 @@ public final class GlassgramSpyStorage {
     private static final String DELETED_FILE_NAME = "glassgram_deleted_ids.txt";
     private static final Object DELETED_LOCK = new Object();
     private static HashSet<String> deletedIds;
+    private static final HashSet<String> pendingDeletion = new HashSet<>();
 
     private static File deletedFile() {
         return new File(file().getParentFile(), DELETED_FILE_NAME);
@@ -423,6 +438,25 @@ public final class GlassgramSpyStorage {
         }
     }
 
+    static void setPendingDeletion(int account, long channelId, ArrayList<Integer> ids, boolean pending) {
+        synchronized (DELETED_LOCK) {
+            for (int id : ids) {
+                String key = deletedKey(account, channelId, id);
+                if (pending) {
+                    pendingDeletion.add(key);
+                } else {
+                    pendingDeletion.remove(key);
+                }
+            }
+        }
+    }
+
+    private static boolean isPendingDeletion(int account, long channelId, int messageId) {
+        synchronized (DELETED_LOCK) {
+            return pendingDeletion.contains(deletedKey(account, channelId, messageId));
+        }
+    }
+
     public static boolean isMarkedDeleted(int account, long channelId, int messageId) {
         if (GlassgramConfig.STORE_BUILD) {
             return false;
@@ -433,46 +467,83 @@ public final class GlassgramSpyStorage {
         }
     }
 
-    /**
-     * Which of the deleted message ids are our own outgoing messages, read from the local database.
-     * key is the update's key: 0 for private chats and basic groups, -channelId for a channel.
-     * Waits for the storage queue, like MessagesStorage.getDialogReadMax.
-     */
-    public static HashSet<Integer> findOwnMessageIds(int account, long key, ArrayList<Integer> ids) {
-        HashSet<Integer> own = new HashSet<>();
+    /** Looks up all retained messages, including ones whose chat is closed. */
+    public static HashSet<Integer> retainDeletedMessages(int account, long dialogKey, ArrayList<Integer> ids) {
+        HashSet<Integer> retained = new HashSet<>();
         if (ids == null || ids.isEmpty()) {
-            return own;
+            return retained;
         }
         MessagesStorage storage = MessagesStorage.getInstance(account);
-        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-        storage.getStorageQueue().postRunnable(() -> {
-            SQLiteCursor cursor = null;
+        long selfId = UserConfig.getInstance(account).getClientUserId();
+        FutureTask<ArrayList<TLRPC.Message>> query = new FutureTask<>(() -> {
+            ArrayList<TLRPC.Message> messages = new ArrayList<>();
+            String idList = TextUtils.join(",", ids);
+            String selection = dialogKey == 0 ? "is_channel = 0" : "uid = " + dialogKey;
+            SQLiteCursor cursor = storage.getDatabase().queryFinalized("SELECT mid, uid, out, data FROM messages_v2 WHERE "
+                    + selection + " AND mid IN (" + idList + ")");
             try {
-                String idList = TextUtils.join(",", ids);
-                String query = key != 0
-                    ? String.format(Locale.US, "SELECT mid FROM messages_v2 WHERE uid = %d AND mid IN (%s) AND out = 1", key, idList)
-                    : String.format(Locale.US, "SELECT mid FROM messages_v2 WHERE mid IN (%s) AND out = 1 AND is_channel = 0", idList);
-                cursor = storage.getDatabase().queryFinalized(query);
                 while (cursor.next()) {
-                    own.add(cursor.intValue(0));
+                    int id = cursor.intValue(0);
+                    long dialogId = cursor.longValue(1);
+                    boolean explicit = isMarkedDeleted(account, -dialogKey, id) || isPendingDeletion(account, -dialogKey, id);
+                    if (!explicit && (cursor.intValue(2) != 0
+                            || !GlassgramConfig.spySaveInBotDialogs && isBotDialogOnStorageQueue(account, storage, dialogId))) {
+                        continue;
+                    }
+                    NativeByteBuffer data = cursor.byteBufferValue(3);
+                    if (data == null) {
+                        continue;
+                    }
+                    try {
+                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (message != null) {
+                            message.dialog_id = dialogId;
+                            messages.add(message);
+                        }
+                    } finally {
+                        data.reuse();
+                    }
                 }
-            } catch (Exception e) {
-                FileLog.e(e);
             } finally {
-                if (cursor != null) {
-                    cursor.dispose();
-                }
-                latch.countDown();
+                cursor.dispose();
             }
+            return messages;
         });
+        if (Thread.currentThread() == storage.getStorageQueue()) {
+            query.run();
+        } else {
+            storage.getStorageQueue().postRunnable(query);
+        }
         try {
-            latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            ArrayList<TLRPC.Message> messages = query.get(3, TimeUnit.SECONDS);
+            if (selfId != UserConfig.getInstance(account).getClientUserId()) {
+                return retained;
+            }
+            for (TLRPC.Message message : messages) {
+                retained.add(message.id);
+                if (!isMarkedDeleted(account, -dialogKey, message.id)) {
+                    saveMessage(account, message);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            query.cancel(false);
         } catch (Exception e) {
+            query.cancel(false);
             FileLog.e(e);
         }
-        synchronized (own) {
-            return own;
+        return retained;
+    }
+
+    private static boolean isBotDialogOnStorageQueue(int account, MessagesStorage storage, long dialogId) {
+        if (dialogId <= 0) {
+            return false;
         }
+        TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
+        if (user == null) {
+            user = storage.getUser(dialogId);
+        }
+        return user != null && user.bot;
     }
 
     public static boolean isMarkedDeleted(MessageObject message) {
@@ -489,11 +560,7 @@ public final class GlassgramSpyStorage {
         }
     }
 
-    private static boolean isBotDialog(long dialogId) {
-        return isBotDialog(UserConfig.selectedAccount, dialogId);
-    }
-
-    private static boolean isBotDialog(int account, long dialogId) {
+    static boolean isBotDialog(int account, long dialogId) {
         if (dialogId <= 0) {
             return false;
         }
@@ -501,34 +568,35 @@ public final class GlassgramSpyStorage {
         return user != null && user.bot;
     }
 
-    private static void append(JSONObject object) {
+    private static boolean append(JSONObject object) {
         synchronized (LOCK) {
-            FileOutputStream out = null;
-            try {
-                out = new FileOutputStream(file(), true);
+            try (FileOutputStream out = new FileOutputStream(file(), true)) {
                 out.write((object.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+                return true;
             } catch (Exception e) {
                 FileLog.e(e);
-            } finally {
-                if (out != null) {
-                    try { out.close(); } catch (Exception ignore) {}
-                }
+                return false;
             }
         }
     }
 
     public static long size() {
         File f = file();
-        return f.exists() ? f.length() : 0;
+        return f.length() + deletedFile().length() + GlassgramSpyMedia.size();
     }
 
-    public static void clear() {
+    public static void clear(Runnable done) {
+        Events.queue.postRunnable(() -> clearOnQueue(done));
+    }
+
+    private static void clearOnQueue(Runnable done) {
         synchronized (DELETED_LOCK) {
             File d = deletedFile();
             if (d.exists()) {
                 d.delete();
             }
             deletedIds = new HashSet<>();
+            pendingDeletion.clear();
         }
         synchronized (LOCK) {
             editIndex = new HashSet<>();
@@ -541,101 +609,118 @@ public final class GlassgramSpyStorage {
                 }
             }
         }
+        GlassgramSpyMedia.clear(done);
     }
 
     public static boolean exportToUri(Uri uri) {
-        synchronized (LOCK) {
-            try {
-                File src = file();
-                if (!src.exists()) return false;
-                InputStream in = new FileInputStream(src);
-                OutputStream out = ApplicationLoader.applicationContext.getContentResolver().openOutputStream(uri);
-                if (out == null) return false;
-                byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) >= 0) out.write(buffer, 0, n);
-                in.close();
-                out.close();
-                return true;
-            } catch (Exception e) {
-                FileLog.e(e);
-                return false;
-            }
+        try (OutputStream out = ApplicationLoader.applicationContext.getContentResolver().openOutputStream(uri, "wt")) {
+            return out != null && exportTo(out);
+        } catch (Exception e) {
+            FileLog.e(e);
+            return false;
         }
     }
 
     public static boolean importFromUri(Uri uri) {
-        synchronized (LOCK) {
-            try {
-                InputStream in = ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri);
-                if (in == null) return false;
-                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-                ArrayList<String> lines = new ArrayList<>();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    JSONObject object = new JSONObject(line);
-                    object.getString("type");
-                    lines.add(object.toString());
-                }
-                reader.close();
-                FileOutputStream out = new FileOutputStream(file(), false);
-                for (String value : lines) out.write((value + "\n").getBytes(StandardCharsets.UTF_8));
-                out.close();
-                editIndex = null;
-                return true;
-            } catch (Exception e) {
-                FileLog.e(e);
-                return false;
-            }
+        try (InputStream in = ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri)) {
+            return in != null && importFrom(in);
+        } catch (Exception e) {
+            FileLog.e(e);
+            return false;
         }
     }
 
     public static boolean exportTo(File target) {
-        synchronized (LOCK) {
-            try {
+        try (OutputStream out = new FileOutputStream(target)) {
+            return exportTo(out);
+        } catch (Exception e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
+    private static boolean exportTo(OutputStream out) throws Exception {
+        synchronized (DELETED_LOCK) {
+            synchronized (LOCK) {
                 File src = file();
-                if (!src.exists()) {
-                    return false;
+                if (src.isFile()) {
+                    try (InputStream in = new FileInputStream(src)) {
+                        byte[] buffer = new byte[8192];
+                        int n;
+                        while ((n = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, n);
+                        }
+                    }
                 }
-                FileInputStream in = new FileInputStream(src);
-                FileOutputStream out = new FileOutputStream(target);
-                byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) >= 0) {
-                    out.write(buffer, 0, n);
+                for (String key : loadDeletedIds()) {
+                    JSONObject mark = new JSONObject().put("type", "deleted_mark").put("key", key);
+                    out.write((mark + "\n").getBytes(StandardCharsets.UTF_8));
                 }
-                in.close();
-                out.close();
                 return true;
-            } catch (Exception e) {
-                FileLog.e(e);
-                return false;
             }
         }
     }
 
     public static boolean importFrom(File source) {
-        synchronized (LOCK) {
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(source), StandardCharsets.UTF_8));
-                ArrayList<String> lines = new ArrayList<>();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    JSONObject object = new JSONObject(line);
-                    object.getString("type");
-                    lines.add(object.toString());
+        try (InputStream in = new FileInputStream(source)) {
+            return importFrom(in);
+        } catch (Exception e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
+    private static boolean importFrom(InputStream in) throws Exception {
+        // Parse before replacing the archive. AtomicFile leaves the previous file intact on failure.
+        synchronized (DELETED_LOCK) {
+            synchronized (LOCK) {
+                AtomicFile journal = new AtomicFile(file());
+                FileOutputStream out = journal.startWrite();
+                HashSet<String> marks = new HashSet<>();
+                boolean readRecord = false;
+                try {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.trim().isEmpty()) {
+                            continue;
+                        }
+                        JSONObject object = new JSONObject(line);
+                        if ("deleted_mark".equals(object.getString("type"))) {
+                            String key = object.getString("key");
+                            if (!key.matches("[1-9][0-9]*_[0-9]+_[1-9][0-9]*")) {
+                                throw new java.io.IOException("Invalid Spy deletion marker");
+                            }
+                            marks.add(key);
+                        } else {
+                            out.write((object + "\n").getBytes(StandardCharsets.UTF_8));
+                        }
+                        readRecord = true;
+                    }
+                    if (!readRecord) {
+                        return false;
+                    }
+                    journal.finishWrite(out);
+                    out = null;
+                    editIndex = null;
+                } finally {
+                    if (out != null) {
+                        journal.failWrite(out);
+                    }
                 }
-                reader.close();
-                File dst = file();
-                FileOutputStream out = new FileOutputStream(dst, false);
-                for (String value : lines) {
-                    out.write((value + "\n").getBytes(StandardCharsets.UTF_8));
+                if (!marks.isEmpty()) {
+                    HashSet<String> existing = loadDeletedIds();
+                    marks.removeAll(existing);
+                    if (!marks.isEmpty()) {
+                        try (FileOutputStream deleted = new FileOutputStream(deletedFile(), true)) {
+                            for (String key : marks) {
+                                deleted.write((key + "\n").getBytes(StandardCharsets.UTF_8));
+                            }
+                        }
+                        existing.addAll(marks);
+                    }
                 }
-                out.close();
                 return true;
-            } catch (Exception e) {
-                FileLog.e(e);
-                return false;
             }
         }
     }

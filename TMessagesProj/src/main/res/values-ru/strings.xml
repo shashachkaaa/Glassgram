@@ -532,9 +532,9 @@
     <string name="GlassgramSpySaveLastSeen">Сохранять время последнего визита</string>
     <string name="GlassgramSpySaveLastSeenInfo">Сохраняет время последнего появления в сети для тех, кто скрыл его, по их действиям. Вы увидите **очень примерно**, когда они были в сети.</string>
     <string name="GlassgramSpySaveAttachments">Сохранять вложения</string>
-    <string name="GlassgramSpySaveAttachmentsSub">Хранить файлы сохранённых сообщений</string>
+    <string name="GlassgramSpySaveAttachmentsSub">Заранее загружать новые фото и хранить вложения сохранённых сообщений</string>
     <string name="GlassgramSpyMaxFolderSize">Максимальный размер папки</string>
-    <string name="GlassgramSpyMaxFolderSizeInfo">Ограничение на размер файлов, которые Spy хранит на устройстве.</string>
+    <string name="GlassgramSpyMaxFolderSizeInfo">Лимит для сохранённых вложений на устройстве. Сначала удаляются самые старые файлы.</string>
     <string name="GlassgramSpyNoLimit">Без лимита</string>
     <string name="GlassgramSpyExport">Экспорт базы</string>
     <string name="GlassgramSpyImport">Импорт базы</string>

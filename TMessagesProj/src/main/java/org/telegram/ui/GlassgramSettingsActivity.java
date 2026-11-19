@@ -33,6 +33,7 @@ import org.telegram.messenger.GlassgramInlineResults;
 import org.telegram.messenger.GlassgramProxy;
 import org.telegram.messenger.GlassgramRemoteConfig;
 import org.telegram.messenger.GlassgramSpyStorage;
+import org.telegram.messenger.GlassgramSpyMedia;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
@@ -325,6 +326,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (page == PAGE_SPY) {
+            GlassgramSpyMedia.refreshSize(this::refreshSpySettings);
+        }
         // back from the team's screen, maybe signed out there; back from Inline Results with other features
         if ((page == PAGE_MAIN || page == PAGE_CHATS) && listView != null) {
             listView.adapter.update(true);
@@ -601,6 +605,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asSlideView(folderSizeNames(), Math.max(0, Math.min(5, GlassgramConfig.spyMaxFolderSize)), which -> {
                     GlassgramConfig.spyMaxFolderSize = which;
                     GlassgramConfig.putInt("spyMaxFolderSize", which);
+                    GlassgramSpyMedia.refreshSize(this::refreshSpySettings);
                 }));
                 items.add(UItem.asShadow(getString(R.string.GlassgramSpyMaxFolderSizeInfo)));
                 items.add(UItem.asButton(ID_SPY_EXPORT, R.drawable.msg_unarchive, getString(R.string.GlassgramSpyExport)));
@@ -786,6 +791,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 showChoice("Max folder size", new String[]{"300 MB","1 GB","2 GB","5 GB","16 GB","No limit"}, GlassgramConfig.spyMaxFolderSize, which -> {
                     GlassgramConfig.spyMaxFolderSize = which;
                     GlassgramConfig.putInt("spyMaxFolderSize", which);
+                    GlassgramSpyMedia.refreshSize(this::refreshSpySettings);
                 });
                 return;
             case ID_SPY_EXPORT:
@@ -798,8 +804,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.GlassgramSpyClearTitle))
                         .setMessage(getString(R.string.GlassgramSpyClearText))
                         .setPositiveButton(getString(R.string.Delete), (d, w) -> {
-                            GlassgramSpyStorage.clear();
-                            if (listView != null) listView.adapter.update(true);
+                            GlassgramSpyStorage.clear(this::refreshSpySettings);
                         }).setNegativeButton(getString(R.string.Cancel), null).show();
                 return;
             case ID_GHOST_MODE:
@@ -2492,14 +2497,26 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        boolean ok = false;
-        if (requestCode == REQUEST_SPY_EXPORT) {
-            ok = GlassgramSpyStorage.exportToUri(data.getData());
-        } else if (requestCode == REQUEST_SPY_IMPORT) {
-            ok = GlassgramSpyStorage.importFromUri(data.getData());
+        if (requestCode == REQUEST_SPY_EXPORT || requestCode == REQUEST_SPY_IMPORT) {
+            final android.net.Uri uri = data.getData();
+            org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+                final boolean ok = requestCode == REQUEST_SPY_EXPORT
+                        ? GlassgramSpyStorage.exportToUri(uri) : GlassgramSpyStorage.importFromUri(uri);
+                AndroidUtilities.runOnUIThread(() -> {
+                    Context context = getParentActivity();
+                    if (context != null && !isFinished) {
+                        Toast.makeText(context, getString(ok ? R.string.GlassgramSpyDone : R.string.GlassgramSpyFailed), Toast.LENGTH_SHORT).show();
+                        refreshSpySettings();
+                    }
+                });
+            });
         }
-        Toast.makeText(getParentActivity(), getString(ok ? R.string.GlassgramSpyDone : R.string.GlassgramSpyFailed), Toast.LENGTH_SHORT).show();
-        if (listView != null) listView.adapter.update(true);
+    }
+
+    private void refreshSpySettings() {
+        if (!isFinished && listView != null) {
+            listView.adapter.update(true);
+        }
     }
 
     @Override

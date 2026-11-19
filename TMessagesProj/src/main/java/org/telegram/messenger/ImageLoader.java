@@ -3246,6 +3246,16 @@ public class ImageLoader {
                         }
                     }
 
+                    if (!isEncrypted && cacheType != CACHE_TYPE_ENCRYPTED && parentObject instanceof MessageObject
+                            && (imageLocation.photo != null || imageLocation.document instanceof TLRPC.TL_document)
+                            && !cacheFileExists && (cacheFile == null || !cacheFile.isFile()
+                                || cacheFile.getName().endsWith(".temp"))) {
+                        File archived = GlassgramSpyMedia.find(currentAccount, url);
+                        if (archived != null) {
+                            cacheFile = archived;
+                            cacheFileExists = true;
+                        }
+                    }
                     img.type = type;
                     img.key = key;
                     img.cacheType = cacheType;

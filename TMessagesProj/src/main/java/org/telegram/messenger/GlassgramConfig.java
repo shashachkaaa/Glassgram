@@ -281,13 +281,13 @@ public class GlassgramConfig {
 
 
     // Spy
-    public static boolean spySaveDeletedMessages;
-    public static boolean spySaveEditsHistory;
-    public static boolean spySaveInBotDialogs;
-    public static boolean spySaveReadDate;
-    public static boolean spySaveLastSeenDate;
-    public static boolean spySaveAttachments;
-    public static int spyMaxFolderSize = 1; // 1 GB
+    public static volatile boolean spySaveDeletedMessages;
+    public static volatile boolean spySaveEditsHistory;
+    public static volatile boolean spySaveInBotDialogs;
+    public static volatile boolean spySaveReadDate;
+    public static volatile boolean spySaveLastSeenDate;
+    public static volatile boolean spySaveAttachments;
+    public static volatile int spyMaxFolderSize = 1; // 1 GB
     public static boolean spyEnableFilters;
     public static boolean spyEnableSharedFilters;
     public static boolean spyHideBlockedUsers;
