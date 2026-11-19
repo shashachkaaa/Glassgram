@@ -70,6 +70,7 @@ public class ProfileMusicView extends View {
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path clipPath = new Path();
 
+    private final LiquidPressEffect press = new LiquidPressEffect(this);
     private final ButtonBounce bounce = new ButtonBounce(this);
 
     public ProfileMusicView(Context context, Theme.ResourcesProvider resourcesProvider) {
@@ -268,7 +269,18 @@ public class ProfileMusicView extends View {
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         final float alpha = Utilities.clamp01((currentHeight) / dp(21));
-        if (alpha <= 0) return false;
+        if (alpha <= 0) {
+            press.cancelPress();
+            bounce.setPressed(false);
+            return false;
+        }
+        final int action = event.getActionMasked();
+        final boolean inside = rect.contains(event.getX(), event.getY());
+        if (inside && (action == MotionEvent.ACTION_DOWN ? press.isLibraryButton() : bounce.isPressed())) {
+            press.onTouch(action, event.getX() - rect.left, event.getY() - rect.top);
+        } else {
+            press.cancelPress();
+        }
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             bounce.setPressed(rect.contains(event.getX(), event.getY()));
         } else if (event.getAction() == MotionEvent.ACTION_MOVE && bounce.isPressed()) {
@@ -278,7 +290,7 @@ public class ProfileMusicView extends View {
         } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
             bounce.setPressed(false);
         } else if (event.getAction() == MotionEvent.ACTION_UP) {
-            if (bounce.isPressed()) {
+            if (inside && bounce.isPressed()) {
                 performClick();
             }
             bounce.setPressed(false);
@@ -320,7 +332,7 @@ public class ProfileMusicView extends View {
         if (this.author == null || this.title == null) return;
 
         final float alpha = Utilities.clamp01((currentHeight) / dp(21));
-        final float scale = bounce.getScale(0.02f);
+        final float scale = press.isLibraryButton() ? 1f : bounce.getScale(0.02f);
         if (alpha <= 0) {
             if (buttonsGlass != null) {
                 buttonsGlass.setAlpha(0);
@@ -343,7 +355,7 @@ public class ProfileMusicView extends View {
         // glassGram: the library's glass made of the header, as the action buttons above it
         final boolean glassDrawn = glass != null && glass.begin(canvas);
         if (glassDrawn) {
-            glass.draw(canvas, glassPiece, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha, parentExpanded);
+            glass.draw(canvas, glassPiece, press, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha, parentExpanded);
         } else if (buttonsGlass != null) {
             final float radius = rect.height() / 2f;
             if (buttonsGlassRadius != radius) {
@@ -377,6 +389,11 @@ public class ProfileMusicView extends View {
             }
         }
 
+        if (glassDrawn && press.isLibraryButton()) {
+            canvas.translate(rect.left, rect.top);
+            press.transform(canvas, rect.width(), rect.height());
+            canvas.translate(-rect.left, -rect.top);
+        }
         clipPath.rewind();
         clipPath.addRoundRect(rect, rect.height() / 2f, rect.height() / 2f, Path.Direction.CW);
 

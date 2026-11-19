@@ -222,7 +222,7 @@ public class ProfileHeaderGlass {
      * @param photo 1 over the expanded photo: the glass is a little darker there, for the white
      *              content on it over a light photo, and shows by a brighter, wider rim
      */
-    public void draw(Canvas canvas, Piece piece, RectF rect, float radius, float white, float alpha, float photo) {
+    public void draw(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, float white, float alpha, float photo) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
@@ -234,6 +234,19 @@ public class ProfileHeaderGlass {
         final int tint = ColorUtils.blendARGB(
             ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white),
             ColorUtils.setAlphaComponent(Color.BLACK, 0x24), photo);
+
+        // During a sibling's capture use the static glass path. Replaying an interactive
+        // button into the node used as its own backdrop would create a display-list cycle.
+        if (backdropNode != null && !isNested()) {
+            final RenderNode source = (RenderNode) backdropNode;
+            final float x = rect.left, y = rect.top;
+            if (press.drawGlass(canvas, x, y, rect.right, rect.bottom, radius, backdrop -> {
+                backdrop.translate(-x, -y);
+                backdrop.drawRenderNode(source);
+            }, tint, 0, Math.round(alpha * 255))) {
+                return;
+            }
+        }
 
         if (white < 1f) {
             // A soft shadow around the frosted glass, outside it so it does not darken it

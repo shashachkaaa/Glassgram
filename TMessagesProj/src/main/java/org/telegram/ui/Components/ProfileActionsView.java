@@ -66,6 +66,9 @@ public class ProfileActionsView extends View {
     /** The buttons' glass, one drawable per drawn button in order; without it they are filled with their color. */
     @Nullable
     private BlurredBackgroundDrawableViewFactory glassFactory;
+    // Actions can be recreated when peer permissions change. Reuse their window-bound
+    // buttons by action key instead of registering another attach listener each time.
+    private final android.util.SparseArray<LiquidPressEffect> presses = new android.util.SparseArray<>();
     private final ArrayList<BlurredBackgroundDrawable> buttonsGlass = new ArrayList<>();
     private int glassUsed;
 
@@ -396,7 +399,14 @@ public class ProfileActionsView extends View {
                 glassRect.width() / 2.0f * (1.0f - action.getScale()),
                 glassRect.height() / 2.0f * (1.0f - action.getScale())
             );
-            glass.draw(canvas, action.glass, glassRect, r, white, action.getAlpha() * alphaFraction, parentExpanded);
+            if (action.press == null) {
+                action.press = presses.get(action.key);
+                if (action.press == null) {
+                    action.press = new LiquidPressEffect(this);
+                    presses.put(action.key, action.press);
+                }
+            }
+            glass.draw(canvas, action.glass, action.press, glassRect, r, white, action.getAlpha() * alphaFraction, parentExpanded);
         }
     }
 
@@ -451,7 +461,7 @@ public class ProfileActionsView extends View {
         final float cy = action.rect.centerY();
         fraction *= action.getScale();
         canvas.scale(fraction, fraction, cx, cy);
-        canvas.clipRect(action.rect);
+        if (!glassDrawn || action.press == null || !action.press.isActive()) canvas.clipRect(action.rect);
 
         updateBounds(action);
 
@@ -462,6 +472,11 @@ public class ProfileActionsView extends View {
         action.text.draw(canvas, cx - action.text.getWidth() / 2f, textY, textColor, alpha);
         canvas.restore();
 
+        if (glassDrawn && action.press != null && action.press.isLibraryButton()) {
+            canvas.translate(glassRect.left, glassRect.top);
+            action.press.transform(canvas, glassRect.width(), glassRect.height());
+            canvas.translate(-glassRect.left, -glassRect.top);
+        }
         if (action.iconTranslationY != 0) {
             canvas.translate(0, action.iconTranslationY);
         }
@@ -540,7 +555,11 @@ public class ProfileActionsView extends View {
     }
 
     private Action hit = null;
-    private float downX, downY;
+    private void pressAction(Action action, int event, float x, float y) {
+        if (action.press == null || (event == MotionEvent.ACTION_DOWN && !action.press.isLibraryButton())) return;
+        getCircle(glassRect, action);
+        action.press.onTouch(event, x - glassRect.left, y - glassRect.top);
+    }
     private long downTime;
 
     @Override
@@ -551,7 +570,7 @@ public class ProfileActionsView extends View {
 
         float x = event.getX();
         float y = event.getY();
-        int eventAction = event.getAction();
+        int eventAction = event.getActionMasked();
 
         if (eventAction == MotionEvent.ACTION_DOWN) {
             hit = null;
@@ -560,9 +579,8 @@ public class ProfileActionsView extends View {
                 Action a = actions.get(i);
                 if (!a.isDeleting && a.rect.contains(x, y)) {
                     hit = a;
-                    downX = x;
-                    downY = y;
                     downTime = System.currentTimeMillis();
+                    pressAction(hit, eventAction, x, y);
                     hit.bounce.setPressed(true);
 //                    try {
 //                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
@@ -572,13 +590,17 @@ public class ProfileActionsView extends View {
             }
         } else if (eventAction == MotionEvent.ACTION_MOVE) {
             if (hit != null) {
-                if (Math.abs(x - downX) > 20 || Math.abs(y - downY) > 20) {
+                if (!hit.rect.contains(x, y)) {
+                    pressAction(hit, MotionEvent.ACTION_CANCEL, x, y);
                     hit.bounce.setPressed(false);
                     hit = null;
+                } else {
+                    pressAction(hit, eventAction, x, y);
                 }
             }
         } else if (eventAction == MotionEvent.ACTION_UP || eventAction == MotionEvent.ACTION_CANCEL) {
             if (hit != null) {
+                pressAction(hit, eventAction, x, y);
                 hit.bounce.setPressed(false);
                 if (eventAction == MotionEvent.ACTION_UP && hit.rect.contains(x, y)) {
                     if (System.currentTimeMillis() - downTime > 250) {
@@ -1029,6 +1051,7 @@ public class ProfileActionsView extends View {
     private class Action {
         int key;
         // The button's Liquid Glass
+        LiquidPressEffect press;
         final ProfileHeaderGlass.Piece glass = new ProfileHeaderGlass.Piece();
 
         private final ButtonBounce bounce = new ButtonBounce(ProfileActionsView.this);
@@ -1224,7 +1247,7 @@ public class ProfileActionsView extends View {
         }
 
         public float getScale() {
-            return bounce.getScale(0.04f);
+            return glassDrawn && press != null && press.isLibraryButton() ? 1f : bounce.getScale(0.04f);
         }
 
         public void update(ActionButton button) {

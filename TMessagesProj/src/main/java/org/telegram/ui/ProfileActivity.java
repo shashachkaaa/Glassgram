@@ -6229,7 +6229,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (getActionsExtraHeight() == 0) {
             return dp(168f);
         }
-        return dp(userId != 0 ? 180 : 152);
+        return dp(userId != 0 ? 170 : 152);
     }
 
     private int getActionsExtraHeight() {
@@ -6240,7 +6240,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int profilePillHeight() {
-        return (hasMusic ? dp(32) : 0) + (hasBalance ? dp(27) : 0);
+        return (hasMusic ? dp(32) : 0) + (hasBalance ? dp(33) : 0);
     }
 
     private int getHeaderExtraHeight() {
@@ -9126,8 +9126,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     expandAnimator.addListener(resetListener);
                 }
                 final float avatarBottom = (float) Math.floor(endNameY) + (avatarContainer.getHeight() * avatarContainer.getScaleY() + dpf2(8)) * (openAnimationInProgress ? avatarAnimationProgress : diff);
-                nameY = avatarBottom + dp(1.3f) + dp(7) * diff + titleAnimationsYDiff * (1f - avatarAnimationProgress);
-                onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 18 : 11) * diff;
+                nameY = avatarBottom + dp(1.3f) + dp(userId != 0 ? 1 : 7) * diff + titleAnimationsYDiff * (1f - avatarAnimationProgress);
+                onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 12 : 11) * diff;
                 if (openAnimationInProgress) {
                     nameY += prevNameShiftY() * (1f - diff);
                     onlineY += prevOnlineShiftY() * (1f - diff);
@@ -9289,8 +9289,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 + actionBar.getTranslationY();
 
         float avatarBottom = (float) Math.floor(endNameY) + (AndroidUtilities.dp(42) * scale + dpf2(8)) * diff;
-        nameY = avatarBottom + AndroidUtilities.dp(1.3f) + AndroidUtilities.dp(7) * diff;
-        onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 18 : 11) * diff;
+        nameY = avatarBottom + AndroidUtilities.dp(1.3f) + dp(userId != 0 ? 1 : 7) * diff;
+        onlineY = avatarBottom + dp(24) + dp(userId != 0 ? 12 : 11) * diff;
     }
 
     public RecyclerListView getListView() {
