@@ -439,6 +439,17 @@ public class ProfileActionsView extends View {
         );
     }
 
+    private int themeContentColor;
+    private float themeFade;
+
+    public void setThemeFadeContent(int color, float fade) {
+        if (themeContentColor != color || themeFade != fade) {
+            themeContentColor = color;
+            themeFade = fade;
+            invalidate();
+        }
+    }
+
     private int lastColorFilterColor;
     private ColorFilter lastColorFilter;
 
@@ -449,7 +460,8 @@ public class ProfileActionsView extends View {
 
         final float useFilledWhiteIcon = whiteContent();
 
-        final int textColor = ColorUtils.blendARGB(Color.BLACK, Color.WHITE, useFilledWhiteIcon);
+        final int profileColor = ColorUtils.blendARGB(Color.BLACK, Color.WHITE, useFilledWhiteIcon);
+        final int textColor = ColorUtils.blendARGB(profileColor, themeContentColor, themeFade);
         if (lastColorFilter == null || lastColorFilterColor != textColor) {
             lastColorFilterColor = textColor;
             lastColorFilter = new PorterDuffColorFilter(textColor, PorterDuff.Mode.SRC_IN);

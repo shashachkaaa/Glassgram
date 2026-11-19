@@ -44,6 +44,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -1379,6 +1380,38 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
+        private final Paint themeFadePaint = new Paint(Paint.DITHER_FLAG);
+        private int themeFadeColor;
+
+        private void drawProfileThemeFade(Canvas canvas, int bottom, int barHeight) {
+            if (userId == 0) return;
+            final float strength = (1f - currentExpandAnimatorValue)
+                    * (playProfileAnimation == 0 ? 1f : avatarAnimationProgress);
+            final float span = Math.min(dp(200), Math.max(0, bottom - barHeight));
+            if (actionsView != null && !capturing) {
+                actionsView.setThemeFadeContent(getThemedColor(Theme.key_windowBackgroundWhiteBlackText),
+                        strength * Math.min(1f, span / dp(88)));
+            }
+            if (span <= 0 || strength <= 0) return;
+
+            // Match the list underneath, including custom theme colors. Keep the shader
+            // in unit coordinates so scrolling only changes the canvas transform.
+            final int target = getThemedColor(Theme.key_windowBackgroundGray);
+            if (themeFadePaint.getShader() == null || target != themeFadeColor) {
+                themeFadeColor = target;
+                themeFadePaint.setShader(new LinearGradient(0, 0, 0, 1,
+                        new int[]{ColorUtils.setAlphaComponent(target, 0),
+                                ColorUtils.setAlphaComponent(target, 100), target},
+                        new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+            }
+            themeFadePaint.setAlpha(Math.round(255 * strength));
+            canvas.save();
+            canvas.translate(0, bottom - span);
+            canvas.scale(1f, span);
+            canvas.drawRect(0, 0, getWidth(), 1f, themeFadePaint);
+            canvas.restore();
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
             if (!capturing) {
@@ -1417,6 +1450,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         canvas.restore();
                     }
                 }
+                drawProfileThemeFade(canvas, y1, height);
                 if (previousTransitionFragment != null) {
                     ActionBar actionBar = previousTransitionFragment.getActionBar();
                     ActionBarMenu menu = actionBar.menu;
