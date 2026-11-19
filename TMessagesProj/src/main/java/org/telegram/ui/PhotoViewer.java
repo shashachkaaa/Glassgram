@@ -5085,7 +5085,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                                         allOrdinary &= GlassgramGallery.canSaveMessagePhoto(msg);
                                     }
                                     if (allOrdinary) {
-                                        GlassgramGallery.saveMessagePhotos(msgs, this::showMessagePhotoSaveResult);
+                                        GlassgramGallery.saveMessagePhotos(msgs, PhotoViewer.this::showMessagePhotoSaveResult);
                                         return;
                                     }
                                     final int[] count = new int[1];
