@@ -9802,6 +9802,11 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void checkInstantSearch() {
+        if (getArguments().getBoolean("open_profile_search")) {
+            getArguments().remove("open_profile_search");
+            openSearchWithText("");
+            return;
+        }
         final long searchFromUserId = getArguments().getInt("search_from_user_id", 0);
         if (searchFromUserId != 0) {
             TLRPC.User user = getMessagesController().getUser(searchFromUserId);

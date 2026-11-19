@@ -55,8 +55,8 @@ import java.util.Set;
 public class ProfileActionsView extends View {
 
     private final List<Action> actions = new ArrayList<>();
-    private final Paint paint = new Paint();
-    private final Paint shaderPaint = new Paint();
+    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shaderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float parentExpanded;
 
     public boolean isAnimatingCallAction = false;
@@ -104,6 +104,8 @@ public class ProfileActionsView extends View {
     public static final int KEY_EDIT_USERNAME = 15;
     public static final int KEY_EDIT_INFO = 16;
     public static final int KEY_SETTINGS = 17;
+    public static final int KEY_SEARCH = 18;
+    public static final int KEY_MORE = 19;
 
     private boolean isApplying;
     private boolean isNotificationsEnabled;
@@ -129,7 +131,7 @@ public class ProfileActionsView extends View {
         paint.setAlpha(40);
 
         xpadding = dpf2(14);
-        ypadding = dpf2(12);
+        ypadding = dpf2(6);
         top = dpf2(8);
         textPadding = dpf2(4);
 
@@ -153,6 +155,7 @@ public class ProfileActionsView extends View {
             buttonsGlass.add(glassFactory.create(this, ProfileButtonsGlass.NO_COLORS).setRadius(radius));
         }
         final BlurredBackgroundDrawable drawable = buttonsGlass.get(glassUsed++);
+        drawable.setRadius(radius);
         drawable.setBounds((int) rect.left, (int) rect.top, (int) Math.ceil(rect.right), (int) Math.ceil(rect.bottom));
         drawable.setAlpha((int) (0xFF * alpha));
         drawable.draw(canvas);
@@ -235,10 +238,16 @@ public class ProfileActionsView extends View {
         invalidate();
     }
 
+    private void getCircle(RectF out, Action action) {
+        final float diameter = Math.min(dp(54), Math.min(action.rect.width(), action.rect.height() * 0.73f));
+        final float left = action.rect.centerX() - diameter / 2f;
+        out.set(left, action.rect.top, left + diameter, action.rect.top + diameter);
+    }
+
     private float getItemWidth() {
         int w = getMeasuredWidth();
         float betweenPadding = xpadding / 2f;
-        return (w - betweenPadding * (activeCount - 1) - xpadding * 2f) / activeCount;
+        return (w - betweenPadding * (activeCount - 1) - xpadding * 2f) / Math.max(1, activeCount);
     }
 
     @Override
@@ -302,10 +311,10 @@ public class ProfileActionsView extends View {
             if (action.isDeleted) {
                 continue;
             }
-            AndroidUtilities.rectTmp.set(action.rect);
+            getCircle(AndroidUtilities.rectTmp, action);
             AndroidUtilities.rectTmp.inset(
-                action.rect.width() / 2.0f * (1.0f - action.getScale()),
-                action.rect.height() / 2.0f * (1.0f - action.getScale())
+                AndroidUtilities.rectTmp.width() * (1f - action.getScale()) / 2f,
+                AndroidUtilities.rectTmp.height() * (1f - action.getScale()) / 2f
             );
             if (glassFactory != null) {
                 drawGlass(canvas, AndroidUtilities.rectTmp, r, action.getAlpha() * alphaFraction1);
@@ -382,10 +391,10 @@ public class ProfileActionsView extends View {
             if (action.isDeleted) {
                 continue;
             }
-            glassRect.set(action.rect);
+            getCircle(glassRect, action);
             glassRect.inset(
-                action.rect.width() / 2.0f * (1.0f - action.getScale()),
-                action.rect.height() / 2.0f * (1.0f - action.getScale())
+                glassRect.width() / 2.0f * (1.0f - action.getScale()),
+                glassRect.height() / 2.0f * (1.0f - action.getScale())
             );
             glass.draw(canvas, action.glass, glassRect, r, white, action.getAlpha() * alphaFraction, parentExpanded);
         }
@@ -404,14 +413,13 @@ public class ProfileActionsView extends View {
 
     private void updateBounds(Action action) {
         final float cx = action.rect.centerX();
-        final float cy = action.rect.centerY();
-
         final int drawableSize = dp(24);
         final float drawableR = drawableSize * 0.5f;
 
         action.text.setMaxWidth(action.rect.width() - dp(2));
         action.textScale = action.text.getLineCount() >= 3 ? 0.75f : action.text.getLineCount() >= 2 ? 0.85f : 1.0f;
-        final float drawableTop = Math.max(0, (targetHeight - action.text.getHeight() * action.textScale) / 3f + dpf2(1.33f));
+        getCircle(glassRect, action);
+        final float drawableTop = glassRect.centerY() - drawableR;
         action.setBounds(
             (int) (cx - drawableR),
             (int) (drawableTop),
@@ -446,9 +454,9 @@ public class ProfileActionsView extends View {
 
         updateBounds(action);
 
-        final float textY = action.bounds.bottom + action.bounds.top - action.text.getHeight() * action.textScale / 2.0f - dp(4.66f);
+        final float textY = glassRect.bottom + dp(3) + action.text.getHeight() * action.textScale / 2f;
         canvas.save();
-        canvas.scale(action.textScale, action.textScale, cx, textY + action.text.getHeight() * action.textScale / 2.0f);
+        canvas.scale(action.textScale, action.textScale, cx, textY);
         action.text.draw(canvas, cx - action.text.getWidth() / 2f, textY, textColor, alpha);
         canvas.restore();
 
@@ -517,7 +525,8 @@ public class ProfileActionsView extends View {
         }
 
         if (action.loadingDrawable != null) {
-            action.loadingDrawable.setBounds(action.rect);
+            getCircle(glassRect, action);
+            action.loadingDrawable.setBounds(glassRect);
             action.loadingDrawable.setRadii(getRoundRadius());
             action.loadingDrawable.setAlpha((int) (0xFF * alpha));
             action.loadingDrawable.draw(canvas);
@@ -525,7 +534,7 @@ public class ProfileActionsView extends View {
     }
 
     public float getRoundRadius() {
-        return dp(16);
+        return dp(27);
     }
 
     private Action hit = null;
@@ -728,11 +737,14 @@ public class ProfileActionsView extends View {
 
         switch (mode) {
             case MODE_USER:
-                insertIfAvailable(out, KEY_MESSAGE);
+                if (allAvailableActions.contains(KEY_CALL)) {
+                    insertIfAvailable(out, KEY_CALL);
+                } else {
+                    insertIfAvailable(out, KEY_MESSAGE);
+                }
                 insertIfAvailable(out, KEY_NOTIFICATION);
-                insertIfAvailable(out, KEY_CALL);
-                insertIfAvailable(out, KEY_VIDEO);
-                insertIfNotAvailable(out, KEY_GIFT, KEY_VIDEO);
+                out.add(getOrCreate(KEY_SEARCH));
+                out.add(getOrCreate(KEY_MORE));
                 break;
             case MODE_TOPIC:
                 insertIfAvailable(out, KEY_MESSAGE);
@@ -900,6 +912,12 @@ public class ProfileActionsView extends View {
             case KEY_STORY:
                 newAction = new Action(ActionButton.STORY);
                 break;
+            case KEY_SEARCH:
+                newAction = new Action(ActionButton.SEARCH);
+                break;
+            case KEY_MORE:
+                newAction = new Action(ActionButton.MORE);
+                break;
             case KEY_STOP:
                 newAction = new Action(ActionButton.STOP);
                 newAction.supportsLoading = true;
@@ -1044,8 +1062,8 @@ public class ProfileActionsView extends View {
         }
 
         public void setText(CharSequence cs) {
-            this.text = new Text(cs, 11, AndroidUtilities.bold())
-                .multiline(3)
+            this.text = new Text(cs, 11)
+                .multiline(2)
                 .align(Layout.Alignment.ALIGN_CENTER);
         }
 
@@ -1248,6 +1266,8 @@ public class ProfileActionsView extends View {
         SET_PHOTO(R.string.ProfileActionsEditPhoto2, R.drawable.filled_profile_photo, R.drawable.outline_profile_photo),
         EDIT_USERNAME(R.string.ProfileActionsEditUsername, R.drawable.filled_profile_edit_24, R.drawable.outline_profile_edit_24),
         EDIT_INFO(R.string.ProfileActionsEditInfo, R.drawable.filled_profile_edit_24, R.drawable.outline_profile_edit_24),
+        SEARCH(R.string.Search, R.drawable.msg_search, R.drawable.msg_search),
+        MORE(R.string.DescriptionMore, R.drawable.profile_more_horizontal, R.drawable.profile_more_horizontal),
         SETTINGS(R.string.Settings, R.drawable.filled_profile_settings, R.drawable.outline_profile_settings),;
 
         final @StringRes int title;

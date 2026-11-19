@@ -1,7 +1,6 @@
 package org.telegram.ui.Components;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
-import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
@@ -14,11 +13,8 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RadialGradient;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.Shader;
-import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.View;
@@ -43,17 +39,15 @@ import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 public class ProfileMusicView extends View {
 
     private final Theme.ResourcesProvider resourcesProvider;
-    private final PorterDuffColorFilter filterColorWhite = new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-    private final PorterDuffColorFilter filterColorBlack = new PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN);
 
     private Text author, title;
     private ProfileMusicView trailingView;
-    private ProfileMusicView leadingView;
 
-    // The two pills share a centered row and the same profile/blur animation state.
+
+    // The pills have separate rows but share the header and its transitions.
     public void setTrailingView(ProfileMusicView view) {
         trailingView = view;
-        view.leadingView = this;
+
         if (glassHeader != null) {
             view.setGlassHeader(glassHeader, glassPhoto);
         }
@@ -61,10 +55,8 @@ public class ProfileMusicView extends View {
         view.invalidate();
     }
 
-    private final Paint iconPaint = new Paint();
-    private final Paint arrowPaint = new Paint();
-    private final Path arrowPath = new Path();
-    private final Drawable icon;
+    private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
 
     private final RectF rect = new RectF();
 
@@ -84,17 +76,11 @@ public class ProfileMusicView extends View {
         super(context);
         this.resourcesProvider = resourcesProvider;
 
-        icon = context.getResources().getDrawable(R.drawable.files_music).mutate();
 
-        arrowPaint.setStyle(Paint.Style.STROKE);
-        arrowPaint.setStrokeCap(Paint.Cap.ROUND);
-        arrowPaint.setStrokeJoin(Paint.Join.ROUND);
-        arrowPath.moveTo(0, -dpf2(3.33f));
-        arrowPath.lineTo(dpf2(3.16f), 0);
-        arrowPath.lineTo(0, dpf2(3.33f));
+
 
         setColor(null);
-        setText("Author", " - Title");
+        setText("", "");
     }
 
     @Override
@@ -145,9 +131,8 @@ public class ProfileMusicView extends View {
     private void checkTextColor() {
         final boolean useBlackText = parentExpanded < 0.8f && isButtonColorLight();
         textColor = useBlackText ? Color.BLACK : Color.WHITE;
-        icon.setColorFilter(useBlackText ? filterColorBlack : filterColorWhite);
+
         iconPaint.setColor(textColor);
-        arrowPaint.setColor(Theme.multAlpha(textColor, 0.85f));
         invalidate();
     }
 
@@ -163,21 +148,10 @@ public class ProfileMusicView extends View {
 
 
     public void setMusicDocument(TLRPC.Document document) {
-        CharSequence author = getAuthor(document);
         CharSequence title = getTitle(document);
-        if (TextUtils.isEmpty(author)) {
-            if (TextUtils.isEmpty(title)) {
-                author = getString(R.string.AudioUnknownArtist);
-                title = " - " + getString(R.string.AudioUnknownTitle);
-            } else {
-                author = "";
-            }
-        } else if (!TextUtils.isEmpty(title)) {
-            title = " - " + title;
-        } else {
-            title = "";
-        }
-        setText(author, title);
+        CharSequence artist = getAuthor(document);
+        setText(TextUtils.isEmpty(title) ? getString(R.string.AudioUnknownTitle) : title,
+                " – " + (TextUtils.isEmpty(artist) ? getString(R.string.AudioUnknownArtist) : artist));
     }
 
     public static CharSequence getTitle(TLRPC.Document document) {
@@ -221,7 +195,7 @@ public class ProfileMusicView extends View {
         this.author = new Text(author, 11, AndroidUtilities.bold());
         this.title = new Text(title, 11);
 
-        setContentDescription(getString(R.string.AccDescrProfileMusic) + " " + author + " — " + title);
+        setContentDescription(getString(R.string.AccDescrProfileMusic) + " " + author + title);
     }
 
     /** The pill's glass, like the action buttons'; without it the pill is filled with their color. */
@@ -285,9 +259,9 @@ public class ProfileMusicView extends View {
     }
 
     public void updatePosition(float y, float newHeight) {
-        if (trailingView != null) trailingView.updatePosition(y, newHeight);
+
         currentHeight = newHeight;
-        setTranslationY(y - dp(12));
+        setTranslationY(y);
         invalidate();
     }
 
@@ -313,33 +287,28 @@ public class ProfileMusicView extends View {
     }
 
     protected float getContentWidth(float maxWidth) {
-        final float textWidth = Math.max(0, maxWidth - dp(16) - dp(16.6f) - dp(8));
-        this.author.ellipsize(textWidth / 2f);
+        final float textWidth = Math.max(0, maxWidth - dp(16) - dp(17));
+        this.author.ellipsize(-1);
+        this.title.ellipsize(-1);
+        this.author.ellipsize(Math.max(textWidth * 0.65f, textWidth - this.title.getWidth()));
         this.title.ellipsize(Math.max(0, textWidth - this.author.getWidth()));
-        return dp(16.6f) + this.author.getWidth() + this.title.getWidth() + dp(8);
+        return dp(17) + this.author.getWidth() + this.title.getWidth();
     }
 
     protected void drawContent(Canvas canvas, float alpha) {
         final float cy = getHeight() / 2f;
 
-        final int iconSz = dp(13);
-        icon.setBounds(0, (int) cy - iconSz / 2, iconSz, (int) cy + iconSz / 2);
-        icon.draw(canvas);
-
+        iconPaint.setColor(textColor);
+        iconPaint.setAlpha(Math.round(255 * alpha));
+        for (int i = 0; i < 3; i++) {
+            float x = dp(1 + 3 * i);
+            float h = dp(5 - i);
+            canvas.drawRoundRect(x, cy - h, x + dp(2), cy + h, dp(1), dp(1), iconPaint);
+        }
         canvas.translate(dp(16.6f), 0);
         this.author.draw(canvas, 0, cy, textColor, alpha);
         canvas.translate(this.author.getWidth(), 0);
         this.title.draw(canvas, 0, cy, textColor, 0.85f * alpha);
-        canvas.translate(this.title.getWidth(), 0);
-
-        arrowPaint.setStrokeWidth(dpf2(1.16f));
-        canvas.translate(dpf2(4.8f), cy);
-        canvas.drawPath(arrowPath, arrowPaint);
-    }
-
-    private boolean hasVisibleCompanion() {
-        ProfileMusicView companion = trailingView != null ? trailingView : leadingView;
-        return companion != null && companion.getVisibility() == VISIBLE;
     }
 
     private float getPillWidth(float maxWidth) {
@@ -362,23 +331,10 @@ public class ProfileMusicView extends View {
         final int padding = dp(12);
         final int maxWidth = getWidth() - padding * 2;
 
-        float containerWidth;
-        float left;
-        if (hasVisibleCompanion()) {
-            ProfileMusicView leading = leadingView != null ? leadingView : this;
-            ProfileMusicView trailing = trailingView != null ? trailingView : this;
-            // Reserve the balance first so long song titles cannot push it offscreen.
-            float trailingWidth = trailing.getPillWidth(maxWidth / 2f);
-            float leadingWidth = leading.getPillWidth(Math.max(0, maxWidth - trailingWidth - dp(6)));
-            left = (getWidth() - leadingWidth - dp(6) - trailingWidth) / 2f;
-            containerWidth = leadingView != null ? trailingWidth : leadingWidth;
-            if (leadingView != null) left += leadingWidth + dp(6);
-        } else {
-            containerWidth = getPillWidth(maxWidth);
-            left = (getWidth() - containerWidth) / 2f;
-        }
-
-        rect.set(left, dp(10), left + containerWidth, dp(10) + dp(17) * alpha);
+        final float containerWidth = getPillWidth(maxWidth);
+        final float left = (getWidth() - containerWidth) / 2f;
+        final float halfHeight = dp(this instanceof ProfileBalanceView ? 10 : 12) * alpha;
+        rect.set(left, getHeight() / 2f - halfHeight, left + containerWidth, getHeight() / 2f + halfHeight);
         canvas.save();
         canvas.scale(scale, scale, rect.centerX(), getHeight() / 2f);
 
