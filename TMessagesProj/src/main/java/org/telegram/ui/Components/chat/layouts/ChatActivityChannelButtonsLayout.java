@@ -22,7 +22,6 @@ import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
@@ -89,6 +88,9 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     /** also called on every theme update (Theme.Colorable) */
     @Override
     public void updateColors() {
+        if (containerDrawable != null) {
+            containerDrawable.updateColors();
+        }
         for (ButtonHolder holder : buttonHolders) {
             if (holder != null && holder.button != null) {
                 holder.button.updateColors();
@@ -459,6 +461,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 canvas.translate(g.left, g.top);
                 containerPress.transform(canvas, g.width(), g.height());
                 canvas.translate(-g.left, -g.top);
+                drawCenterAccent(canvas);
                 final boolean result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
                 return result;
@@ -477,6 +480,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 canvas.translate(r.left, r.top);
                 containerPress.transform(canvas, r.width(), r.height());
                 canvas.translate(-r.left, -r.top);
+                drawCenterAccent(canvas);
                 final boolean result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
                 canvas.save();
@@ -487,13 +491,13 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
             }
             containerDrawable.setRadiusScale(1f);
             containerDrawable.draw(canvas);
+            drawCenterAccent(canvas);
         }
 
         return super.drawChild(canvas, child, drawingTime);
     }
 
-    @Override
-    protected void dispatchDraw(@NonNull Canvas canvas) {
+    private void drawCenterAccent(@NonNull Canvas canvas) {
         final int accentAlpha = (int) (255 * totalVisibilityFactor * animatorCenterAccentBackground.getFloatValue());
         if (accentAlpha > 0) {
             tmpRect.set(
@@ -506,8 +510,6 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
             backgroundAccentPaint.setAlpha(accentAlpha);
             canvas.drawRoundRect(tmpRect, dp(19), dp(19), backgroundAccentPaint);
         }
-
-        super.dispatchDraw(canvas);
     }
 
     private int accentColor = 0;
