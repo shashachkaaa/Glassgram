@@ -435,7 +435,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         if (pullHintVisible) {
             blurredBackgroundDrawable.draw(canvas);
         } else if (drawInputBackground) {
-            if (!drawGlassgramSegments(canvas, tmpRect)) {
+            if (!drawGlassgramSegments(canvas, tmpRect) && blurredBackgroundDrawable.getAlpha() > 0) {
                 blurredBackgroundDrawable.draw(canvas);
             }
         } else if (glassgramMorphing) {
@@ -491,15 +491,14 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         }
     }
 
-    public void setInputBubbleAlpha(int alpha) {
-        if (glassgramSegmentsAlpha == alpha) {
-            return;
-        }
+    public void setInputBubbleAlpha(int alpha, float channelPillAlpha) {
+        // The channel pill draws its own glass. Fade the shared background as it takes over.
+        final int sharedAlpha = Math.round(alpha * (1f - channelPillAlpha));
         glassgramSegmentsAlpha = alpha;
-        if (blurredBackgroundDrawable != null) {
-            blurredBackgroundDrawable.setAlpha(alpha);
+        if (blurredBackgroundDrawable != null && blurredBackgroundDrawable.getAlpha() != sharedAlpha) {
+            blurredBackgroundDrawable.setAlpha(sharedAlpha);
+            invalidate();
         }
-
     }
 
     private void checkDrawableBounds() {
@@ -528,7 +527,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
             final int x = (int) event.getX();
             final int y = (int) event.getY();
 
-            captured = blurredBackgroundDrawable != null && blurredBackgroundDrawable.getAlpha() == 255 && blurredBackgroundDrawable.getBounds().contains(x, y)
+            captured = blurredBackgroundDrawable != null && glassgramSegmentsAlpha == 255 && blurredBackgroundDrawable.getBounds().contains(x, y)
                 || underKeyboardBackgroundDrawable != null && underKeyboardBackgroundDrawable.getBounds().contains(x, y);
 
         }
