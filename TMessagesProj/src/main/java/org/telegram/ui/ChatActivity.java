@@ -47040,7 +47040,7 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_GLASSGRAM_METADATA);
                     icons.add(R.drawable.msg_info);
                 }
-                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
+                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT, glassgramMenuContext(message));
                 for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {
                     org.telegram.messenger.plugins.PluginsController.MenuItem pluginItem = glassgramPluginMenuItems.get(pi);
                     items.add(pluginItem.text);
@@ -47405,7 +47405,7 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_GLASSGRAM_METADATA);
                     icons.add(R.drawable.msg_info);
                 }
-                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT);
+                glassgramPluginMenuItems = org.telegram.messenger.plugins.PluginsController.getMenuItems(org.telegram.messenger.plugins.PluginsController.MENU_MESSAGE_CONTEXT, glassgramMenuContext(message));
                 for (int pi = 0; pi < glassgramPluginMenuItems.size() && pi < 80; pi++) {
                     org.telegram.messenger.plugins.PluginsController.MenuItem pluginItem = glassgramPluginMenuItems.get(pi);
                     items.add(pluginItem.text);

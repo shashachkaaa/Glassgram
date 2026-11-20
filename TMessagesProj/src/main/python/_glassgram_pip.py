@@ -161,3 +161,44 @@ def install(requirements, libs_dir):
             installed[key] = str(version)
             _write_installed(libs_dir, installed)
         importlib.invalidate_caches()
+
+
+def prune(libs_dir, remaining_requirements):
+    """Remove wheel-owned files unreachable from any remaining plugin, including disabled plugins."""
+    from pathlib import Path
+    with _lock:
+        installed = _read_installed(libs_dir)
+        if not installed:
+            return
+        root = Path(libs_dir).resolve()
+        distributions = {canonicalize_name(dist.metadata["Name"]): dist
+                         for dist in importlib.metadata.distributions(path=[str(root)])}
+        pending = [Requirement(value) for value in remaining_requirements]
+        needed = set()
+        while pending:
+            req = pending.pop()
+            key = canonicalize_name(req.name)
+            if key in needed or not _marker_ok(req):
+                continue
+            needed.add(key)
+            if key in distributions:
+                pending.extend(Requirement(raw) for raw in distributions[key].requires or ())
+        unused = (installed.keys() & distributions.keys()) - needed
+        protected = set()
+        removable = set()
+        for key, dist in distributions.items():
+            if dist.files is None:
+                return  # Ownership cannot be reconstructed for this installation.
+            paths = removable if key in unused else protected
+            for entry in dist.files:
+                path = Path(dist.locate_file(entry)).resolve()
+                if root in path.parents:
+                    paths.add(path)
+        for path in removable - protected:
+            if path.is_file():
+                path.unlink()
+        for key in unused:
+            installed.pop(key)
+        if unused:
+            _write_installed(libs_dir, installed)
+            importlib.invalidate_caches()

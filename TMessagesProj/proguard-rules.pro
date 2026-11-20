@@ -105,3 +105,7 @@
 # glassGram's tunnel: libXray's gomobile bindings, called by reflection and from Go
 -keep class libXray.** { *; }
 -keep class go.** { *; }
+
+# Plugin hook conditions are called through Chaquopy; MVEL loads its reflective optimizer by name.
+-keep class org.telegram.messenger.plugins.PluginConditions { public *; }
+-keep class org.mvel2.optimizers.impl.refl.ReflectiveAccessorOptimizer { public <init>(); }

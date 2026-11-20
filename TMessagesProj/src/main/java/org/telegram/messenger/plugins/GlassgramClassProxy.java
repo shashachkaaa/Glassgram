@@ -67,6 +67,20 @@ public final class GlassgramClassProxy {
             methods.add(spec);
         }
 
+        public void addExpression(String name, Class<?> returns, Class<?>[] params, String[] names, String code, boolean override) {
+            if (override) addOverride(name, name, params);
+            else addMethod(name, name, returns, params);
+            MethodSpec method = methods.get(methods.size() - 1);
+            method.body = PluginConditions.compile(code);
+            method.argumentNames = names;
+        }
+
+        private final ArrayList<PyObject> builders = new ArrayList<>();
+
+        public void addBuilder(PyObject builder) {
+            builders.add(builder);
+        }
+
         public void addField(String name, Class<?> type, String getter, String setter) {
             final FieldSpec spec = new FieldSpec();
             spec.name = name;
@@ -82,6 +96,8 @@ public final class GlassgramClassProxy {
     }
 
     static final class MethodSpec {
+        java.io.Serializable body;
+        String[] argumentNames;
         String pyName;
         String javaName;
         Class<?> returnType;
@@ -98,6 +114,8 @@ public final class GlassgramClassProxy {
 
     /** A generated method: the Python method it runs, and its Java signature. */
     static final class Generated {
+        java.io.Serializable body;
+        String[] argumentNames;
         String pyName;
         String javaName;
         Class<?> returnType;
@@ -181,6 +199,8 @@ public final class GlassgramClassProxy {
                 for (Method method : found) {
                     final Generated g = new Generated();
                     g.pyName = spec1.pyName;
+                    g.body = spec1.body;
+                    g.argumentNames = spec1.argumentNames;
                     g.returnType = method.getReturnType();
                     g.params = method.getParameterTypes();
                     g.javaName = method.getName();
@@ -191,6 +211,8 @@ public final class GlassgramClassProxy {
             } else {
                 final Generated g = new Generated();
                 g.pyName = spec1.pyName;
+                g.body = spec1.body;
+                g.argumentNames = spec1.argumentNames;
                 g.returnType = spec1.returnType == null ? void.class : spec1.returnType;
                 g.params = spec1.params == null ? new Class<?>[0] : spec1.params;
                 g.javaName = spec1.javaName;
@@ -200,7 +222,7 @@ public final class GlassgramClassProxy {
         int index = 0;
         for (Generated g : methods.values()) {
             if (g.parent != null) {
-                g.superName = "__super_" + index;
+                g.superName = g.body == null ? "__super_" + index : "SUPER_" + g.javaName;
                 declareSuper(dexMaker, generated, superType, g, g.javaName);
             }
             declareDispatch(dexMaker, generated, name, index, g, g.javaName);
@@ -224,6 +246,8 @@ public final class GlassgramClassProxy {
             declareConstructor(dexMaker, generated, superType, name, i, constructors.get(i));
             runtime.constructors.add(constructors.get(i));
         }
+
+        for (PyObject builder : spec.builders) builder.call(dexMaker, generated);
 
         final ClassLoader parent = GlassgramClassProxy.class.getClassLoader();
         final ClassLoader loader;
@@ -415,6 +439,22 @@ public final class GlassgramClassProxy {
         final Runtime runtime = runtimes.get(className);
         final Generated g = runtime.methods.get(index);
         try {
+            if (g.body != null) {
+                java.util.HashMap<String, Object> variables = new java.util.HashMap<>();
+                Object peer = runtime.peerField.get(self);
+                variables.put("java", self);
+                variables.put("py", peer);
+                variables.put("self", peer);
+                variables.put("python", peer);
+                variables.put("args", args);
+                variables.put("argc", args.length);
+                for (int i = 0; i < args.length; i++) {
+                    variables.put("arg" + i, args[i]);
+                    variables.put(g.argumentNames[i], args[i]);
+                }
+                Object value = org.mvel2.MVEL.executeExpression(g.body, self, variables);
+                return PluginXposedHook.coerce(g.returnType, value);
+            }
             final PyObject value = runtime.handler.callAttr("invoke", self, g.pyName, g.superName, args);
             return PluginXposedHook.coerce(g.returnType, toJavaResult(value, g.returnType));
         } catch (Throwable e) {

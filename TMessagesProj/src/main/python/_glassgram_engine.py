@@ -346,6 +346,8 @@ def _load(record: _Record) -> bool:
         instance.icon = meta["icon"] or None
         instance.min_version = meta["app_version"]
         instance.requirements = list(meta["requirements"])
+        from log_utils import _plugin_logger
+        instance.logger = _plugin_logger(record.id)
         plugin_class.__init__(instance)
         instance.id = record.id
         record.instance = instance
@@ -539,6 +541,12 @@ def uninstall(plugin_id: str):
         _save_state()
         plugin_settings.clear_settings(plugin_id)
         _PluginsController.removePluginInfo(plugin_id)
+        try:
+            import _glassgram_pip
+            _glassgram_pip.prune(_libs_dir, [req for other in _records.values()
+                                             for req in other.meta["requirements"]])
+        except Exception:
+            _log(plugin_id, "Dependency cleanup deferred:\n" + traceback.format_exc())
         hooks_changed()
 
 

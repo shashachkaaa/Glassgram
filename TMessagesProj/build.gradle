@@ -43,6 +43,7 @@ configurations.all {
 }
 
 dependencies {
+    implementation "org.mvel:mvel2:2.5.2.Final"
     implementation project(':TMessagesProj_LiquidGlass')
     // glassGram's fonts: the default typeface is set through a hidden API (GlassgramFonts)
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'

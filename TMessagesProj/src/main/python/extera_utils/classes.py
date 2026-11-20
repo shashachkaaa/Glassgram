@@ -18,7 +18,7 @@ API that expects its parent type::
     box = Box.new_instance(context, init_args=("hello",))
     view = box.java
 
-Not supported here: MVEL method bodies (``jMVELmethod``, ``jMVELoverride``) and ``jclassbuilder``.
+MVEL method bodies execute on the generated Java instance.
 """
 
 import inspect
@@ -172,19 +172,38 @@ def jmethod(*args, **kwargs):
     return decorator
 
 
-def jMVELmethod(*args, **kwargs):
-    def decorator(fn):
-        return _mark(fn, _Marker("mvel"))
-    return decorator(args[0]) if len(args) == 1 and callable(args[0]) and not kwargs else decorator
+class _Expression:
+    def __init__(self, returns, arguments, code, override):
+        self.returns = returns
+        self.arguments = list(arguments or ())
+        self.code = code
+        self.override = override
+
+    def __get__(self, peer, owner):
+        if peer is None:
+            return self
+        return getattr(peer.java, self.name)
+
+    def __set_name__(self, owner, name):
+        self.name = name
 
 
-def jMVELoverride(*args, **kwargs):
-    return jMVELmethod(*args, **kwargs)
+def jMVELmethod(return_type=None, arguments=None, *, code):
+    return _Expression(return_type, arguments, code, False)
 
 
-def jclassbuilder(fn):
-    """Changes the DexMaker builder in exteraGram; Glassgram builds the class itself and skips these."""
-    return _mark(fn, _Marker("classbuilder"))
+def jMVELoverride(arguments=None, *, code):
+    return _Expression(None, arguments, code, True)
+
+
+jmvelmethod = jMVELmethod
+jmveloverride = jMVELoverride
+
+
+def jclassbuilder(fn=None):
+    def decorate(callback):
+        return _mark(callback, _Marker("classbuilder"))
+    return decorate if fn is None else decorate(fn)
 
 
 def jconstructor(types=None):
@@ -385,6 +404,10 @@ class Base:
             if klass in (Base, object) or not issubclass(klass, Base):
                 continue
             for attr, value in klass.__dict__.items():
+                if isinstance(value, _Expression):
+                    spec.addExpression(attr, _jtype(value.returns), _jtypes([t for _, t in value.arguments]),
+                                       [name for name, _ in value.arguments], value.code, value.override)
+                    continue
                 raw = value.__func__ if isinstance(value, (staticmethod, classmethod)) else value
                 for marker in getattr(raw, "_jx_markers", ()):
                     if marker.kind == "override":
@@ -399,8 +422,8 @@ class Base:
                                 names = [p for p in inspect.signature(raw).parameters][1:]
                                 types = [hints.get(p, object) for p in names]
                         spec.addMethod(attr, marker.name, _jtype(returns), _jtypes(types))
-                    elif marker.kind == "mvel":
-                        raise NotImplementedError(f"{cls.__name__}.{attr}: MVEL methods are not supported in glassGram")
+                    elif marker.kind == "classbuilder":
+                        spec.addBuilder(getattr(cls, attr))
                     elif marker.kind in ("constructor", "preconstructor"):
                         hooks.append((getattr(cls, attr), marker))
         for entry in methods or ():

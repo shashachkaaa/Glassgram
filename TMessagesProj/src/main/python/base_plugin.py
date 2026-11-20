@@ -11,6 +11,7 @@ from java import jclass
 
 import plugin_settings
 
+_Conditions = jclass("org.telegram.messenger.plugins.PluginConditions")
 _PluginsController = jclass("org.telegram.messenger.plugins.PluginsController")
 
 
@@ -159,18 +160,9 @@ class HookFilterData:
 
 
 def _evaluate_condition(expression: Optional[str], param, obj) -> bool:
-    """Evaluates simple MVEL-like conditions as Python expressions; unsupported ones pass."""
     if not expression:
         return True
-    source = expression.replace("&&", " and ").replace("||", " or ").replace("!=", " __NE__ ")
-    source = source.replace("!", " not ").replace(" __NE__ ", " != ")
-    source = source.replace("null", "None").replace("true", "True").replace("false", "False")
-    if "instanceof" in source:
-        return True
-    try:
-        return bool(eval(source, {"__builtins__": {}}, {"param": param, "object": obj, "this": param.thisObject}))
-    except Exception:
-        return True
+    return _Conditions.hookMatches(expression, param.thisObject, param, obj)
 
 
 def _filter_data(f) -> HookFilterData:

@@ -305,12 +305,17 @@ public final class PluginsController {
     }
 
     public static List<MenuItem> getMenuItems(int type) {
+        return getMenuItems(type, new HashMap<>());
+    }
+
+    public static List<MenuItem> getMenuItems(int type, HashMap<String, Object> context) {
         ArrayList<MenuItem> list = new ArrayList<>();
         if (!started) {
             return list;
         }
         for (MenuItem item : menuItems) {
-            if (item.type == type && plugins.containsKey(item.pluginId)) {
+            if (item.type == type && plugins.containsKey(item.pluginId)
+                    && PluginConditions.matches(item.condition, context, context)) {
                 list.add(item);
             }
         }
