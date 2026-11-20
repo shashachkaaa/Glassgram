@@ -148,6 +148,8 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
     private final java.util.WeakHashMap<MenuOverlayHost, BlurredBackgroundDrawable> glasses = new java.util.WeakHashMap<>();
     /** See {@link MenuOverlayHost#isMenuFromPillBelow()}. */
     private boolean pillBelow;
+    private View externalAnchor;
+    private final RectF anchorBounds = new RectF();
     private final Paint fallbackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dimPaint = new Paint();
 
@@ -195,10 +197,10 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
 
     /** Opens the menu of a host that is a pill of its own, without menu items: the whole pill grows into the menu. */
     public void open(MenuOverlayHost host, ActionBarPopupWindow.ActionBarPopupWindowLayout content) {
-        open(host, null, content);
+        open(host, null, content, null, null);
     }
 
-    void open(MenuOverlayHost bar, @Nullable ActionBarMenuItem item, ActionBarPopupWindow.ActionBarPopupWindowLayout content) {
+    void open(MenuOverlayHost bar, @Nullable ActionBarMenuItem item, ActionBarPopupWindow.ActionBarPopupWindowLayout content, @Nullable View anchor, @Nullable RectF bounds) {
         if (opened && this.bar == bar && this.item == item) {
             return;
         }
@@ -207,6 +209,8 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         }
         this.bar = bar;
         this.item = item;
+        externalAnchor = anchor;
+        if (bounds != null) anchorBounds.set(bounds);
         pillBelow = bar.isMenuFromPillBelow();
         if (this.content != content) {
             if (this.content != null) {
@@ -245,7 +249,7 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         startAnimation();
         bar.setMenuOverlay(this, item);
         computeStartRect();
-        if (!startFromPill && item != null) {
+        if (externalAnchor == null && !startFromPill && item != null) {
             item.getIconView().setAlpha(0f); // the overlay draws it (a pill is left to the overlay as a whole)
         }
         // the keys (back, menu) come to the focused overlay; a text field keeps its focus and its keyboard,
@@ -289,6 +293,7 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         restorePopupLook();
         final ActionBarMenuItem wasItem = item;
         final MenuOverlayHost wasBar = bar;
+        externalAnchor = null;
         item = null;
         bar = null;
         if (wasBar != null) {
@@ -546,12 +551,22 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
     /** The top of a menu growing down out of the button: it rises by the host's value, staying on the screen. */
     private int getContentTop() {
         final int top = (int) startRect.top;
+        if (externalAnchor != null) return top;
         return Math.max(Math.min(top, 0), top - bar.getMenuRise());
     }
 
     /** The glass of the menu button in this view: the whole menu pill when the button is its only item. */
     private void computeStartRect() {
         if (bar == null) {
+            return;
+        }
+        if (externalAnchor != null) {
+            startFromPill = false;
+            computeOffset(externalAnchor);
+            startRect.set(anchorBounds);
+            startRect.offset(offset[0], offset[1]);
+            pillBelow = startRect.bottom - AndroidUtilities.statusBarHeight
+                    > getHeight() - AndroidUtilities.navigationBarHeight - startRect.top;
             return;
         }
         startFromPill = bar.getMenuItemGlassRect(item, startRect);
@@ -648,7 +663,7 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         // the buttons (the whole pill, or just this button) fade and shrink away inside the shape (the first ~30%),
         // come back while the items are still fading out on closing
         final float ia = 1f - Utilities.clamp01(m / (opened ? 0.3f : 0.7f));
-        final View icon = startFromPill ? bar.getMenuView() : item.getIconView();
+        final View icon = externalAnchor != null ? null : startFromPill ? bar.getMenuView() : item.getIconView();
         if (ia > 0.004f && icon != null) {
             computeViewRect(icon, tmpRect);
             final float s = 1f - 0.15f * Utilities.clamp01(m / 0.3f);

@@ -17,6 +17,7 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.RectF;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -891,7 +892,7 @@ public class ActionBarMenuItem extends FrameLayout {
     }
 
     /** Opens or closes the sub menu in the overlay; false when it has none, then the popup window is used. */
-    private boolean toggleSubMenuInOverlay() {
+    public boolean toggleSubMenuFrom(View anchor, RectF bounds) {
         final MenuOverlayHost host = getSubMenuOverlayHost();
         final SimpleActionBarMenuOverlay overlay = host != null ? getSubMenuOverlay() : null;
         if (overlay == null || popupWindow != null && popupWindow.isShowing()) {
@@ -909,7 +910,7 @@ public class ActionBarMenuItem extends FrameLayout {
         if (subMenuDelegate != null) {
             subMenuDelegate.onShowSubMenu();
         }
-        overlay.open(host, this, getPopupLayout());
+        overlay.open(host, this, getPopupLayout(), anchor, bounds);
         return true;
     }
 
@@ -928,7 +929,7 @@ public class ActionBarMenuItem extends FrameLayout {
     }
 
     public void toggleSubMenu(View topView, View fromView) {
-        if (topView == null && toggleSubMenuInOverlay()) {
+        if (topView == null && toggleSubMenuFrom(null, null)) {
             return;
         }
         if (popupWindow == null || !popupWindow.isShowing()) {

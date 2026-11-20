@@ -3946,8 +3946,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         openProfileChatSearch();
                         break;
                     case ProfileActionsView.KEY_MORE:
-                        setHeaderItemShown(otherItem, true, false);
-                        otherItem.post(otherItem::toggleSubMenu);
+                        final RectF anchor = new RectF();
+                        if (actionsView.getMoreButtonBounds(anchor)) {
+                            otherItem.toggleSubMenuFrom(actionsView, anchor);
+                        }
                         break;
                     case ProfileActionsView.KEY_GIFT:
                         onGiftPermiumClicked();

@@ -986,6 +986,13 @@ public class ProfileActionsView extends View {
         return null;
     }
 
+    public boolean getMoreButtonBounds(RectF out) {
+        final Action more = find(KEY_MORE);
+        if (more == null || more.rect.isEmpty()) return false;
+        getCircle(out, more);
+        return !out.isEmpty();
+    }
+
     public boolean hasCall() {
         return allAvailableActions.contains(KEY_CALL) && callAction != null;
     }
