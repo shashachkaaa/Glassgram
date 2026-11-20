@@ -791,7 +791,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(100, 0, 0, R.mipmap.ic_launcher, getString(R.string.GlassgramPreferences)));
+        items.add(SettingCell.Factory.of(100, 0xFF57575F, 0xFF202026, R.drawable.glassgram_icon_pick_fg_dark, getString(R.string.GlassgramPreferences)));
         items.add(UItem.asShadow(null));
         final boolean walletAbove = getConnectionsManager().getCurrentTime() - 1791538462 < 4 * 7 * 24 * 60 * 60;
         if (walletAbove && getMessagesController().config.walletAvailable.get()) {
@@ -1369,6 +1369,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
             iconBackground.setColor(iconColorTop, iconColorBottom);
             iconView.setImageResource(icon);
+            // The launcher foreground includes its adaptive-icon safe zone.
+            final float glyphScale = icon == R.drawable.glassgram_icon_pick_fg_dark ? 1.6f : 1f;
+            iconView.setScaleX(glyphScale);
+            iconView.setScaleY(glyphScale);
             titleView.setText(title);
             subtitleView.setVisibility((twoLines = !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE);
             subtitleView.setText(subtitle);
