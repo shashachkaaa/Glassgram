@@ -80,7 +80,9 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
         card.addView(error, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
             Gravity.TOP, 0, 8, 0, 0));
         divider = new View(context);
-        card.addView(divider, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 1));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 1);
+        dividerParams.topMargin = dp(8);
+        card.addView(divider, dividerParams);
         LinearLayout actions = new LinearLayout(context);
         actions.setGravity(Gravity.CENTER_VERTICAL);
         card.addView(actions, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
