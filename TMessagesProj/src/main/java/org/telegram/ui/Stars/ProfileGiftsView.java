@@ -15,6 +15,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -54,6 +55,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     public final ProfileHeaderGlass bubbleGlass = new ProfileHeaderGlass(this);
     private final Paint bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path bubbleOutline = new Path();
+    private final RectF lensBounds = new RectF();
     private boolean drawGlass;
     private final FrameLayout dragHost;
     private DragLens dragLens;
@@ -258,17 +262,63 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             bounds.set(cx - gsz / 2, cy - gsz / 2, cx + gsz / 2, cy + gsz / 2);
             if (this == movingGift && dragging) return;
             canvas.save();
-            if (drawGlass) {
-                bubbleGlass.draw(canvas, piece, press, bounds, gsz / 2, 1f, alpha, 0f);
-            } else {
-                bubblePaint.setColor(Theme.multAlpha(0x30FFFFFF, alpha));
-                canvas.drawOval(bounds, bubblePaint);
-            }
+            double vx = orbit.vx * orbitRadiusX, vy = orbit.vy * orbitRadiusY;
+            float stretch = (float) Math.min(.42, Math.hypot(vx, vy) / dpf2(1300));
+            drawBubble(canvas, bounds, alpha, (float) Math.toDegrees(Math.atan2(vy, vx)), stretch,
+                    drawGlass, bubbleGlass, piece, press);
             canvas.translate(cx, cy);
             canvas.rotate(rotate);
             final float scale = ascale * bounce.getScale(0.1f);
             canvas.scale(scale, scale);
             drawArtwork(canvas, alpha, gradientAlpha);
+            canvas.restore();
+        }
+
+        private void drawBubble(Canvas canvas, RectF box, float alpha, float angle, float stretch,
+                                boolean glassEnabled, ProfileHeaderGlass glass, ProfileHeaderGlass.Piece layer,
+                                LiquidPressEffect effect) {
+            float cx = box.centerX(), cy = box.centerY(), r = box.width() * .5f;
+            double time = SystemClock.uptimeMillis() * .0032 + (id % 337);
+            float ripple = (float) Math.sin(time);
+            float wave = (float) Math.sin(time * 1.61);
+            float scale = 1f + stretch + .055f * ripple;
+            canvas.save();
+            float normal = (float) Math.toDegrees(orbit.impactAngle);
+            float compression = 1f - (float) orbit.impact;
+            canvas.rotate(normal, cx, cy);
+            canvas.scale(compression, 1f / compression, cx, cy);
+            canvas.rotate(angle - normal, cx, cy);
+            canvas.scale(scale, 1f / scale, cx, cy);
+            canvas.rotate(-angle, cx, cy);
+
+            // Four smooth lobes change curvature as the film wobbles. Clip both the
+            // refracted backdrop and the rim to the same outline, including in flight.
+            float left = cx - r, right = cx + r, top = cy - r, bottom = cy + r;
+            float tx = cx + r * .15f * wave, bx = cx - r * .12f * ripple;
+            float ly = cy + r * .16f * ripple, ry = cy - r * .13f * wave;
+            float k = r * .55f;
+            bubbleOutline.rewind();
+            bubbleOutline.moveTo(tx, top);
+            bubbleOutline.cubicTo(tx + k, top, right, ry - k, right, ry);
+            bubbleOutline.cubicTo(right, ry + k, bx + k, bottom, bx, bottom);
+            bubbleOutline.cubicTo(bx - k, bottom, left, ly + k, left, ly);
+            bubbleOutline.cubicTo(left, ly - k, tx - k, top, tx, top);
+            bubbleOutline.close();
+            canvas.save();
+            canvas.clipPath(bubbleOutline);
+            if (glassEnabled) {
+                lensBounds.set(box);
+                lensBounds.inset(-r * .12f, -r * .12f);
+                glass.draw(canvas, layer, effect, lensBounds, lensBounds.width() / 2, 1f, alpha, 0f);
+            } else {
+                bubblePaint.setColor(Theme.multAlpha(0x30FFFFFF, alpha));
+                canvas.drawPath(bubbleOutline, bubblePaint);
+            }
+            canvas.restore();
+            rimPaint.setStyle(Paint.Style.STROKE);
+            rimPaint.setStrokeWidth(dpf2(.7f));
+            rimPaint.setColor(Theme.multAlpha(0x52FFFFFF, alpha));
+            canvas.drawPath(bubbleOutline, rimPaint);
             canvas.restore();
         }
 
@@ -418,51 +468,119 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (changed) invalidate();
     }
 
-    // Coordinates and velocities are in ellipse radii and seconds, so the launch
-    // follows the avatar through layout changes and is independent of frame rate.
+    // Positions are relative to the avatar, measured in horizontal and vertical orbit radii.
     private static final class Orbit {
-        private static final double DRIFT = .17;
-        private static final double DRAG = .95;
-        private static final double CAPTURE = 8.0;
+        private static final int[] SLOTS = {3, 4, 2, 0, 5, 1};
+        double x, y, vx, vy, direction = 1;
+        double impact, impactAngle;
         long epoch;
-        double phase, direction = 1, boost, offsetX, offsetY, driftX, driftY;
-        double x, y;
 
-        Orbit(int position, long now) {
-            final int[] slots = {3, 4, 2, 0, 5, 1};
-            phase = slots[Math.floorMod(position, slots.length)] * Math.PI / 3;
-            epoch = now;
-        }
-
-        void sample(long now) {
-            double time = Math.max(0, now - epoch) * .001;
-            double angle = phase + direction * (DRIFT * time + boost * -Math.expm1(-DRAG * time) / DRAG);
-            double decay = Math.exp(-CAPTURE * time);
-            x = Math.cos(angle) + (offsetX + driftX * time) * decay;
-            y = Math.sin(angle) + (offsetY + driftY * time) * decay;
+        Orbit(int position) {
+            double phase = SLOTS[Math.floorMod(position, SLOTS.length)] * Math.PI / 3;
+            x = Math.cos(phase);
+            y = Math.sin(phase);
+            vx = -.17 * y;
+            vy = .17 * x;
         }
 
         void launch(long now, double startX, double startY, double pullX, double pullY) {
-            double pull = Math.hypot(pullX, pullY);
-            double gain = Math.min(9.0, 19.0 / Math.max(.001, pull));
-            double vx = -pullX * gain, vy = -pullY * gain;
-            phase = Math.atan2(startY + vy * .23, startX + vx * .23);
-            double torque = startX * vy - startY * vx;
-            if (Math.abs(torque) > .05) direction = Math.signum(torque);
-            boost = Math.min(11, pull * 6);
-            double cos = Math.cos(phase), sin = Math.sin(phase);
-            offsetX = startX - cos;
-            offsetY = startY - sin;
-            double omega = direction * (DRIFT + boost);
-            // Match the release position and the velocity opposite the pull at t=0.
-            driftX = vx + sin * omega + CAPTURE * offsetX;
-            driftY = vy - cos * omega + CAPTURE * offsetY;
+            x = startX;
+            y = startY;
+            double gain = Math.min(12, 27 / Math.max(.001, Math.hypot(pullX, pullY)));
+            vx = -gain * pullX;
+            vy = -gain * pullY;
             epoch = now;
+        }
+
+        void advance(double dt) {
+            double r = Math.max(.01, Math.hypot(x, y));
+            double nx = x / r, ny = y / r;
+            double radial = vx * nx + vy * ny;
+            double tangent = vy * nx - vx * ny;
+            if (Math.abs(tangent) > .12) direction = Math.signum(tangent);
+            // A wide excursion is pulled back gradually. Keep tangential momentum through the turn.
+            double ar = -5.5 * (r - 1) - 1.55 * radial - Math.min(2, tangent * tangent / r);
+            double at = .78 * (.17 * direction - tangent);
+            vx += (ar * nx - at * ny) * dt;
+            vy += (ar * ny + at * nx) * dt;
+            x += vx * dt;
+            y += vy * dt;
+            impact *= Math.exp(-4.5 * dt);
+        }
+
+        static void collide(Orbit a, Orbit b, double dx, double dy, double contact,
+                            double rx, double ry, boolean heldA, boolean heldB) {
+            double distance = Math.hypot(dx, dy);
+            if (distance >= contact || heldA && heldB) return;
+            double nx = distance > .001 ? dx / distance : 1;
+            double ny = distance > .001 ? dy / distance : 0;
+            double share = heldA || heldB ? 1 : .5;
+            double correction = (contact - distance) * share;
+            if (!heldA) { a.x -= correction * nx / rx; a.y -= correction * ny / ry; }
+            if (!heldB) { b.x += correction * nx / rx; b.y += correction * ny / ry; }
+            double closing = (a.vx - b.vx) * rx * nx + (a.vy - b.vy) * ry * ny;
+            if (closing <= 0) return;
+            double impulse = 1.82 * closing * share;
+            if (!heldA) { a.vx -= impulse * nx / rx; a.vy -= impulse * ny / ry; }
+            if (!heldB) { b.vx += impulse * nx / rx; b.vy += impulse * ny / ry; }
+            double squash = Math.min(.34, closing / (contact * 22));
+            a.impact = Math.max(a.impact, squash);
+            b.impact = Math.max(b.impact, squash);
+            a.impactAngle = b.impactAngle = Math.atan2(ny, nx);
         }
     }
 
     private float orbitCenterX, orbitCenterY, orbitRadiusX, orbitRadiusY;
-    private long heldAt;
+    private long lastPhysicsFrame;
+    private float lastDragX, lastDragY;
+
+    private void advanceGifts(long now) {
+        for (int i = 0; i < gifts.size(); i++) {
+            Gift gift = gifts.get(i);
+            if (gift.orbit == null) gift.orbit = new Orbit(gift.position);
+        }
+        double elapsed = Math.min(.064, (now - lastPhysicsFrame) * .001);
+        lastPhysicsFrame = now;
+        if (elapsed <= 0) return;
+        int steps = (int) Math.ceil(elapsed * 240);
+        double dt = elapsed / steps;
+        double rx = orbitRadiusX, ry = orbitRadiusY;
+        Gift held = released ? null : movingGift;
+        if (held != null) {
+            held.orbit.vx = Math.max(-27, Math.min(27, (dragX - lastDragX) / (elapsed * rx)));
+            held.orbit.vy = Math.max(-27, Math.min(27, (dragY - lastDragY) / (elapsed * ry)));
+        }
+        double radius = dpf2(21);
+        for (int step = 1; step <= steps; step++) {
+            double handX = lastDragX + (dragX - lastDragX) * step / steps;
+            double handY = lastDragY + (dragY - lastDragY) * step / steps;
+            for (int i = 0; i < gifts.size(); i++) {
+                Gift gift = gifts.get(i);
+                Orbit body = gift.orbit;
+                if (gift == held) continue;
+                body.advance(dt);
+                // Keep a fast shot in reach at the edges of the visible profile.
+                double cx = orbitCenterX + body.x * rx, cy = orbitCenterY + body.y * ry;
+                if (cx < radius && body.vx < 0 || cx > getWidth() - radius && body.vx > 0) body.vx *= -.78;
+                if (cy < radius && body.vy < 0 || cy > dragHost.getHeight() - radius && body.vy > 0) body.vy *= -.78;
+            }
+            for (int i = 0; i < gifts.size(); i++) {
+                Gift a = gifts.get(i);
+                for (int j = i + 1; j < gifts.size(); j++) {
+                    Gift b = gifts.get(j);
+                    double dx = (b.orbit.x - a.orbit.x) * rx;
+                    double dy = (b.orbit.y - a.orbit.y) * ry;
+                    int hand = b == held ? 1 : a == held ? -1 : 0;
+                    double contact = radius * 2;
+                    if (dragLens != null && (a == movingGift || b == movingGift)) contact += radius * 1.15 * dragLens.lift;
+                    Orbit.collide(a.orbit, b.orbit, dx + hand * handX, dy + hand * handY,
+                            contact, rx, ry, a == held, b == held);
+                }
+            }
+        }
+        lastDragX = dragX;
+        lastDragY = dragY;
+    }
 
     private final TimeInterpolator giftCollapseXInterpolator = new DecelerateInterpolator();
     private final TimeInterpolator giftCollapseYInterpolator = new LinearInterpolator();
@@ -484,7 +602,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
 
         canvas.save();
-        canvas.clipRect(0, 0, getWidth(), expandY);
+        if (collapseProgress < 1f || expandProgress > 0f) canvas.clipRect(0, 0, getWidth(), expandY);
         drawGlass = bubbleGlass.begin(canvas);
 
         final float acx = ax + aw / 2.0f;
@@ -499,7 +617,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         orbitCenterY = acy;
         orbitRadiusX = Math.max(1f, orbitX);
         orbitRadiusY = Math.max(1f, orbitY);
-        final long now = SystemClock.uptimeMillis();
+        advanceGifts(getDrawingTime());
         float closedAlpha = Utilities.clamp01((expandY - (AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight())) / dp(50));
 
         for (int i = 0; i < gifts.size(); ++i) {
@@ -508,8 +626,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float scale = lerp(0.5f, 1.0f, enter);
             final float alpha = enter * (1.0f - expandProgress) * (1.0f - actionBarProgress) * (closedAlpha);
 
-            if (gift.orbit == null) gift.orbit = new Orbit(gift.position, now);
-            gift.orbit.sample(gift == movingGift && !released ? heldAt : now);
             float gx = acx + orbitRadiusX * (float) gift.orbit.x;
             float gy = acy + orbitRadiusY * (float) gift.orbit.y;
             float delayValue = gift.position % 3 == 0 ? 1.6f : gift.position % 3 == 1 ? 0f : .9f;
@@ -570,7 +686,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             final float cy = movingGift.bounds.centerY() + y;
             ProfileGiftsView.this.getLocationInWindow(sourceLocation);
             dragHost.getLocationInWindow(hostLocation);
-            final float half = dp(160) / 2f;
+            final float half = dp(208) / 2f;
             setX(sourceLocation[0] - hostLocation[0] + cx - half);
             setY(sourceLocation[1] - hostLocation[1] + cy - half);
             long now = SystemClock.uptimeMillis();
@@ -593,17 +709,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float c = getWidth() * .5f;
             surface.set(c - r, c - r, c + r, c + r);
             boolean hasGlass = glass.begin(canvas);
-            canvas.save();
-            canvas.rotate(angle, c, c);
-            canvas.scale(1f + stretch, 1f / (1f + stretch), c, c);
-            canvas.rotate(-angle, c, c);
-            if (hasGlass) {
-                glass.draw(canvas, piece, lensPress, surface, r, 1f, 1f, 0f);
-            } else {
-                bubblePaint.setColor(0x38FFFFFF);
-                canvas.drawOval(surface, bubblePaint);
-            }
-            canvas.restore();
+            movingGift.drawBubble(canvas, surface, 1f, angle, stretch, hasGlass, glass, piece, lensPress);
             canvas.save();
             canvas.translate(c, c);
             float artworkScale = 1f + .63f * lift;
@@ -636,9 +742,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private boolean released;
 
     private void resetDrag() {
-        if (movingGift != null && !released && movingGift.orbit != null) {
-            movingGift.orbit.epoch += SystemClock.uptimeMillis() - heldAt;
-        }
         released = false;
         removeCallbacks(updateLens);
         if (dragLens != null) {
@@ -660,12 +763,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         float x = event.getX(), y = event.getY();
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
-            if (!active || expandProgress >= 1f || collapseProgress <= 0f || y > expandY) return false;
+            if (!active || expandProgress >= 1f || collapseProgress <= 0f || (collapseProgress < 1f && y > expandY)) return false;
             Gift hit = getGiftUnder(x, y);
             if (hit == null) return false;
             resetDrag();
             movingGift = hit;
-            heldAt = SystemClock.uptimeMillis();
+            lastDragX = lastDragY = 0;
             downX = x;
             downY = y;
             movingGift.bounce.setPressed(true);
@@ -679,7 +782,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (!dragging && dx * dx + dy * dy > slop * slop) {
                 dragging = true;
                 dragLens = new DragLens();
-                dragHost.addView(dragLens, new FrameLayout.LayoutParams(dp(160), dp(160),
+                dragHost.addView(dragLens, new FrameLayout.LayoutParams(dp(208), dp(208),
                         android.view.Gravity.TOP | android.view.Gravity.LEFT));
                 dragLens.previousX = movingGift.bounds.centerX();
                 dragLens.previousY = movingGift.bounds.centerY();
