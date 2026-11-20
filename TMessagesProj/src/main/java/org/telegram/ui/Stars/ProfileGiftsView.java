@@ -263,7 +263,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (this == movingGift && dragging) return;
             canvas.save();
             double vx = orbit.vx * orbitRadiusX, vy = orbit.vy * orbitRadiusY;
-            float stretch = (float) Math.min(.42, Math.hypot(vx, vy) / dpf2(1300));
+            float stretch = (float) Math.min(.18, Math.hypot(vx, vy) / dpf2(1800));
             drawBubble(canvas, bounds, alpha, (float) Math.toDegrees(Math.atan2(vy, vx)), stretch,
                     drawGlass, bubbleGlass, piece, press);
             canvas.translate(cx, cy);
@@ -505,28 +505,55 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             vy += (ar * ny + at * nx) * dt;
             x += vx * dt;
             y += vy * dt;
-            impact *= Math.exp(-4.5 * dt);
+            impact *= Math.exp(-10 * dt);
         }
 
         static void collide(Orbit a, Orbit b, double dx, double dy, double contact,
-                            double rx, double ry, boolean heldA, boolean heldB) {
+                            double rx, double ry, boolean heldA, boolean heldB, double dt) {
             double distance = Math.hypot(dx, dy);
             if (distance >= contact || heldA && heldB) return;
             double nx = distance > .001 ? dx / distance : 1;
             double ny = distance > .001 ? dy / distance : 0;
             double share = heldA || heldB ? 1 : .5;
-            double correction = (contact - distance) * share;
+            // Let the films overlap slightly and recover over time, even if a dragged
+            // bubble grows into its neighbour while the finger is stationary.
+            double correction = (contact - distance) * share * -Math.expm1(-35 * dt);
             if (!heldA) { a.x -= correction * nx / rx; a.y -= correction * ny / ry; }
             if (!heldB) { b.x += correction * nx / rx; b.y += correction * ny / ry; }
-            double closing = (a.vx - b.vx) * rx * nx + (a.vy - b.vy) * ry * ny;
+            double speedA = a.vx * rx * nx + a.vy * ry * ny;
+            double speedB = b.vx * rx * nx + b.vy * ry * ny;
+            double closing = speedA - speedB;
             if (closing <= 0) return;
-            double impulse = 1.82 * closing * share;
-            if (!heldA) { a.vx -= impulse * nx / rx; a.vy -= impulse * ny / ry; }
-            if (!heldB) { b.vx += impulse * nx / rx; b.vy += impulse * ny / ry; }
-            double squash = Math.min(.34, closing / (contact * 22));
-            a.impact = Math.max(a.impact, squash);
-            b.impact = Math.max(b.impact, squash);
-            a.impactAngle = b.impactAngle = Math.atan2(ny, nx);
+
+            // Limit the speed carried from one film to the next in diameters per
+            // second. Preserve sliding along the contact and motion away from it.
+            double limit = contact * 2;
+            double drift = heldA || heldB ? 0 : Math.max(0, speedB) + Math.min(0, speedA);
+            double incomingA = Math.min(speedA, drift + limit);
+            double incomingB = Math.max(speedB, drift - limit);
+            double rebound = .14 * Math.max(0, incomingA - incomingB);
+            double sharedSpeed = (incomingA + incomingB) * .5;
+            if (!heldA) {
+                double next = heldB ? incomingB - rebound : sharedSpeed - rebound * .5;
+                double change = Math.min(0, next - speedA);
+                a.vx += change * nx / rx;
+                a.vy += change * ny / ry;
+            }
+            if (!heldB) {
+                double next = heldA ? incomingA + rebound : sharedSpeed + rebound * .5;
+                double change = Math.max(0, next - speedB);
+                b.vx += change * nx / rx;
+                b.vy += change * ny / ry;
+            }
+            double squash = Math.min(.085, closing / (contact * 40));
+            if (squash >= a.impact) {
+                a.impact = squash;
+                a.impactAngle = Math.atan2(ny, nx);
+            }
+            if (squash >= b.impact) {
+                b.impact = squash;
+                b.impactAngle = Math.atan2(ny, nx);
+            }
         }
     }
 
@@ -547,6 +574,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double rx = orbitRadiusX, ry = orbitRadiusY;
         Gift held = released ? null : movingGift;
         if (held != null) {
+            held.orbit.impact *= Math.exp(-10 * elapsed);
             held.orbit.vx = Math.max(-27, Math.min(27, (dragX - lastDragX) / (elapsed * rx)));
             held.orbit.vy = Math.max(-27, Math.min(27, (dragY - lastDragY) / (elapsed * ry)));
         }
@@ -574,7 +602,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     double contact = radius * 2;
                     if (dragLens != null && (a == movingGift || b == movingGift)) contact += radius * 1.15 * dragLens.lift;
                     Orbit.collide(a.orbit, b.orbit, dx + hand * handX, dy + hand * handY,
-                            contact, rx, ry, a == held, b == held);
+                            contact, rx, ry, a == held, b == held, dt);
                 }
             }
         }
@@ -742,6 +770,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private boolean released;
 
     private void resetDrag() {
+        if (dragging && !released && movingGift != null && movingGift.orbit != null) {
+            movingGift.orbit.vx = movingGift.orbit.vy = 0;
+        }
         released = false;
         removeCallbacks(updateLens);
         if (dragLens != null) {
