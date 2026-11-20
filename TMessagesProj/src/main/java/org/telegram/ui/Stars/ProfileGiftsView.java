@@ -6,6 +6,10 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.ui.Stars.StarsController.findAttribute;
 
 import android.animation.TimeInterpolator;
+import android.animation.ValueAnimator;
+import android.view.ViewConfiguration;
+import org.telegram.ui.Components.ProfileHeaderGlass;
+import org.telegram.ui.Components.LiquidPressEffect;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
@@ -47,6 +51,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private final ProfileActivity.AvatarImageView avatarImage;
     private final Theme.ResourcesProvider resourcesProvider;
 
+    public final ProfileHeaderGlass bubbleGlass = new ProfileHeaderGlass(this);
+    private final Paint bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private boolean drawGlass;
     private boolean active = true;
     public void setActive(boolean f) {
         this.active = f;
@@ -130,6 +137,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        bubbleGlass.watch(true);
 
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starUserGiftsLoaded);
 
@@ -143,6 +151,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        bubbleGlass.watch(false);
+        resetDrag();
 
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.starUserGiftsLoaded);
 
@@ -206,6 +216,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         public AnimatedEmojiDrawable emojiDrawable;
         public AnimatedFloat animatedFloat;
 
+        private final ProfileHeaderGlass.Piece piece = new ProfileHeaderGlass.Piece();
+        private final LiquidPressEffect press = new LiquidPressEffect(ProfileGiftsView.this);
         public final RectF bounds = new RectF();
         public final ButtonBounce bounce = new ButtonBounce(ProfileGiftsView.this);
 
@@ -226,9 +238,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 float gradientAlpha
         ) {
             if (alpha <= 0.0f) return;
-            final float gsz = dp(45);
+            final float gsz = dp(42) * ascale;
+            if (this == movingGift) {
+                cx += dragX;
+                cy += dragY;
+            }
             bounds.set(cx - gsz / 2, cy - gsz / 2, cx + gsz / 2, cy + gsz / 2);
             canvas.save();
+            if (drawGlass) {
+                bubbleGlass.draw(canvas, piece, press, bounds, gsz / 2, 1f, alpha, 0f);
+            } else {
+                bubblePaint.setColor(Theme.multAlpha(0x30FFFFFF, alpha));
+                canvas.drawOval(bounds, bubblePaint);
+            }
             canvas.translate(cx, cy);
             canvas.rotate(rotate);
             final float scale = ascale * bounce.getScale(0.1f);
@@ -388,7 +410,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
 
         canvas.save();
-        canvas.clipRect(0, 0, getWidth(), expandY);
+        if (movingGift == null) canvas.clipRect(0, 0, getWidth(), expandY);
+        drawGlass = bubbleGlass.begin(canvas);
 
         final float acx = ax + aw / 2.0f;
         final float acy = ay + ah / 2.0f;
@@ -475,35 +498,77 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return null;
     }
 
-    private Gift pressedGift;
+    private Gift movingGift;
+    private float downX, downY, dragX, dragY;
+    private boolean dragging;
+    private ValueAnimator returnAnimation;
+
+    private void resetDrag() {
+        if (returnAnimation != null) returnAnimation.cancel();
+        returnAnimation = null;
+        if (movingGift != null) {
+            movingGift.bounce.setPressed(false);
+            movingGift.press.onTouch(MotionEvent.ACTION_CANCEL, 0, 0);
+        }
+        movingGift = null;
+        dragging = false;
+        dragX = dragY = 0;
+        invalidate();
+    }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!active) return false;
-        final Gift hit = getGiftUnder(event.getX(), event.getY());
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            pressedGift = hit;
-            if (pressedGift != null) {
-                pressedGift.bounce.setPressed(true);
+        float x = event.getX(), y = event.getY();
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (!active || expandProgress >= 1f || collapseProgress <= 0f || y > expandY) return false;
+            Gift hit = getGiftUnder(x, y);
+            if (hit == null) return false;
+            resetDrag();
+            movingGift = hit;
+            downX = x;
+            downY = y;
+            movingGift.bounce.setPressed(true);
+            getParent().requestDisallowInterceptTouchEvent(true);
+        }
+        if (movingGift == null || returnAnimation != null) return false;
+        movingGift.press.onTouch(action, x - movingGift.bounds.left, y - movingGift.bounds.top);
+        if (action == MotionEvent.ACTION_MOVE) {
+            float dx = x - downX, dy = y - downY;
+            int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+            dragging |= dx * dx + dy * dy > slop * slop;
+            if (dragging) {
+                dragX = dx;
+                dragY = dy;
+                invalidate();
             }
-        } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
-            if (pressedGift != hit && pressedGift != null) {
-                pressedGift.bounce.setPressed(false);
-                pressedGift = null;
-            }
-        } else if (event.getAction() == MotionEvent.ACTION_UP) {
-            if (pressedGift != null) {
-                onGiftClick(pressedGift);
-                pressedGift.bounce.setPressed(false);
-                pressedGift = null;
-            }
-        } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
-            if (pressedGift != null) {
-                pressedGift.bounce.setPressed(false);
-                pressedGift = null;
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            Gift gift = movingGift;
+            getParent().requestDisallowInterceptTouchEvent(false);
+            gift.bounce.setPressed(false);
+            if (!dragging) {
+                resetDrag();
+                if (action == MotionEvent.ACTION_UP) onGiftClick(gift);
+            } else {
+                final float dx = dragX, dy = dragY;
+                returnAnimation = ValueAnimator.ofFloat(1f, 0f);
+                returnAnimation.setDuration(300);
+                returnAnimation.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+                returnAnimation.addUpdateListener(a -> {
+                    float fraction = (float) a.getAnimatedValue();
+                    dragX = dx * fraction;
+                    dragY = dy * fraction;
+                    if (fraction == 0f) {
+                        movingGift = null;
+                        returnAnimation = null;
+                        dragging = false;
+                    }
+                    invalidate();
+                });
+                returnAnimation.start();
             }
         }
-        return pressedGift != null;
+        return true;
     }
 
     public void onGiftClick(Gift gift) {

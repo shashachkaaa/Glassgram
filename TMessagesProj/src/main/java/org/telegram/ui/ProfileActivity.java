@@ -2184,6 +2184,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingDidStart);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingDidReset);
+            getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+            getNotificationCenter().addWeakObserver(this, NotificationCenter.musicListLoaded);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.reloadInterface);
 
@@ -2460,6 +2462,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidStart);
             getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
             getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidReset);
+            getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+            getNotificationCenter().removeObserver(this, NotificationCenter.musicListLoaded);
             getNotificationCenter().removeObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.reloadInterface);
             getMessagesController().cancelLoadFullUser(userId);
@@ -3817,7 +3821,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 //        sharedMediaLayout.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         if (userId == 0 || imageUpdater == null || myProfile) {
             musicView = new ProfileMusicView(context, resourcesProvider);
-            updateProfileMusicPlayback();
             balanceView = new ProfileBalanceView(context, resourcesProvider);
             musicView.setTrailingView(balanceView);
             if (buttonsGlass != null) {
@@ -3830,9 +3833,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             });
             musicView.setColor(peerColor);
-            if (userInfo != null && userInfo.saved_music != null) {
-                musicView.setMusicDocument(userInfo.saved_music);
-            }
+            updateProfileMusicPlayback();
             musicView.setOnClickListener(v -> {
                 if (savedMusicList == null) {
                     if (
@@ -3847,22 +3848,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     }
                 }
-                if (!savedMusicList.list.isEmpty()) {
-                    boolean sameList = false;
-                    if (
-                        MediaController.getInstance().currentSavedMusicList != savedMusicList ||
-                        !MediaController.getInstance().isPlayingMessage(savedMusicList.list.get(0))
-                    ) {
-                        MediaController.getInstance().cleanup();
-                    } else {
-                        sameList = true;
-                    }
-                    MediaController.getInstance().currentSavedMusicList = savedMusicList;
-                    MediaController.getInstance().getPlaylist().clear();
-                    MediaController.getInstance().getPlaylist().addAll(savedMusicList.list);
-                    if (!sameList) MediaController.getInstance().playMessage(savedMusicList.list.get(0));
-                    showDialog(org.telegram.ui.music.GlassgramMusicPlayer.create(getContext(), getResourceProvider()));
-                }
+                showProfileTrackMenu();
             });
 
             actionsView = new ProfileActionsView(context, dp(88));
@@ -5648,6 +5634,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         avatarContainer2.addView(storyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, avatarImage, resourcesProvider);
+        giftsView.bubbleGlass.setHeader(topView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         updateProfileData(true);
 
@@ -9377,19 +9364,83 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         isInLandscapeMode = size.x > size.y;
     }
 
-    @SuppressWarnings("unchecked")
+    private android.widget.ListPopupWindow trackMenu;
+    private android.widget.BaseAdapter trackAdapter;
+
+    private void showProfileTrackMenu() {
+        final Context context = musicView.getContext();
+        final android.widget.ListPopupWindow popup = new android.widget.ListPopupWindow(context);
+        trackMenu = popup;
+        trackAdapter = new android.widget.BaseAdapter() {
+            public int getCount() { return savedMusicList.list.size(); }
+            public MessageObject getItem(int index) { return savedMusicList.list.get(index); }
+            public long getItemId(int index) { return getItem(index).getId(); }
+            public View getView(int index, View recycled, ViewGroup parent) {
+                TextView row = recycled instanceof TextView ? (TextView) recycled : new TextView(context);
+                MessageObject track = getItem(index);
+                row.setPadding(dp(16), dp(8), dp(16), dp(8));
+                row.setTextSize(14);
+                row.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+                row.setMaxLines(2);
+                row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.setText(track.getMusicTitle() + "\n" + track.getMusicAuthor());
+                return row;
+            }
+        };
+        popup.setAdapter(trackAdapter);
+        popup.setAnchorView(musicView);
+        popup.setModal(true);
+        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        int width = Math.min(dp(280), musicView.getWidth() - dp(24));
+        popup.setWidth(width);
+        popup.setHorizontalOffset((musicView.getWidth() - width) / 2);
+        popup.setBackgroundDrawable(Theme.createRoundRectDrawable(dp(18), getThemedColor(Theme.key_windowBackgroundWhite)));
+        popup.setOnDismissListener(() -> { trackMenu = null; trackAdapter = null; });
+        popup.setOnItemClickListener((parent, row, position, id) -> {
+            MessageObject selected = savedMusicList.list.get(position);
+            popup.dismiss();
+            MediaController player = MediaController.getInstance();
+            if (player.currentSavedMusicList != savedMusicList) player.cleanup();
+            player.currentSavedMusicList = savedMusicList;
+            player.getPlaylist().clear();
+            player.getPlaylist().addAll(savedMusicList.list);
+            if (player.isPlayingMessage(selected) && !player.isMessagePaused()) {
+                player.pauseMessage(selected);
+            } else {
+                player.playMessage(selected);
+            }
+            updateProfileMusicPlayback();
+        });
+        popup.show();
+        popup.getListView().setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+            private boolean scrolling;
+            public void onScrollStateChanged(android.widget.AbsListView view, int state) {
+                scrolling = state != SCROLL_STATE_IDLE;
+            }
+            public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {
+                if (scrolling && visible > 0 && first + visible >= total && !savedMusicList.endReached) savedMusicList.load();
+            }
+        });
+        if (!savedMusicList.loading && !savedMusicList.endReached) savedMusicList.load();
+    }
+
     private void updateProfileMusicPlayback() {
         if (musicView == null) return;
         final MediaController player = MediaController.getInstance();
         final MessagesController.SavedMusicList list = player.currentSavedMusicList;
         final MessageObject track = player.getPlayingMessageObject();
-        musicView.setPlaying(list != null && list.currentAccount == currentAccount && list.dialogId == getDialogId()
-                && track != null && !player.isMessagePaused() && list.list.contains(track));
+        boolean activeTrack = list != null && list.currentAccount == currentAccount && list.dialogId == getDialogId()
+                && track != null && list.list.contains(track);
+        musicView.setMusicDocument(activeTrack ? track.getDocument() : userInfo == null ? null : userInfo.saved_music);
+        musicView.setPlaybackProgress(activeTrack ? track.audioProgress : 0f);
+        musicView.setPlaying(activeTrack && !player.isMessagePaused());
     }
 
     @Override
     public void didReceivedNotification(int id, int account, final Object... args) {
-        if (id == NotificationCenter.messagePlayingDidStart || id == NotificationCenter.messagePlayingPlayStateChanged
+        if (id == NotificationCenter.musicListLoaded) {
+            if (trackAdapter != null && args[0] == savedMusicList) trackAdapter.notifyDataSetChanged();
+        } else if (id == NotificationCenter.messagePlayingProgressDidChanged || id == NotificationCenter.messagePlayingDidStart || id == NotificationCenter.messagePlayingPlayStateChanged
                 || id == NotificationCenter.messagePlayingDidReset) {
             updateProfileMusicPlayback();
         } else if (id == NotificationCenter.uploadStoryEnd || id == NotificationCenter.chatWasBoostedByUser) {
@@ -9953,6 +10004,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onPause() {
         super.onPause();
+        if (trackMenu != null) trackMenu.dismiss();
         if (undoView != null) {
             undoView.hide(true, 0);
         }
@@ -11614,9 +11666,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             actionsView.set(ProfileActionsView.KEY_JOIN, hasJoinRow);
         }
         if (musicView != null) {
-            if (userInfo != null) {
-                musicView.setMusicDocument(userInfo.saved_music);
-            }
+            updateProfileMusicPlayback();
             musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);
             if (hasBalance) {
                 balanceView.setBalance(userInfo.wallet_card.balance);

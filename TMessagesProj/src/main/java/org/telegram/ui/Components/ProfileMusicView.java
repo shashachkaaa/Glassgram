@@ -149,7 +149,21 @@ public class ProfileMusicView extends View {
 
 
 
+    private TLRPC.Document displayedDocument;
+    private float playbackProgress;
+    private final Paint progressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public void setPlaybackProgress(float progress) {
+        progress = Utilities.clamp01(progress);
+        if (playbackProgress != progress) {
+            playbackProgress = progress;
+            invalidate();
+        }
+    }
+
     public void setMusicDocument(TLRPC.Document document) {
+        if (displayedDocument == document && document != null) return;
+        displayedDocument = document;
         CharSequence title = getTitle(document);
         CharSequence artist = getAuthor(document);
         setText(TextUtils.isEmpty(title) ? getString(R.string.AudioUnknownTitle) : title,
@@ -409,6 +423,12 @@ public class ProfileMusicView extends View {
 
         canvas.save();
         canvas.clipPath(clipPath);
+        if (playbackProgress > 0f) {
+            progressPaint.setColor(textColor);
+            progressPaint.setAlpha(Math.round(52 * alpha));
+            canvas.drawRect(rect.left, rect.top, rect.left + rect.width() * playbackProgress,
+                    rect.bottom, progressPaint);
+        }
         canvas.translate(rect.left + dp(8), 0);
         drawContent(canvas, alpha);
 
