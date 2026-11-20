@@ -23,6 +23,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.os.Build;
 import android.text.Editable;
@@ -191,6 +192,7 @@ public class ActionBarMenuItem extends FrameLayout {
     private CharSequence searchFieldHint;
     private CharSequence searchFieldText;
     private ImageView clearButton;
+    private LayerDrawable searchClearGlass;
     private AnimatorSet clearButtonAnimator;
     private View searchAdditionalButton;
     protected RLottieImageView iconView;
@@ -1827,9 +1829,9 @@ public class ActionBarMenuItem extends FrameLayout {
                 }
 
                 @Override
-                public void draw(Canvas canvas) {
-                    getBackground().draw(canvas);
-                    super.draw(canvas);
+                protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+                    super.onSizeChanged(w, h, oldw, oldh);
+                    sizeSearchClearGlass(w, h);
                 }
             };
             clearButton.setImageDrawable(progressDrawable = new CloseProgressDrawable2() {
@@ -2255,6 +2257,25 @@ public class ActionBarMenuItem extends FrameLayout {
 
     public FrameLayout getSearchContainer() {
         return searchContainer;
+    }
+
+    public void showSearchClearGlass(BlurredBackgroundDrawableViewFactory factory) {
+        if (searchClearGlass != null || clearButton == null) {
+            return;
+        }
+        Drawable glass = factory.create(clearButton, parentMenu.parentActionBar.getButtonsGlassColorProvider())
+                .setRadius(dp(23));
+        searchClearGlass = new LayerDrawable(new Drawable[]{glass, clearButton.getBackground()});
+        searchClearGlass.setLayerGravity(0, Gravity.CENTER);
+        sizeSearchClearGlass(clearButton.getWidth(), clearButton.getHeight());
+        clearButton.setBackground(searchClearGlass);
+    }
+
+    private void sizeSearchClearGlass(int width, int height) {
+        if (searchClearGlass != null) {
+            int size = Math.min(dp(46), Math.min(width, height));
+            searchClearGlass.setLayerSize(0, size, size);
+        }
     }
 
     public ImageView getSearchClearButton() {

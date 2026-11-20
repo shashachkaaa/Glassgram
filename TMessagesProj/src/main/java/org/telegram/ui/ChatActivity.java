@@ -40011,6 +40011,7 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void onSearchExpand() {
+            searchItem.showSearchClearGlass(glassBackgroundDrawableFactory);
             searching = true;
             updatePagedownButtonVisibility(true);
             updateSearchUpDownButtonVisibility(true);
