@@ -7247,6 +7247,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (index > 0 && stack.get(index - 1) instanceof ChatActivity) {
             final ChatActivity chat = (ChatActivity) stack.get(index - 1);
             if (chat.getDialogId() == getDialogId()) {
+                // Search replaces the chat title, so there is no title for the profile to morph into.
+                playProfileAnimation = 0;
                 finishFragment();
                 chat.openSearchWithText("");
                 return;
