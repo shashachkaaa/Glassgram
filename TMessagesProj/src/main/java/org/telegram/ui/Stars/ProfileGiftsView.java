@@ -508,6 +508,23 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             impact *= Math.exp(-10 * dt);
         }
 
+        // As a free bubble meets another film, divert part of its approach speed
+        // along that film. The struck neighbour still receives only a small nudge.
+        void slideAround(double nx, double ny, double rx, double ry, double before, double after) {
+            if (before <= Math.abs(after)) return;
+            double tangent = -vx * rx * ny + vy * ry * nx;
+            double side = tangent;
+            if (Math.abs(side) < before * .03) {
+                // At a square hit, pick the side that continues around the avatar.
+                double orbitalTangent = direction * (x * ry * nx + y * rx * ny);
+                side = Math.abs(orbitalTangent) > .001 ? orbitalTangent : direction;
+            }
+            double diverted = .75 * Math.sqrt((before - after) * (before + after));
+            double change = Math.copySign(Math.hypot(tangent, diverted), side) - tangent;
+            vx -= change * ny / rx;
+            vy += change * nx / ry;
+        }
+
         static void collide(Orbit a, Orbit b, double dx, double dy, double contact,
                             double rx, double ry, boolean heldA, boolean heldB, double dt) {
             double distance = Math.hypot(dx, dy);
@@ -538,12 +555,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 double change = Math.min(0, next - speedA);
                 a.vx += change * nx / rx;
                 a.vy += change * ny / ry;
+                if (!heldB) a.slideAround(nx, ny, rx, ry, speedA - drift, next - drift);
             }
             if (!heldB) {
                 double next = heldA ? incomingA + rebound : sharedSpeed + rebound * .5;
                 double change = Math.max(0, next - speedB);
                 b.vx += change * nx / rx;
                 b.vy += change * ny / ry;
+                if (!heldA) b.slideAround(-nx, -ny, rx, ry, drift - speedB, drift - next);
             }
             double squash = Math.min(.085, closing / (contact * 40));
             if (squash >= a.impact) {
