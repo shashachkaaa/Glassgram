@@ -146,6 +146,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SharedPrefsHelper;
+import org.telegram.messenger.GlassgramSpyStorage;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -3827,7 +3828,13 @@ public class ChatActivityEnterView extends FrameLayout implements
             String textFinal = SendMessagesHelper.getTrimmedString(messageEditText.getText().toString());
             final int limit = accountInstance.getMessagesController().getMaxMessageLength();
             if (textFinal.length() != 0) {
-                count += (int) Math.ceil(textFinal.length() / (float) limit);
+                final DeletedReply deleted = getDeletedReply();
+                if (deleted == null) {
+                    count += (int) Math.ceil(textFinal.length() / (float) limit);
+                } else {
+                    String combined = deleted.prefix + textFinal;
+                    for (int i = 0; i < combined.length(); i = deleted.chunkEnd(combined, i, limit)) count++;
+                }
             } else {
                 count++;
             }
@@ -7627,7 +7634,8 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (parentFragment != null) {
                 TLRPC.Chat chat = parentFragment.getCurrentChat();
                 if (chat != null && chat.slowmode_enabled && !ChatObject.hasAdminRights(chat)) {
-                    if (message.length() > accountInstance.getMessagesController().getMaxMessageLength()) {
+                    final DeletedReply deleted = getDeletedReply();
+                    if (message.length() + (deleted == null ? 0 : deleted.prefix.length()) > accountInstance.getMessagesController().getMaxMessageLength()) {
                         AlertsCreator.showSimpleAlert(parentFragment, getString("Slowmode", R.string.Slowmode), getString("SlowmodeSendErrorTooLong", R.string.SlowmodeSendErrorTooLong), resourcesProvider);
                         return;
                     } else if (forceShowSendButton && message.length() > 0) {
@@ -8013,8 +8021,62 @@ public class ChatActivityEnterView extends FrameLayout implements
         setEditingMessageObject(null, null, false);
     }
 
+    private static class DeletedReply {
+        final String name, url, prefix;
+
+        DeletedReply(String name, String url, String original) {
+            this.name = name;
+            this.url = url;
+            prefix = name + (TextUtils.isEmpty(original) ? "" : "\n" + original) + "\n\n";
+        }
+
+        int chunkEnd(CharSequence text, int start, int limit) {
+            int end = Math.min(text.length(), start + limit);
+            if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1)) && Character.isLowSurrogate(text.charAt(end))) {
+                end--;
+            }
+            return end;
+        }
+
+        void prependChunk(int start, int end, CharSequence[] body, ArrayList<TLRPC.MessageEntity> entities) {
+            final String part = prefix.substring(start, Math.min(end, prefix.length()));
+            for (TLRPC.MessageEntity entity : entities) entity.offset += part.length();
+            final int quotedLength = Math.min(end, prefix.length() - 2) - start;
+            if (quotedLength > 0) {
+                TLRPC.TL_messageEntityBlockquote quote = new TLRPC.TL_messageEntityBlockquote();
+                quote.length = quotedLength;
+                entities.add(0, quote);
+            }
+            if (start == 0 && url != null) {
+                TLRPC.TL_messageEntityTextUrl link = new TLRPC.TL_messageEntityTextUrl();
+                link.url = url;
+                link.length = Math.min(end, name.length());
+                entities.add(1, link);
+            }
+            body[0] = part + body[0];
+        }
+    }
+
+    private DeletedReply getDeletedReply() {
+        final MessageObject source = replyingMessageObject;
+        if (!GlassgramSpyStorage.isMarkedDeleted(source)) return null;
+        long id = source.getFromChatId();
+        if (id == 0) {
+            id = source.messageOwner.post ? source.getDialogId() : source.isOutOwner() ? UserConfig.getInstance(currentAccount).getClientUserId() : source.getDialogId();
+        }
+        MessagesController controller = accountInstance.getMessagesController();
+        TLRPC.User user = id > 0 ? controller.getUser(id) : null;
+        TLRPC.Chat chat = id < 0 ? controller.getChat(-id) : null;
+        String name = user != null ? UserObject.getUserName(user) : chat != null ? chat.title : null;
+        String username = user != null ? UserObject.getPublicUsername(user) : chat != null ? ChatObject.getPublicUsername(chat) : null;
+        String url = !TextUtils.isEmpty(username) ? "https://t.me/" + username
+                : id > 0 ? "tg://user?id=" + id : id < 0 ? "tg://openmessage?chat_id=" + (-id) : null;
+        return new DeletedReply(TextUtils.isEmpty(name) ? String.valueOf(id) : name, url, source.messageOwner.message);
+    }
+
     public boolean processSendingText(CharSequence text, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars) {
-        if (replyingQuote != null && parentFragment != null && replyingQuote.outdated) {
+        final DeletedReply deleted = getDeletedReply();
+        if (deleted == null && replyingQuote != null && parentFragment != null && replyingQuote.outdated) {
             parentFragment.showQuoteMessageUpdate();
             return false;
         }
@@ -8030,6 +8092,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
             }
+            if (deleted != null) text = TextUtils.concat(deleted.prefix, text);
             int end;
             int start = 0;
             do {
@@ -8037,7 +8100,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 int dotIndex = -1;
                 int tabIndex = -1;
                 int enterIndex = -1;
-                if (text.length() > start + maxLength) {
+                if (deleted == null && text.length() > start + maxLength) {
                     int i = start + maxLength - 1;
                     int k = 0;
                     while (i > start && k < 300) {
@@ -8057,7 +8120,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                         k++;
                     }
                 }
-                end = Math.min(start + maxLength, text.length());
+                end = deleted == null ? Math.min(start + maxLength, text.length()) : deleted.chunkEnd(text, start, maxLength);
                 if (tabIndex > 0) {
                     end = tabIndex;
                 } else if (enterIndex > 0) {
@@ -8068,12 +8131,17 @@ public class ChatActivityEnterView extends FrameLayout implements
                     end = whitespaceIndex;
                 }
 
-                CharSequence part = text.subSequence(start, end);
-                if (!hasOnlyEmoji) {
+                final int bodyStart = deleted == null ? start : Math.min(end, Math.max(start, deleted.prefix.length()));
+                CharSequence part = text.subSequence(bodyStart, end);
+                if (deleted == null && !hasOnlyEmoji) {
                     part = AndroidUtilities.getTrimmedString(part);
                 }
                 CharSequence[] message = new CharSequence[]{ part };
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);
+                if (deleted != null && start < deleted.prefix.length()) {
+                    if (entities == null) entities = new ArrayList<>();
+                    deleted.prependChunk(start, end, message, entities);
+                }
                 MessageObject.SendAnimationData sendAnimationData = null;
 
                 if (!delegate.hasForwardingMessages()) {
@@ -8100,7 +8168,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (replyToTopMsg == null && replyingTopMessage != null) {
                     replyToTopMsg = replyingTopMessage;
                 }
-                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, replyingMessageObject, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
+                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, deleted != null ? replyToTopMsg : replyingMessageObject, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
                 params.sendMessageChatArguments = parentFragment != null ? parentFragment.getMessageChatSendParams() : null;
                 params.effect_id = effectId;
                 params.payStars = payStars;
@@ -8108,6 +8176,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                 params.suggestionParams = getSendMessageSuggestionParams();
                 sendButton.setEffect(effectId = 0);
                 applyStoryToSendMessageParams(params);
+                if (deleted != null) {
+                    params.replyQuote = null;
+                    if (messageWebPage == null) params.searchLinks = false;
+                }
                 params.invert_media = parentFragment != null && parentFragment.messagePreviewParams != null && parentFragment.messagePreviewParams.webpageTop;
                 if (parentFragment != null && parentFragment.getCurrentChat() != null && !ChatObject.canSendEmbed(parentFragment.getCurrentChat())) {
                     params.searchLinks = false;
@@ -8131,7 +8203,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     parentFragment.fallbackFieldPanel();
                 }
                 SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
-                start = end + 1;
+                start = deleted == null ? end + 1 : end;
             } while (end != text.length());
             return true;
         }
