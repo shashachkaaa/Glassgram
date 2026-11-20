@@ -1,0 +1,11 @@
+<resources>
+    <string name="GlassgramPluginToggleName">Enable %1$s</string>
+    <string name="GlassgramPluginPin">Pin plugin</string>
+    <string name="GlassgramPluginUnpin">Unpin plugin</string>
+    <string name="GlassgramPluginShareFailed">Could not share the plugin file.</string>
+    <string name="GlassgramPluginsNoMatches">No matching plugins</string>
+    <string name="GlassgramPluginCompact">Compact plugin list</string>
+    <string name="GlassgramPluginDeveloper">Developer tools</string>
+    <string name="GlassgramPluginResources">Resources</string>
+    <string name="GlassgramPluginDocs">Plugin documentation</string>
+</resources>

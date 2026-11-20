@@ -24,6 +24,7 @@ import org.telegram.messenger.plugins.PluginInfo;
 import org.telegram.messenger.plugins.PluginItemFactory;
 import org.telegram.messenger.plugins.PluginsController;
 import org.telegram.ui.ActionBar.AlertDialog;
+import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.NotificationsCheckCell;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -546,20 +547,23 @@ public class GlassgramPluginSettingsActivity extends UniversalFragment implement
     }
 
     private void confirmDelete() {
-        PluginInfo plugin = PluginsController.getPlugin(pluginId);
-        if (plugin == null || getParentActivity() == null) {
+        confirmDelete(this, PluginsController.getPlugin(pluginId), this::finishFragment);
+    }
+
+    static void confirmDelete(BaseFragment fragment, PluginInfo plugin, Runnable done) {
+        if (plugin == null || fragment.getParentActivity() == null) {
             return;
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        AlertDialog.Builder builder = new AlertDialog.Builder(fragment.getParentActivity(), fragment.getResourceProvider());
         builder.setTitle(getString(R.string.GlassgramPluginDelete));
         builder.setMessage(formatString(R.string.GlassgramPluginDeleteText, plugin.name));
-        builder.setPositiveButton(getString(R.string.Delete), (dialog, which) -> PluginsController.uninstallPlugin(pluginId, this::finishFragment));
+        builder.setPositiveButton(getString(R.string.Delete), (dialog, which) -> PluginsController.uninstallPlugin(plugin.id, done));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         AlertDialog dialog = builder.create();
-        showDialog(dialog);
+        fragment.showDialog(dialog);
         View button = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
         if (button instanceof android.widget.TextView) {
-            ((android.widget.TextView) button).setTextColor(Theme.getColor(Theme.key_text_RedBold));
+            ((android.widget.TextView) button).setTextColor(Theme.getColor(Theme.key_text_RedBold, fragment.getResourceProvider()));
         }
     }
 }

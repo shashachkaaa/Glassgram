@@ -4,59 +4,81 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
 
+import android.content.Context;
 import android.content.Intent;
-import android.text.TextUtils;
+import android.content.SharedPreferences;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 
-import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramPluginCatalog;
+import org.telegram.messenger.GlassgramRemoteConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.Utilities;
 import org.telegram.messenger.plugins.PluginInfo;
 import org.telegram.messenger.plugins.PluginsController;
-import org.telegram.ui.ActionBar.AlertDialog;
+import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.NotificationsCheckCell;
-import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.GlassgramHeaderButton;
+import org.telegram.ui.Components.ItemOptions;
+import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 
+import java.io.File;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
-/** Glassgram Preferences > Plugins: the engine switch and the installed plugins. */
 public class GlassgramPluginsActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
-
     private static final int ID_ENGINE = 1;
-    private static final int ID_INSTALL = 2;
-    private static final int ID_BROWSE = 3;
-    private static final int ID_LOGS = 4;
-    private static final int ID_CATALOG = 5;
-    private static final int ID_REPOSITORIES = 6;
-    private static final int ID_DEVELOP = 7;
-    private static final int ID_PLUGIN = 1000;
-
+    private static final int ID_ENGINE_OPTIONS = 2;
+    private static final int ID_INSTALL = 3;
     private static final int REQUEST_PICK_PLUGIN = 9101;
+    static final String COMPACT = "compact";
 
-    private final ArrayList<PluginInfo> shownPlugins = new ArrayList<>();
+    private String query = "";
+    private boolean searching;
+    private GlassgramHeaderButton catalogButton;
+    private final Set<String> pendingToggles = new HashSet<>();
+
+    static SharedPreferences displayPreferences(Context context) {
+        return context.getSharedPreferences("glassgram_plugin_list", Context.MODE_PRIVATE);
+    }
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
 
     @Override
     public boolean onFragmentCreate() {
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramPluginsUpdated);
-        // the catalog's new versions of installed plugins, for its row
-        org.telegram.messenger.GlassgramPluginCatalog.load(false, error -> {
-            if (listView != null) {
-                listView.adapter.update(true);
-            }
-        });
-        // and whether the team turned the engine off on this phone
-        org.telegram.messenger.GlassgramRemoteConfig.refresh(org.telegram.messenger.GlassgramRemoteConfig.REFRESH_SETTINGS, () -> {
-            if (listView != null) {
-                listView.adapter.update(true);
-            }
-        });
+        GlassgramPluginCatalog.load(false, error -> refresh());
+        GlassgramRemoteConfig.refresh(GlassgramRemoteConfig.REFRESH_SETTINGS, this::refresh);
         return super.onFragmentCreate();
     }
 
@@ -68,9 +90,106 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.glassgramPluginsUpdated && listView != null) {
-            listView.adapter.update(true);
+        if (id == NotificationCenter.glassgramPluginsUpdated) {
+            refresh();
         }
+    }
+
+    @Override
+    public View createView(Context context) {
+        searching = false;
+        query = "";
+        catalogButton = null;
+        setHasOwnBackground(true);
+        View root = super.createView(context);
+        ThemeBind.backgroundColor(contentView, Theme.key_windowBackgroundGray);
+        listView.adapter.setApplyBackground(false);
+
+        simpleActionBar.createMenu().addItem(0, R.drawable.outline_header_search)
+            .setIsSearchField(true)
+            .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+                @Override
+                public void onSearchExpand() {
+                    searching = true;
+                    filter("");
+                }
+
+                @Override
+                public void onSearchCollapse() {
+                    searching = false;
+                    filter("");
+                }
+
+                @Override
+                public void onTextChanged(EditText editText) {
+                    filter(editText.getText().toString());
+                }
+            }).setSearchFieldHint(getString(R.string.Search));
+        simpleActionBar.createMenu().addItem(ID_ENGINE_OPTIONS, R.drawable.msg_settings)
+            .setContentDescription(getString(R.string.GlassgramPluginsEngine));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+            @Override
+            public void onItemClick(int id) {
+                if (id == -1) {
+                    finishFragment();
+                } else if (id == ID_ENGINE_OPTIONS) {
+                    presentFragment(new GlassgramPluginEngineActivity());
+                }
+            }
+        });
+
+        if (PluginsController.isSupported()) {
+            catalogButton = new GlassgramHeaderButton(context, getBaseSimpleGlass().factory,
+                BlurredBackgroundProviderImpl.simpleActionBar(getResourceProvider()));
+            catalogButton.setOnClickListener(v -> presentFragment(new GlassgramPluginCatalogActivity()));
+            contentView.addView(catalogButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 46,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12));
+            updateCatalog();
+        }
+        return root;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        if (catalogButton != null) {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) catalogButton.getLayoutParams();
+            if (params.bottomMargin != dp(12) + bottom) {
+                params.bottomMargin = dp(12) + bottom;
+                catalogButton.setLayoutParams(params);
+            }
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refresh();
+    }
+
+    private void filter(String text) {
+        query = text.trim().toLowerCase(Locale.ROOT);
+        refresh();
+        listView.scrollToPosition(0);
+    }
+
+    private void refresh() {
+        if (listView != null && !isFinished) {
+            listView.adapter.update(!searching);
+            updateCatalog();
+        }
+    }
+
+    private void updateCatalog() {
+        if (catalogButton == null) {
+            return;
+        }
+        final int updates = GlassgramPluginCatalog.updates().size();
+        final String text = getString(R.string.GlassgramCatalog) + (updates > 0 ? " · " + updates : "");
+        if (!text.equals(catalogButton.getText())) {
+            catalogButton.setText(text, catalogButton.isLaidOut());
+        }
+        catalogButton.setContentColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+        catalogButton.setVisibility(searching ? View.GONE : View.VISIBLE);
     }
 
     @Override
@@ -80,143 +199,136 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
 
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        items.add(UItem.asHeader(getString(R.string.GlassgramPluginsEngine)));
-        items.add(UItem.asCheck(ID_ENGINE, getString(R.string.GlassgramPluginsEnable)).setChecked(GlassgramConfig.pluginsEngine));
-        String info = getString(R.string.GlassgramPluginsInfo);
-        if (!PluginsController.isSupported()) {
-            info = getString(R.string.GlassgramPluginsUnsupported);
-        } else if (GlassgramConfig.pluginsEngine && PluginsController.isStarting()) {
-            info = getString(R.string.GlassgramPluginsStarting);
-        } else if (GlassgramConfig.pluginsEngine && PluginsController.startError != null) {
-            info = formatString(R.string.GlassgramPluginsStartFailed, PluginsController.startError);
+        if (!searching) {
+            String status = GlassgramPluginEngineActivity.engineStatus();
+            items.add(UItem.asCheck(ID_ENGINE, getString(R.string.GlassgramPluginsEnable))
+                .setChecked(GlassgramConfig.pluginsEngine));
+            if (status != null) {
+                items.add(UItem.asShadow(status));
+            }
+            if (PluginsController.isSupported()) {
+                items.add(UItem.asButton(ID_INSTALL, R.drawable.msg_add, getString(R.string.GlassgramPluginsInstallFile)));
+            }
         }
-        items.add(UItem.asShadow(info));
-        if (PluginsController.isSupported()) {
-            // the team's catalog, also with the engine off: installing from it turns the engine on
-            final int updates = org.telegram.messenger.GlassgramPluginCatalog.updates().size();
-            items.add(UItem.asButton(ID_CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog),
-                    updates > 0 ? formatString(R.string.GlassgramCatalogUpdatesCount, updates) : null));
-            items.add(UItem.asShadow(null));
+        if (getContext() == null || !GlassgramConfig.pluginsEngine || !PluginsController.isStarted()) {
+            if (!searching && PluginsController.isSupported()) items.add(UItem.asSpace(74));
+            return;
         }
 
-        shownPlugins.clear();
-        if (GlassgramConfig.pluginsEngine && PluginsController.isStarted()) {
-            List<PluginInfo> plugins = PluginsController.getPlugins();
+        SharedPreferences prefs = displayPreferences(getContext());
+        final Set<String> pinned = prefs.getStringSet("pinned", Collections.emptySet());
+        final boolean compact = prefs.getBoolean(COMPACT, false);
+        ArrayList<PluginInfo> visible = new ArrayList<>(PluginsController.getPlugins());
+        visible.removeIf(plugin -> !matches(plugin));
+        visible.sort((a, b) -> Boolean.compare(pinned.contains(b.id), pinned.contains(a.id)));
+
+        if (!searching && !visible.isEmpty()) {
             items.add(UItem.asHeader(getString(R.string.GlassgramPluginsInstalled)));
-            for (int i = 0; i < plugins.size(); i++) {
-                PluginInfo plugin = plugins.get(i);
-                shownPlugins.add(plugin);
-                items.add(UItem.asButtonCheck(ID_PLUGIN + i, plugin.name + " " + plugin.version, subtitle(plugin)).setChecked(plugin.enabled));
-            }
-            items.add(UItem.asButton(ID_INSTALL, R.drawable.msg_add, getString(R.string.GlassgramPluginsInstallFile)));
-            items.add(UItem.asShadow(plugins.isEmpty() ? getString(R.string.GlassgramPluginsEmpty) : null));
-            items.add(UItem.asButton(ID_BROWSE, R.drawable.msg_channel, getString(R.string.GlassgramPluginsBrowse), "@exteraPlugins"));
-            items.add(UItem.asButton(ID_REPOSITORIES, R.drawable.msg_download, getString(R.string.GlassgramRepositories)));
-            items.add(UItem.asCheck(ID_DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.devServer));
-            if (PluginsController.devServer) {
-                items.add(UItem.asShadow("adb forward tcp:42690 localabstract:" + getParentActivity().getPackageName() + ".plugins"));
-            }
-            items.add(UItem.asButton(ID_LOGS, R.drawable.msg_log, getString(R.string.GlassgramPluginsLogs)));
-            items.add(UItem.asShadow(null));
         }
+        for (PluginInfo plugin : visible) {
+            if (compact) {
+                String name = (pinned.contains(plugin.id) ? "📌 " : "") + plugin.name + " " + plugin.version;
+                String subtitle = plugin.error != null ? getString(R.string.GlassgramPluginLoadError) : plugin.author;
+                UItem row = UItem.asButtonCheck(0, name, subtitle).setChecked(plugin.enabled);
+                row.object = plugin;
+                items.add(row);
+            } else {
+                items.add(GlassgramPluginCard.Factory.of(this, plugin, pinned.contains(plugin.id)));
+            }
+        }
+        if (visible.isEmpty()) {
+            items.add(UItem.asShadow(getString(query.isEmpty() ? R.string.GlassgramPluginsEmpty : R.string.GlassgramPluginsNoMatches)));
+        }
+        if (!searching) items.add(UItem.asSpace(74));
     }
 
-    private static CharSequence subtitle(PluginInfo plugin) {
-        if (plugin.error != null) {
-            return getString(R.string.GlassgramPluginLoadError);
+    private boolean matches(PluginInfo plugin) {
+        if (query.isEmpty()) {
+            return true;
         }
-        if (!TextUtils.isEmpty(plugin.author)) {
-            return plugin.author;
-        }
-        return plugin.description;
+        String searchable = plugin.name + "\n" + plugin.id + "\n" + plugin.author + "\n" + plugin.description + "\n" + plugin.version;
+        return searchable.toLowerCase(Locale.ROOT).contains(query);
     }
 
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
-        if (item.id == ID_ENGINE) {
-            if (!PluginsController.isSupported()) {
-                BulletinFactory.of(this).createErrorBulletin(getString(R.string.GlassgramPluginsUnsupported)).show();
-                return;
+        if (item.object instanceof PluginInfo) {
+            PluginInfo plugin = (PluginInfo) item.object;
+            boolean onSwitch = LocaleController.isRTL ? x < dp(76) : x > view.getWidth() - dp(76);
+            if (onSwitch && view instanceof NotificationsCheckCell) {
+                togglePlugin(plugin, enabled -> ((NotificationsCheckCell) view).setChecked(enabled));
+            } else {
+                openPlugin(plugin);
             }
-            if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
-                GlassgramSettingsActivity.showForcedOff(this, "pluginsEngine");
-                return;
-            }
-            boolean value = !GlassgramConfig.pluginsEngine;
-            PluginsController.setEngineEnabled(value);
-            if (view instanceof TextCheckCell) {
-                ((TextCheckCell) view).setChecked(value);
-            }
-            listView.adapter.update(true);
+        } else if (item.id == ID_ENGINE) {
+            GlassgramPluginEngineActivity.toggleEngine(this);
+            refresh();
         } else if (item.id == ID_INSTALL) {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);
             try {
-                startActivityForResult(intent, REQUEST_PICK_PLUGIN);
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), REQUEST_PICK_PLUGIN);
             } catch (Exception e) {
                 BulletinFactory.of(this).createErrorBulletin(e.toString()).show();
-            }
-        } else if (item.id == ID_CATALOG) {
-            presentFragment(new GlassgramPluginCatalogActivity());
-        } else if (item.id == ID_BROWSE) {
-            org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/exteraPlugins");
-        } else if (item.id == ID_REPOSITORIES) {
-            presentFragment(new GlassgramRepositoriesActivity());
-        } else if (item.id == ID_DEVELOP) {
-            boolean enable = !PluginsController.devServer;
-            Runnable change = () -> PluginsController.setDevServer(enable, error -> {
-                if (getParentActivity() == null) return;
-                if (error != null) BulletinFactory.of(this).createErrorBulletin(error).show();
-                listView.adapter.update(true);
-            });
-            if (enable) {
-                showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.GlassgramDevServer))
-                    .setMessage(getString(R.string.GlassgramDevServerInfo)).setPositiveButton(getString(R.string.OK), (d, w) -> change.run())
-                    .setNegativeButton(getString(R.string.Cancel), null).create());
-            } else change.run();
-        } else if (item.id == ID_LOGS) {
-            showLogs();
-        } else if (item.id >= ID_PLUGIN && item.id - ID_PLUGIN < shownPlugins.size()) {
-            PluginInfo plugin = shownPlugins.get(item.id - ID_PLUGIN);
-            boolean onSwitch = LocaleController.isRTL ? x < dp(76) : x > view.getMeasuredWidth() - dp(76);
-            if (onSwitch) {
-                boolean value = !plugin.enabled;
-                if (view instanceof NotificationsCheckCell) {
-                    ((NotificationsCheckCell) view).setChecked(value);
-                }
-                PluginsController.setPluginEnabled(plugin.id, value, null);
-            } else {
-                presentFragment(new GlassgramPluginSettingsActivity(plugin.id));
             }
         }
     }
 
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
-        return false;
+        if (!(item.object instanceof PluginInfo)) {
+            return false;
+        }
+        PluginInfo plugin = (PluginInfo) item.object;
+        boolean pinned = displayPreferences(getContext()).getStringSet("pinned", Collections.emptySet()).contains(plugin.id);
+        ItemOptions.makeOptions(this, view)
+            .add(R.drawable.msg_shareout, getString(R.string.ShareFile), () -> sharePlugin(plugin))
+            .add(R.drawable.msg_openin, getString(R.string.GlassgramPluginSource), () -> openSource(plugin))
+            .add(pinned ? R.drawable.msg_unpin : R.drawable.msg_pin,
+                getString(pinned ? R.string.GlassgramPluginUnpin : R.string.GlassgramPluginPin), () -> togglePin(plugin))
+            .add(R.drawable.msg_delete, getString(R.string.GlassgramPluginDelete), true, () -> deletePlugin(plugin))
+            .show();
+        return true;
     }
 
-    private void showLogs() {
-        if (getParentActivity() == null) {
-            return;
-        }
-        String logs = PluginsController.getLogs();
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(getString(R.string.GlassgramPluginsLogs));
-        builder.setMessage(TextUtils.isEmpty(logs) ? getString(R.string.GlassgramPluginsLogsEmpty) : tail(logs));
-        if (!TextUtils.isEmpty(logs)) {
-            builder.setPositiveButton(getString(R.string.Copy), (d, w) -> {
-                AndroidUtilities.addToClipboard(logs);
-                BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
+    void openPlugin(PluginInfo plugin) {
+        presentFragment(new GlassgramPluginSettingsActivity(plugin.id));
+    }
+
+    void togglePlugin(PluginInfo plugin, Utilities.Callback<Boolean> display) {
+        PluginInfo current = PluginsController.getPlugin(plugin.id);
+        if (current != null && pendingToggles.add(plugin.id)) {
+            display.run(!current.enabled);
+            PluginsController.setPluginEnabled(plugin.id, !current.enabled, () -> {
+                pendingToggles.remove(plugin.id);
+                if (listView != null && !isFinished) listView.adapter.update(false);
             });
-            builder.setNeutralButton(getString(R.string.GlassgramPluginsLogsClear), (d, w) -> PluginsController.clearLogs());
         }
-        builder.setNegativeButton(getString(R.string.Close), null);
-        showDialog(builder.create());
     }
 
-    private static String tail(String text) {
-        final int max = 4000;
-        return text.length() > max ? "…" + text.substring(text.length() - max) : text;
+    void sharePlugin(PluginInfo plugin) {
+        GlassgramPluginInstaller.sharePlugin(this, plugin);
+    }
+
+    void openSource(PluginInfo plugin) {
+        GlassgramPluginInstaller.openSource(this, new File(plugin.path), plugin.name);
+    }
+
+    void togglePin(PluginInfo plugin) {
+        SharedPreferences prefs = displayPreferences(getContext());
+        Set<String> pinned = new HashSet<>(prefs.getStringSet("pinned", Collections.emptySet()));
+        if (!pinned.remove(plugin.id)) pinned.add(plugin.id);
+        prefs.edit().putStringSet("pinned", pinned).apply();
+        refresh();
+    }
+
+    void deletePlugin(PluginInfo plugin) {
+        GlassgramPluginSettingsActivity.confirmDelete(this, plugin, () -> {
+            if (PluginsController.getPlugin(plugin.id) == null && getContext() != null) {
+                SharedPreferences prefs = displayPreferences(getContext());
+                Set<String> pinned = new HashSet<>(prefs.getStringSet("pinned", Collections.emptySet()));
+                if (pinned.remove(plugin.id)) prefs.edit().putStringSet("pinned", pinned).apply();
+            }
+            refresh();
+        });
     }
 
     @Override

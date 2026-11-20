@@ -41,6 +41,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.plugins.PluginInfo;
 import org.telegram.messenger.plugins.PluginsController;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -446,7 +447,7 @@ public final class GlassgramPluginInstaller {
         }
     }
 
-    private static void openSource(BaseFragment fragment, File file, String name) {
+    static void openSource(BaseFragment fragment, File file, String name) {
         Utilities.globalQueue.postRunnable(() -> {
             // files/cache/ is shared by the app's FileProvider
             File dir = new File(ApplicationLoader.applicationContext.getFilesDir(), "cache/plugin_source");
@@ -497,29 +498,73 @@ public final class GlassgramPluginInstaller {
         return (safe.isEmpty() ? "plugin" : safe) + ".py";
     }
 
+    static boolean bindPluginIcon(BackupImageView imageView, int account, String icon, int size, Theme.ResourcesProvider resourcesProvider) {
+        imageView.clearImage();
+        imageView.setTag(null);
+        Drawable drawable = ContextCompat.getDrawable(imageView.getContext(), R.drawable.msg_bots).mutate();
+        drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider), PorterDuff.Mode.SRC_IN));
+        CombinedDrawable fallback = new CombinedDrawable(Theme.createCircleDrawable(dp(size),
+            Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), drawable);
+        fallback.setIconSize(dp(size / 2), dp(size / 2));
+        imageView.setImageDrawable(fallback);
+
+        final int slash = TextUtils.isEmpty(icon) ? -1 : icon.lastIndexOf('/');
+        if (slash > 0) {
+            try {
+                final int index = Integer.parseInt(icon.substring(slash + 1).trim());
+                if (index >= 0) {
+                    MediaDataController.getInstance(account).setPlaceholderImageByIndex(imageView, icon.substring(0, slash), index, "90_90");
+                    return true;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return false;
+    }
+
+    static void sharePlugin(BaseFragment fragment, PluginInfo plugin) {
+        Utilities.globalQueue.postRunnable(() -> {
+            try {
+                File source = new File(plugin.path);
+                File directory = new File(ApplicationLoader.applicationContext.getFilesDir(), "cache/plugin_share");
+                if (!directory.isDirectory() && !directory.mkdirs()) {
+                    throw new java.io.IOException("Unable to create share cache");
+                }
+                String suffix = isZip(source) ? ".elyx" : EXTENSION;
+                File copy = new File(directory, plugin.id + suffix);
+                if (!AndroidUtilities.copyFile(source, copy)) {
+                    throw new java.io.IOException("Unable to copy the plugin");
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    Activity activity = fragment.getParentActivity();
+                    if (activity == null || fragment.isFinished) {
+                        return;
+                    }
+                    try {
+                        android.net.Uri uri = FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", copy);
+                        Intent send = new Intent(Intent.ACTION_SEND).setType("application/octet-stream")
+                            .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        send.setClipData(android.content.ClipData.newRawUri(null, uri));
+                        activity.startActivity(Intent.createChooser(send, getString(R.string.ShareFile)));
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                        showError(fragment, getString(R.string.GlassgramPluginShareFailed));
+                    }
+                });
+            } catch (Exception e) {
+                FileLog.e(e);
+                AndroidUtilities.runOnUIThread(() -> showError(fragment, getString(R.string.GlassgramPluginShareFailed)));
+            }
+        });
+    }
+
     /** Icon, name, "Version · @author" and description of a plugin, centered like exteraGram's. */
     public static View createPluginHeader(Context context, int account, String name, String version, String author, String description, String icon, Theme.ResourcesProvider resourcesProvider) {
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
 
         BackupImageView imageView = new BackupImageView(context);
-        boolean hasSticker = false;
-        if (!TextUtils.isEmpty(icon) && icon.contains("/")) {
-            int slash = icon.lastIndexOf('/');
-            try {
-                int index = Integer.parseInt(icon.substring(slash + 1).trim());
-                MediaDataController.getInstance(account).setPlaceholderImageByIndex(imageView, icon.substring(0, slash), index, "90_90");
-                hasSticker = true;
-            } catch (NumberFormatException ignore) {
-            }
-        }
-        if (!hasSticker) {
-            Drawable drawable = ContextCompat.getDrawable(context, R.drawable.msg_bots).mutate();
-            drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider), PorterDuff.Mode.SRC_IN));
-            CombinedDrawable combined = new CombinedDrawable(Theme.createCircleDrawable(dp(80), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), drawable);
-            combined.setIconSize(dp(40), dp(40));
-            imageView.setImageDrawable(combined);
-        }
+        final boolean hasSticker = bindPluginIcon(imageView, account, icon, 80, resourcesProvider);
         layout.addView(imageView, LayoutHelper.createLinear(hasSticker ? 90 : 80, hasSticker ? 90 : 80, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12));
 
         TextView title = new TextView(context);

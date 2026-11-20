@@ -1,0 +1,11 @@
+<resources>
+    <string name="GlassgramPluginToggleName">Включить %1$s</string>
+    <string name="GlassgramPluginPin">Закрепить плагин</string>
+    <string name="GlassgramPluginUnpin">Открепить плагин</string>
+    <string name="GlassgramPluginShareFailed">Не удалось поделиться файлом плагина.</string>
+    <string name="GlassgramPluginsNoMatches">Плагины не найдены</string>
+    <string name="GlassgramPluginCompact">Компактный список плагинов</string>
+    <string name="GlassgramPluginDeveloper">Инструменты разработчика</string>
+    <string name="GlassgramPluginResources">Ресурсы</string>
+    <string name="GlassgramPluginDocs">Документация плагинов</string>
+</resources>
