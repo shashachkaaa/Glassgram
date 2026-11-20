@@ -6,7 +6,6 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.ui.Stars.StarsController.findAttribute;
 
 import android.animation.TimeInterpolator;
-import android.animation.ValueAnimator;
 import android.view.ViewConfiguration;
 import android.widget.FrameLayout;
 import android.os.SystemClock;
@@ -234,7 +233,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         public final RectF bounds = new RectF();
         public final ButtonBounce bounce = new ButtonBounce(ProfileGiftsView.this);
 
+        private Orbit orbit;
+
         public void copy(Gift b) {
+            orbit = b.orbit;
             gradient = b.gradient;
             emojiDrawable = b.emojiDrawable;
             gradientPaint = b.gradientPaint;
@@ -416,6 +418,52 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (changed) invalidate();
     }
 
+    // Coordinates and velocities are in ellipse radii and seconds, so the launch
+    // follows the avatar through layout changes and is independent of frame rate.
+    private static final class Orbit {
+        private static final double DRIFT = .17;
+        private static final double DRAG = .95;
+        private static final double CAPTURE = 8.0;
+        long epoch;
+        double phase, direction = 1, boost, offsetX, offsetY, driftX, driftY;
+        double x, y;
+
+        Orbit(int position, long now) {
+            final int[] slots = {3, 4, 2, 0, 5, 1};
+            phase = slots[Math.floorMod(position, slots.length)] * Math.PI / 3;
+            epoch = now;
+        }
+
+        void sample(long now) {
+            double time = Math.max(0, now - epoch) * .001;
+            double angle = phase + direction * (DRIFT * time + boost * -Math.expm1(-DRAG * time) / DRAG);
+            double decay = Math.exp(-CAPTURE * time);
+            x = Math.cos(angle) + (offsetX + driftX * time) * decay;
+            y = Math.sin(angle) + (offsetY + driftY * time) * decay;
+        }
+
+        void launch(long now, double startX, double startY, double pullX, double pullY) {
+            double pull = Math.hypot(pullX, pullY);
+            double gain = Math.min(9.0, 19.0 / Math.max(.001, pull));
+            double vx = -pullX * gain, vy = -pullY * gain;
+            phase = Math.atan2(startY + vy * .23, startX + vx * .23);
+            double torque = startX * vy - startY * vx;
+            if (Math.abs(torque) > .05) direction = Math.signum(torque);
+            boost = Math.min(11, pull * 6);
+            double cos = Math.cos(phase), sin = Math.sin(phase);
+            offsetX = startX - cos;
+            offsetY = startY - sin;
+            double omega = direction * (DRIFT + boost);
+            // Match the release position and the velocity opposite the pull at t=0.
+            driftX = vx + sin * omega + CAPTURE * offsetX;
+            driftY = vy - cos * omega + CAPTURE * offsetY;
+            epoch = now;
+        }
+    }
+
+    private float orbitCenterX, orbitCenterY, orbitRadiusX, orbitRadiusY;
+    private long heldAt;
+
     private final TimeInterpolator giftCollapseXInterpolator = new DecelerateInterpolator();
     private final TimeInterpolator giftCollapseYInterpolator = new LinearInterpolator();
 
@@ -447,6 +495,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         final float orbitX = Math.min(acx - dp(22), aw * 0.92f);
         final float orbitY = ah * 0.57f;
+        orbitCenterX = acx;
+        orbitCenterY = acy;
+        orbitRadiusX = Math.max(1f, orbitX);
+        orbitRadiusY = Math.max(1f, orbitY);
+        final long now = SystemClock.uptimeMillis();
         float closedAlpha = Utilities.clamp01((expandY - (AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight())) / dp(50));
 
         for (int i = 0; i < gifts.size(); ++i) {
@@ -455,41 +508,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float scale = lerp(0.5f, 1.0f, enter);
             final float alpha = enter * (1.0f - expandProgress) * (1.0f - actionBarProgress) * (closedAlpha);
 
-            float gx, gy;
-            float delayValue;
-
-            switch (gift.position) {
-                case 0: // left
-                    gx = acx - orbitX;
-                    gy = acy;
-                    delayValue = 1.6f;
-                    break;
-                case 1: // top left
-                    gx = acx - orbitX * .64f;
-                    gy = acy - orbitY;
-                    delayValue = 0;
-                    break;
-                case 2: // bottom left
-                    gx = acx - orbitX * .64f;
-                    gy = acy + orbitY;
-                    delayValue = 0.9f;
-                    break;
-                case 3: // right
-                    gx = acx + orbitX;
-                    gy = acy;
-                    delayValue = 1.6f;
-                    break;
-                case 4: // top right
-                    gx = acx + orbitX * .64f;
-                    gy = acy - orbitY;
-                    delayValue = 0.9f;
-                    break;
-                default: // bottom right
-                    gx = acx + orbitX * .64f;
-                    gy = acy + orbitY;
-                    delayValue = 0;
-                    break;
-            }
+            if (gift.orbit == null) gift.orbit = new Orbit(gift.position, now);
+            gift.orbit.sample(gift == movingGift && !released ? heldAt : now);
+            float gx = acx + orbitRadiusX * (float) gift.orbit.x;
+            float gy = acy + orbitRadiusY * (float) gift.orbit.y;
+            float delayValue = gift.position % 3 == 0 ? 1.6f : gift.position % 3 == 1 ? 0f : .9f;
 
             final float collapseProgressWithEnter;
             if (isOpening || enter >= 1f) {
@@ -515,6 +538,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
 
         canvas.restore();
+        if (active && closedAlpha > 0f && actionBarProgress < 1f && isShown()) postInvalidateOnAnimation();
     }
 
     public Gift getGiftUnder(float x, float y) {
@@ -551,15 +575,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             setY(sourceLocation[1] - hostLocation[1] + cy - half);
             long now = SystemClock.uptimeMillis();
             float elapsed = Math.max(1, now - lastFrame);
-            float dx = x - previousX, dy = y - previousY;
+            float dx = cx - previousX, dy = cy - previousY;
             float speed = (float) Math.hypot(dx, dy) / elapsed;
             if (speed > dpf2(.06f)) angle = (float) Math.toDegrees(Math.atan2(dy, dx));
             float blend = 1f - (float) Math.exp(-elapsed / 52f);
             stretch += (Math.min(.42f, speed / dpf2(3)) - stretch) * blend;
             lift += (sizeProgress - lift) * blend;
             lastFrame = now;
-            previousX = x;
-            previousY = y;
+            previousX = cx;
+            previousY = cy;
             invalidate();
         }
 
@@ -591,8 +615,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private final Runnable updateLens = new Runnable() {
         @Override public void run() {
-            if (!dragging || movingGift == null || returnAnimation != null) return;
-            dragLens.place(dragX, dragY, 1f);
+            if (!dragging || movingGift == null) return;
+            if (released) {
+                float age = (SystemClock.uptimeMillis() - movingGift.orbit.epoch) * .001f;
+                if (age >= .9f || expandProgress >= 1f || collapseProgress <= 0f) {
+                    resetDrag();
+                    return;
+                }
+                dragLens.place(0, 0, Math.max(0, 1f - age / .72f));
+            } else {
+                dragLens.place(dragX, dragY, 1f);
+            }
             postOnAnimation(this);
         }
     };
@@ -600,15 +633,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private Gift movingGift;
     private float downX, downY, dragX, dragY;
     private boolean dragging;
-    private ValueAnimator returnAnimation;
+    private boolean released;
 
     private void resetDrag() {
-        if (returnAnimation != null) {
-            returnAnimation.removeAllListeners();
-            returnAnimation.removeAllUpdateListeners();
-            returnAnimation.cancel();
+        if (movingGift != null && !released && movingGift.orbit != null) {
+            movingGift.orbit.epoch += SystemClock.uptimeMillis() - heldAt;
         }
-        returnAnimation = null;
+        released = false;
         removeCallbacks(updateLens);
         if (dragLens != null) {
             dragHost.removeView(dragLens);
@@ -634,12 +665,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (hit == null) return false;
             resetDrag();
             movingGift = hit;
+            heldAt = SystemClock.uptimeMillis();
             downX = x;
             downY = y;
             movingGift.bounce.setPressed(true);
             getParent().requestDisallowInterceptTouchEvent(true);
         }
-        if (movingGift == null || returnAnimation != null) return false;
+        if (movingGift == null || released) return false;
         movingGift.press.onTouch(action, x - movingGift.bounds.left, y - movingGift.bounds.top);
         if (action == MotionEvent.ACTION_MOVE) {
             float dx = x - downX, dy = y - downY;
@@ -649,6 +681,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 dragLens = new DragLens();
                 dragHost.addView(dragLens, new FrameLayout.LayoutParams(dp(160), dp(160),
                         android.view.Gravity.TOP | android.view.Gravity.LEFT));
+                dragLens.previousX = movingGift.bounds.centerX();
+                dragLens.previousY = movingGift.bounds.centerY();
                 dragLens.lastFrame = SystemClock.uptimeMillis();
                 postOnAnimation(updateLens);
             }
@@ -665,25 +699,18 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (!dragging) {
                 resetDrag();
                 if (action == MotionEvent.ACTION_UP) onGiftClick(gift);
+            } else if (action == MotionEvent.ACTION_CANCEL) {
+                resetDrag();
             } else {
-                final float dx = dragX, dy = dragY;
-                returnAnimation = ValueAnimator.ofFloat(1f, 0f);
-                returnAnimation.setDuration(420);
-                returnAnimation.setInterpolator(new android.view.animation.OvershootInterpolator(.75f));
-                returnAnimation.addUpdateListener(a -> {
-                    float fraction = (float) a.getAnimatedValue();
-                    dragX = dx * fraction;
-                    dragY = dy * fraction;
-                    dragLens.place(dragX, dragY, Math.max(0f, fraction));
-                    invalidate();
-                });
-                returnAnimation.addListener(new android.animation.AnimatorListenerAdapter() {
-                    @Override public void onAnimationEnd(android.animation.Animator animation) {
-                        returnAnimation = null;
-                        resetDrag();
-                    }
-                });
-                returnAnimation.start();
+                dragX = x - downX;
+                dragY = y - downY;
+                double startX = (gift.bounds.centerX() + dragX - orbitCenterX) / orbitRadiusX;
+                double startY = (gift.bounds.centerY() + dragY - orbitCenterY) / orbitRadiusY;
+                gift.orbit.launch(SystemClock.uptimeMillis(), startX, startY,
+                        dragX / orbitRadiusX, dragY / orbitRadiusY);
+                gift.bounds.offset(dragX, dragY);
+                released = true;
+                invalidate();
             }
         }
         return true;
