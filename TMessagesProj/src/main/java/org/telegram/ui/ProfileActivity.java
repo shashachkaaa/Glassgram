@@ -2181,6 +2181,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().addWeakObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingDidStart);
+            getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+            getNotificationCenter().addWeakObserver(this, NotificationCenter.messagePlayingDidReset);
             getNotificationCenter().addWeakObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.reloadInterface);
 
@@ -2454,6 +2457,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().removeObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidStart);
+            getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+            getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidReset);
             getNotificationCenter().removeObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.reloadInterface);
             getMessagesController().cancelLoadFullUser(userId);
@@ -3891,6 +3897,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 //        sharedMediaLayout.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         if (userId == 0 || imageUpdater == null || myProfile) {
             musicView = new ProfileMusicView(context, resourcesProvider);
+            updateProfileMusicPlayback();
             balanceView = new ProfileBalanceView(context, resourcesProvider);
             musicView.setTrailingView(balanceView);
             if (buttonsGlass != null) {
@@ -9441,9 +9448,21 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     @SuppressWarnings("unchecked")
+    private void updateProfileMusicPlayback() {
+        if (musicView == null) return;
+        final MediaController player = MediaController.getInstance();
+        final MessagesController.SavedMusicList list = player.currentSavedMusicList;
+        final MessageObject track = player.getPlayingMessageObject();
+        musicView.setPlaying(list != null && list.currentAccount == currentAccount && list.dialogId == getDialogId()
+                && track != null && !player.isMessagePaused() && list.list.contains(track));
+    }
+
     @Override
     public void didReceivedNotification(int id, int account, final Object... args) {
-        if (id == NotificationCenter.uploadStoryEnd || id == NotificationCenter.chatWasBoostedByUser) {
+        if (id == NotificationCenter.messagePlayingDidStart || id == NotificationCenter.messagePlayingPlayStateChanged
+                || id == NotificationCenter.messagePlayingDidReset) {
+            updateProfileMusicPlayback();
+        } else if (id == NotificationCenter.uploadStoryEnd || id == NotificationCenter.chatWasBoostedByUser) {
             checkCanSendStoryForPosting();
         } else if (id == NotificationCenter.updateInterfaces) {
             int mask = (Integer) args[0];
