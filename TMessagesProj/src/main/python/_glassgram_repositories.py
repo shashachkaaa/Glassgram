@@ -76,10 +76,10 @@ def entries(url, refresh=False):
         if not all(isinstance(v, str) and v for v in (plugin_id, name, version)) or plugin_id in seen:
             raise ValueError("Invalid repository entry")
         seen.add(plugin_id)
-        url = urljoin(base, row["file"])
+        file_url = urljoin(base, row["file"])
         if not re.fullmatch("[0-9a-f]{64}", row["sha256"]) or not 0 < row["size"] <= 10 * 1024**2:
             continue
-        result.append(dict(id=plugin_id, name=name, version=version, file=url, size=row["size"], sha256=row["sha256"]))
+        result.append(dict(id=plugin_id, name=name, version=version, file=file_url, size=row["size"], sha256=row["sha256"]))
     result = json.dumps(result)
     headers = {key: response[value] for key, value in (("If-None-Match", "ETag"),
                ("If-Modified-Since", "Last-Modified")) if value in response}
