@@ -161,6 +161,20 @@ public final class PluginsController {
     }
 
     /** Unloads every plugin; Python itself stays loaded for the rest of the process. */
+    public static volatile boolean devServer;
+
+    public static void setDevServer(boolean enabled, org.telegram.messenger.Utilities.Callback<String> callback) {
+        pluginsQueue.postRunnable(() -> {
+            try {
+                if (!started) throw new IllegalStateException("Plugin engine stopped");
+                devServer = Python.getInstance().getModule("_glassgram_dev").callAttr("configure", enabled).toBoolean();
+                AndroidUtilities.runOnUIThread(() -> callback.run(null));
+            } catch (Exception e) {
+                AndroidUtilities.runOnUIThread(() -> callback.run(e.toString()));
+            }
+        });
+    }
+
     public static void stop() {
         if (!started) {
             return;
@@ -173,7 +187,12 @@ public final class PluginsController {
         pluginsQueue.postRunnable(() -> {
             try {
                 if (module != null) {
-                    module.callAttr("stop");
+                    try {
+                        if (devServer) Python.getInstance().getModule("_glassgram_dev").callAttr("configure", false);
+                    } finally {
+                        devServer = false;
+                        module.callAttr("stop");
+                    }
                 }
             } catch (Throwable e) {
                 FileLog.e(e);

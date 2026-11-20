@@ -34,6 +34,8 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     private static final int ID_BROWSE = 3;
     private static final int ID_LOGS = 4;
     private static final int ID_CATALOG = 5;
+    private static final int ID_REPOSITORIES = 6;
+    private static final int ID_DEVELOP = 7;
     private static final int ID_PLUGIN = 1000;
 
     private static final int REQUEST_PICK_PLUGIN = 9101;
@@ -109,6 +111,11 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
             items.add(UItem.asButton(ID_INSTALL, R.drawable.msg_add, getString(R.string.GlassgramPluginsInstallFile)));
             items.add(UItem.asShadow(plugins.isEmpty() ? getString(R.string.GlassgramPluginsEmpty) : null));
             items.add(UItem.asButton(ID_BROWSE, R.drawable.msg_channel, getString(R.string.GlassgramPluginsBrowse), "@exteraPlugins"));
+            items.add(UItem.asButton(ID_REPOSITORIES, R.drawable.msg_download, getString(R.string.GlassgramRepositories)));
+            items.add(UItem.asCheck(ID_DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.devServer));
+            if (PluginsController.devServer) {
+                items.add(UItem.asShadow("adb forward tcp:42690 localabstract:" + getParentActivity().getPackageName() + ".plugins"));
+            }
             items.add(UItem.asButton(ID_LOGS, R.drawable.msg_log, getString(R.string.GlassgramPluginsLogs)));
             items.add(UItem.asShadow(null));
         }
@@ -152,6 +159,20 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
             presentFragment(new GlassgramPluginCatalogActivity());
         } else if (item.id == ID_BROWSE) {
             org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/exteraPlugins");
+        } else if (item.id == ID_REPOSITORIES) {
+            presentFragment(new GlassgramRepositoriesActivity());
+        } else if (item.id == ID_DEVELOP) {
+            boolean enable = !PluginsController.devServer;
+            Runnable change = () -> PluginsController.setDevServer(enable, error -> {
+                if (getParentActivity() == null) return;
+                if (error != null) BulletinFactory.of(this).createErrorBulletin(error).show();
+                listView.adapter.update(true);
+            });
+            if (enable) {
+                showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(getString(R.string.GlassgramDevServer))
+                    .setMessage(getString(R.string.GlassgramDevServerInfo)).setPositiveButton(getString(R.string.OK), (d, w) -> change.run())
+                    .setNegativeButton(getString(R.string.Cancel), null).create());
+            } else change.run();
         } else if (item.id == ID_LOGS) {
             showLogs();
         } else if (item.id >= ID_PLUGIN && item.id - ID_PLUGIN < shownPlugins.size()) {

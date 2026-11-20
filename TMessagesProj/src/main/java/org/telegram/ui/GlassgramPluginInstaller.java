@@ -93,7 +93,9 @@ public final class GlassgramPluginInstaller {
         if (file == null) {
             return false;
         }
-        if (name.toLowerCase().endsWith(EXTENSION)) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(EXTENSION) || lower.endsWith(".elyx") || lower.endsWith(".eaf")
+                || lower.endsWith(".elyx.zip") || lower.endsWith(".eaf.zip")) {
             showInstallDialog(fragment, file);
             return true;
         }
@@ -103,7 +105,13 @@ public final class GlassgramPluginInstaller {
     /** Copies a picked file to the cache and asks to install it. */
     public static void installFromUri(BaseFragment fragment, Uri uri) {
         PluginsController.pluginsQueue.postRunnable(() -> {
-            File copy = new File(ApplicationLoader.applicationContext.getCacheDir(), "plugin_import" + EXTENSION);
+            final File copy;
+            try {
+                copy = File.createTempFile("plugin_import_", EXTENSION, ApplicationLoader.applicationContext.getCacheDir());
+            } catch (java.io.IOException e) {
+                AndroidUtilities.runOnUIThread(() -> showError(fragment, e.toString()));
+                return;
+            }
             try (InputStream in = ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri);
                  OutputStream out = new FileOutputStream(copy)) {
                 if (in == null) {
@@ -111,10 +119,14 @@ public final class GlassgramPluginInstaller {
                 }
                 byte[] buffer = new byte[8192];
                 int read;
+                int total = 0;
                 while ((read = in.read(buffer)) > 0) {
+                    total += read;
+                    if (total > 10 * 1024 * 1024) throw new java.io.IOException("Plugin exceeds 10 MiB");
                     out.write(buffer, 0, read);
                 }
             } catch (Exception e) {
+                copy.delete();
                 FileLog.e(e);
                 AndroidUtilities.runOnUIThread(() -> showError(fragment, getString(R.string.GlassgramPluginBadFile)));
                 return;

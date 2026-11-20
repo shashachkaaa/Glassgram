@@ -286,6 +286,7 @@ chaquopy {
         version = "3.11"
         pip {
             install "requests==2.32.3"
+            install "debugpy==1.8.17"
             install "beautifulsoup4==4.12.3"
             install "packaging==24.2"
             install "pyyaml==6.0.3"

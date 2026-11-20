@@ -3,6 +3,7 @@
 Called from org.telegram.messenger.plugins.PluginsController.
 """
 
+import ast
 import importlib.util
 import json
 import os
@@ -10,7 +11,11 @@ import re
 import shutil
 import sys
 import threading
+import tempfile
 import traceback
+import zipfile
+
+import _glassgram_elyx
 import types
 
 from java import jarray, jclass
@@ -21,7 +26,7 @@ from extera_utils.metadata_parser import get_metadata, get_metadata_from_source
 
 _PluginsController = jclass("org.telegram.messenger.plugins.PluginsController")
 
-PLUGIN_EXTENSIONS = (".plugin", ".py")
+PLUGIN_EXTENSIONS = (".plugin", ".py", ".elyx")
 # Installed plugins are kept as {id}.py, as exteraGram keeps them: plugins made for it read each
 # other there (zwylib looks there for the plugins using it), and import each other by id
 PLUGIN_FILE_EXTENSION = ".py"
@@ -39,6 +44,7 @@ class _Record:
         self.id = plugin_id
         self.path = path
         self.meta = meta
+        self.environment = None
         self.module = None
         self.instance = None
         self.error = None
@@ -207,7 +213,7 @@ def _normalize_meta(raw: dict, fallback_id: str) -> dict:
         app_version = ">=" + str(raw.get("__min_version__"))
     requirements = raw.get("__requirements__") or []
     if isinstance(requirements, str):
-        requirements = [requirements]
+        requirements = [s.strip() for s in re.split(r",\s*(?=[A-Za-z0-9])", requirements) if s.strip()]
     return {
         "id": plugin_id,
         "name": str(name),
@@ -222,6 +228,9 @@ def _normalize_meta(raw: dict, fallback_id: str) -> dict:
 
 
 def _read_meta(path: str) -> dict:
+    if zipfile.is_zipfile(path):
+        raw = _glassgram_elyx.Archive(path).meta
+        return _normalize_meta({"__" + k + "__": v for k, v in raw.items()}, "")
     fallback = os.path.splitext(os.path.basename(path))[0]
     return _normalize_meta(get_metadata(path), fallback)
 
@@ -230,9 +239,19 @@ def read_metadata(path: str):
     """[id, name, version, author, description, icon, installed, findings, analysis] of a plugin file,
     for the install dialog; findings are what _glassgram_scan saw in its code, one a line, and the
     analysis what the plugin can do (_glassgram_analysis, JSON)."""
-    with open(path, "r", encoding="utf-8-sig") as f:
-        source = f.read()
-    meta = _normalize_meta(get_metadata_from_source(source), "")
+    bytecode = False
+    if zipfile.is_zipfile(path):
+        archive = _glassgram_elyx.Archive(path)
+        bytecode = archive.has_bytecode
+        sources = archive.sources()
+        for part in sources:
+            ast.parse(part)
+        source = "\n".join(sources)
+        meta = _normalize_meta({"__" + k + "__": v for k, v in archive.meta.items()}, "")
+    else:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            source = f.read()
+        meta = _normalize_meta(get_metadata_from_source(source), "")
     try:
         import _glassgram_scan
 
@@ -247,6 +266,9 @@ def read_metadata(path: str):
         analysis = _glassgram_analysis.analyze_source(source)
     except Exception:
         traceback.print_exc()
+        analysis = ""
+    if bytecode:
+        findings = (findings + "\ndanger|bytecode|").lstrip("\n")
         analysis = ""
     return jarray(JObject)([meta["id"], meta["name"], meta["version"], meta["author"], meta["description"],
                            meta["icon"], "1" if meta["id"] in _records else "0", findings, analysis])
@@ -313,25 +335,36 @@ def _load(record: _Record) -> bool:
             import _glassgram_pip
 
             _glassgram_pip.install(record.meta["requirements"], _libs_dir)
-        with open(record.path, "r", encoding="utf-8-sig") as f:
-            source = f.read()
-        module_name = "plugins." + record.id.replace("-", "_")
-        module = types.ModuleType(module_name)
-        module.__file__ = record.path
-        module.__dict__["__glassgram_plugin_id__"] = record.id
-        sys.modules[module_name] = module
-        # others import it by its id (import zwylib), this very module and not a copy of its file
-        if _may_take_name(record.id):
-            sys.modules[record.id] = module
-        # Plugins set __name__ to their display name, which becomes the module of their classes
-        display_name = record.meta["name"]
-        registered_display = display_name not in sys.modules
-        if registered_display:
-            sys.modules[display_name] = module
-        code = compile(source, record.path, "exec")
-        exec(code, module.__dict__)
-        if registered_display:
-            sys.modules.pop(display_name, None)
+        if zipfile.is_zipfile(record.path):
+            archive = _glassgram_elyx.Archive(record.path)
+            for spec in archive.meta.get("requires", {}):
+                dep = re.fullmatch(r"([A-Za-z][A-Za-z0-9_-]+)(?:\s*\(([^)]+)\))?", spec)
+                installed = _records.get(dep[1]) if dep else None
+                if not installed or not installed.enabled or not _check_version(dep[2], installed.meta["version"]):
+                    raise RuntimeError("Required plugin missing, disabled or outdated: " + spec)
+            record.environment = _glassgram_elyx.Environment(archive, record.id, _plugins_dir)
+            module = record.environment.load()
+        else:
+            with open(record.path, "r", encoding="utf-8-sig") as f:
+                source = f.read()
+            module_name = "plugins." + record.id.replace("-", "_")
+            module = types.ModuleType(module_name)
+            module.__file__ = record.path
+            module.__dict__["__glassgram_plugin_id__"] = record.id
+            sys.modules[module_name] = module
+            # others import it by its id (import zwylib), this very module and not a copy of its file
+            if _may_take_name(record.id):
+                sys.modules[record.id] = module
+            # Plugins set __name__ to their display name, which becomes the module of their classes
+            display_name = record.meta["name"]
+            registered_display = display_name not in sys.modules
+            if registered_display:
+                sys.modules[display_name] = module
+            try:
+                exec(compile(source, record.path, "exec"), module.__dict__)
+            finally:
+                if registered_display:
+                    sys.modules.pop(display_name, None)
         record.module = module
         plugin_class = _find_plugin_class(module)
         if plugin_class is None:
@@ -356,6 +389,9 @@ def _load(record: _Record) -> bool:
         instance.initialized = True
         _compat_engine_call("onPluginLoaded", record.id, instance)
     except Exception:
+        if record.environment:
+            record.environment.close()
+            record.environment = None
         record.error = traceback.format_exc()
         _log(record.id, "Failed to load:\n" + record.error)
         _compat_engine_call("unloadPlugin", record.id)
@@ -438,6 +474,9 @@ def _unload(record: _Record):
         _base()._cleanup(instance)
     except Exception:
         _log(record.id, traceback.format_exc())
+    if record.environment:
+        record.environment.close()
+        record.environment = None
     instance.enabled = False
     record.instance = None
     _release_name(record.id, record.module)
@@ -489,13 +528,22 @@ def install(path: str, enable: bool = True):
         meta = _read_meta(path)
         plugin_id = meta["id"]
         old = _records.get(plugin_id)
+        extension = ".elyx" if zipfile.is_zipfile(path) else PLUGIN_FILE_EXTENSION
+        target = os.path.join(_plugins_dir, plugin_id + extension)
+        if os.path.abspath(path) != os.path.abspath(target):
+            with tempfile.NamedTemporaryFile(dir=_plugins_dir, delete=False) as tmp:
+                try:
+                    with open(path, "rb") as src:
+                        shutil.copyfileobj(src, tmp)
+                    tmp.close()
+                    os.replace(tmp.name, target)
+                finally:
+                    if os.path.exists(tmp.name):
+                        os.unlink(tmp.name)
         if old is not None:
             _unload(old)
-            if old.path != path and os.path.exists(old.path):
+            if old.path != target and os.path.exists(old.path):
                 os.remove(old.path)
-        target = os.path.join(_plugins_dir, plugin_id + PLUGIN_FILE_EXTENSION)
-        if os.path.abspath(path) != os.path.abspath(target):
-            shutil.copyfile(path, target)
         record = _Record(plugin_id, target, meta)
         _records[plugin_id] = record
         if enable:
