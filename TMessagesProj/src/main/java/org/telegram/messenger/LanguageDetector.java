@@ -1,5 +1,9 @@
 package org.telegram.messenger;
 
+import com.google.android.gms.tasks.Task;
+import com.google.mlkit.nl.languageid.LanguageIdentification;
+import com.google.mlkit.nl.languageid.LanguageIdentifier;
+
 public class LanguageDetector {
     public interface StringCallback {
         void run(String str);
@@ -21,9 +25,16 @@ public class LanguageDetector {
             if (initializeFirst) {
                 com.google.mlkit.common.sdkinternal.MlKitContext.zza(ApplicationLoader.applicationContext);
             }
-            com.google.mlkit.nl.languageid.LanguageIdentification.getClient()
-                .identifyLanguage(text)
-                .addOnSuccessListener(str -> {
+            final LanguageIdentifier client = LanguageIdentification.getClient();
+            final Task<String> task;
+            try {
+                task = client.identifyLanguage(text);
+            } catch (RuntimeException | Error e) {
+                client.close();
+                throw e;
+            }
+            task.addOnCompleteListener(Runnable::run, ignored -> client.close());
+            task.addOnSuccessListener(str -> {
                     if (onSuccess != null) {
                         onSuccess.run(str);
                     }
