@@ -791,7 +791,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(100, 0xFF3CC0FF, 0xFF1A8AD8, R.drawable.msg_send, getString(R.string.GlassgramPreferences)));
+        items.add(SettingCell.Factory.of(100, 0, 0, R.mipmap.ic_launcher, getString(R.string.GlassgramPreferences)));
         items.add(UItem.asShadow(null));
         final boolean walletAbove = getConnectionsManager().getCurrentTime() - 1791538462 < 4 * 7 * 24 * 60 * 60;
         if (walletAbove && getMessagesController().config.walletAvailable.get()) {
