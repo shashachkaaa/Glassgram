@@ -112,24 +112,24 @@ public final class GlassgramCrashReporter {
             countOpen(open, activity.getLayersActionBarLayout());
         }
         final TreeMap<String, Integer> alive = new TreeMap<>();
+        final TreeMap<String, Integer> destroyed = new TreeMap<>();
         synchronized (screens) {
             for (int i = 0; i < screens.size(); i++) {
                 final BaseFragment screen = screens.get(i).get();
                 if (screen != null) {
                     count(alive, screen);
+                    if (screen.isFinished) {
+                        count(destroyed, screen);
+                    }
                 }
             }
         }
         report.append("\nScreens open: ").append(open.isEmpty() ? "-" : open.toString());
         report.append("\nScreens in memory: ").append(alive.isEmpty() ? "-" : alive.toString());
         boolean kept = false;
-        for (Map.Entry<String, Integer> entry : alive.entrySet()) {
-            final Integer opened = open.get(entry.getKey());
-            final int extra = entry.getValue() - (opened == null ? 0 : opened);
-            if (extra > 1) {
-                report.append(kept ? ", " : "\nKept after closing: ").append(entry.getKey()).append(" x").append(extra);
-                kept = true;
-            }
+        for (Map.Entry<String, Integer> entry : destroyed.entrySet()) {
+            report.append(kept ? ", " : "\nKept after closing: ").append(entry.getKey()).append(" x").append(entry.getValue());
+            kept = true;
         }
         return report.append('\n').toString();
     }
@@ -148,7 +148,10 @@ public final class GlassgramCrashReporter {
     }
 
     private static void count(TreeMap<String, Integer> counts, BaseFragment screen) {
-        final String name = screen.getClass().getSimpleName();
+        String name = screen.getClass().getSimpleName();
+        if (name.isEmpty()) {
+            name = screen.getClass().getName();
+        }
         final Integer count = counts.get(name);
         counts.put(name, count == null ? 1 : count + 1);
     }
