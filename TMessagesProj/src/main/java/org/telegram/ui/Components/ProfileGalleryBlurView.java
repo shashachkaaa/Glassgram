@@ -50,6 +50,8 @@ public class ProfileGalleryBlurView extends View {
 
     private final Runnable blurTask = this::doBlur;
     private final Runnable invalidateTask = this::updateContent;
+    private long contentGeneration;
+    private Runnable onContentChanged;
 
     private int currentPosition = -1;
     private int offset;
@@ -199,9 +201,26 @@ public class ProfileGalleryBlurView extends View {
         }
     }
 
+    public long getContentGeneration() {
+        return contentGeneration;
+    }
+
+    public void setOnContentChanged(Runnable listener) {
+        onContentChanged = listener;
+    }
+
     private void updateContent() {
         needNewFrame = true;
-        postInvalidateOnAnimation();
+        contentGeneration++;
+        if (usingRenderNode) {
+            // The gallery is already invalidated by its frame callback. Record the mirror in that traversal too.
+            invalidate();
+        } else {
+            postInvalidateOnAnimation();
+        }
+        if (onContentChanged != null) {
+            onContentChanged.run();
+        }
     }
 
     public void notifyUpdateSize() {
@@ -226,6 +245,7 @@ public class ProfileGalleryBlurView extends View {
     }
 
     public void destroy() {
+        onContentChanged = null;
         if (view != null) {
             view.removeOnPageChangeListener(listener);
             view = null;

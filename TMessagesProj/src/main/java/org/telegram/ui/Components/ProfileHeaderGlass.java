@@ -31,7 +31,7 @@ import org.telegram.ui.ActionBar.Theme;
  * <p>
  * What is under the view is recorded once per draw for all its pieces: the header, a sibling of
  * the view's parent, then the view's own siblings drawn before it. The view is redrawn when only
- * that changed (the gallery swiped, the header animating), at most every {@link #REFRESH_MS}.
+ * that changed. Gallery frames refresh with the photo; other backdrop changes are throttled.
  */
 public class ProfileHeaderGlass {
 
@@ -50,6 +50,7 @@ public class ProfileHeaderGlass {
     private Object backdropNode;
     private boolean active, refreshPosted;
     private long recordedAt;
+    private long recordedPhotoGeneration;
     private final float[] headerState = new float[8];
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -59,7 +60,13 @@ public class ProfileHeaderGlass {
     private final ViewTreeObserver.OnPreDrawListener watcher = new ViewTreeObserver.OnPreDrawListener() {
         @Override
         public boolean onPreDraw() {
-            if (active && !refreshPosted && isStale()) {
+            if (!active || !view.isShown()) {
+                return true;
+            }
+            if (photoGeneration() != recordedPhotoGeneration) {
+                // The live avatar already requested this frame. Refresh the glass in the same traversal.
+                view.invalidate();
+            } else if (!refreshPosted && isStale()) {
                 final long wait = REFRESH_MS - (SystemClock.uptimeMillis() - recordedAt);
                 if (wait <= 0) {
                     view.invalidate();
@@ -105,6 +112,7 @@ public class ProfileHeaderGlass {
             tree.removeOnPreDrawListener(watcher);
         }
         tree = null;
+        refreshPosted = false;
         if (watch) {
             tree = view.getViewTreeObserver();
             tree.addOnPreDrawListener(watcher);
@@ -148,6 +156,7 @@ public class ProfileHeaderGlass {
         } finally {
             recordingDepth--;
             node.endRecording();
+            recordedPhotoGeneration = photoGeneration();
         }
     }
 
@@ -196,6 +205,14 @@ public class ProfileHeaderGlass {
         }
         ((ProfileGalleryBlurView) p).drawSharpMirror(canvas);
         canvas.restoreToCount(restore);
+    }
+
+    private long photoGeneration() {
+        final View p = photo;
+        if (p instanceof ProfileGalleryBlurView && p.getVisibility() == View.VISIBLE && p.getAlpha() > 0f) {
+            return ((ProfileGalleryBlurView) p).getContentGeneration();
+        }
+        return -1;
     }
 
     private boolean isStale() {

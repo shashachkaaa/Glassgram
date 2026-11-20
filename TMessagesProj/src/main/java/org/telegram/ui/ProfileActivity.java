@@ -5553,6 +5553,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 checkPhotoDescriptionAlpha();
             }
         };
+        avatarsBlurView.setOnContentChanged(() -> {
+            if (avatarsBlurView.isShown() && avatarsBlurView.getAlpha() > 0f) {
+                glassEngine.invalidate();
+                if (simpleActionBar != null && simpleActionBar.isShown()) {
+                    simpleActionBar.invalidate();
+                }
+            }
+        });
         if (userId != getUserConfig().clientUserId && userInfo != null) {
             customAvatarProgress = userInfo.profile_photo == null ? 0 : 1;
         }
