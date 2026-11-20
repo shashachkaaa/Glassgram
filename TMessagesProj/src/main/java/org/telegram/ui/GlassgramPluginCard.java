@@ -31,6 +31,7 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
     private final Theme.ResourcesProvider colors;
     private final LinearLayout card;
     private final BackupImageView icon;
+    private final LinearLayout labels;
     private final TextView title, version, author, description, error;
     private final View divider;
     private final Switch toggle;
@@ -53,9 +54,9 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
         card.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         icon = new BackupImageView(context);
         header.addView(icon, LayoutHelper.createLinear(44, 44));
-        LinearLayout labels = new LinearLayout(context);
+        labels = new LinearLayout(context);
         labels.setOrientation(LinearLayout.VERTICAL);
-        labels.setPaddingRelative(dp(12), 0, dp(8), 0);
+        labels.setPaddingRelative(0, 0, dp(8), 0);
         header.addView(labels, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
         title = text(17);
         title.setTypeface(AndroidUtilities.bold());
@@ -136,7 +137,9 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
 
     private void bind(GlassgramPluginsActivity screen, PluginInfo plugin, boolean pinned) {
         if (this.plugin == null || !this.plugin.id.equals(plugin.id) || !this.plugin.icon.equals(plugin.icon)) {
-            GlassgramPluginInstaller.bindPluginIcon(icon, account, plugin.icon, 44, colors);
+            labels.setPaddingRelative(0, 0, dp(8), 0);
+            GlassgramPluginInstaller.bindPluginIcon(icon, account, plugin.icon,
+                () -> labels.setPaddingRelative(dp(12), 0, dp(8), 0));
         }
         this.plugin = plugin;
         this.pinned = pinned;

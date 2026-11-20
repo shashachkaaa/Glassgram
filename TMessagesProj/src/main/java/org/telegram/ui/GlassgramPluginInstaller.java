@@ -28,7 +28,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -52,7 +51,6 @@ import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CheckBox2;
-import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 
@@ -498,28 +496,27 @@ public final class GlassgramPluginInstaller {
         return (safe.isEmpty() ? "plugin" : safe) + ".py";
     }
 
-    static boolean bindPluginIcon(BackupImageView imageView, int account, String icon, int size, Theme.ResourcesProvider resourcesProvider) {
-        imageView.clearImage();
+    static void bindPluginIcon(BackupImageView imageView, int account, String icon, Runnable onStickerSet) {
         imageView.setTag(null);
-        Drawable drawable = ContextCompat.getDrawable(imageView.getContext(), R.drawable.msg_bots).mutate();
-        drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider), PorterDuff.Mode.SRC_IN));
-        CombinedDrawable fallback = new CombinedDrawable(Theme.createCircleDrawable(dp(size),
-            Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), drawable);
-        fallback.setIconSize(dp(size / 2), dp(size / 2));
-        imageView.setImageDrawable(fallback);
-
+        imageView.clearImage();
+        imageView.setVisibility(View.GONE);
         final int slash = TextUtils.isEmpty(icon) ? -1 : icon.lastIndexOf('/');
-        if (slash > 0) {
-            try {
-                final int index = Integer.parseInt(icon.substring(slash + 1).trim());
-                if (index >= 0) {
-                    MediaDataController.getInstance(account).setPlaceholderImageByIndex(imageView, icon.substring(0, slash), index, "90_90");
-                    return true;
-                }
-            } catch (NumberFormatException ignored) {
-            }
+        if (slash <= 0) {
+            return;
         }
-        return false;
+        try {
+            final int index = Integer.parseInt(icon.substring(slash + 1).trim());
+            if (index >= 0) {
+                MediaDataController.getInstance(account).setPlaceholderImageByIndex(
+                    imageView, icon.substring(0, slash), index, "90_90", () -> {
+                        imageView.setVisibility(View.VISIBLE);
+                        if (onStickerSet != null) {
+                            onStickerSet.run();
+                        }
+                    });
+            }
+        } catch (NumberFormatException ignored) {
+        }
     }
 
     static void sharePlugin(BaseFragment fragment, PluginInfo plugin) {
@@ -564,8 +561,8 @@ public final class GlassgramPluginInstaller {
         layout.setOrientation(LinearLayout.VERTICAL);
 
         BackupImageView imageView = new BackupImageView(context);
-        final boolean hasSticker = bindPluginIcon(imageView, account, icon, 80, resourcesProvider);
-        layout.addView(imageView, LayoutHelper.createLinear(hasSticker ? 90 : 80, hasSticker ? 90 : 80, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12));
+        layout.addView(imageView, LayoutHelper.createLinear(90, 90, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12));
+        bindPluginIcon(imageView, account, icon, null);
 
         TextView title = new TextView(context);
         title.setText(name);

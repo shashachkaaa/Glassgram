@@ -1273,6 +1273,10 @@ public class MediaDataController extends BaseController {
 
     /** Sets the sticker at index in the set; plugins use it for their icons ("SetName/index"). */
     public void setPlaceholderImageByIndex(BackupImageView imageView, String setName, int index, String filter) {
+        setPlaceholderImageByIndex(imageView, setName, index, filter, null);
+    }
+
+    public void setPlaceholderImageByIndex(BackupImageView imageView, String setName, int index, String filter, Runnable onStickerSet) {
         final Object request = new Object();
         imageView.setTag(request);
         final TLRPC.InputStickerSet inputStickerSet = new TLRPC.TL_inputStickerSetShortName();
@@ -1283,6 +1287,9 @@ public class MediaDataController extends BaseController {
             Drawable thumbDrawable = DocumentObject.getSvgThumb(document, Theme.key_windowBackgroundWhiteGrayIcon, 0.2f, 1f, null);
             imageView.setImage(ImageLocation.getForDocument(document), filter, thumbDrawable, 0, document);
             imageView.invalidate();
+            if (onStickerSet != null) {
+                onStickerSet.run();
+            }
         });
     }
 
