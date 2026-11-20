@@ -304,16 +304,29 @@ public class ProfileMusicView extends View {
         return dp(17) + this.author.getWidth() + this.title.getWidth();
     }
 
+    private boolean playing;
+
+    public void setPlaying(boolean playing) {
+        if (this.playing == playing) return;
+        this.playing = playing;
+        invalidate();
+    }
+
     protected void drawContent(Canvas canvas, float alpha) {
         final float cy = getHeight() / 2f;
 
         iconPaint.setColor(textColor);
         iconPaint.setAlpha(Math.round(255 * alpha));
+        final double phase = playing ? (getDrawingTime() % 1200L) * (2 * Math.PI / 1200.0) : 0;
         for (int i = 0; i < 3; i++) {
             float x = dp(1 + 3 * i);
-            float h = dp(5 - i);
+            float h = dp(4);
+            if (playing) {
+                h += dp(2) * (float) Math.sin(phase + i * 2 * Math.PI / 3);
+            }
             canvas.drawRoundRect(x, cy - h, x + dp(2), cy + h, dp(1), dp(1), iconPaint);
         }
+        if (playing && getAlpha() > 0f) postInvalidateOnAnimation();
         canvas.translate(dp(16.6f), 0);
         this.author.draw(canvas, 0, cy, textColor, alpha);
         canvas.translate(this.author.getWidth(), 0);
