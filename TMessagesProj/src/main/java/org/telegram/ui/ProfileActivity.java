@@ -5633,7 +5633,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             avatarImage.setHasStories(needInsetForStories());
         }
         avatarContainer2.addView(storyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, avatarImage, resourcesProvider);
+        giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, avatarImage, resourcesProvider, contentView);
         giftsView.bubbleGlass.setHeader(topView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         updateProfileData(true);
@@ -9376,14 +9376,24 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             public MessageObject getItem(int index) { return savedMusicList.list.get(index); }
             public long getItemId(int index) { return getItem(index).getId(); }
             public View getView(int index, View recycled, ViewGroup parent) {
-                TextView row = recycled instanceof TextView ? (TextView) recycled : new TextView(context);
+                LinearLayout row = (LinearLayout) recycled;
+                if (row == null) {
+                    row = new LinearLayout(context);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(dp(14), dp(7), dp(14), dp(7));
+                    for (int line = 0; line < 2; line++) {
+                        TextView label = new TextView(context);
+                        label.setSingleLine(true);
+                        label.setEllipsize(TextUtils.TruncateAt.END);
+                        label.setTextSize(line == 0 ? 14 : 12);
+                        label.setTextColor(getThemedColor(line == 0 ? Theme.key_windowBackgroundWhiteBlackText
+                                : Theme.key_windowBackgroundWhiteGrayText));
+                        row.addView(label);
+                    }
+                }
                 MessageObject track = getItem(index);
-                row.setPadding(dp(16), dp(8), dp(16), dp(8));
-                row.setTextSize(14);
-                row.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
-                row.setMaxLines(2);
-                row.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                row.setText(track.getMusicTitle() + "\n" + track.getMusicAuthor());
+                ((TextView) row.getChildAt(0)).setText(track.getMusicTitle());
+                ((TextView) row.getChildAt(1)).setText(track.getMusicAuthor());
                 return row;
             }
         };
@@ -9391,7 +9401,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         popup.setAnchorView(musicView);
         popup.setModal(true);
         popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
-        int width = Math.min(dp(280), musicView.getWidth() - dp(24));
+        int width = Math.min(dp(272), Math.round(musicView.getWidth() * .64f));
         popup.setWidth(width);
         popup.setHorizontalOffset((musicView.getWidth() - width) / 2);
         popup.setBackgroundDrawable(Theme.createRoundRectDrawable(dp(18), getThemedColor(Theme.key_windowBackgroundWhite)));

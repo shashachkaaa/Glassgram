@@ -151,6 +151,7 @@ public class ProfileMusicView extends View {
 
     private TLRPC.Document displayedDocument;
     private float playbackProgress;
+    private final AnimatedFloat pillWidth = new AnimatedFloat(this, 220, CubicBezierInterpolator.EASE_OUT_QUINT);
     private final Paint progressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public void setPlaybackProgress(float progress) {
@@ -369,7 +370,8 @@ public class ProfileMusicView extends View {
         final int maxWidth = this instanceof ProfileBalanceView ? available
                 : Math.min(available, Math.round(getWidth() * 0.76f));
 
-        final float containerWidth = getPillWidth(maxWidth);
+        final float targetWidth = getPillWidth(maxWidth);
+        final float containerWidth = this instanceof ProfileBalanceView ? targetWidth : Math.min(maxWidth, pillWidth.set(targetWidth));
         final float left = (getWidth() - containerWidth) / 2f;
         final float halfHeight = dp(this instanceof ProfileBalanceView ? 10 : 12) * alpha;
         rect.set(left, getHeight() / 2f - halfHeight, left + containerWidth, getHeight() / 2f + halfHeight);

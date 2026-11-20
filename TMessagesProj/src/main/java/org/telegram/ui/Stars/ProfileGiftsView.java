@@ -8,6 +8,8 @@ import static org.telegram.ui.Stars.StarsController.findAttribute;
 import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.view.ViewConfiguration;
+import android.widget.FrameLayout;
+import android.os.SystemClock;
 import org.telegram.ui.Components.ProfileHeaderGlass;
 import org.telegram.ui.Components.LiquidPressEffect;
 import android.content.Context;
@@ -54,12 +56,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     public final ProfileHeaderGlass bubbleGlass = new ProfileHeaderGlass(this);
     private final Paint bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean drawGlass;
+    private final FrameLayout dragHost;
+    private DragLens dragLens;
     private boolean active = true;
     public void setActive(boolean f) {
         this.active = f;
+        if (!f) resetDrag();
     }
 
-    public ProfileGiftsView(Context context, int currentAccount, long dialogId, @NonNull View avatarContainer, ProfileActivity.AvatarImageView avatarImage, Theme.ResourcesProvider resourcesProvider) {
+    public ProfileGiftsView(Context context, int currentAccount, long dialogId, @NonNull View avatarContainer, ProfileActivity.AvatarImageView avatarImage, Theme.ResourcesProvider resourcesProvider, FrameLayout dragHost) {
         super(context);
 
         this.currentAccount = currentAccount;
@@ -67,6 +72,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         this.avatarContainer = avatarContainer;
         this.avatarImage = avatarImage;
+        this.dragHost = dragHost;
 
         this.resourcesProvider = resourcesProvider;
     }
@@ -152,6 +158,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         bubbleGlass.watch(false);
+        // The host may be traversing its children to detach them.
+        if (dragLens != null) {
+            final View detachedLens = dragLens;
+            dragLens = null;
+            detachedLens.setVisibility(GONE);
+            AndroidUtilities.runOnUIThread(() -> dragHost.removeView(detachedLens), 1);
+        }
         resetDrag();
 
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.starUserGiftsLoaded);
@@ -239,11 +252,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         ) {
             if (alpha <= 0.0f) return;
             final float gsz = dp(42) * ascale;
-            if (this == movingGift) {
-                cx += dragX;
-                cy += dragY;
-            }
+
             bounds.set(cx - gsz / 2, cy - gsz / 2, cx + gsz / 2, cy + gsz / 2);
+            if (this == movingGift && dragging) return;
             canvas.save();
             if (drawGlass) {
                 bubbleGlass.draw(canvas, piece, press, bounds, gsz / 2, 1f, alpha, 0f);
@@ -255,6 +266,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.rotate(rotate);
             final float scale = ascale * bounce.getScale(0.1f);
             canvas.scale(scale, scale);
+            drawArtwork(canvas, alpha, gradientAlpha);
+            canvas.restore();
+        }
+
+        private void drawArtwork(Canvas canvas, float alpha, float gradientAlpha) {
+            final float gsz = dp(45);
             particles.process();
             particles.draw(canvas, color, alpha);
             if (gradientPaint != null) {
@@ -267,7 +284,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 emojiDrawable.setAlpha((int) (0xFF * alpha));
                 emojiDrawable.draw(canvas);
             }
-            canvas.restore();
         }
     }
 
@@ -386,8 +402,18 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
-        if (changed)
-            invalidate();
+        if (movingGift != null) {
+            Gift replacement = null;
+            for (Gift gift : gifts) {
+                if (gift.id == movingGift.id) replacement = gift;
+            }
+            if (replacement == null) resetDrag();
+            else if (movingGift != replacement) {
+                replacement.bounds.set(movingGift.bounds);
+                movingGift = replacement;
+            }
+        }
+        if (changed) invalidate();
     }
 
     private final TimeInterpolator giftCollapseXInterpolator = new DecelerateInterpolator();
@@ -410,7 +436,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
 
         canvas.save();
-        if (movingGift == null) canvas.clipRect(0, 0, getWidth(), expandY);
+        canvas.clipRect(0, 0, getWidth(), expandY);
         drawGlass = bubbleGlass.begin(canvas);
 
         final float acx = ax + aw / 2.0f;
@@ -419,7 +445,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         final float realCX = realX + realW / 2.0f;
         final float realCY = realY + realH / 2.0f;
 
-        float expandScale = expandY / maxExpandY;
+        final float orbitX = Math.min(acx - dp(22), aw * 0.92f);
+        final float orbitY = ah * 0.57f;
         float closedAlpha = Utilities.clamp01((expandY - (AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight())) / dp(50));
 
         for (int i = 0; i < gifts.size(); ++i) {
@@ -433,33 +460,33 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
             switch (gift.position) {
                 case 0: // left
-                    gx = acx / 2f - (dp(20) * expandScale);
-                    gy = acy - dp(13);
+                    gx = acx - orbitX;
+                    gy = acy;
                     delayValue = 1.6f;
                     break;
                 case 1: // top left
-                    gx = acx * 2f / 3f - (dp(6) * expandScale);
-                    gy = ay - dp(4);
+                    gx = acx - orbitX * .64f;
+                    gy = acy - orbitY;
                     delayValue = 0;
                     break;
                 case 2: // bottom left
-                    gx = acx * 2f / 3f - (dp(12) * expandScale);
-                    gy = ay + ah - dp(16);
+                    gx = acx - orbitX * .64f;
+                    gy = acy + orbitY;
                     delayValue = 0.9f;
                     break;
                 case 3: // right
-                    gx = acx * 1.5f + (dp(20) * expandScale);
-                    gy = acy - dp(13);
+                    gx = acx + orbitX;
+                    gy = acy;
                     delayValue = 1.6f;
                     break;
                 case 4: // top right
-                    gx = acx * 4f / 3f + (dp(12) * expandScale);
-                    gy = ay - dp(4);
+                    gx = acx + orbitX * .64f;
+                    gy = acy - orbitY;
                     delayValue = 0.9f;
                     break;
                 default: // bottom right
-                    gx = acx * 4f / 3f + (dp(12) * expandScale);
-                    gy = ay + ah - dp(16);
+                    gx = acx + orbitX * .64f;
+                    gy = acy + orbitY;
                     delayValue = 0;
                     break;
             }
@@ -498,14 +525,95 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return null;
     }
 
+    // A small sibling above the profile can sample the avatar, text and rows under the moving lens.
+    private final class DragLens extends View {
+        private final ProfileHeaderGlass glass = new ProfileHeaderGlass(this);
+        private final ProfileHeaderGlass.Piece piece = new ProfileHeaderGlass.Piece();
+        private final LiquidPressEffect lensPress = new LiquidPressEffect(this);
+        private final RectF surface = new RectF();
+        private final int[] sourceLocation = new int[2], hostLocation = new int[2];
+        private float lift, stretch, angle;
+        private long lastFrame;
+        private float previousX, previousY;
+
+        DragLens() {
+            super(ProfileGiftsView.this.getContext());
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+
+        void place(float x, float y, float sizeProgress) {
+            final float cx = movingGift.bounds.centerX() + x;
+            final float cy = movingGift.bounds.centerY() + y;
+            ProfileGiftsView.this.getLocationInWindow(sourceLocation);
+            dragHost.getLocationInWindow(hostLocation);
+            final float half = dp(160) / 2f;
+            setX(sourceLocation[0] - hostLocation[0] + cx - half);
+            setY(sourceLocation[1] - hostLocation[1] + cy - half);
+            long now = SystemClock.uptimeMillis();
+            float elapsed = Math.max(1, now - lastFrame);
+            float dx = x - previousX, dy = y - previousY;
+            float speed = (float) Math.hypot(dx, dy) / elapsed;
+            if (speed > dpf2(.06f)) angle = (float) Math.toDegrees(Math.atan2(dy, dx));
+            float blend = 1f - (float) Math.exp(-elapsed / 52f);
+            stretch += (Math.min(.42f, speed / dpf2(3)) - stretch) * blend;
+            lift += (sizeProgress - lift) * blend;
+            lastFrame = now;
+            previousX = x;
+            previousY = y;
+            invalidate();
+        }
+
+        @Override protected void onDraw(@NonNull Canvas canvas) {
+            if (movingGift == null || !dragging) return;
+            float r = dpf2(21) * (1f + 1.15f * lift);
+            float c = getWidth() * .5f;
+            surface.set(c - r, c - r, c + r, c + r);
+            boolean hasGlass = glass.begin(canvas);
+            canvas.save();
+            canvas.rotate(angle, c, c);
+            canvas.scale(1f + stretch, 1f / (1f + stretch), c, c);
+            canvas.rotate(-angle, c, c);
+            if (hasGlass) {
+                glass.draw(canvas, piece, lensPress, surface, r, 1f, 1f, 0f);
+            } else {
+                bubblePaint.setColor(0x38FFFFFF);
+                canvas.drawOval(surface, bubblePaint);
+            }
+            canvas.restore();
+            canvas.save();
+            canvas.translate(c, c);
+            float artworkScale = 1f + .63f * lift;
+            canvas.scale(artworkScale, artworkScale);
+            movingGift.drawArtwork(canvas, 1f, .5f);
+            canvas.restore();
+        }
+    }
+
+    private final Runnable updateLens = new Runnable() {
+        @Override public void run() {
+            if (!dragging || movingGift == null || returnAnimation != null) return;
+            dragLens.place(dragX, dragY, 1f);
+            postOnAnimation(this);
+        }
+    };
+
     private Gift movingGift;
     private float downX, downY, dragX, dragY;
     private boolean dragging;
     private ValueAnimator returnAnimation;
 
     private void resetDrag() {
-        if (returnAnimation != null) returnAnimation.cancel();
+        if (returnAnimation != null) {
+            returnAnimation.removeAllListeners();
+            returnAnimation.removeAllUpdateListeners();
+            returnAnimation.cancel();
+        }
         returnAnimation = null;
+        removeCallbacks(updateLens);
+        if (dragLens != null) {
+            dragHost.removeView(dragLens);
+            dragLens = null;
+        }
         if (movingGift != null) {
             movingGift.bounce.setPressed(false);
             movingGift.press.onTouch(MotionEvent.ACTION_CANCEL, 0, 0);
@@ -536,10 +644,18 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (action == MotionEvent.ACTION_MOVE) {
             float dx = x - downX, dy = y - downY;
             int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
-            dragging |= dx * dx + dy * dy > slop * slop;
+            if (!dragging && dx * dx + dy * dy > slop * slop) {
+                dragging = true;
+                dragLens = new DragLens();
+                dragHost.addView(dragLens, new FrameLayout.LayoutParams(dp(160), dp(160),
+                        android.view.Gravity.TOP | android.view.Gravity.LEFT));
+                dragLens.lastFrame = SystemClock.uptimeMillis();
+                postOnAnimation(updateLens);
+            }
             if (dragging) {
                 dragX = dx;
                 dragY = dy;
+                dragLens.place(dx, dy, 1f);
                 invalidate();
             }
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -552,18 +668,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             } else {
                 final float dx = dragX, dy = dragY;
                 returnAnimation = ValueAnimator.ofFloat(1f, 0f);
-                returnAnimation.setDuration(300);
-                returnAnimation.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+                returnAnimation.setDuration(420);
+                returnAnimation.setInterpolator(new android.view.animation.OvershootInterpolator(.75f));
                 returnAnimation.addUpdateListener(a -> {
                     float fraction = (float) a.getAnimatedValue();
                     dragX = dx * fraction;
                     dragY = dy * fraction;
-                    if (fraction == 0f) {
-                        movingGift = null;
-                        returnAnimation = null;
-                        dragging = false;
-                    }
+                    dragLens.place(dragX, dragY, Math.max(0f, fraction));
                     invalidate();
+                });
+                returnAnimation.addListener(new android.animation.AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(android.animation.Animator animation) {
+                        returnAnimation = null;
+                        resetDrag();
+                    }
                 });
                 returnAnimation.start();
             }
