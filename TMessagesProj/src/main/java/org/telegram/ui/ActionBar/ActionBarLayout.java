@@ -62,11 +62,13 @@ import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import org.telegram.liquidglass.BackdropGlass;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ImageLoader;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -1244,6 +1246,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         private final android.graphics.RectF piece = new android.graphics.RectF();
         private final android.graphics.Paint tintPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
 
+        private BackdropGlass rimGlass;
+        private final float[] rimRadii = new float[4];
+
         GlassgramHeaderNodes() {
             for (int i = 0; i < MAX_PIECES; i++) {
                 piecesOut[i] = new android.graphics.RectF();
@@ -1291,6 +1296,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             pair(nOut, nIn);
             final float m = morph;
             final float outset = LiquidPressEffect.transitionOutset(progress);
+            final boolean sharedRim = BackdropGlass.isSupported() && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
             // the coming glass over the leaving one in the first half, the leaving one gone in the second
             final float outGlass = 1f - Math.max(0f, Math.min(1f, (m - 0.5f) * 2f));
             final float inGlass = Math.max(0f, Math.min(1f, m * 2f));
@@ -1299,13 +1305,20 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (j >= 0) {
                     lerp(piecesOut[i], piecesIn[j], m, piece);
                     piece.inset(-outset, -outset);
-                    drawGlass(canvas, barOut, i, piece, ox, oy, outGlass, tintsOut[i], 1f - m);
-                    drawGlass(canvas, barIn, j, piece, ix, iy, inGlass, tintsIn[j], m);
+                    drawGlass(canvas, barOut, i, piece, ox, oy, outGlass, tintsOut[i], 1f - m, sharedRim);
+                    drawGlass(canvas, barIn, j, piece, ix, iy, inGlass, tintsIn[j], m, sharedRim);
+                    if (sharedRim) {
+                        // A paired capsule keeps its edge while its two backdrops crossfade.
+                        drawRim(canvas, piece, 1f);
+                    }
                 } else {
                     // nothing to become: it shrinks away
                     scaled(piecesOut[i], 1f - 0.5f * m, piece);
                     piece.inset(-outset, -outset);
-                    drawGlass(canvas, barOut, i, piece, ox, oy, 1f - m, tintsOut[i], 1f - m);
+                    drawGlass(canvas, barOut, i, piece, ox, oy, 1f - m, tintsOut[i], 1f - m, sharedRim);
+                    if (sharedRim) {
+                        drawRim(canvas, piece, 1f - m);
+                    }
                 }
             }
             for (int j = 0; j < nIn; j++) {
@@ -1313,7 +1326,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     // nothing it comes from: it grows in its place
                     scaled(piecesIn[j], 0.5f + 0.5f * m, piece);
                     piece.inset(-outset, -outset);
-                    drawGlass(canvas, barIn, j, piece, ix, iy, m, tintsIn[j], m);
+                    drawGlass(canvas, barIn, j, piece, ix, iy, m, tintsIn[j], m, sharedRim);
+                    if (sharedRim) {
+                        drawRim(canvas, piece, m);
+                    }
                 }
             }
 
@@ -1363,7 +1379,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             out.set(r.centerX() - hw, r.centerY() - hh, r.centerX() + hw, r.centerY() + hh);
         }
 
-        private void drawGlass(Canvas canvas, ActionBar bar, int slot, android.graphics.RectF rect, float bx, float by, float alpha, int tint, float tintAlpha) {
+        private void drawGlass(Canvas canvas, ActionBar bar, int slot, android.graphics.RectF rect, float bx, float by, float alpha, int tint, float tintAlpha, boolean sharedRim) {
             if (alpha <= 0f || rect.isEmpty()) {
                 return;
             }
@@ -1374,6 +1390,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 canvas.translate(bx, by);
                 glass.setBounds(Math.round(rect.left - bx), Math.round(rect.top - by), Math.round(rect.right - bx), Math.round(rect.bottom - by));
                 glass.setRadius(radius);
+                glass.setDrawRim(!sharedRim);
                 // never 0 while it is drawn: its page's glass engine would take it for gone and come back
                 glass.setAlpha(Math.max(1, (int) (255 * alpha)));
                 glass.draw(canvas);
@@ -1384,6 +1401,23 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 tintPaint.setAlpha((int) (android.graphics.Color.alpha(tint) * Math.min(alpha, tintAlpha)));
                 canvas.drawRoundRect(rect, radius, radius, tintPaint);
             }
+        }
+
+        private void drawRim(Canvas canvas, android.graphics.RectF rect, float alpha) {
+            if (alpha <= 0f || rect.isEmpty()) {
+                return;
+            }
+            if (rimGlass == null) {
+                rimGlass = new BackdropGlass();
+            }
+            final float radius = Math.min(rect.width(), rect.height()) / 2f;
+            java.util.Arrays.fill(rimRadii, radius);
+            rimGlass.updateEffect(rect.width(), rect.height(), rimRadii, AndroidUtilities.density,
+                BackdropGlass.COLOR_NONE, 0f, 0f, 0f, false, false, false);
+            canvas.save();
+            canvas.translate(rect.left, rect.top);
+            rimGlass.drawHighlight(canvas, alpha, 1f, false);
+            canvas.restore();
         }
 
         /** Records the bar's contents; with sharpTitle its title apart (into title). Returns whether it was. */

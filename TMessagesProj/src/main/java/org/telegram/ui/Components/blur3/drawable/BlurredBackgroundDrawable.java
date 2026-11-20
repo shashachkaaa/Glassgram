@@ -420,6 +420,17 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
         return rimFromColors;
     }
 
+    private boolean drawRim = true;
+
+    /** Lets an overlay draw a single highlight over multiple layers of the same glass shape. */
+    public void setDrawRim(boolean drawRim) {
+        if (this.drawRim != drawRim) {
+            this.drawRim = drawRim;
+            invalidateDisplayList();
+            invalidateSelf();
+        }
+    }
+
     private void drawRim(Canvas canvas, float alpha) {
         final Rect r = boundProps.boundsWithPadding;
         if (boundProps.hasArrow()) {
@@ -887,7 +898,7 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
         }
         impl.draw(canvas, drawn);
         // glassGram: the library's glass has its own highlight in place of the rim
-        if (!impl.isDrawnByLibrary()) {
+        if (drawRim && !impl.isDrawnByLibrary()) {
             drawRim(canvas, getAlpha() / 255f);
         }
     }
@@ -1040,7 +1051,7 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
         canvas.translate(r.left, r.top);
         ((GlassLayer) glassLayer).draw(canvas, width, height, boundProps.radii[0], density,
             BackdropGlass.COLOR_NONE, 0f, lensHeight, lensAmount, panel, !panel, dark,
-            backdrop, tint, dark ? 0.7f : 1f, 1f);
+            backdrop, tint, drawRim ? (dark ? 0.7f : 1f) : 0f, 1f);
         canvas.restoreToCount(saveCount);
         backdropSource = null;
         return true;
@@ -1507,7 +1518,9 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
             if (tintAlpha > 0) {
                 c.drawColor(ColorUtils.setAlphaComponent(backgroundColor, (int) (tintAlpha * 255)));
             }
-            backdropGlass.drawHighlight(c);
+            if (drawRim) {
+                backdropGlass.drawHighlight(c);
+            }
             renderNode.endRecording();
         }
 
