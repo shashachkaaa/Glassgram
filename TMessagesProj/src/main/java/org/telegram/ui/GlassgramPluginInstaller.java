@@ -131,16 +131,22 @@ public final class GlassgramPluginInstaller {
                 AndroidUtilities.runOnUIThread(() -> showError(fragment, getString(R.string.GlassgramPluginBadFile)));
                 return;
             }
-            AndroidUtilities.runOnUIThread(() -> showInstallDialog(fragment, copy));
+            AndroidUtilities.runOnUIThread(() -> preview(fragment, copy, true));
         });
     }
 
     public static void showInstallDialog(BaseFragment fragment, File file) {
+        preview(fragment, file, false);
+    }
+
+    static void preview(BaseFragment fragment, File file, boolean ownsFile) {
         if (!PluginsController.isSupported()) {
+            if (ownsFile) file.delete();
             showError(fragment, getString(R.string.GlassgramPluginsUnsupported));
             return;
         }
         if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
+            if (ownsFile) file.delete();
             GlassgramSettingsActivity.showForcedOff(fragment, "pluginsEngine");
             return;
         }
@@ -149,12 +155,19 @@ public final class GlassgramPluginInstaller {
             PluginsController.setEngineEnabled(true);
         }
         PluginsController.pluginsQueue.postRunnable(() -> {
+            File snapshot = ownsFile ? file : null;
             String[] meta;
             boolean trustedSource = false;
             try {
-                meta = PluginsController.readPluginFile(file);
-                trustedSource = isVouched(file);
+                if (file.length() > 10 * 1024 * 1024) throw new java.io.IOException("Plugin exceeds 10 MiB");
+                if (!ownsFile) {
+                    snapshot = File.createTempFile("plugin_preview_", EXTENSION, ApplicationLoader.applicationContext.getCacheDir());
+                    if (!AndroidUtilities.copyFile(file, snapshot)) throw new java.io.IOException("Could not read plugin");
+                }
+                meta = PluginsController.readPluginFile(snapshot);
+                trustedSource = isVouched(snapshot);
             } catch (Throwable e) {
+                if (snapshot != null) snapshot.delete();
                 FileLog.e(e);
                 final String details = PluginsController.startError != null ? PluginsController.startError : e.getMessage() != null ? e.getMessage() : e.toString();
                 final String reason = PluginsController.startError != null ? firstLine(PluginsController.startError) : getString(R.string.GlassgramPluginBadFile);
@@ -162,7 +175,8 @@ public final class GlassgramPluginInstaller {
                 return;
             }
             final boolean trusted = trustedSource;
-            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, meta, trusted));
+            final File reviewed = snapshot;
+            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, reviewed, meta, trusted));
         });
     }
 
@@ -198,13 +212,15 @@ public final class GlassgramPluginInstaller {
 
     private static void showConfirm(BaseFragment fragment, File file, String[] meta, boolean trusted) {
         Activity activity = fragment.getParentActivity();
-        if (activity == null) {
+        if (activity == null || fragment.isFinished) {
+            file.delete();
             return;
         }
         final String name = meta[1];
         final boolean update = "1".equals(meta[6]);
         final Theme.ResourcesProvider resourcesProvider = fragment.getResourceProvider();
         final BottomSheet sheet = new BottomSheet(activity, false, resourcesProvider);
+        boolean[] installing = {false};
         sheet.fixNavigationBar();
 
         LinearLayout layout = new LinearLayout(activity);
@@ -247,12 +263,15 @@ public final class GlassgramPluginInstaller {
         button.setText(getString(danger ? R.string.GlassgramPluginInstallAnyway : update ? R.string.GlassgramPluginUpdate : R.string.GlassgramPluginInstall), false);
         layout.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 20, 0, 0));
         final Runnable install = () -> {
+            if (installing[0]) return;
+            installing[0] = true;
             button.setLoading(true);
             if (!update) {
                 GlassgramConfig.pluginsEnableAfterInstall = enableAfter[0];
                 GlassgramConfig.putBoolean("pluginsEnableAfterInstall", enableAfter[0]);
             }
             PluginsController.installPlugin(file, enableAfter[0], (id, error) -> {
+                file.delete();
                 sheet.dismiss();
                 if (error != null) {
                     // installed, yet its code failed on loading; either way the whole error can be copied
@@ -319,7 +338,9 @@ public final class GlassgramPluginInstaller {
         container.addView(actions, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.TOP | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 12, 12, 12, 0));
 
         sheet.setCustomView(container);
-        fragment.showDialog(sheet);
+        if (fragment.showDialog(sheet, dialog -> {
+            if (!installing[0]) file.delete();
+        }) == null) file.delete();
     }
 
     private static View actionButton(Context context, int icon, String description, View.OnClickListener click, Theme.ResourcesProvider resourcesProvider) {
@@ -419,6 +440,12 @@ public final class GlassgramPluginInstaller {
     }
 
     /** Opens the plugin's code in an app the user picks: a copy named .py, which the app can only read. */
+    private static boolean isZip(File file) throws java.io.IOException {
+        try (InputStream in = new java.io.FileInputStream(file)) {
+            return in.read() == 'P' && in.read() == 'K' && in.read() == 3 && in.read() == 4;
+        }
+    }
+
     private static void openSource(BaseFragment fragment, File file, String name) {
         Utilities.globalQueue.postRunnable(() -> {
             // files/cache/ is shared by the app's FileProvider
@@ -434,7 +461,9 @@ public final class GlassgramPluginInstaller {
                 if (!dir.isDirectory() && !dir.mkdirs()) {
                     throw new IllegalStateException("No directory " + dir);
                 }
-                if (!AndroidUtilities.copyFile(file, copy)) {
+                if (isZip(file)) {
+                    PluginsController.getEngine().callAttr("write_archive_source", file.getAbsolutePath(), copy.getAbsolutePath());
+                } else if (!AndroidUtilities.copyFile(file, copy)) {
                     throw new IllegalStateException("Not copied " + file);
                 }
             } catch (Exception e) {

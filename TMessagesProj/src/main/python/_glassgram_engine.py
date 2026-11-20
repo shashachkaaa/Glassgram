@@ -235,6 +235,19 @@ def _read_meta(path: str) -> dict:
     return _normalize_meta(get_metadata(path), fallback)
 
 
+def write_archive_source(path, destination):
+    archive = _glassgram_elyx.Archive(path)
+    with open(destination, "w", encoding="utf-8") as output:
+        for name, members in [("", archive.files), *archive.wheels.items()]:
+            for member, data in members.items():
+                if member.endswith((".py", ".pyc", ".yaml", ".yml", ".json")):
+                    output.write("\n# " + (name + "/" if name else "") + member + "\n")
+                    if member.endswith(".pyc"):
+                        output.write("# Compiled Python bytecode\n")
+                    else:
+                        output.write(data.decode("utf-8-sig", errors="replace") + "\n")
+
+
 def read_metadata(path: str):
     """[id, name, version, author, description, icon, installed, findings, analysis] of a plugin file,
     for the install dialog; findings are what _glassgram_scan saw in its code, one a line, and the

@@ -32,6 +32,8 @@ import java.util.Set;
 import static org.telegram.messenger.LocaleController.getString;
 
 public class GlassgramRepositoriesActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+    private static final org.telegram.messenger.DispatchQueue queue =
+        new org.telegram.messenger.DispatchQueue("pluginRepositories");
     private final String source;
     private final ArrayList<String> sources = new ArrayList<>();
     private final LinkedHashMap<String, Entry> entries = new LinkedHashMap<>();
@@ -146,7 +148,9 @@ public class GlassgramRepositoriesActivity extends UniversalFragment implements 
                 String path = Python.getInstance().getModule("_glassgram_repositories").callAttr("download",
                     e.row.toString(), ApplicationLoader.applicationContext.getCacheDir().getAbsolutePath()).toString();
                 AndroidUtilities.runOnUIThread(() -> {
-                    if (!isFinished) GlassgramPluginInstaller.showInstallDialog(this, new File(path));
+                    File file = new File(path);
+                    if (!isFinished) GlassgramPluginInstaller.preview(this, file, true);
+                    else file.delete();
                 });
             });
         }
@@ -154,7 +158,7 @@ public class GlassgramRepositoriesActivity extends UniversalFragment implements 
 
     private interface Job { void run() throws Exception; }
     private void background(Job job) {
-        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             try { job.run(); }
             catch (Exception e) { AndroidUtilities.runOnUIThread(() -> finish(e.toString())); }
         });

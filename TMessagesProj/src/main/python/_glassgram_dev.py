@@ -113,8 +113,17 @@ def dispatch(engine, request):
     if cmd == "start_debugger":
         if request.get("host", "127.0.0.1") not in ("localhost", "127.0.0.1"):
             raise ValueError("Use adb reverse for the IDE connection")
-        import debugpy
-        debugpy.connect(("127.0.0.1", int(request.get("port", 5678))))
+        platform = request.get("platform", "vscode")
+        port = int(request.get("port", 5678))
+        if platform == "vscode":
+            import debugpy
+            debugpy.connect(("127.0.0.1", port))
+        elif platform == "pycharm":
+            import debugpy._vendored.force_pydevd
+            import pydevd
+            pydevd.settrace("127.0.0.1", port=port, suspend=False)
+        else:
+            raise ValueError("Unknown debugger platform")
         _debugging = True
         return {"ok": True}
     if cmd == "stop_debugger":
