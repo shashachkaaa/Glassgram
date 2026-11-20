@@ -6208,9 +6208,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         updateHeaderBlurViews();
     }
 
-    /** 0 while the rows are all below the header, clear of its blur; 1 as the first of them reaches the header. */
-    private float headerRowsProgress = 1f;
-
     /**
      * One progressive blur on the screen at a time, at the same place: the media's (under their tabs, over the rows
      * as well, it is the last of the list's children) while the media are in the list, otherwise the screen's.
@@ -6221,7 +6218,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         final boolean media = sharedMediaLayout != null && sharedMediaLayout.getParent() == listView && sharedMediaLayout.isAttachedToWindow();
-        final float alpha = Math.max(Math.min(headerBlurFactor, headerRowsProgress), mediaHeaderAnimationProgress);
+        final float alpha = getHeaderSimpleFactor();
         headerBlurView.setAlpha(media ? 0 : alpha);
         headerBlurView.setVisibility(!media && alpha > 0 ? View.VISIBLE : View.GONE);
         headerFadeView.setAlpha(media ? alpha : 0);
@@ -8236,10 +8233,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return true;
         });
         sharedMediaLayout.addPagesOverlay(headerFadeView, 0);
-        headerFadeView.setBackground(glass.createActionBarFadeDrawable(headerFadeView));
+        headerFadeView.setBackground(glass.createActionBarBlurDrawable(headerFadeView));
         // the progressive blur of the simple screens over the rows, under the name and the buttons
         headerBlurView = new View(getContext());
-        headerBlurView.setBackground(glass.createActionBarFadeDrawable(headerBlurView));
+        headerBlurView.setBackground(glass.createActionBarBlurDrawable(headerBlurView));
         contentView.addView(headerBlurView, contentView.indexOfChild(avatarContainer2), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 0, Gravity.TOP));
         glassEngine.addScrolledView(listView);
         sharedMediaLayout.setPagesGlassEngine(glassEngine);
@@ -8471,11 +8468,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         int adapterPosition = holder != null ? holder.getAdapterPosition() : RecyclerView.NO_POSITION;
         if (top >= 0 && adapterPosition == 0) {
             newOffset = top;
-        }
-        final float rowsProgress = child == null ? 1f : MathUtils.clamp(-top / (float) dp(12), 0f, 1f);
-        if (headerRowsProgress != rowsProgress) {
-            headerRowsProgress = rowsProgress;
-            updateHeaderBlurViews();
         }
         boolean mediaHeaderVisible;
         boolean searchVisible = imageUpdater == null && actionBar.isSearchFieldVisible();

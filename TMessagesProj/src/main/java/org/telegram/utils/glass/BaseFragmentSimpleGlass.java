@@ -157,8 +157,17 @@ public class BaseFragmentSimpleGlass {
 
     @NonNull
     public Drawable createActionBarFadeDrawable(View view) {
+        return createActionBarFadeDrawable(view, false);
+    }
+
+    @NonNull
+    public Drawable createActionBarBlurDrawable(View view) {
+        return createActionBarFadeDrawable(view, true);
+    }
+
+    private Drawable createActionBarFadeDrawable(View view, boolean blurOnly) {
         final GlassFadeBlurredDrawable glassBlurredFadeDrawable = new GlassFadeBlurredDrawable(
-            glassSourceForFadeDrawable);
+            glassSourceForFadeDrawable, !blurOnly);
 
         final GlassFadeRangeParams gradientRangeMask = new GlassFadeRangeParams(
                 dp(32), GlassFadeRangeParams.Gravity.START, 0, 0);
@@ -168,13 +177,14 @@ public class BaseFragmentSimpleGlass {
                 dp(48), GlassFadeRangeParams.Gravity.START, 0, 0);
 
         glassBlurredFadeDrawable.setDirection(GlassFadeDirection.TOP);
-        glassBlurredFadeDrawable.setOverlayColorSource(glassBackgroundSourceColor);
-        glassBlurredFadeDrawable.setOverlayAlpha(160);
         glassBlurredFadeDrawable.setMaskRange(gradientRangeMask);
-        glassBlurredFadeDrawable.setOverlayRange(gradientRangeFade);
-
-        glassBlurredFadeDrawable.setOverlayOnlyAlpha(210);
-        glassBlurredFadeDrawable.setOverlayOnlyRange(gradientRangeFallback);
+        if (!blurOnly) {
+            glassBlurredFadeDrawable.setOverlayColorSource(glassBackgroundSourceColor);
+            glassBlurredFadeDrawable.setOverlayAlpha(160);
+            glassBlurredFadeDrawable.setOverlayRange(gradientRangeFade);
+            glassBlurredFadeDrawable.setOverlayOnlyAlpha(210);
+            glassBlurredFadeDrawable.setOverlayOnlyRange(gradientRangeFallback);
+        }
 
         glassEngine.registerDrawable(view, glassBlurredFadeDrawable);
         return glassBlurredFadeDrawable;

@@ -55,6 +55,7 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
     }
 
     private final GlassSource source;
+    private final boolean fillBackground;
     @Nullable private final GlassFadeDownsampledSource downsampledSource;
     private boolean inefficientRenderPathsAllowed;
     private final Impl blurredImpl;
@@ -71,7 +72,12 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
     @NonNull private GlassFadeRangeParams overlayOnlyRange = GlassFadeRangeParams.FILL;
 
     public GlassFadeBlurredDrawable(@NonNull GlassSource source) {
+        this(source, true);
+    }
+
+    public GlassFadeBlurredDrawable(@NonNull GlassSource source, boolean fillBackground) {
         this.source = source;
+        this.fillBackground = fillBackground;
         downsampledSource = source instanceof GlassFadeDownsampledSource
                 ? (GlassFadeDownsampledSource) source : null;
 
@@ -433,7 +439,9 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
                     0f, 0f, layerWidth, layerHeight, layerPaint);
 
             if (drawContent) {
-                canvas.drawColor(0xFF000000 | (overlayColor & 0x00FFFFFF));
+                if (fillBackground) {
+                    canvas.drawColor(0xFF000000 | (overlayColor & 0x00FFFFFF));
+                }
                 canvas.save();
                 canvas.scale(1f / LEGACY_DOWNSAMPLE, 1f / LEGACY_DOWNSAMPLE);
                 final float left = bounds.left + getSourceOffsetX();
@@ -563,7 +571,9 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
 
             final RecordingCanvas canvas = contentNode.beginRecording();
             canvas.saveLayer(0f, 0f, width, height, null);
-            canvas.drawColor(0xFF000000 | (overlayColor & 0x00FFFFFF));
+            if (fillBackground) {
+                canvas.drawColor(0xFF000000 | (overlayColor & 0x00FFFFFF));
+            }
             if (useDownsampledSource) {
                 downsampledSource.drawDownsampled(
                         canvas, boundsRelativeRoot, downsample, originX, originY);
@@ -663,11 +673,12 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
                         Color.WHITE, downsample));
                 runtimeShader.setInputShader("overlay", createGradient(overlayRange, axisLength,
                         overlayRange.marginEnd, overlayColor, downsample));
+                final float backgroundAlpha = fillBackground ? 1f : 0f;
                 runtimeShader.setFloatUniform("background_color_premultiplied",
-                        Color.red(overlayColor) / 255f,
-                        Color.green(overlayColor) / 255f,
-                        Color.blue(overlayColor) / 255f,
-                        1f);
+                        Color.red(overlayColor) / 255f * backgroundAlpha,
+                        Color.green(overlayColor) / 255f * backgroundAlpha,
+                        Color.blue(overlayColor) / 255f * backgroundAlpha,
+                        backgroundAlpha);
                 shaderWidth = bounds.width();
                 shaderHeight = bounds.height();
                 shaderDownsample = downsample;
