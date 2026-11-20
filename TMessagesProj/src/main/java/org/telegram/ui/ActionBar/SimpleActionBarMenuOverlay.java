@@ -523,6 +523,14 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         setMeasuredDimension(width, height);
         if (content != null && content.getParent() == this) {
             computeStartRect();
+            if (externalAnchor != null) {
+                final int above = Math.max(0, getExternalMenuBottom() - AndroidUtilities.statusBarHeight - dp(8));
+                final int below = Math.max(0, height - AndroidUtilities.navigationBarHeight - dp(8) - getContentTop());
+                content.measure(MeasureSpec.makeMeasureSpec(Math.max(0, width - dp(16)), MeasureSpec.AT_MOST),
+                        MeasureSpec.makeMeasureSpec(Math.max(above, below), MeasureSpec.AT_MOST));
+                pillBelow = content.getMeasuredHeight() > below && above > below;
+                return;
+            }
             final int maxHeight = pillBelow
                 ? (int) (startRect.bottom - AndroidUtilities.statusBarHeight - dp(16))
                 : height - getContentTop() - dp(16) - AndroidUtilities.navigationBarHeight;
@@ -535,7 +543,11 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
         if (content != null && content.getParent() == this) {
             computeStartRect();
             final int w = content.getMeasuredWidth(), h = content.getMeasuredHeight();
-            if (pillBelow) {
+            if (externalAnchor != null) {
+                final int l = Math.max(dp(8), Math.min(getWidth() - dp(8) - w, Math.round(startRect.right) - w));
+                final int t = pillBelow ? getExternalMenuBottom() - h : getContentTop();
+                content.layout(l, t, l + w, t + h);
+            } else if (pillBelow) {
                 // centred on the pill, its bottom on the pill's: the menu grows upward out of it
                 final int l = (int) Math.max(dp(8), Math.min(getWidth() - dp(8) - w, startRect.centerX() - w / 2f));
                 final int b = (int) startRect.bottom;
@@ -551,8 +563,13 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
     /** The top of a menu growing down out of the button: it rises by the host's value, staying on the screen. */
     private int getContentTop() {
         final int top = (int) startRect.top;
-        if (externalAnchor != null) return top;
+        // The action row includes the caption below the glass circle.
+        if (externalAnchor != null) return Math.round(startRect.top - anchorBounds.top) + externalAnchor.getHeight() + dp(4);
         return Math.max(Math.min(top, 0), top - bar.getMenuRise());
+    }
+
+    private int getExternalMenuBottom() {
+        return Math.round(startRect.top) - dp(4);
     }
 
     /** The glass of the menu button in this view: the whole menu pill when the button is its only item. */
@@ -565,8 +582,6 @@ public class SimpleActionBarMenuOverlay extends FrameLayout {
             computeOffset(externalAnchor);
             startRect.set(anchorBounds);
             startRect.offset(offset[0], offset[1]);
-            pillBelow = startRect.bottom - AndroidUtilities.statusBarHeight
-                    > getHeight() - AndroidUtilities.navigationBarHeight - startRect.top;
             return;
         }
         startFromPill = bar.getMenuItemGlassRect(item, startRect);
