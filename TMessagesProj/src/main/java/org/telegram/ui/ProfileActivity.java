@@ -1385,8 +1385,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         private void drawProfileThemeFade(Canvas canvas, int bottom, int barHeight) {
             if (userId == 0) return;
-            final float strength = (1f - currentExpandAnimatorValue)
-                    * (playProfileAnimation == 0 ? 1f : avatarAnimationProgress);
+            // The normal profile transition also drives currentExpandAnimatorValue.
+            // Only actual photo expansion should fade the theme out.
+            final float profileProgress = playProfileAnimation == 0 ? 1f : Utilities.clamp01(avatarAnimationProgress);
+            final float strength = profileProgress * (1f - Utilities.clamp01(buttonsPhotoProgress));
             final float span = Math.min(dp(200), Math.max(0, bottom - barHeight));
             if (actionsView != null && !capturing) {
                 actionsView.setThemeFadeContent(getThemedColor(Theme.key_windowBackgroundWhiteBlackText),
