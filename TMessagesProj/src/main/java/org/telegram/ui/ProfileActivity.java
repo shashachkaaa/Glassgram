@@ -548,8 +548,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private boolean allowPullingDown;
     private boolean isPulledDown;
 
-    private final Paint whitePaint = new Paint();
-
     private boolean isBot;
     private BotLocation botLocation;
     private BotBiometry botBiometry;
@@ -1389,11 +1387,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             // Only actual photo expansion should fade the theme out.
             final float profileProgress = playProfileAnimation == 0 ? 1f : Utilities.clamp01(avatarAnimationProgress);
             final float strength = profileProgress * (1f - Utilities.clamp01(buttonsPhotoProgress));
-            final float span = Math.min(dp(200), Math.max(0, bottom - barHeight));
+            final int heightBelowBar = Math.max(0, bottom - barHeight);
             if (actionsView != null && !capturing) {
                 actionsView.setThemeFadeContent(getThemedColor(Theme.key_windowBackgroundWhiteBlackText),
-                        strength * Math.min(1f, span / dp(88)));
+                        strength * Math.min(1f, heightBelowBar / (float) dp(88)));
             }
+            // Continue the fade into the bar as the space below it closes.
+            final int span = Math.min(bottom, MathUtils.clamp(heightBelowBar, dp(32), dp(200)));
             if (span <= 0 || strength <= 0) return;
 
             // Match the list underneath, including custom theme colors. Keep the shader
@@ -3114,7 +3114,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
 
             private boolean ignoreLayout;
-            private Paint grayPaint = new Paint();
 
             @Override
             public boolean hasOverlappingRendering() {
@@ -3376,9 +3375,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 super.requestLayout();
             }
 
-            private final ArrayList<View> sortedChildren = new ArrayList<>();
-            private final Comparator<View> viewComparator = (view, view2) -> (int) (view.getY() - view2.getY());
-
             @Override
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
@@ -3388,83 +3384,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
-                if (headerBlurFactor > 0) {
-                    // the colored header fades out: the rows go under the header, on the screen's background
-                    grayPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
-                    canvas.drawRect(0, 0, getMeasuredWidth(), getHeaderBarHeight(), grayPaint);
-                }
-                whitePaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
-                if (listView.getVisibility() == VISIBLE) {
-                    grayPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
-                    if (transitionAnimationInProress) {
-                        whitePaint.setAlpha((int) (255 * listView.getAlpha()));
-                    }
-                    if (transitionAnimationInProress) {
-                        grayPaint.setAlpha((int) (255 * listView.getAlpha()));
-                    }
-
-                    int count = listView.getChildCount();
-                    sortedChildren.clear();
-                    boolean hasRemovingItems = false;
-                    for (int i = 0; i < count; i++) {
-                        View child = listView.getChildAt(i);
-                        if (listView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION) {
-                            sortedChildren.add(listView.getChildAt(i));
-                        } else {
-                            hasRemovingItems = true;
-                        }
-                    }
-                    Collections.sort(sortedChildren, viewComparator);
-                    boolean hasBackground = false;
-                    float lastY = listView.getY();
-                    count = sortedChildren.size();
-                    if (!openAnimationInProgress && count > 0 && !hasRemovingItems) {
-                        lastY += sortedChildren.get(0).getY();
-                    }
-                    float alpha = 1f;
-                    for (int i = 0; i < count; i++) {
-                        View child = sortedChildren.get(i);
-                        boolean currentHasBackground = child.getBackground() != null;
-                        int currentY = (int) (listView.getY() + child.getY());
-                        if (hasBackground == currentHasBackground) {
-                            if (child.getAlpha() == 1f) {
-                                alpha = 1f;
-                            }
-                            continue;
-                        }
-                        if (hasBackground) {
-//                            canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), currentY, grayPaint);
-                        } else {
-                            if (alpha != 1f) {
-//                                canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), currentY, grayPaint);
-//                                whitePaint.setAlpha((int) (255 * alpha));
-//                                canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), currentY, whitePaint);
-//                                whitePaint.setAlpha(255);
-                            } else {
-//                                canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), currentY, whitePaint);
-                            }
-                        }
-                        hasBackground = currentHasBackground;
-                        lastY = currentY;
-                        alpha = child.getAlpha();
-                    }
-
-                    if (hasBackground) {
-//                        canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), listView.getBottom(), grayPaint);
-                    } else {
-                        if (alpha != 1f) {
-//                            canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), listView.getBottom(), grayPaint);
-//                            whitePaint.setAlpha((int) (255 * alpha));
-//                            canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), listView.getBottom(), whitePaint);
-//                            whitePaint.setAlpha(255);
-                        } else {
-//                            canvas.drawRect(listView.getX(), lastY, listView.getX() + listView.getMeasuredWidth(), listView.getBottom(), whitePaint);
-                        }
-                    }
-                } else {
-//                    int top = searchListView.getTop();
-//                    canvas.drawRect(0, top + extraHeight + searchTransitionOffset, getMeasuredWidth(), top + getMeasuredHeight(), whitePaint);
-                }
+                drawProfileBackground(canvas);
                 super.dispatchDraw(canvas);
                 /*
                 if (profileTransitionInProgress && parentLayout.getFragmentStack().size() > 1) {
@@ -5994,6 +5914,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         // the glass of the header's buttons is over the colored header and the avatar as well
         // only the images of the header: its texts (the name, the status) and buttons are over the glass, not under it
         iBlur3Capture = (c, p) -> {
+            // Record the same base as the screen before drawing the content into the blur.
+            drawProfileBackground(c);
             final ViewGroup root = (ViewGroup) fragmentView;
             // over the media only they are under the glass: the rows above them would show through the pages' overscan
             final float mediaProgress = sharedMediaLayout != null && sharedMediaLayout.getParent() == listView ? mediaHeaderAnimationProgress : 0f;
@@ -6022,6 +5944,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         return fragmentView;
+    }
+
+    private void drawProfileBackground(Canvas canvas) {
+        if (!transitionAnimationInProress) {
+            canvas.drawColor(getThemedColor(Theme.key_windowBackgroundGray));
+        }
     }
 
     private static final RectF captureViewRect = new RectF();
