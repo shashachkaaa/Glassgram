@@ -86,6 +86,7 @@ import org.telegram.ui.Components.FloatingDebug.FloatingDebugController;
 import org.telegram.ui.Components.FloatingDebug.FloatingDebugProvider;
 import org.telegram.ui.Components.GroupCallPip;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.Stories.StoryViewer;
 
@@ -1152,6 +1153,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     // pages, in place. Only between two glass headers (the chats list, a chat), on Android 12+
     private ActionBar glassgramHeaderOut, glassgramHeaderIn;
     private float glassgramHeaderOutAppear, glassgramHeaderInAppear, glassgramHeaderMorph;
+    private float glassgramHeaderTransitionProgress;
     private Object glassgramHeaderNodes;
 
     /** The glass bar a page shows: a tabs page shows its tab's. */
@@ -1171,7 +1173,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     /** Crossfades the headers of the page going away and the one coming; false when they are not both glass. */
-    private boolean glassgramHeaderCrossfade(BaseFragment out, BaseFragment in, float outAppear, float inAppear, float morph) {
+    private boolean glassgramHeaderCrossfade(BaseFragment out, BaseFragment in, float outAppear, float inAppear, float morph, float progress) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !org.telegram.messenger.GlassgramConfig.iosChatsHeader) {
             return false;
         }
@@ -1192,6 +1194,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         glassgramHeaderOutAppear = outAppear;
         glassgramHeaderInAppear = inAppear;
         glassgramHeaderMorph = morph;
+        glassgramHeaderTransitionProgress = progress;
         invalidate();
         return true;
     }
@@ -1223,7 +1226,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             glassgramHeaderNodes = new GlassgramHeaderNodes();
         }
         ((GlassgramHeaderNodes) glassgramHeaderNodes).draw(canvas, this, glassgramHeaderOut, glassgramHeaderIn,
-            glassgramHeaderOutAppear, glassgramHeaderInAppear, glassgramHeaderMorph);
+            glassgramHeaderOutAppear, glassgramHeaderInAppear, glassgramHeaderMorph, glassgramHeaderTransitionProgress);
     }
 
     @androidx.annotation.RequiresApi(api = Build.VERSION_CODES.S)
@@ -1253,7 +1256,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
          * 1), piece by piece, while their contents cross through a blur (outAppear, inAppear); the
          * leaving title stays sharp, fading as it moves a little towards the start.
          */
-        void draw(Canvas canvas, View layout, ActionBar barOut, ActionBar barIn, float outAppear, float inAppear, float morph) {
+        void draw(Canvas canvas, View layout, ActionBar barOut, ActionBar barIn, float outAppear, float inAppear, float morph, float progress) {
             if (barOut.getWidth() <= 0 || barIn.getWidth() <= 0 || !position(layout, barIn)) {
                 return;
             }
@@ -1287,6 +1290,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             }
             pair(nOut, nIn);
             final float m = morph;
+            final float outset = LiquidPressEffect.transitionOutset(progress);
             // the coming glass over the leaving one in the first half, the leaving one gone in the second
             final float outGlass = 1f - Math.max(0f, Math.min(1f, (m - 0.5f) * 2f));
             final float inGlass = Math.max(0f, Math.min(1f, m * 2f));
@@ -1294,11 +1298,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 final int j = pairOut[i];
                 if (j >= 0) {
                     lerp(piecesOut[i], piecesIn[j], m, piece);
+                    piece.inset(-outset, -outset);
                     drawGlass(canvas, barOut, i, piece, ox, oy, outGlass, tintsOut[i], 1f - m);
                     drawGlass(canvas, barIn, j, piece, ix, iy, inGlass, tintsIn[j], m);
                 } else {
                     // nothing to become: it shrinks away
                     scaled(piecesOut[i], 1f - 0.5f * m, piece);
+                    piece.inset(-outset, -outset);
                     drawGlass(canvas, barOut, i, piece, ox, oy, 1f - m, tintsOut[i], 1f - m);
                 }
             }
@@ -1306,6 +1312,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (!pairedIn[j]) {
                     // nothing it comes from: it grows in its place
                     scaled(piecesIn[j], 0.5f + 0.5f * m, piece);
+                    piece.inset(-outset, -outset);
                     drawGlass(canvas, barIn, j, piece, ix, iy, m, tintsIn[j], m);
                 }
             }
@@ -1505,7 +1512,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             } else {
                 // The swipe back: the swiped page's header goes, the one underneath comes
                 glassgramHeaderCrossfade(fragmentsStack.get(fragmentsStack.size() - 1), fragmentsStack.get(fragmentsStack.size() - 2),
-                    1f - glassgramSmooth(slide / 0.4f), glassgramSmooth((slide - 0.25f) / 0.45f), glassgramSmooth(slide / 0.65f));
+                    1f - glassgramSmooth(slide / 0.4f), glassgramSmooth((slide - 0.25f) / 0.45f), glassgramSmooth(slide / 0.65f), slide);
             }
         }
 
@@ -2511,7 +2518,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     interpolated = decelerateInterpolator.getInterpolation(animationProgress);
                 }
                 if (iosSlide) {
-                    glassgramHeaderCrossfade(oldFragment, newFragment, glassgramOutAppear(animationProgress), glassgramInAppear(animationProgress), glassgramMorph(animationProgress));
+                    glassgramHeaderCrossfade(oldFragment, newFragment,
+                        glassgramOutAppear(animationProgress), glassgramInAppear(animationProgress),
+                        glassgramMorph(animationProgress), animationProgress);
                 }
                 if (iosSlide) {
                     // glassGram: opening slides the new page (containerView) in over the old one;

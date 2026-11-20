@@ -218,6 +218,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         default float getContentOffsetY() {
             return 0;
         }
+
+        default float getTransitionProgress() {
+            return 0f;
+        }
     }
 
     private int glassTitleSize = 17;
@@ -377,12 +381,16 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         final RectF r = glassRect[surface];
         final LiquidPressEffect effect = glassPress[surface];
-        if (effect != null && effect.isActive()) {
-            effect.mapRect(r.left, r.top, r.right, r.bottom, out);
-        } else {
-            out.set(r);
+        out.set(r);
+        if (out.isEmpty()) {
+            return false;
         }
-        return !out.isEmpty();
+        final float outset = glassTransitionOutset(surface);
+        out.inset(-outset, -outset);
+        if (effect != null && effect.isActive()) {
+            effect.mapRect(out.left, out.top, out.right, out.bottom, out);
+        }
+        return true;
     }
 
     /** The menu's glass as drawn now (moved by its press), in this bar's coordinates; false without it. */
@@ -407,7 +415,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             final RectF left = aFirst ? glassNeckA : glassNeckB, right = aFirst ? glassNeckB : glassNeckA;
             final LiquidPressEffect pa = glassPress[a], pb = glassPress[b];
             if ((pa == null || !pa.isActive()) && (pb == null || !pb.isActive())) {
-                glassNeckRestGap[i] = right.left - left.right;
+                glassNeckRestGap[i] = right.left - left.right + glassTransitionOutset(a) + glassTransitionOutset(b);
                 // at rest the merge's glass is out of the capture
                 if (glassNeckDrawables[i] != null && glassNeckDrawables[i].getAlpha() != 0) {
                     glassNeckDrawables[i].setAlpha(0);
@@ -1246,13 +1254,23 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     private void glassTransform(Canvas canvas, int surface) {
         final LiquidPressEffect effect = glassPress[surface];
-        if (effect == null || !effect.isActive()) {
+        final boolean pressed = effect != null && effect.isActive();
+        final float outset = glassShown[surface] ? glassTransitionOutset(surface) : 0f;
+        if (!pressed && outset == 0f) {
             return;
         }
         final RectF r = glassRect[surface];
-        canvas.translate(r.left, r.top);
-        effect.transform(canvas, r.width(), r.height());
-        canvas.translate(-r.left, -r.top);
+        if (r.isEmpty()) {
+            return;
+        }
+        if (pressed) {
+            canvas.translate(r.left - outset, r.top - outset);
+            effect.transform(canvas, r.width() + 2f * outset, r.height() + 2f * outset);
+            canvas.translate(-r.left + outset, -r.top + outset);
+        }
+        if (outset > 0f) {
+            canvas.scale(1f + 2f * outset / r.width(), 1f + 2f * outset / r.height(), r.centerX(), r.centerY());
+        }
     }
 
     /**
@@ -1268,7 +1286,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final float cy = menuView.getY() + child.getY() + child.getHeight() / 2f;
         for (int surface : new int[]{GLASS_BACK, GLASS_MENU, GLASS_PILL}) {
             final LiquidPressEffect effect = glassPress[surface];
-            if (glassShown[surface] && effect != null && effect.isActive() && glassRect[surface].contains(cx, cy)) {
+            if (glassShown[surface] && glassRect[surface].contains(cx, cy)
+                    && (effect != null && effect.isActive() || glassTransitionOutset(surface) > 0f)) {
                 canvas.translate(-menuView.getX(), -menuView.getY());
                 glassTransform(canvas, surface);
                 canvas.translate(menuView.getX(), menuView.getY());
@@ -1292,6 +1311,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     /** Draws a glass piece of the bar with its press effect; padding is the drawable's inset around the glass. */
     private final RectF glassMovedRect = new RectF();
+    private final RectF glassDrawRect = new RectF();
 
     private void drawGlass(Canvas canvas, Drawable drawable, int surface, int padding) {
         final Rect b = drawable.getBounds();
@@ -1302,32 +1322,37 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             // ActionBarLayout carries this glass into another bar's itself: only where it is counts
             return;
         }
+        final float outset = glassTransitionOutset(surface);
+        final RectF drawRect = glassDrawRect;
+        drawRect.set(r);
+        if (!r.isEmpty()) {
+            drawRect.inset(-outset, -outset);
+        }
         final BlurredBackgroundDrawable glass = drawable instanceof BlurredBackgroundDrawable ? (BlurredBackgroundDrawable) drawable : null;
-        // glassGram: the piece is the library's LiquidButton, its glass and its highlight; what it
-        // carries follows its press (glassTransform)
-        if (glass != null && r.width() > 0 && r.height() > 0) {
-            glass.setRadiusScale(1f);
-            if (glassPress(surface).drawGlass(canvas, r.left, r.top, r.right, r.bottom, Math.min(r.width(), r.height()) / 2f, glass, glass.getAlpha())) {
-                return;
-            }
+        // Sample the backdrop at the expanded bounds. Layout and touch use the resting shape.
+        if (glass != null) {
+            glass.setRadiusScale(LiquidPressEffect.radiusScale(r.width(), r.height(), drawRect));
+        }
+        if (outset > 0f) {
+            drawable.setBounds(
+                Math.round(drawRect.left) - padding, Math.round(drawRect.top) - padding,
+                Math.round(drawRect.right) + padding, Math.round(drawRect.bottom) + padding);
+        }
+        if (glass != null && !drawRect.isEmpty()
+                && glassPress(surface).drawGlass(canvas, drawRect.left, drawRect.top, drawRect.right, drawRect.bottom,
+                    Math.min(drawRect.width(), drawRect.height()) * 0.5f, glass, glass.getAlpha())) {
+            return;
         }
         final LiquidPressEffect effect = glassPress[surface];
         if (effect == null || !effect.isActive()) {
-            if (glass != null) {
-                glass.setRadiusScale(1f);
-            }
             drawable.draw(canvas);
             return;
         }
-        // The glass goes where the press moved it and blurs what is there, instead of stretching
-        // the picture it took in place
-        effect.mapRect(r.left, r.top, r.right, r.bottom, glassMovedRect);
-        // Its corners grow with it, or the round pieces turn square as they stretch
+        effect.mapRect(drawRect.left, drawRect.top, drawRect.right, drawRect.bottom, glassMovedRect);
         if (glass != null) {
             glass.setRadiusScale(LiquidPressEffect.radiusScale(r.width(), r.height(), glassMovedRect));
         }
-        // The bounds stay moved until the next frame sets them again: the glass is a RenderNode
-        // drawn later, and putting the bounds back now would resize it under the drawn frame
+        // A RenderNode may still be drawn later in this frame. Keep its moved bounds until the next frame.
         drawable.setBounds(
             Math.round(glassMovedRect.left) - padding, Math.round(glassMovedRect.top) - padding,
             Math.round(glassMovedRect.right) + padding, Math.round(glassMovedRect.bottom) + padding);
@@ -1946,6 +1971,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             @Override
             public void setAlpha(float alpha) {
                 super.setAlpha(alpha);
+                if (glassMode) {
+                    invalidate();
+                }
                 ActionBar.this.invalidate();
                 if (doOnActionModeFactorChanged != null) {
                     doOnActionModeFactorChanged.run();
@@ -2429,11 +2457,13 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 final float r1 = dp(23);
                 final float r2 = lerp(dp(18.33f), dp(23), searchFieldVisibleAlpha);
                 glassDrawable.setRadius(r2, r1, r1, r2);
-                invalidate();
             }
 
-            if (glassMode && menu != null) {
-                menu.setTranslationX(-lerp((float) dp(10), dp(5), searchFieldVisibleAlpha));
+            if (glassMode) {
+                if (menu != null) {
+                    menu.setTranslationX(-lerp((float) dp(10), dp(5), searchFieldVisibleAlpha));
+                }
+                invalidate();
             }
             if (backgroundUpdateListener != null) {
                 backgroundUpdateListener.run();
@@ -3611,6 +3641,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     private Path sectionsPath;
+    private float glassTransitionOutset, glassPillTransitionOutset, glassMenuTransitionOutset;
+
+    private float glassTransitionOutset(int surface) {
+        if (glassgramContentOnly || !glassMode) {
+            return 0f;
+        }
+        if (surface == GLASS_PILL) {
+            return glassPillTransitionOutset;
+        }
+        if (surface == GLASS_MENU) {
+            return glassMenuTransitionOutset;
+        }
+        return glassTransitionOutset;
+    }
 
     @Override
     public void draw(@NonNull Canvas canvas) {
@@ -3656,6 +3700,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int s = dp(46);
 
         final float actionModeFactor = getActionModeFactor();
+        if (glassMode && !glassgramContentOnly) {
+            final float searchProgress = chatAvatarContainer != null ? searchFactor : searchFieldVisibleAlpha;
+            glassTransitionOutset = Math.max(LiquidPressEffect.transitionOutset(searchProgress),
+                Math.max(LiquidPressEffect.transitionOutset(actionModeFactor), LiquidPressEffect.transitionOutset(glassBackOverlay)));
+            glassPillTransitionOutset = glassPillContent == null ? glassTransitionOutset
+                : Math.max(glassTransitionOutset, LiquidPressEffect.transitionOutset(glassPillContent.getTransitionProgress()));
+            glassMenuTransitionOutset = Math.max(glassTransitionOutset, LiquidPressEffect.transitionOutset(glassMenuVisibilityFactor));
+        }
         final int menuWidthA = hasForcedMenuWidth ? forcedMenuWidth : (int) animatorMenuItemsWidth.getFactor();
         final int menuWidthB = hasForcedMenuMinWidth ? Math.max((int) (forcedMenuMinWidth * (1f - searchFactor)), menuWidthA) : menuWidthA;
         // With an end view the menu's glass is a circle under it, until search or selection need the menu

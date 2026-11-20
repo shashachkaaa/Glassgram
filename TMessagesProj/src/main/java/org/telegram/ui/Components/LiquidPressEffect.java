@@ -42,6 +42,7 @@ public class LiquidPressEffect {
 
     private static final float DAMPING = 0.5f;
     private static final float STIFFNESS = 300f;
+    private static final float SWELL_DP = 4f;
 
     private final View view;
     private final FloatValueHolder press = new FloatValueHolder(0f);
@@ -494,7 +495,7 @@ public class LiquidPressEffect {
         }
         // The catalog swells its small buttons by 4dp of their height in both directions; a wide
         // button would grow by tens of dp sideways that way, so each side gets its own 4dp
-        final float swell = AndroidUtilities.dpf2(4) * progress;
+        final float swell = AndroidUtilities.dpf2(SWELL_DP) * progress;
         final float scaleBaseX = 1f + swell / width;
         final float scaleBaseY = 1f + swell / height;
 
@@ -511,6 +512,13 @@ public class LiquidPressEffect {
         curScaleX = scaleBaseX + maxStretch / width * Math.min(1f, Math.abs((float) Math.cos(angle) * ox / maxDimension));
         curScaleY = scaleBaseY + maxStretch / height * Math.min(1f, Math.abs((float) Math.sin(angle) * oy / maxDimension));
         return true;
+    }
+
+    /** Per-edge growth with the same amplitude as a press, at rest at both ends of a transition. */
+    public static float transitionOutset(float progress) {
+        final float t = Math.max(0f, Math.min(1f, progress));
+        final float pulse = 4f * t * (1f - t);
+        return AndroidUtilities.dpf2(SWELL_DP) * 0.5f * pulse * pulse;
     }
 
     /** Applies the catalog's LiquidButton layerBlock: swell by 4dp and stretch towards the drag. */

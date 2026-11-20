@@ -3206,6 +3206,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             glassgramComposeButton.setVisibility(p < 1f ? View.VISIBLE : View.INVISIBLE);
         }
         if (glassgramEditBar != null) {
+            glassgramReadButton.setGlassTransitionProgress(p);
+            glassgramDeleteButton.setGlassTransitionProgress(p);
             glassgramEditBar.setAlpha(p);
             glassgramEditBar.setTranslationY(-navigationBarHeight + dp(16) * (1f - p));
             glassgramEditBar.setVisibility(p > 0f ? View.VISIBLE : View.GONE);
@@ -3925,6 +3927,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         @Override
                         public float getContentOffsetY() {
                             return glassHeaderContentOffsetY();
+                        }
+
+                        @Override
+                        public float getTransitionProgress() {
+                            return hasStories && dialogStoriesCell != null && dialogStoriesCell.getVisibility() == View.VISIBLE
+                                ? dialogStoriesCell.getCollapsedProgress() : 0f;
                         }
                     });
                 }

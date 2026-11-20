@@ -42,6 +42,15 @@ public class GlassgramHeaderButton extends FrameLayout {
     private ImageView iconView;
     private CharSequence text;
     private int anchor = Gravity.CENTER_HORIZONTAL;
+    private float transitionOutset;
+
+    public void setGlassTransitionProgress(float progress) {
+        final float outset = LiquidPressEffect.transitionOutset(progress);
+        if (transitionOutset != outset) {
+            transitionOutset = outset;
+            invalidate();
+        }
+    }
 
     /** A glass piece beside this button that the button flows into when it swells towards it. */
     public interface MergeNeighbor {
@@ -253,7 +262,6 @@ public class GlassgramHeaderButton extends FrameLayout {
             }
         }
         final float right = left + w;
-        final float radius = h / 2f;
         if (org.telegram.ui.ActionBar.ActionBar.glassgramContentOnly) {
             // the header's glass is being carried into another header's: only what the button carries
             super.dispatchDraw(canvas);
@@ -265,20 +273,24 @@ public class GlassgramHeaderButton extends FrameLayout {
             drawMerge(canvas, left, right, h, false);
         }
         final int p = dp(GLASS_PADDING_DP);
-        glass.setBounds(Math.round(left) - p, -p, Math.round(right) + p, Math.round(h) + p);
+        final float outset = transitionOutset;
+        final float radius = h / 2f + outset;
+        glass.setBounds(Math.round(left - outset) - p, Math.round(-outset) - p,
+            Math.round(right + outset) + p, Math.round(h + outset) + p);
         glass.setRadius(radius);
-        final boolean liquid = press.drawGlass(canvas, left, 0, right, h, radius, glass, 255, tint);
+        final boolean liquid = press.drawGlass(canvas, left - outset, -outset, right + outset, h + outset,
+            radius, glass, 255, tint);
         if (!liquid) {
             glass.setAlpha(255);
             glass.draw(canvas);
             if (tint != 0) {
                 tintPaint.setColor(tint);
-                canvas.drawRoundRect(left, 0, right, h, radius, radius, tintPaint);
+                canvas.drawRoundRect(left - outset, -outset, right + outset, h + outset, radius, radius, tintPaint);
             }
             if (press.isActive()) {
                 canvas.save();
-                canvas.translate(left, 0);
-                press.drawGlow(canvas, w, h, radius);
+                canvas.translate(left - outset, -outset);
+                press.drawGlow(canvas, w + outset * 2f, h + outset * 2f, radius);
                 canvas.restore();
             }
         }
@@ -288,9 +300,12 @@ public class GlassgramHeaderButton extends FrameLayout {
         canvas.save();
         if (press.isActive()) {
             // What the button carries follows its press
-            canvas.translate(left, 0);
-            press.transform(canvas, w, h);
-            canvas.translate(-left, 0);
+            canvas.translate(left - outset, -outset);
+            press.transform(canvas, w + 2f * outset, h + 2f * outset);
+            canvas.translate(-left + outset, outset);
+        }
+        if (outset > 0f && w > 0f) {
+            canvas.scale(1f + 2f * outset / w, 1f + 2f * outset / h, left + w / 2f, h / 2f);
         }
         super.dispatchDraw(canvas);
         canvas.restore();
