@@ -243,6 +243,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                         if (pageSource != null) {
                             hash.addF(fragmentPosition.left);
                             hash.addF(fragmentPosition.top);
+                            hash.addF(fragmentPosition.right);
+                            hash.addF(fragmentPosition.bottom);
                             hash.add(fragment.getClassGuid());
                         }
                     }
@@ -251,9 +253,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
             @Override
             public void renderNodeUpdateDisplayList(Canvas canvas) {
-                final int width = fragmentView.getMeasuredWidth();
-                final int height = fragmentView.getMeasuredHeight();
-
                 canvas.drawColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
                 for (int a = 0, N = fragmentsArr.size(); a < N; a++) {
@@ -274,8 +273,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                         final GlassSourceRenderNode pageSource = frosted ? delegate.getFrostedGlassSource() : delegate.getGlassSource();
                         if (pageSource != null) {
                             canvas.save();
+                            canvas.clipRect(fragmentPosition);
                             canvas.translate(fragmentPosition.left, fragmentPosition.top);
-                            pageSource.draw(canvas, 0, 0, width, height);
+                            pageSource.draw(canvas, 0, 0, fragment.fragmentView.getWidth(), fragment.fragmentView.getHeight());
                             canvas.restore();
                         }
                     }
