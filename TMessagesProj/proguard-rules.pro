@@ -115,3 +115,8 @@
 # Plugin hook conditions are called through Chaquopy; MVEL loads its reflective optimizer by name.
 -keep class org.telegram.messenger.plugins.PluginConditions { public *; }
 -keep class org.mvel2.optimizers.impl.refl.ReflectiveAccessorOptimizer { public <init>(); }
+
+# MVEL's optional Java SE JSR-223 bridge references javax.script, which Android does not
+# provide. Plugins call MVEL.compileExpression/executeExpression directly instead.
+# Suppress only these missing desktop scripting API references during release R8.
+-dontwarn javax.script.**

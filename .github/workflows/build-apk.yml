@@ -189,12 +189,36 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # A master push can explicitly rebuild an already published release when its commit
+      # subject contains [release-rebuild:vX.Y.Z]. Ordinary master pushes remain fast tests.
+      - name: Resolve release tag
+        id: release
+        env:
+          INPUT_RELEASE_TAG: ${{ github.event.inputs.release_tag || '' }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="$INPUT_RELEASE_TAG"
+          if [ -z "$RELEASE_TAG" ] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          fi
+          if [ -z "$RELEASE_TAG" ] && [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/master" ]; then
+            subject="$(git log -1 --format=%s)"
+            if [[ "$subject" =~ \[release-rebuild:(v[0-9]+\.[0-9]+\.[0-9]+)\] ]]; then
+              RELEASE_TAG="${BASH_REMATCH[1]}"
+            fi
+          fi
+          if [[ -n "$RELEASE_TAG" && ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid release tag: $RELEASE_TAG"
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
       # Releases are full builds: armeabi-v7a and arm64-v8a, shrunk by R8. Other builds are test
       # builds, much faster: arm64-v8a only and without R8 (GLASSGRAM_FAST)
       - name: Select Gradle task
         id: task
         env:
-          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
           FULL: ${{ github.event.inputs.full || 'false' }}
         run: |
           VARIANT="${{ github.event.inputs.variant || 'release' }}"
@@ -244,7 +268,7 @@ jobs:
           # Telegram API credentials of this fork, from the repository secrets
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
-          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           chmod +x gradlew
           # A release knows its own version from its tag, which the app's update check compares
@@ -314,7 +338,7 @@ jobs:
       # Releases: glassgram-v<version>.apk; other builds: glassgram-<variant>-<commit>.apk
       - name: Rename APK
         env:
-          RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           mkdir -p dist
           if [ -n "$RELEASE_TAG" ]; then
@@ -380,15 +404,19 @@ jobs:
             --title "glassGram for RuStore (latest master build)" \
             --notes "RuStore edition (no ghost mode, spy or in-app updates), built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)${NOTE}"
 
-      # A pushed tag, or a manual run with release_tag (which creates the tag on this commit)
+      # Attach the rebuilt APK without replacing an existing release's custom title or notes.
       - name: Attach APK to GitHub Release
-        if: matrix.edition == 'full' && (startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != '')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          name: glassGram ${{ github.event.inputs.release_tag || github.ref_name }}
-          body_path: .github/release-notes.md
-          files: dist/*.apk
+        if: matrix.edition == 'full' && steps.release.outputs.tag != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/*.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/*.apk \
+              --target "$GITHUB_SHA" \
+              --title "glassGram $RELEASE_TAG" \
+              --notes-file .github/release-notes.md
+          fi
