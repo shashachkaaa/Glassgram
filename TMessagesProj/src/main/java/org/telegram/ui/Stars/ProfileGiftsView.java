@@ -348,6 +348,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     public final ArrayList<Gift> oldGifts = new ArrayList<>();
     public final ArrayList<Gift> gifts = new ArrayList<>();
+    private final ArrayList<Gift> drawOrder = new ArrayList<>();
     public final HashSet<Long> giftIds = new HashSet<>();
     public int maxCount;
 
@@ -459,6 +460,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
+        drawOrder.clear();
+        for (Gift gift : gifts) {
+            if (gift.orbit == null) gift.orbit = new Orbit(gift.position);
+            drawOrder.add(gift);
+        }
+        // In each avatar layer the faster orbit passes in front. Keep the order
+        // stable while bubbles overlap, even as their screen-space speeds change.
+        drawOrder.sort((a, b) -> Double.compare(a.orbit.path.speed, b.orbit.path.speed));
+
         if (movingGift != null) {
             Gift replacement = null;
             for (Gift gift : gifts) {
@@ -487,6 +497,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     // Positions share the same coordinate system, so the differently shaped orbits can intersect.
     private static final class Orbit {
+        private static final double THROW_CONTACT_SECONDS = .85;
         private static final int[] SLOTS = {3, 4, 2, 0, 5, 1};
         private static final OrbitPath[] PATHS = {
                 new OrbitPath(.98, .72, -.13, .34, .94),
@@ -500,6 +511,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double x, y, vx, vy, direction = 1;
         double impact, impactAngle, lift;
         private double slideX, slideY;
+        private double throwContactTime;
 
         Orbit(int position) {
             int slot = Math.floorMod(position, SLOTS.length);
@@ -538,13 +550,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             vx = -impulse * pullX / rx;
             vy = -impulse * pullY / ry;
             slideX = slideY = 0;
+            throwContactTime = THROW_CONTACT_SECONDS;
         }
 
         void stopDrag() {
             vx = vy = slideX = slideY = 0;
+            throwContactTime = 0;
+        }
+
+        boolean isThrown() {
+            return throwContactTime > 0;
         }
 
         void advance(double dt) {
+            throwContactTime = Math.max(0, throwContactTime - dt);
             double slideStep = -Math.expm1(-20 * dt);
             vx += slideX * slideStep;
             vy += slideY * slideStep;
@@ -645,10 +664,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private float lastDragX, lastDragY;
 
     private void advanceGifts(long now) {
-        for (int i = 0; i < gifts.size(); i++) {
-            Gift gift = gifts.get(i);
-            if (gift.orbit == null) gift.orbit = new Orbit(gift.position);
-        }
         double elapsed = lastPhysicsFrame == 0 ? 0 : Math.min(.064, (now - lastPhysicsFrame) * .001);
         lastPhysicsFrame = now;
         if (elapsed <= 0) return;
@@ -667,6 +682,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         for (int step = 1; step <= steps; step++) {
             double handX = lastDragX + (dragX - lastDragX) * step / steps;
             double handY = lastDragY + (dragY - lastDragY) * step / steps;
+            boolean checkContacts = dragging;
             for (int i = 0; i < gifts.size(); i++) {
                 Gift gift = gifts.get(i);
                 Orbit body = gift.orbit;
@@ -675,6 +691,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     continue;
                 }
                 body.advance(dt);
+                checkContacts |= body.isThrown();
                 // Ease out only the outward component as the rim approaches the
                 // viewport. An oblique shot can keep travelling along the edge.
                 double cx = orbitCenterX + body.x * rx, cy = orbitCenterY + body.y * ry;
@@ -682,13 +699,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 body.vx = limitAtEdge(body.vx, cx, getWidth(), rim, rx);
                 body.vy = limitAtEdge(body.vy, cy - top, bottom - top, rim, ry);
             }
+            if (!checkContacts) continue;
             for (int i = 0; i < gifts.size(); i++) {
                 Gift a = gifts.get(i);
+                boolean heldA = a == held;
+                boolean interactiveA = heldA ? dragging : a.orbit.isThrown();
                 for (int j = i + 1; j < gifts.size(); j++) {
                     Gift b = gifts.get(j);
+                    boolean heldB = b == held;
+                    boolean interactiveB = heldB ? dragging : b.orbit.isThrown();
+                    if (!interactiveA && !interactiveB) continue;
                     double dx = (b.orbit.x - a.orbit.x) * rx;
                     double dy = (b.orbit.y - a.orbit.y) * ry;
-                    int hand = b == held ? 1 : a == held ? -1 : 0;
+                    int hand = heldB ? 1 : heldA ? -1 : 0;
                     double contact = radius * (a.orbit.radiusScale() + b.orbit.radiusScale());
                     // Bubbles on different sides of the avatar can overlap in projection.
                     if (hand == 0) {
@@ -696,7 +719,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                         contact = Math.sqrt(Math.max(0, contact * contact - depthGap * depthGap));
                     }
                     Orbit.collide(a.orbit, b.orbit, dx + hand * handX, dy + hand * handY,
-                            contact, rx, ry, a == held, b == held, dt);
+                            contact, rx, ry, heldA, heldB, dt);
                 }
             }
         }
@@ -819,7 +842,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
         boolean capturing = ViewBehindBackdrop.isAnyDrawing();
         boolean hasGlass = !capturing && glass.begin(canvas);
-        for (Gift gift : gifts) {
+        for (Gift gift : drawOrder) {
             if (gift.alpha > 0f && gift.inFront == front) {
                 gift.draw(canvas, glass, hasGlass, !capturing);
             }
@@ -828,8 +851,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     private Gift getGiftUnder(float x, float y, boolean front) {
-        for (int i = gifts.size() - 1; i >= 0; i--) {
-            Gift gift = gifts.get(i);
+        for (int i = drawOrder.size() - 1; i >= 0; i--) {
+            Gift gift = drawOrder.get(i);
             if (gift.alpha > 0f && gift.inFront == front && gift.bounds.contains(x, y)) return gift;
         }
         return null;
