@@ -2182,14 +2182,23 @@ public class Theme {
             return Theme.chat_animatedEmojiTextColorFilter;
         }
 
-        /** A chat's provider answers for its dialog, see SharedConfig#isCompactMode(int, long). */
         default boolean isCompactMode() {
             return SharedConfig.compactMode;
         }
     }
 
+    /** A provider that supplies a compact mode setting for its dialog. */
+    public interface CompactModeResourcesProvider extends ResourcesProvider {
+        @Override
+        boolean isCompactMode();
+    }
+
     public static boolean isCompactMode(ResourcesProvider resourcesProvider) {
-        return resourcesProvider != null ? resourcesProvider.isCompactMode() : SharedConfig.compactMode;
+        // Plugin-provided implementations can predate the default interface method.
+        if (resourcesProvider instanceof CompactModeResourcesProvider) {
+            return ((CompactModeResourcesProvider) resourcesProvider).isCompactMode();
+        }
+        return SharedConfig.compactMode;
     }
 
     private static final Object sync = new Object();
@@ -9099,11 +9108,9 @@ public class Theme {
 
     public static int getColor(int key, ResourcesProvider provider) {
         if (provider != null) {
-            if (provider.isCompactMode()) {
-                final Integer compactColor = getCompactColor(key, provider);
-                if (compactColor != null) {
-                    return compactColor;
-                }
+            final Integer compactColor = getCompactColor(key, provider);
+            if (compactColor != null) {
+                return compactColor;
             }
             return provider.getColor(key);
         }

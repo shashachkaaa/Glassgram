@@ -44531,7 +44531,7 @@ public class ChatActivity extends BaseFragment implements
 
     public Runnable onThemeChange;
 
-    public class ThemeDelegate implements Theme.ResourcesProvider, ChatActionCell.ThemeDelegate, MessagePreviewView.ResourcesDelegate {
+    public class ThemeDelegate implements Theme.CompactModeResourcesProvider, ChatActionCell.ThemeDelegate, MessagePreviewView.ResourcesDelegate {
 
         private final HashMap<String, Drawable> currentDrawables = new HashMap<>();
         private final HashMap<String, Paint> currentPaints = new HashMap<>();
