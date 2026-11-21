@@ -7107,8 +7107,10 @@ public class ChatActivity extends BaseFragment implements
         chatActivityFadeView.setup(navbarContentDrawableFactory);
         chatActivityFadeView.setFadeHeightTop(dp(48));
         chatActivityFadeView.setFadeHeightBottom(dp(48));
-        if (parentChatActivity == null && glassBackgroundSourceFrostedRenderNode != null) {
-            chatActivityFadeView.setContentBlur(glassBackgroundSourceFrostedRenderNode, glassEngine, dp(48));
+        if (parentChatActivity == null && scrollableViewNoiseSuppressor != null) {
+            chatActivityFadeView.setContentBlur(
+                    scrollableViewNoiseSuppressor.createScrollBlurSource(navbarContentSourceWallpaper),
+                    glassEngine, dp(72));
         }
         contentView.addView(chatActivityFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 

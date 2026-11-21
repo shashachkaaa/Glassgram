@@ -14,6 +14,9 @@ import android.os.Build;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
+import org.telegram.utils.glass.source.GlassSource;
+import org.telegram.utils.glass.source.GlassSourceRenderNode;
+
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.utils.RenderNodeEffects;
@@ -30,6 +33,16 @@ public class DownscaleScrollableNoiseSuppressor {
     public final boolean allowNoiseSuppress;
     private final boolean simpleMode;
     private final int k;
+    private boolean scrollBlurRequested;
+
+    /** A neutral blur of the captured rows, at the same strength as the profile header. */
+    public GlassSourceRenderNode createScrollBlurSource(GlassSource background) {
+        scrollBlurRequested = true;
+        final GlassSourceRenderNode source = new GlassSourceRenderNode(null);
+        source.setUnderSource(background);
+        source.setScrollableNoiseSuppressor(this, DRAW_SCROLL_BLUR);
+        return source;
+    }
 
     public DownscaleScrollableNoiseSuppressor() {
         this(true, false);
@@ -50,6 +63,7 @@ public class DownscaleScrollableNoiseSuppressor {
     public static final int DRAW_GLASS = -2;
     public static final int DRAW_FROSTED_GLASS = -3;
     public static final int DRAW_FROSTED_GLASS_NO_SATURATION = -4;
+    private static final int DRAW_SCROLL_BLUR = -5;
 
     public void draw(Canvas canvas, int index) {
         if (!canvas.isHardwareAccelerated()) {
@@ -73,7 +87,9 @@ public class DownscaleScrollableNoiseSuppressor {
     public boolean hasLostDisplayLists;
     public void drawInline(Canvas canvas, int index) {
         final int a;
-        if (!isLiquidGlassEnabled && simpleMode) {
+        if (index == DRAW_SCROLL_BLUR) {
+            a = DRAW_SCROLL_BLUR;
+        } else if (!isLiquidGlassEnabled && simpleMode) {
             a = 0;
         } else if (index == DRAW_GLASS) {
             a = isLiquidGlassEnabled ? 0 : 1;
@@ -91,10 +107,18 @@ public class DownscaleScrollableNoiseSuppressor {
                 continue;
             }
 
+            final RenderNode rn;
+            if (a == DRAW_SCROLL_BLUR) {
+                if (sourcePart.renderNodesForScrollBlur == null) {
+                    continue;
+                }
+                rn = sourcePart.renderNodesForScrollBlur.renderNodeRestored[0];
+            } else {
+                rn = getRenderNode(a, b);
+            }
+
             canvas.save();
             canvas.translate(sourcePart.position.left, sourcePart.position.top);
-            final RenderNode rn = getRenderNode(a, b);
-
             if (!rn.hasDisplayList()) {
                 hasLostDisplayLists = true;
             }
@@ -106,6 +130,9 @@ public class DownscaleScrollableNoiseSuppressor {
 
     /** How many pixels of the screen are in a pixel of what {@link #drawInline} draws; on the grid of the screen, positions are on a 16 px one. */
     public int getDownsample(int index) {
+        if (index == DRAW_SCROLL_BLUR) {
+            return Math.max(4, k);
+        }
         if (!isLiquidGlassEnabled || rectRenderNodesCount == 0) {
             return 1;
         }
@@ -291,6 +318,9 @@ public class DownscaleScrollableNoiseSuppressor {
         for (int a = 0; a < rectRenderNodesCount; a++) {
             final SourcePart sourcePart = rectRenderNodes.get(a);
             sourcePart.renderNodesForBlur.onScrolled(dx, dy);
+            if (sourcePart.renderNodesForScrollBlur != null) {
+                sourcePart.renderNodesForScrollBlur.onScrolled(dx, dy);
+            }
             if (sourcePart.renderNodesForGlass != null) {
                 sourcePart.renderNodesForGlass.onScrolled(dx, dy);
             }
@@ -415,6 +445,7 @@ public class DownscaleScrollableNoiseSuppressor {
         final RenderNode renderNode = new RenderNode(null);
         final DownscaledRenderNode renderNodesForBlur;
         final @Nullable DownscaledRenderNode renderNodesForGlass;
+        private @Nullable DownscaledRenderNode renderNodesForScrollBlur;
         final Rect position = new Rect();
         long lastHash;
 
@@ -462,6 +493,15 @@ public class DownscaleScrollableNoiseSuppressor {
         }
 
         public void invalidate() {
+            if (scrollBlurRequested) {
+                if (renderNodesForScrollBlur == null) {
+                    final int scale = getDownsample(DRAW_SCROLL_BLUR);
+                    renderNodesForScrollBlur = new DownscaledRenderNode("scroll-blur", 0);
+                    renderNodesForScrollBlur.setScale(scale, scale);
+                    renderNodesForScrollBlur.setPrimaryEffectBlur(dpf2(7));
+                }
+                renderNodesForScrollBlur.invalidateRenderNodes(renderNode);
+            }
             if (renderNodesForGlass != null) {
                 renderNodesForGlass.invalidateRenderNodes(renderNode);
                 renderNodesForBlur.invalidateRenderNodes(renderNodesForGlass.renderNodeRestored[0]);

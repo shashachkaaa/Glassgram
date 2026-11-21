@@ -76,6 +76,7 @@ import org.telegram.ui.Stories.StoryViewer;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 import org.telegram.utils.glass.GlassEngine;
+import org.telegram.utils.glass.source.GlassSourceRenderNode;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -1501,6 +1502,11 @@ public abstract class BaseFragment {
     }
 
     private @Nullable BaseFragmentSimpleGlass simpleGlass;
+
+    @Nullable
+    public GlassSourceRenderNode getScrollBlurSource() {
+        return simpleGlass != null ? simpleGlass.getScrollBlurSource() : null;
+    }
 
     protected BaseFragmentSimpleGlass getBaseSimpleGlass() {
         if (simpleGlass == null) {

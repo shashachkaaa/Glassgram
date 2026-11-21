@@ -92,6 +92,7 @@ import org.telegram.ui.Components.glass.GlassTabView;
 import org.telegram.ui.Stories.recorder.HintView2;
 import org.telegram.ui.Wallet.WalletActivity;
 
+import java.util.function.Function;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
@@ -194,11 +195,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public MainTabsActivity() {
         super();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            iBlur3SourceTabGlass = createTabSource(false);
-            iBlur3SourceTabFrosted = createTabSource(true);
+            iBlur3SourceTabGlass = createTabSource(fragment -> ((TabFragmentDelegate) fragment).getGlassSource(), true);
+            iBlur3SourceTabFrosted = createTabSource(fragment -> ((TabFragmentDelegate) fragment).getFrostedGlassSource(), true);
+            tabsScrollBlurSource = createTabSource(BaseFragment::getScrollBlurSource, false);
         } else {
             iBlur3SourceTabGlass = null;
             iBlur3SourceTabFrosted = null;
+            tabsScrollBlurSource = null;
         }
 
         iBlur3SourceColor = new GlassSourceColor();
@@ -216,7 +219,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     /** The pages under the tabs: an intermediate node over one or two of them, their glass or their frosted glass. */
     @RequiresApi(api = Build.VERSION_CODES.S)
-    private GlassSourceRenderNode createTabSource(boolean frosted) {
+    private GlassSourceRenderNode createTabSource(Function<BaseFragment, GlassSourceRenderNode> pageSourceProvider,
+                                                boolean fillBackground) {
         final GlassSourceRenderNode source = new GlassSourceRenderNode(null);
         source.setupRenderer(new RenderNodeWithHash.Renderer() {
             @Override
@@ -238,8 +242,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                     }
 
                     if (fragment instanceof TabFragmentDelegate) {
-                        TabFragmentDelegate delegate = (TabFragmentDelegate) fragment;
-                        final GlassSourceRenderNode pageSource = frosted ? delegate.getFrostedGlassSource() : delegate.getGlassSource();
+                        final GlassSourceRenderNode pageSource = pageSourceProvider.apply(fragment);
                         if (pageSource != null) {
                             hash.addF(fragmentPosition.left);
                             hash.addF(fragmentPosition.top);
@@ -253,7 +256,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
             @Override
             public void renderNodeUpdateDisplayList(Canvas canvas) {
-                canvas.drawColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                if (fillBackground) {
+                    canvas.drawColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                }
 
                 for (int a = 0, N = fragmentsArr.size(); a < N; a++) {
                     final FragmentState state = fragmentsArr.valueAt(a);
@@ -269,8 +274,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                     }
 
                     if (fragment instanceof TabFragmentDelegate) {
-                        TabFragmentDelegate delegate = (TabFragmentDelegate) fragment;
-                        final GlassSourceRenderNode pageSource = frosted ? delegate.getFrostedGlassSource() : delegate.getGlassSource();
+                        final GlassSourceRenderNode pageSource = pageSourceProvider.apply(fragment);
                         if (pageSource != null) {
                             canvas.save();
                             canvas.clipRect(fragmentPosition);
@@ -465,7 +469,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         fadeView = new View(context);
         tabsFadeDrawable = BaseFragmentSimpleGlass.createScrollBlurDrawable(
-                iBlur3SourceTabFrosted, GlassFadeDirection.BOTTOM, dp(60), iBlur3SourceColor, dp(60));
+                tabsScrollBlurSource, GlassFadeDirection.BOTTOM, dp(78), iBlur3SourceColor, dp(60));
+        tabsFadeDrawable.setMaskAlpha(192);
         tabsFadeDrawable.setInefficientRenderPathsAllowed(true);
         fadeView.setBackground(tabsFadeDrawable);
         glassEngine.registerDrawable(fadeView, tabsFadeDrawable);
@@ -1422,6 +1427,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private final @NonNull GlassSourceColor iBlur3SourceColor;
     private final @Nullable GlassSourceRenderNode iBlur3SourceTabGlass;
     private final @Nullable GlassSourceRenderNode iBlur3SourceTabFrosted;
+    private final @Nullable GlassSourceRenderNode tabsScrollBlurSource;
 
     /** The one the tabs draw now; null with the blur off, they are on the color then. */
     @Nullable
@@ -1441,6 +1447,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && iBlur3SourceTabGlass != null) {
             iBlur3SourceTabGlass.invalidateRenderer();
             iBlur3SourceTabFrosted.invalidateRenderer();
+            tabsScrollBlurSource.invalidateRenderer();
             blur3_invalidateBlur();
         }
     }
@@ -1490,10 +1497,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (source != null) {
             source.setSize(width, height);
             source.updateDisplayListIfNeeded();
-            if (source != iBlur3SourceTabFrosted) {
-                // The bottom fade uses frosted content even when the tab capsules use Liquid Glass.
-                iBlur3SourceTabFrosted.setSize(width, height);
-                iBlur3SourceTabFrosted.updateDisplayListIfNeeded();
+            if (fadeView != null && fadeView.getVisibility() == View.VISIBLE) {
+                tabsScrollBlurSource.setSize(width, height);
+                tabsScrollBlurSource.updateDisplayListIfNeeded();
             }
         }
     }

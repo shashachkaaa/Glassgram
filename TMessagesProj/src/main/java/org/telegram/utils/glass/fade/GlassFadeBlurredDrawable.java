@@ -66,6 +66,16 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
     private boolean overlayOnlyDirty = true;
 
     private GlassFadeDirection direction = GlassFadeDirection.TOP;
+    private int maskColor = Color.WHITE;
+
+    public void setMaskAlpha(int alpha) {
+        final int color = (alpha << 24) | 0x00FFFFFF;
+        if (maskColor != color) {
+            maskColor = color;
+            shaderDirty = true;
+            invalidateSelf();
+        }
+    }
 
     @NonNull private GlassFadeRangeParams maskRange = GlassFadeRangeParams.FILL;
     @NonNull private GlassFadeRangeParams overlayRange = GlassFadeRangeParams.FILL;
@@ -417,7 +427,7 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
                         || direction == GlassFadeDirection.BOTTOM ? height : width;
                 if (drawContent) {
                     maskPaint.setShader(createGradient(maskRange, axisLength,
-                            maskRange.marginEnd, Color.WHITE, LEGACY_DOWNSAMPLE));
+                            maskRange.marginEnd, maskColor, LEGACY_DOWNSAMPLE));
                     overlayPaint.setShader(createGradient(overlayRange, axisLength,
                             overlayRange.marginEnd, overlayColor, LEGACY_DOWNSAMPLE));
                 } else {
@@ -539,7 +549,7 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
                         ? bounds.height() : bounds.width();
                 maskShader = createGradient(maskRange, axisLength,
                         maskRange.marginEnd,
-                        Color.WHITE, downsample);
+                        maskColor, downsample);
                 maskPaint.setShader(maskShader);
                 final Shader overlay = createGradient(overlayRange, axisLength,
                         overlayRange.marginEnd, overlayColor, downsample);
@@ -670,7 +680,7 @@ public class GlassFadeBlurredDrawable extends GlassDrawable {
                         ? bounds.height() : bounds.width();
                 runtimeShader.setInputShader("alphaMask", createGradient(maskRange, axisLength,
                         maskRange.marginEnd,
-                        Color.WHITE, downsample));
+                        maskColor, downsample));
                 runtimeShader.setInputShader("overlay", createGradient(overlayRange, axisLength,
                         overlayRange.marginEnd, overlayColor, downsample));
                 final float backgroundAlpha = fillBackground ? 1f : 0f;

@@ -70,6 +70,8 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
                 source, GlassFadeDirection.TOP, fadeHeight, null, 0);
         contentBlurBottom = BaseFragmentSimpleGlass.createScrollBlurDrawable(
                 source, GlassFadeDirection.BOTTOM, fadeHeight, null, 0);
+        contentBlurTop.setMaskAlpha(192);
+        contentBlurBottom.setMaskAlpha(192);
         contentBlurTop.setInefficientRenderPathsAllowed(true);
         contentBlurBottom.setInefficientRenderPathsAllowed(true);
         contentBlurTop.setAlpha(fadeDrawableTop.getAlpha());

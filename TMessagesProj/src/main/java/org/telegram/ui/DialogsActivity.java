@@ -913,7 +913,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             final int status = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
             if (drawsLiveHeaderBlur(canvas)) {
                 glassHeaderBlur.setBounds(0, Math.max(0, top), getMeasuredWidth(),
-                        top + status + ActionBar.getCurrentActionBarHeight() + dp(44));
+                        top + status + ActionBar.getCurrentActionBarHeight() + dp(22));
                 glassHeaderBlur.draw(canvas);
                 return;
             }
@@ -2773,6 +2773,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         iBlur3SourceColor = glassEngine.createThemedColorSource(() -> getThemedColor(Theme.key_windowBackgroundWhite));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             scrollableViewNoiseSuppressor = new DownscaleScrollableNoiseSuppressor();
+            scrollBlurSource = scrollableViewNoiseSuppressor.createScrollBlurSource(iBlur3SourceColor);
 
             iBlur3SourceGlass = new GlassSourceRenderNode(iBlur3SourceColor);
             iBlur3SourceGlass.setUnderSource(iBlur3SourceColor);
@@ -2793,6 +2794,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             iBlur3FactoryBlur = new BlurredBackgroundDrawableViewFactory(iBlur3SourceGlassFrosted);
         } else {
             scrollableViewNoiseSuppressor = null;
+            scrollBlurSource = null;
             iBlur3SourceGlassFrosted = null;
             iBlur3SourceGlass = null;
             iBlur3FactoryFrostedLiquidGlass = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
@@ -4460,9 +4462,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         ContentView contentView = new ContentView(context);
         fragmentView = contentView;
-        if (iBlur3SourceGlassFrosted != null) {
+        if (scrollBlurSource != null) {
             contentView.glassHeaderBlur = BaseFragmentSimpleGlass.createScrollBlurDrawable(
-                    iBlur3SourceGlassFrosted, GlassFadeDirection.TOP, dp(32), null, 0);
+                    scrollBlurSource, GlassFadeDirection.TOP, dp(62), null, 0);
+            contentView.glassHeaderBlur.setMaskAlpha(204);
             contentView.glassHeaderBlur.setInefficientRenderPathsAllowed(true);
             glassEngine.registerDrawable(contentView, contentView.glassHeaderBlur);
         }
@@ -14479,6 +14482,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     /* Blur */
 
     private final @Nullable DownscaleScrollableNoiseSuppressor scrollableViewNoiseSuppressor;
+    private final @Nullable GlassSourceRenderNode scrollBlurSource;
     private final @Nullable GlassSourceRenderNode iBlur3SourceGlassFrosted;
     private final @Nullable GlassSourceRenderNode iBlur3SourceGlass;
     private final @NonNull GlassSourceColor iBlur3SourceColor;
@@ -14554,6 +14558,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public GlassSourceRenderNode getGlassSource() {
         return iBlur3SourceGlass;
+    }
+
+    @Override
+    public GlassSourceRenderNode getScrollBlurSource() {
+        return scrollBlurSource;
     }
 
     @Override

@@ -58,6 +58,7 @@ public class BaseFragmentSimpleGlass {
 
     /** The source of {@link #factory} for a glass outside this screen's views; null without a capture. */
     private final @Nullable GlassSourceRenderNode glassSource;
+    private final @Nullable GlassSourceRenderNode scrollBlurSource;
     private final @Nullable GlassSourceRenderNode frostedGlassSource;
     private @Nullable Runnable onCaptured;
 
@@ -103,10 +104,13 @@ public class BaseFragmentSimpleGlass {
             menuFactory.setLiquidGlassEffectAllowed(true);
 
             glassSourceForFadeDrawable = glassCaptureSourceCanvas.getSource(GlassCaptureSourceCanvas.SourceIndex.BLURRED);
+            scrollBlurSource = new GlassSourceRenderNode(null);
+            scrollBlurSource.setGlassCaptureSourceCanvas(glassCaptureSourceCanvas, GlassCaptureSourceCanvas.SourceIndex.BLURRED);
         } else {
             glassSourceForFadeDrawable = GlassSourceEmpty.INSTANCE;
             glassCaptureSourceCanvas = null;
             glassSource = null;
+            scrollBlurSource = null;
             frostedGlassSource = null;
             factory = new BlurredBackgroundDrawableViewFactory(glassBackgroundSourceColor);
             factory.setGlassEngine(glassEngine);
@@ -139,6 +143,11 @@ public class BaseFragmentSimpleGlass {
     }
 
     @Nullable
+    public GlassSourceRenderNode getScrollBlurSource() {
+        return GlassEngine.getCurrentGlassSettings().isBlurEnabled ? scrollBlurSource : null;
+    }
+
+    @Nullable
     public GlassSourceRenderNode getFrostedGlassSource() {
         return GlassEngine.getCurrentGlassSettings().isBlurEnabled ? frostedGlassSource : null;
     }
@@ -157,7 +166,7 @@ public class BaseFragmentSimpleGlass {
 
     @NonNull
     public Drawable createActionBarFadeDrawable(View view) {
-        return registerScrollBlur(view, GlassFadeDirection.TOP, dp(32), glassBackgroundSourceColor, dp(48));
+        return registerScrollBlur(view, GlassFadeDirection.TOP, dp(44), glassBackgroundSourceColor, dp(48));
     }
 
     @NonNull
@@ -167,13 +176,16 @@ public class BaseFragmentSimpleGlass {
 
     @NonNull
     public Drawable createNavigationBarFadeDrawable(View view) {
-        return registerScrollBlur(view, GlassFadeDirection.BOTTOM, dp(28), glassBackgroundSourceColor, dp(30));
+        return registerScrollBlur(view, GlassFadeDirection.BOTTOM, dp(40), glassBackgroundSourceColor, dp(30));
     }
 
     private Drawable registerScrollBlur(View view, GlassFadeDirection direction, int fadeHeight,
                                         @Nullable GlassSourceColor fallbackColor, int fallbackFadeHeight) {
         final GlassFadeBlurredDrawable drawable = createScrollBlurDrawable(
                 glassSourceForFadeDrawable, direction, fadeHeight, fallbackColor, fallbackFadeHeight);
+        if (fallbackColor != null) {
+            drawable.setMaskAlpha(204);
+        }
         glassEngine.registerDrawable(view, drawable);
         return drawable;
     }
