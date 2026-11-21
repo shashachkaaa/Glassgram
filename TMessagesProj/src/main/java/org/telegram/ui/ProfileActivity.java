@@ -257,6 +257,7 @@ import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.JoinGroupAlert;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.LinkSpanDrawable;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.MediaActivity;
 import org.telegram.ui.Components.MessagePrivateSeenView;
 import org.telegram.ui.Components.ProfileActionsView;
@@ -9404,7 +9405,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         int width = Math.min(dp(272), Math.round(musicView.getWidth() * .64f));
         popup.setWidth(width);
         popup.setHorizontalOffset((musicView.getWidth() - width) / 2);
-        popup.setBackgroundDrawable(Theme.createRoundRectDrawable(dp(18), getThemedColor(Theme.key_windowBackgroundWhite)));
+        final int menuRadius = dp(18);
+        final LiquidPanelDrawable menuBackground = new LiquidPanelDrawable(null, menuRadius, menuRadius,
+                () -> getThemedColor(Theme.key_windowBackgroundWhite));
+        menuBackground.setFollowScale(true);
+        popup.setBackgroundDrawable(menuBackground);
         popup.setOnDismissListener(() -> { trackMenu = null; trackAdapter = null; });
         popup.setOnItemClickListener((parent, row, position, id) -> {
             MessageObject selected = savedMusicList.list.get(position);
