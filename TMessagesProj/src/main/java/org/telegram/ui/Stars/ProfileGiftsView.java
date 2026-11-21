@@ -321,11 +321,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float wave = (float) Math.sin(time * 1.61);
             float scale = 1f + stretch + .055f * ripple;
             canvas.save();
-            float normal = (float) Math.toDegrees(orbit.impactAngle);
-            float compression = 1f - (float) orbit.impact;
-            canvas.rotate(normal, cx, cy);
-            canvas.scale(compression, 1f / compression, cx, cy);
-            canvas.rotate(angle - normal, cx, cy);
+            canvas.rotate(angle, cx, cy);
             canvas.scale(scale, 1f / scale, cx, cy);
             canvas.rotate(-angle, cx, cy);
 
@@ -531,7 +527,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     // Positions share the same coordinate system, so the differently shaped orbits can intersect.
     private static final class Orbit {
-        private static final double THROW_CONTACT_SECONDS = .85;
         private static final int[] SLOTS = {3, 4, 2, 0, 5, 1};
         private static final OrbitPath[] PATHS = {
                 new OrbitPath(.98, .72, -.13, .34, .94),
@@ -543,9 +538,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         };
         final OrbitPath path;
         double x, y, vx, vy, direction = 1;
-        double impact, impactAngle, lift;
-        private double slideX, slideY;
-        private double throwContactTime;
+        double lift;
 
         Orbit(int position) {
             int slot = Math.floorMod(position, SLOTS.length);
@@ -583,27 +576,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             double impulse = pull > 0 ? speed / pull : 0;
             vx = -impulse * pullX / rx;
             vy = -impulse * pullY / ry;
-            slideX = slideY = 0;
-            throwContactTime = THROW_CONTACT_SECONDS;
         }
 
         void stopDrag() {
-            vx = vy = slideX = slideY = 0;
-            throwContactTime = 0;
-        }
-
-        boolean isThrown() {
-            return throwContactTime > 0;
+            vx = vy = 0;
         }
 
         void advance(double dt) {
-            throwContactTime = Math.max(0, throwContactTime - dt);
-            double slideStep = -Math.expm1(-20 * dt);
-            vx += slideX * slideStep;
-            vy += slideY * slideStep;
-            slideX *= 1 - slideStep;
-            slideY *= 1 - slideStep;
-
             double localX = x / path.width, localY = (y - path.slope * x) / path.height;
             double localVx = vx / path.width, localVy = (vy - path.slope * vx) / path.height;
             double r = Math.max(.01, Math.hypot(localX, localY));
@@ -619,77 +598,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             x += vx * dt;
             y += vy * dt;
             lift *= Math.exp(-5.2 * dt);
-            impact *= Math.exp(-10 * dt);
-        }
-
-        // As a free bubble meets another film, divert part of its approach speed
-        // along that film. The struck neighbour still receives only a small nudge.
-        void slideAround(double nx, double ny, double rx, double ry, double before, double after) {
-            if (before <= Math.abs(after)) return;
-            double tangent = -vx * rx * ny + vy * ry * nx;
-            double side = tangent;
-            if (Math.abs(side) < before * .03) {
-                // At a square hit, pick the side that continues around the avatar.
-                double orbitalTangent = direction * (x * ry * nx + y * rx * ny);
-                side = Math.abs(orbitalTangent) > .001 ? orbitalTangent : direction;
-            }
-            double diverted = .75 * Math.sqrt((before - after) * (before + after));
-            double change = Math.copySign(Math.hypot(tangent, diverted), side) - tangent;
-            // Bend the trajectory over a few frames, including at a head-on contact.
-            if (Math.abs(change) > Math.hypot(slideX * rx, slideY * ry)) {
-                slideX = -change * ny / rx;
-                slideY = change * nx / ry;
-            }
-        }
-
-        static void collide(Orbit a, Orbit b, double dx, double dy, double contact,
-                            double rx, double ry, boolean heldA, boolean heldB, double dt) {
-            double distance = Math.hypot(dx, dy);
-            if (distance >= contact || heldA && heldB) return;
-            double nx = distance > .001 ? dx / distance : 1;
-            double ny = distance > .001 ? dy / distance : 0;
-            double share = heldA || heldB ? 1 : .5;
-            // Let the films overlap slightly and recover over time, even if a dragged
-            // bubble grows into its neighbour while the finger is stationary.
-            double correction = (contact - distance) * share * -Math.expm1(-35 * dt);
-            if (!heldA) { a.x -= correction * nx / rx; a.y -= correction * ny / ry; }
-            if (!heldB) { b.x += correction * nx / rx; b.y += correction * ny / ry; }
-            double speedA = a.vx * rx * nx + a.vy * ry * ny;
-            double speedB = b.vx * rx * nx + b.vy * ry * ny;
-            double closing = speedA - speedB;
-            if (closing <= 0) return;
-
-            // Limit the speed carried from one film to the next in diameters per
-            // second. Preserve sliding along the contact and motion away from it.
-            double limit = contact * 2;
-            double drift = heldA || heldB ? 0 : Math.max(0, speedB) + Math.min(0, speedA);
-            double incomingA = Math.min(speedA, drift + limit);
-            double incomingB = Math.max(speedB, drift - limit);
-            double rebound = .14 * Math.max(0, incomingA - incomingB);
-            double sharedSpeed = (incomingA + incomingB) * .5;
-            if (!heldA) {
-                double next = heldB ? incomingB - rebound : sharedSpeed - rebound * .5;
-                double change = Math.min(0, next - speedA);
-                a.vx += change * nx / rx;
-                a.vy += change * ny / ry;
-                if (!heldB) a.slideAround(nx, ny, rx, ry, speedA - drift, next - drift);
-            }
-            if (!heldB) {
-                double next = heldA ? incomingA + rebound : sharedSpeed + rebound * .5;
-                double change = Math.max(0, next - speedB);
-                b.vx += change * nx / rx;
-                b.vy += change * ny / ry;
-                if (!heldA) b.slideAround(-nx, -ny, rx, ry, drift - speedB, drift - next);
-            }
-            double squash = Math.min(.085, closing / (contact * 40));
-            if (squash >= a.impact) {
-                a.impact = squash;
-                a.impactAngle = Math.atan2(ny, nx);
-            }
-            if (squash >= b.impact) {
-                b.impact = squash;
-                b.impactAngle = Math.atan2(ny, nx);
-            }
         }
     }
 
@@ -706,17 +614,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double rx = orbitRadiusX, ry = orbitRadiusY;
         Gift held = movingGift;
         if (held != null) {
-            held.orbit.impact *= Math.exp(-10 * elapsed);
             held.orbit.vx = Math.max(-27, Math.min(27, (dragX - lastDragX) / (elapsed * rx)));
             held.orbit.vy = Math.max(-27, Math.min(27, (dragY - lastDragY) / (elapsed * ry)));
         }
         double radius = dpf2(BUBBLE_DIAMETER / 2);
         double top = Math.max(0, orbitCenterY - 1.55 * ry);
         double bottom = Math.min(getHeight(), orbitCenterY + 1.65 * ry);
-        for (int step = 1; step <= steps; step++) {
-            double handX = lastDragX + (dragX - lastDragX) * step / steps;
-            double handY = lastDragY + (dragY - lastDragY) * step / steps;
-            boolean checkContacts = dragging;
+        for (int step = 0; step < steps; step++) {
             for (int i = 0; i < gifts.size(); i++) {
                 Gift gift = gifts.get(i);
                 Orbit body = gift.orbit;
@@ -725,36 +629,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     continue;
                 }
                 body.advance(dt);
-                checkContacts |= body.isThrown();
                 // Ease out only the outward component as the rim approaches the
                 // viewport. An oblique shot can keep travelling along the edge.
                 double cx = orbitCenterX + body.x * rx, cy = orbitCenterY + body.y * ry;
                 double rim = radius * body.radiusScale();
                 body.vx = limitAtEdge(body.vx, cx, getWidth(), rim, rx);
                 body.vy = limitAtEdge(body.vy, cy - top, bottom - top, rim, ry);
-            }
-            if (!checkContacts) continue;
-            for (int i = 0; i < gifts.size(); i++) {
-                Gift a = gifts.get(i);
-                boolean heldA = a == held;
-                boolean interactiveA = heldA ? dragging : a.orbit.isThrown();
-                for (int j = i + 1; j < gifts.size(); j++) {
-                    Gift b = gifts.get(j);
-                    boolean heldB = b == held;
-                    boolean interactiveB = heldB ? dragging : b.orbit.isThrown();
-                    if (!interactiveA && !interactiveB) continue;
-                    double dx = (b.orbit.x - a.orbit.x) * rx;
-                    double dy = (b.orbit.y - a.orbit.y) * ry;
-                    int hand = heldB ? 1 : heldA ? -1 : 0;
-                    double contact = radius * (a.orbit.radiusScale() + b.orbit.radiusScale());
-                    // Bubbles on different sides of the avatar can overlap in projection.
-                    if (hand == 0) {
-                        double depthGap = (a.orbit.y - b.orbit.y) * radius * 1.5;
-                        contact = Math.sqrt(Math.max(0, contact * contact - depthGap * depthGap));
-                    }
-                    Orbit.collide(a.orbit, b.orbit, dx + hand * handX, dy + hand * handY,
-                            contact, rx, ry, heldA, heldB, dt);
-                }
             }
         }
         lastDragX = dragX;
