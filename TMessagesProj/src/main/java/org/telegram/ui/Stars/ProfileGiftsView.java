@@ -91,6 +91,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (frontLayer != null) frontLayer.setAlpha(alpha);
     }
 
+    private float musicPulse;
+
+    public void setMusicPulse(float pulse) {
+        if (musicPulse != pulse) {
+            musicPulse = pulse;
+            invalidate();
+        }
+    }
+
     public float expandProgress, collapseProgress;
     public boolean isOpening;
 
@@ -788,6 +797,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 gx += dragX;
                 gy += dragY;
             }
+            scale *= 1f + .12f * musicPulse;
             float rim = dpf2(BUBBLE_DIAMETER / 2) * scale * (float) gift.orbit.radiusScale();
             gift.bounds.set(gx - rim, gy - rim, gx + rim, gy + rim);
             gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .55 * gift.orbit.lift));

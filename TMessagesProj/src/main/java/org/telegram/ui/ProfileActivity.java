@@ -171,6 +171,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.glassgramaudio.ProfileMusicBeat;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
@@ -1379,6 +1380,33 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
+        private final Paint musicGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float[] musicGlowHsv = new float[3];
+        private int musicGlowBase;
+
+        private void drawMusicGlow(Canvas canvas, int bottom) {
+            if (profileMusicPulse <= 0f) return;
+            final int base = hasColorById ? backgroundGradientColor2 : getThemedColor(Theme.key_windowBackgroundWhiteBlueText);
+            if (musicGlowPaint.getShader() == null || musicGlowBase != base) {
+                musicGlowBase = base;
+                Color.colorToHSV(base, musicGlowHsv);
+                musicGlowHsv[0] = (musicGlowHsv[0] + 32f) % 360f;
+                musicGlowHsv[1] = Math.max(.28f, musicGlowHsv[1]);
+                musicGlowHsv[2] = Math.min(1f, musicGlowHsv[2] + .30f);
+                musicGlowPaint.setShader(new RadialGradient(0f, 0f, 1f,
+                        Color.HSVToColor(musicGlowHsv), Color.HSVToColor(0, musicGlowHsv), Shader.TileMode.CLAMP));
+            }
+            musicGlowPaint.setAlpha(Math.round(140 * profileMusicPulse));
+            final float cx = getWidth() * .5f;
+            final float cy = avatarContainer.getY() + avatarContainer.getHeight() * avatarContainer.getScaleY() * .5f;
+            final float radius = Math.max(dp(140), cx) * (1f + .16f * profileMusicPulse);
+            final int save = canvas.save();
+            canvas.translate(cx, cy);
+            canvas.scale(radius, radius);
+            canvas.drawRect(-cx / radius, -cy / radius, (getWidth() - cx) / radius, (bottom - cy) / radius, musicGlowPaint);
+            canvas.restoreToCount(save);
+        }
+
         private final Paint themeFadePaint = new Paint(Paint.DITHER_FLAG);
         private int themeFadeColor;
 
@@ -1441,6 +1469,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
                     canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
                 }
+                drawMusicGlow(canvas, y1);
                 if (hasEmoji && !capturing) {
                     final float loadedScale = emojiLoadedT.set(isEmojiLoaded());
                     boolean shoudIgnore = openAnimationInProgress && playProfileAnimation == 2;
@@ -2414,6 +2443,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onFragmentDestroy() {
+        stopProfileMusicBeat();
         super.onFragmentDestroy();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onDestroy();
@@ -5309,6 +5339,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         avatarContainer.setPivotX(0);
         avatarContainer.setPivotY(0);
         avatarGooey = new ProfileGooeyView(context);
+        avatarGooey.setClipChildren(false);
+        avatarContainer.setClipChildren(false);
         avatarGooey.addView(avatarContainer, LayoutHelper.createFrame(100, 100, Gravity.TOP | Gravity.LEFT));
         avatarContainer2.addView(avatarGooey, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 //        avatarContainer2.addView(avatarContainer, LayoutHelper.createFrame(100, 100, Gravity.TOP | Gravity.LEFT, 64, 0, 0, 0));
@@ -9439,6 +9471,71 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (!savedMusicList.loading && !savedMusicList.endReached) savedMusicList.load();
     }
 
+    private ProfileMusicBeat profileMusicBeat;
+    private float profileMusicPulse;
+    private long lastMusicBeatFrame;
+    private boolean musicBeatFramePosted;
+    private final Runnable musicBeatFrame = this::updateMusicBeatFrame;
+
+    private void setProfileMusicBeat(ProfileMusicBeat beat) {
+        if (profileMusicBeat == beat) return;
+        if (profileMusicBeat != null) profileMusicBeat.release();
+        profileMusicBeat = beat;
+        if (beat != null) {
+            beat.acquire();
+            if (!musicBeatFramePosted && fragmentView != null) {
+                lastMusicBeatFrame = SystemClock.uptimeMillis();
+                musicBeatFramePosted = true;
+                fragmentView.postOnAnimation(musicBeatFrame);
+            }
+        }
+    }
+
+    private void stopProfileMusicBeat() {
+        setProfileMusicBeat(null);
+        if (fragmentView != null) fragmentView.removeCallbacks(musicBeatFrame);
+        musicBeatFramePosted = false;
+        applyProfileMusicPulse(0f);
+    }
+
+    private void updateMusicBeatFrame() {
+        musicBeatFramePosted = false;
+        if (fragmentView == null || !fragmentView.isAttachedToWindow() || isPaused() || !fullyVisible) {
+            stopProfileMusicBeat();
+            return;
+        }
+        final MediaController player = MediaController.getInstance();
+        if (profileMusicBeat != null && (profileMusicBeat != player.getProfileMusicBeat() || player.isMessagePaused() || CastSync.isActive())) {
+            setProfileMusicBeat(null);
+        }
+        final float header = Utilities.clamp01((calculateHeaderExtraDiff() - .5f) * 2f)
+                * (1f - mediaHeaderAnimationProgress) * (1f - Utilities.clamp01(buttonsPhotoProgress));
+        final float target = profileMusicBeat != null && !player.isBuffering() ? header * profileMusicBeat.getPulse() : 0f;
+        final long now = SystemClock.uptimeMillis();
+        final float blend = (float) -Math.expm1(-Math.max(0, now - lastMusicBeatFrame) / (target > profileMusicPulse ? 12f : 55f));
+        lastMusicBeatFrame = now;
+        final float pulse = AndroidUtilities.lerp(profileMusicPulse, target, blend);
+        applyProfileMusicPulse(pulse > .002f ? pulse : 0f);
+        if (profileMusicBeat != null || profileMusicPulse > 0f) {
+            musicBeatFramePosted = true;
+            fragmentView.postOnAnimationDelayed(musicBeatFrame, header == 0f && profileMusicPulse == 0f ? 100 : 0);
+        }
+    }
+
+    private void applyProfileMusicPulse(float pulse) {
+        if (profileMusicPulse == pulse) return;
+        profileMusicPulse = pulse;
+        if (topView != null) topView.invalidate();
+        if (avatarImage != null) {
+            avatarImage.setPivotX(avatarImage.getWidth() * .5f);
+            avatarImage.setPivotY(avatarImage.getHeight() * .5f);
+            final float scale = 1f + .08f * pulse;
+            avatarImage.setScaleX(scale);
+            avatarImage.setScaleY(scale);
+        }
+        if (giftsView != null) giftsView.setMusicPulse(pulse);
+    }
+
     private void updateProfileMusicPlayback() {
         if (musicView == null) return;
         final MediaController player = MediaController.getInstance();
@@ -9448,7 +9545,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 && track != null && list.list.contains(track);
         musicView.setMusicDocument(activeTrack ? track.getDocument() : userInfo == null ? null : userInfo.saved_music);
         musicView.setPlaybackProgress(activeTrack ? track.audioProgress : 0f);
-        musicView.setPlaying(activeTrack && !player.isMessagePaused());
+        final boolean playing = activeTrack && !player.isMessagePaused();
+        musicView.setPlaying(playing);
+        final boolean animate = playing && fullyVisible && !isPaused() && !CastSync.isActive()
+                && !LiteMode.isPowerSaverApplied() && (Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled());
+        setProfileMusicBeat(animate ? player.getProfileMusicBeat() : null);
     }
 
     @Override
@@ -10014,11 +10115,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         updateItemsUsername();
         needLayout(false);
+        updateProfileMusicPlayback();
     }
 
     @Override
     public void onPause() {
         super.onPause();
+        stopProfileMusicBeat();
         if (trackMenu != null) trackMenu.dismiss();
         if (undoView != null) {
             undoView.hide(true, 0);
@@ -10105,6 +10208,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         super.onBecomeFullyHidden();
         fullyVisible = false;
+        stopProfileMusicBeat();
     }
 
     public void setPlayProfileAnimation(int type) {
@@ -15980,6 +16084,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         super.onBecomeFullyVisible();
         writeButtonSetBackground();
         fullyVisible = true;
+        updateProfileMusicPlayback();
         // A tab shown at once, without a transition (a tap on its button can skip one), is opened
         // here: until then the list is not laid out for the avatar to expand
         if (hasMainTabs && !fragmentOpened && fragmentView != null) {

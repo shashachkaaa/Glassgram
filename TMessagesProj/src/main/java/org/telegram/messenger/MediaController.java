@@ -98,6 +98,7 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.utils.recorder.audio.AudioRecordingSession;
 import org.telegram.utils.settings.SharedSettings;
+import org.telegram.messenger.glassgramaudio.ProfileMusicBeat;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -3974,6 +3975,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             try {
                 audioPlayer = new VideoPlayer();
                 audioPlayer.setMusicAudioProcessing(true);
+                if (messageObject.isMusic() && currentSavedMusicList != null && currentSavedMusicList.list.contains(messageObject)) {
+                    audioPlayer.enableProfileMusicBeat();
+                }
                 int tag = ++playerNum;
                 audioPlayer.setDelegate(new VideoPlayer.VideoPlayerDelegate() {
                     @Override
@@ -4258,6 +4262,10 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         setPlayerVolume();
 
         ignorePlayerUpdate = false;
+    }
+
+    public ProfileMusicBeat getProfileMusicBeat() {
+        return audioPlayer == null ? null : audioPlayer.getProfileMusicBeat();
     }
 
     public long getCurrentPosition() {

@@ -91,6 +91,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.chromecast.ChromecastMedia;
 import org.telegram.messenger.chromecast.ChromecastMediaVariations;
+import org.telegram.messenger.glassgramaudio.ProfileMusicBeat;
 import org.telegram.messenger.secretmedia.ExtendedDefaultDataSourceFactory;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.Stories.recorder.StoryEntry;
@@ -176,6 +177,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     private AudioVisualizerDelegate audioVisualizerDelegate;
     // glassGram: the music's speed and reverb, for the players that play audio messages
     private boolean musicAudioProcessing;
+    private ProfileMusicBeat profileMusicBeat;
     private org.telegram.messenger.glassgramaudio.GlassgramAudioChain audioChain;
     private int lastReportedPlaybackState;
     private boolean lastReportedPlayWhenReady;
@@ -1483,6 +1485,16 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     /**
      * glassGram: the audio player gets its processors for music: call before it is prepared.
      */
+    /** Call before preparing a saved profile track. */
+    public void enableProfileMusicBeat() {
+        profileMusicBeat = new ProfileMusicBeat();
+    }
+
+    @Nullable
+    public ProfileMusicBeat getProfileMusicBeat() {
+        return profileMusicBeat;
+    }
+
     public void setMusicAudioProcessing(boolean enabled) {
         musicAudioProcessing = enabled;
     }
@@ -1853,7 +1865,8 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
             } else {
                 builder.setAudioProcessors(processors);
             }
-            return builder.build();
+            final AudioSink sink = builder.build();
+            return profileMusicBeat == null ? sink : profileMusicBeat.wrap(sink);
         }
     }
 
