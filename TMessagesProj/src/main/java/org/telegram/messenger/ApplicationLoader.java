@@ -290,6 +290,11 @@ public class ApplicationLoader extends Application {
         GlassgramBadges.init();
         // the team's proxy, when the phone has no VPN
         GlassgramProxy.start();
+
+        // HTML widgets: the isolated engine's process up front, after the app's own start, so that a widget's first
+        // frame does not wait for it.
+        AndroidUtilities.runOnUIThread(() -> Utilities.globalQueue.postRunnable(
+                () -> org.telegram.utils.twidget.WidgetSandboxSession.prewarmEngine(applicationContext)), 3000);
     }
 
     public ApplicationLoader() {
@@ -310,6 +315,11 @@ public class ApplicationLoader extends Application {
             // glassGram's tunnel process runs only the Xray core (GlassgramTunnelProvider): none of the app
             return;
         }
+        // The widget engine's isolated process has no files, network or accounts: none of the client starts there.
+        if (org.telegram.utils.twidget.WidgetEngineService.isEngineProcess()) {
+            return;
+        }
+
         GlassgramCrashReporter.install(this);
 
         // AndroidUtilities must be initialized before FileLog

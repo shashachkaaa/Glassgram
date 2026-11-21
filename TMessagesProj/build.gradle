@@ -140,6 +140,11 @@ android {
         }
     }
 
+    // IWidgetEngine: the widget engine's isolated process (WidgetEngineService).
+    buildFeatures {
+        aidl true
+    }
+
     lintOptions {
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
@@ -192,7 +197,7 @@ android {
                 if (rootProject.glassgramCcache) {
                     arguments '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
                 }
-                targets 'tmessages.49', 'glassgramaudio'
+                targets 'tmessages.49', 'glassgramaudio', 'twidget'
             }
         }
     }
