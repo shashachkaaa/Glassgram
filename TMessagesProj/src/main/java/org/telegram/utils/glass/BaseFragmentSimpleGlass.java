@@ -157,65 +157,44 @@ public class BaseFragmentSimpleGlass {
 
     @NonNull
     public Drawable createActionBarFadeDrawable(View view) {
-        return createActionBarFadeDrawable(view, false);
+        return registerScrollBlur(view, GlassFadeDirection.TOP, dp(32), glassBackgroundSourceColor, dp(48));
     }
 
     @NonNull
     public Drawable createActionBarBlurDrawable(View view) {
-        return createActionBarFadeDrawable(view, true);
-    }
-
-    private Drawable createActionBarFadeDrawable(View view, boolean blurOnly) {
-        final GlassFadeBlurredDrawable glassBlurredFadeDrawable = new GlassFadeBlurredDrawable(
-            glassSourceForFadeDrawable, !blurOnly);
-
-        final GlassFadeRangeParams gradientRangeMask = new GlassFadeRangeParams(
-                dp(32), GlassFadeRangeParams.Gravity.START, 0, 0);
-        final GlassFadeRangeParams gradientRangeFade = new GlassFadeRangeParams(
-                dp(56), GlassFadeRangeParams.Gravity.START, 0, 0);
-        final GlassFadeRangeParams gradientRangeFallback = new GlassFadeRangeParams(
-                dp(48), GlassFadeRangeParams.Gravity.START, 0, 0);
-
-        glassBlurredFadeDrawable.setDirection(GlassFadeDirection.TOP);
-        glassBlurredFadeDrawable.setMaskRange(gradientRangeMask);
-        if (!blurOnly) {
-            glassBlurredFadeDrawable.setOverlayColorSource(glassBackgroundSourceColor);
-            glassBlurredFadeDrawable.setOverlayAlpha(160);
-            glassBlurredFadeDrawable.setOverlayRange(gradientRangeFade);
-            glassBlurredFadeDrawable.setOverlayOnlyAlpha(210);
-            glassBlurredFadeDrawable.setOverlayOnlyRange(gradientRangeFallback);
-        }
-
-        glassEngine.registerDrawable(view, glassBlurredFadeDrawable);
-        return glassBlurredFadeDrawable;
+        return registerScrollBlur(view, GlassFadeDirection.TOP, dp(32), null, 0);
     }
 
     @NonNull
     public Drawable createNavigationBarFadeDrawable(View view) {
-        final GlassFadeBlurredDrawable glassBlurredFadeDrawable = new GlassFadeBlurredDrawable(
-            glassSourceForFadeDrawable);
-
-        final GlassFadeRangeParams gradientRangeMask = new GlassFadeRangeParams(
-                dp(28), GlassFadeRangeParams.Gravity.START, 0, 0);
-        final GlassFadeRangeParams gradientRangeFade = new GlassFadeRangeParams(
-                dp(40), GlassFadeRangeParams.Gravity.START, 0, 0);
-        final GlassFadeRangeParams gradientRangeFallback = new GlassFadeRangeParams(
-                dp(30), GlassFadeRangeParams.Gravity.START, 0, 0);
-
-        glassBlurredFadeDrawable.setDirection(GlassFadeDirection.BOTTOM);
-        glassBlurredFadeDrawable.setOverlayColorSource(glassBackgroundSourceColor);
-        glassBlurredFadeDrawable.setOverlayAlpha(160);
-        glassBlurredFadeDrawable.setMaskRange(gradientRangeMask);
-        glassBlurredFadeDrawable.setOverlayRange(gradientRangeFade);
-
-        glassBlurredFadeDrawable.setOverlayOnlyAlpha(210);
-        glassBlurredFadeDrawable.setOverlayOnlyRange(gradientRangeFallback);
-
-        glassEngine.registerDrawable(view, glassBlurredFadeDrawable);
-        return glassBlurredFadeDrawable;
+        return registerScrollBlur(view, GlassFadeDirection.BOTTOM, dp(28), glassBackgroundSourceColor, dp(30));
     }
 
+    private Drawable registerScrollBlur(View view, GlassFadeDirection direction, int fadeHeight,
+                                        @Nullable GlassSourceColor fallbackColor, int fallbackFadeHeight) {
+        final GlassFadeBlurredDrawable drawable = createScrollBlurDrawable(
+                glassSourceForFadeDrawable, direction, fadeHeight, fallbackColor, fallbackFadeHeight);
+        glassEngine.registerDrawable(view, drawable);
+        return drawable;
+    }
 
+    /** Fade the captured content at the edge. Use the theme color only when blur is unavailable. */
+    public static GlassFadeBlurredDrawable createScrollBlurDrawable(@Nullable GlassSource source,
+            GlassFadeDirection direction, int fadeHeight,
+            @Nullable GlassSourceColor fallbackColor, int fallbackFadeHeight) {
+        final GlassFadeBlurredDrawable drawable = new GlassFadeBlurredDrawable(
+                source != null ? source : GlassSourceEmpty.INSTANCE, false);
+        drawable.setDirection(direction);
+        drawable.setMaskRange(new GlassFadeRangeParams(fadeHeight, GlassFadeRangeParams.Gravity.START, 0, 0));
+        if (fallbackColor != null) {
+            drawable.setOverlayAlpha(0);
+            drawable.setOverlayColorSource(fallbackColor);
+            drawable.setOverlayOnlyAlpha(210);
+            drawable.setOverlayOnlyRange(new GlassFadeRangeParams(
+                    fallbackFadeHeight, GlassFadeRangeParams.Gravity.START, 0, 0));
+        }
+        return drawable;
+    }
 
     public void setViews(FrameLayout contentView, RecyclerListView listView, @Nullable View actionBar, Theme.ResourcesProvider resourceProvider) {
         this.contentView = contentView;

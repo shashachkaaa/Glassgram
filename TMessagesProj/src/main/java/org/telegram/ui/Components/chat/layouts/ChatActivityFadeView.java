@@ -18,12 +18,19 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
 import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
+import org.telegram.utils.glass.GlassEngine;
+import org.telegram.utils.glass.fade.GlassFadeBlurredDrawable;
+import org.telegram.utils.glass.fade.GlassFadeDirection;
+import org.telegram.utils.glass.source.GlassSource;
 import org.telegram.utils.glass.source.GlassSourceColor;
 import java.util.HashSet;
 
 public class ChatActivityFadeView extends View implements Theme.Colorable {
     private BlurredBackgroundWithFadeDrawable fadeDrawableTop;
     private BlurredBackgroundWithFadeDrawable fadeDrawableBottom;
+    private GlassFadeBlurredDrawable contentBlurTop;
+    private GlassFadeBlurredDrawable contentBlurBottom;
     private int fadeZoneTop, fadeZoneBottom;
 
     public ChatActivityFadeView(Context context) {
@@ -56,6 +63,19 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
 
         fadeDrawableBottom = new BlurredBackgroundWithFadeDrawable(factory.create(this).setColorProvider(colorProvider));
         fadeDrawableBottom.setFadeHeight(dp(30), true);
+    }
+
+    public void setContentBlur(GlassSource source, GlassEngine glassEngine, int fadeHeight) {
+        contentBlurTop = BaseFragmentSimpleGlass.createScrollBlurDrawable(
+                source, GlassFadeDirection.TOP, fadeHeight, null, 0);
+        contentBlurBottom = BaseFragmentSimpleGlass.createScrollBlurDrawable(
+                source, GlassFadeDirection.BOTTOM, fadeHeight, null, 0);
+        contentBlurTop.setInefficientRenderPathsAllowed(true);
+        contentBlurBottom.setInefficientRenderPathsAllowed(true);
+        contentBlurTop.setAlpha(fadeDrawableTop.getAlpha());
+        glassEngine.registerDrawable(this, contentBlurTop);
+        glassEngine.registerDrawable(this, contentBlurBottom);
+        checkBounds();
     }
 
     public void setFadeHeightTop(int height, boolean opacity) {
@@ -95,6 +115,9 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
     public void setFadeTopAlpha(int alpha) {
         if (fadeDrawableTop.getAlpha() != alpha) {
             fadeDrawableTop.setAlpha(alpha);
+            if (contentBlurTop != null) {
+                contentBlurTop.setAlpha(alpha);
+            }
             invalidate();
         }
     }
@@ -102,6 +125,10 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
     private void checkBounds() {
         fadeDrawableTop.setBounds(0, 0, getMeasuredWidth(), fadeZoneTop);
         fadeDrawableBottom.setBounds(0, getMeasuredHeight() - fadeZoneBottom, getMeasuredWidth(), getMeasuredHeight());
+        if (contentBlurTop != null) {
+            contentBlurTop.setBounds(fadeDrawableTop.getBounds());
+            contentBlurBottom.setBounds(fadeDrawableBottom.getBounds());
+        }
         overlayShaderTop = overlayShaderBottom = null;
     }
 
@@ -165,6 +192,12 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
+        if (contentBlurTop != null && canvas.isHardwareAccelerated()
+                && GlassEngine.getCurrentGlassSettings().isBlurEnabled) {
+            contentBlurTop.draw(canvas);
+            contentBlurBottom.draw(canvas);
+            return;
+        }
         if (Theme.isCompactMode(resourcesProvider)) {
             drawCompactFades(canvas);
         } else {

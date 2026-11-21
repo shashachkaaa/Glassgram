@@ -272,7 +272,10 @@ import org.telegram.ui.community.CommunityEditActivity;
 import org.telegram.ui.community.CommunityPendingRequestsActivity;
 import org.telegram.ui.community.CommunityUtils;
 import org.telegram.ui.community.cells.CommunityRequestsCell;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 import org.telegram.utils.glass.GlassEngine;
+import org.telegram.utils.glass.fade.GlassFadeBlurredDrawable;
+import org.telegram.utils.glass.fade.GlassFadeDirection;
 import org.telegram.utils.glass.positions.GlassPositionsMerger;
 
 import java.io.File;
@@ -893,6 +896,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         private Rect blurBounds = new Rect();
 
         private org.telegram.messenger.utils.GradientProtectionDrawable glassHeaderFade;
+        private GlassFadeBlurredDrawable glassHeaderBlur;
+
+        private boolean drawsLiveHeaderBlur(Canvas canvas) {
+            return canvas.isHardwareAccelerated() && glassHeaderBlur != null
+                    && GlassEngine.getCurrentGlassSettings().isBlurEnabled;
+        }
 
         /**
          * Under the status bar the list fades out instead of being cut. On the iOS-like header,
@@ -900,11 +909,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
          * the title and the buttons stay readable over the chats scrolling under them.
          */
         private void drawGlassHeaderFade(Canvas canvas) {
+            final int top = (int) -getY();
+            final int status = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
+            if (drawsLiveHeaderBlur(canvas)) {
+                glassHeaderBlur.setBounds(0, Math.max(0, top), getMeasuredWidth(),
+                        top + status + ActionBar.getCurrentActionBarHeight() + dp(44));
+                glassHeaderBlur.draw(canvas);
+                return;
+            }
             if (glassHeaderFade == null) {
                 glassHeaderFade = new org.telegram.messenger.utils.GradientProtectionDrawable(androidx.core.view.WindowInsetsCompat.Side.TOP);
             }
-            final int top = (int) -getY();
-            final int status = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
             glassHeaderFade.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
             if (glassgramIosHeader) {
                 // Solid to a little below the status bar, then fading out by the header's end
@@ -932,8 +947,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 final boolean doNotClip = child == topPanelLayout || child == filterTabsView;
                 if (!doNotClip) {
                     if (glassHeaderOverList()) {
-                        // The list scrolls under the glass header, up to the status bar
-                        canvas.clipRect(0, -getY() + (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
+                        final int status = actionBar.getOccupyStatusBar() && !drawsLiveHeaderBlur(canvas)
+                                ? AndroidUtilities.statusBarHeight : 0;
+                        canvas.clipRect(0, -getY() + status, getMeasuredWidth(), getMeasuredHeight());
                     } else {
                         canvas.clipRect(0, -getY() + getActionBarTop() + getActionBarFullHeight(), getMeasuredWidth(), getMeasuredHeight());
                     }
@@ -949,7 +965,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
-                if (child == viewPages[0] && glassHeaderOverList()) {
+                if (glassHeaderOverList() && child == lastVisibleDialogsPage()) {
                     drawGlassHeaderFade(canvas);
                 }
             } else if (child == actionBar && slideFragmentProgress != 1f) {
@@ -967,6 +983,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 result = super.drawChild(canvas, child, drawingTime);
             }
             return result;
+        }
+
+        private ViewPage lastVisibleDialogsPage() {
+            if (viewPages.length > 1 && viewPages[1].getVisibility() == View.VISIBLE
+                    && (viewPages[0].getVisibility() != View.VISIBLE
+                        || indexOfChild(viewPages[1]) > indexOfChild(viewPages[0]))) {
+                return viewPages[1];
+            }
+            return viewPages[0];
         }
 
         @Override
@@ -4435,6 +4460,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         ContentView contentView = new ContentView(context);
         fragmentView = contentView;
+        if (iBlur3SourceGlassFrosted != null) {
+            contentView.glassHeaderBlur = BaseFragmentSimpleGlass.createScrollBlurDrawable(
+                    iBlur3SourceGlassFrosted, GlassFadeDirection.TOP, dp(32), null, 0);
+            contentView.glassHeaderBlur.setInefficientRenderPathsAllowed(true);
+            glassEngine.registerDrawable(contentView, contentView.glassHeaderBlur);
+        }
 
         final PointF tmpPoint = new PointF();
         iBlur3Capture = (canvas, position) -> {
@@ -14491,8 +14522,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
             boolean hasBottomBlur = false;
             if (hasMainTabs) {
-                iBlur3PositionMainTabs.set(0, mainTabTop, fragmentView.getMeasuredWidth(), mainTabBottom);
-                iBlur3PositionMainTabs.inset(0, -dp(48));
+                // The parent fades the list across the full bottom edge underneath its tabs.
+                iBlur3PositionMainTabs.set(0, mainTabTop - dp(48), fragmentView.getMeasuredWidth(),
+                        fragmentView.getMeasuredHeight() + dp(48));
 
                 hasBottomBlur = true;
             } else if (commentView != null && chatInputViewsContainer != null) {

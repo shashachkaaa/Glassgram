@@ -76,12 +76,14 @@ import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
-import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.RenderNodeWithHash;
 import org.telegram.ui.Components.blur3.capture.IBlur3Hash;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 import org.telegram.utils.glass.GlassEngine;
+import org.telegram.utils.glass.fade.GlassFadeBlurredDrawable;
+import org.telegram.utils.glass.fade.GlassFadeDirection;
 import org.telegram.utils.glass.GlassSettings;
 import org.telegram.utils.glass.source.GlassSourceColor;
 import org.telegram.utils.glass.source.GlassSourceRenderNode;
@@ -187,6 +189,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
     private View fadeView;
+    private GlassFadeBlurredDrawable tabsFadeDrawable;
 
     public MainTabsActivity() {
         super();
@@ -460,13 +463,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             tabsView.setBackground(tabsViewBackground);
         }
 
-        BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
-        iBlur3FactoryFade.setSourceRootView(viewPositionWatcher, contentView);
-
         fadeView = new View(context);
-        BlurredBackgroundWithFadeDrawable fadeDrawable = new BlurredBackgroundWithFadeDrawable(iBlur3FactoryFade.create(fadeView, null));
-        fadeDrawable.setFadeHeight(dp(60), true);
-        fadeView.setBackground(fadeDrawable);
+        tabsFadeDrawable = BaseFragmentSimpleGlass.createScrollBlurDrawable(
+                iBlur3SourceTabFrosted, GlassFadeDirection.BOTTOM, dp(60), iBlur3SourceColor, dp(60));
+        tabsFadeDrawable.setInefficientRenderPathsAllowed(true);
+        fadeView.setBackground(tabsFadeDrawable);
+        glassEngine.registerDrawable(fadeView, tabsFadeDrawable);
 
         contentView.addView(fadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 0, Gravity.BOTTOM));
 
@@ -1452,6 +1454,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         final int updateLayoutHeight = updateLayoutWrapper != null && updateLayoutWrapper.isUpdateLayoutVisible() ? dp(UpdateLayoutWrapper.HEIGHT) : 0;
         final int bottom = contentView.getHeight() - navigationBarHeight - updateLayoutHeight - dp(DialogsActivity.MAIN_TABS_MARGIN);
         final int top = bottom - dp(DialogsActivity.MAIN_TABS_HEIGHT);
+        final boolean fadeVisible = fadeView != null && fadeView.isShown() && fadeView.getHeight() > 0;
+        final float blurTop = fadeVisible ? Math.min(top - dp(1), fadeView.getY()) : top - dp(1);
+        final float blurBottom = fadeVisible
+                ? Math.min(contentView.getHeight(), Math.max(bottom + dp(1), fadeView.getY() + fadeView.getHeight()))
+                : bottom + dp(1);
 
         for (int a = 0, N = fragmentsArr.size(); a < N; a++) {
             final BaseFragment fragment = fragmentsArr.valueAt(a).fragment;
@@ -1459,10 +1466,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             if (view == null || view.getWidth() <= 0 || !(fragment instanceof TabFragmentDelegate)) {
                 continue;
             }
-            if (top >= view.getHeight()) {
+            if (!ViewPositionWatcher.computeRectInParent(view, contentView, fragmentPosition)
+                    || blurTop >= fragmentPosition.bottom || blurBottom <= fragmentPosition.top) {
                 fragment.setParentGlass(null, null);
             } else {
-                tabsCapturePosition.set(0, top - dp(1), view.getWidth(), bottom + dp(1));
+                tabsCapturePosition.set(0, Math.max(0, blurTop - fragmentPosition.top), view.getWidth(),
+                        Math.min(view.getHeight(), blurBottom - fragmentPosition.top));
                 fragment.setParentGlass(tabsCapturePosition, onFragmentGlassCaptured);
             }
         }
@@ -1481,13 +1490,22 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (source != null) {
             source.setSize(width, height);
             source.updateDisplayListIfNeeded();
+            if (source != iBlur3SourceTabFrosted) {
+                // The bottom fade uses frosted content even when the tab capsules use Liquid Glass.
+                iBlur3SourceTabFrosted.setSize(width, height);
+                iBlur3SourceTabFrosted.updateDisplayListIfNeeded();
+            }
         }
     }
 
     private void blur3_updateFadeColors() {
-        iBlur3SourceColor.setColor(getEstBackgroundColor());
-        if (fadeView != null) {
-            fadeView.invalidate();
+        final int color = getEstBackgroundColor();
+        if (iBlur3SourceColor.getColor() != color) {
+            iBlur3SourceColor.setColor(color);
+            if (tabsFadeDrawable != null) {
+                tabsFadeDrawable.updateColors();
+                fadeView.invalidate();
+            }
         }
     }
 
