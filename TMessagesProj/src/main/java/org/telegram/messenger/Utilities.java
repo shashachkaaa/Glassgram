@@ -32,13 +32,19 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Utilities {
+// Older plugin DEX resolves the field by name and type, including inherited fields.
+class UtilitiesQueueCompat {
+    static final DispatchQueue2 sharedGlobalQueue = new DispatchQueue2("globalQueue");
+    public static volatile DispatchQueue globalQueue = sharedGlobalQueue;
+}
+
+public class Utilities extends UtilitiesQueueCompat {
     public static Pattern pattern = Pattern.compile("[\\-0-9]+");
     public static SecureRandom random = new SecureRandom();
     public static Random fastRandom = new Xoroshiro128PlusRandom(random.nextLong());
 
     public static volatile DispatchQueue2 stageQueue = new DispatchQueue2("stageQueue");
-    public static volatile DispatchQueue2 globalQueue = new DispatchQueue2("globalQueue");
+    public static volatile DispatchQueue2 globalQueue = sharedGlobalQueue;
     public static volatile DispatchQueue2 cacheClearQueue = new DispatchQueue2("cacheClearQueue");
     public static volatile DispatchQueue2 searchQueue = new DispatchQueue2("searchQueue");
     public static volatile DispatchQueue2 phoneBookQueue = new DispatchQueue2("phoneBookQueue");

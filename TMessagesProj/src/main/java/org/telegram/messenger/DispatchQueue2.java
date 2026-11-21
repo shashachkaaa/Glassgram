@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch;
  * to the handler, in the same order and with the same timing, once the thread runs.
  * Only {@link #getHandlerSync()} waits for the thread.
  */
-public class DispatchQueue2 extends Thread {
+public class DispatchQueue2 extends DispatchQueue {
 
     private static final int THREAD_PRIORITY_DEFAULT = -1000;
 
@@ -37,9 +37,6 @@ public class DispatchQueue2 extends Thread {
         }
     }
 
-    private static int indexPointer = 0;
-    public final int index = indexPointer++;
-
     // published under lock right after the pending tasks are handed over, so a non-null handler
     // means every task posted before it is already in the looper's queue
     private volatile Handler handler;
@@ -59,18 +56,20 @@ public class DispatchQueue2 extends Thread {
     }
 
     public DispatchQueue2(final String threadName, boolean start, int priority) {
+        super(threadName, false);
         this.threadPriority = priority;
-        setName(threadName);
         if (start) {
             start();
         }
     }
 
+    @Override
     public boolean postRunnable(Runnable runnable) {
         lastTaskTime = SystemClock.elapsedRealtime();
         return postRunnable(runnable, 0);
     }
 
+    @Override
     public boolean postRunnable(Runnable runnable, long delay) {
         final Handler h = handler;
         if (h != null) {
@@ -86,6 +85,7 @@ public class DispatchQueue2 extends Thread {
         return handler.postAtTime(runnable, uptime);
     }
 
+    @Override
     public boolean postToFrontRunnable(Runnable runnable) {
         final Handler h = handler;
         if (h != null) {
@@ -100,6 +100,7 @@ public class DispatchQueue2 extends Thread {
         return handler.postAtFrontOfQueue(runnable);
     }
 
+    @Override
     public void sendMessage(Message msg, int delay) {
         final Handler h = handler;
         if (h != null) {
@@ -116,6 +117,7 @@ public class DispatchQueue2 extends Thread {
         handler.sendMessageAtTime(msg, uptime);
     }
 
+    @Override
     public void cancelRunnable(Runnable runnable) {
         final Handler h = handler;
         if (h != null) {
@@ -135,12 +137,14 @@ public class DispatchQueue2 extends Thread {
         handler.removeCallbacks(runnable);
     }
 
+    @Override
     public void cancelRunnables(Runnable[] runnables) {
         for (int i = 0; i < runnables.length; i++) {
             cancelRunnable(runnables[i]);
         }
     }
 
+    @Override
     public void cleanupQueue() {
         final Handler h = handler;
         if (h != null) {
@@ -156,14 +160,17 @@ public class DispatchQueue2 extends Thread {
         handler.removeCallbacksAndMessages(null);
     }
 
+    @Override
     public void handleMessage(Message inputMessage) {
 
     }
 
+    @Override
     public long getLastTaskTime() {
         return lastTaskTime;
     }
 
+    @Override
     public void recycle() {
         final Handler h = handler;
         if (h != null) {
@@ -179,8 +186,14 @@ public class DispatchQueue2 extends Thread {
         handler.getLooper().quit();
     }
 
+    @Override
     public boolean isReady() {
         return handler != null;
+    }
+
+    @Override
+    public Handler getHandler() {
+        return handler;
     }
 
     // blocks until the thread is started, never call it from the main thread before the queue is surely ready
