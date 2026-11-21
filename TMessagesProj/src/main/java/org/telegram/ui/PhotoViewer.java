@@ -263,6 +263,7 @@ import org.telegram.ui.Components.HideViewAfterAnimation;
 import org.telegram.ui.Components.ImageUpdater;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPanelDrawable;
 import org.telegram.ui.Components.LivePhotoButton;
 import org.telegram.ui.Components.LoadingDrawable;
 import org.telegram.ui.Components.MediaActivity;
@@ -24059,10 +24060,65 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         compressPhotoHint.show();
     }
 
-    private class PhotoViewerWindowView extends FrameLayout {
+    private class PhotoViewerWindowView extends FrameLayout implements LiquidPanelDrawable.WindowBackdrop {
+
+        private final Paint backdropImagePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private final RectF backdropImageBounds = new RectF();
 
         public PhotoViewerWindowView(@NonNull Context context) {
             super(context);
+        }
+
+        @Override
+        public void drawWindowBackdrop(Canvas canvas) {
+            if (!isVisible || windowViewSkipRender || containerView == null) return;
+            final int save = canvas.save();
+            try {
+                canvas.clipRect(0, 0, getWidth(), getHeight());
+                canvas.drawColor(Theme.multAlpha(Color.BLACK, backgroundDrawable.getAlpha() / 255f));
+                canvas.translate(containerView.getX(), containerView.getY());
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canvas.isHardwareAccelerated()
+                        && !isCurrentVideo && !usedSurfaceView && BLUR_RENDERNODE()
+                        && renderNode != null && renderNode.hasDisplayList()) {
+                    canvas.drawRenderNode(renderNode);
+                } else {
+                    // The video surface belongs to the on-screen viewer. For the menu,
+                    // draw the media preview in viewer coordinates without touching playback.
+                    drawBackdropPreview(canvas);
+                }
+            } finally {
+                canvas.restoreToCount(save);
+            }
+        }
+
+        private void drawBackdropPreview(Canvas canvas) {
+            final ImageReceiver.BitmapHolder preview = centerImage.getBitmapSafe();
+            if (preview == null) return;
+            try {
+                if (preview.isRecycled()) return;
+                final int orientation = preview.orientation == 0 ? centerImage.getOrientation() : preview.orientation;
+                final boolean sideways = orientation % 180 != 0;
+                final int width = getContainerViewWidth();
+                final int height = videoSizeSet && aspectRatioFrameLayout != null && aspectRatioFrameLayout.getVisibility() == VISIBLE
+                        ? getVideoFitHeight() : getContainerViewHeight();
+                final float fit = Math.min(width / (float) (sideways ? preview.getHeight() : preview.getWidth()),
+                        height / (float) (sideways ? preview.getWidth() : preview.getHeight()));
+                final float halfWidth = preview.getWidth() * fit / 2f;
+                final float halfHeight = preview.getHeight() * fit / 2f;
+                if (padImageForHorizontalInsets) {
+                    canvas.translate((getLeftInset() - getRightInset()) / 2f, 0);
+                }
+                canvas.translate(width / 2f + getAdditionX(currentEditMode) + translationX,
+                        height / 2f + getAdditionY(currentEditMode) + translationY + translateY + currentPanTranslationY);
+                canvas.scale(scale, scale);
+                canvas.rotate(rotate + orientation);
+                final int invert = centerImage.getInvert();
+                canvas.scale(invert == 1 ? -1 : 1, invert == 2 ? -1 : 1);
+                backdropImageBounds.set(-halfWidth, -halfHeight, halfWidth, halfHeight);
+                canvas.drawBitmap(preview.bitmap, null, backdropImageBounds, backdropImagePaint);
+            } finally {
+                preview.release();
+            }
         }
 
         @Override

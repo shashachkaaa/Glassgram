@@ -54,6 +54,11 @@ import java.util.function.IntSupplier;
  */
 public class LiquidPanelDrawable extends Drawable {
 
+    /** A window with its own media surface can supply a backdrop without drawing that surface again. */
+    public interface WindowBackdrop {
+        void drawWindowBackdrop(Canvas canvas);
+    }
+
     private final Drawable original;
     private final Rect padding = new Rect();
     private float topRadius, bottomRadius;
@@ -585,7 +590,11 @@ public class LiquidPanelDrawable extends Drawable {
             canvas.save();
             canvas.translate(windowLocation[0] - decorLocation[0], windowLocation[1] - decorLocation[1]);
             try {
-                view.draw(canvas);
+                if (view instanceof WindowBackdrop) {
+                    ((WindowBackdrop) view).drawWindowBackdrop(canvas);
+                } else {
+                    view.draw(canvas);
+                }
             } catch (Exception ignore) {
                 // A window that cannot be drawn here is left out of the glass
             }
