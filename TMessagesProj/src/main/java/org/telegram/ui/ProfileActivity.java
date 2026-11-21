@@ -1502,19 +1502,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (fading) {
                 canvas.restore();
             }
-            // below y1 the header of the media is glass: headerFadeView, over the pages. Leaving the media the header
-            // grows back from the top while the media are already lower: the screen's background between them
-            if (mediaHeaderAnimationProgress > 0 && y1 < v && sharedMediaLayout != null && sharedMediaLayout.isAttachedToWindow()) {
-                // the pages reach up past their top by their overscan, the gap is only above it
-                final float mediaTop = listView.getY() + sharedMediaLayout.getY() - pagesOverscanTop;
-                if (mediaTop > y1) {
-                    gapPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
-                    canvas.drawRect(0, y1, getMeasuredWidth(), Math.min(v, mediaTop), gapPaint);
-                }
-            }
         }
 
-        private final Paint gapPaint = new Paint();
         private final RectF previousMenuRect = new RectF();
 
         /** Drawn into the glass capture: without the pattern of the gift, it barely shows through the blur. */
@@ -5947,13 +5936,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 Blur3Utils.captureRelativeParent(listView::captureSectionsBackgrounds, c, p, listView, root);
                 listViewCapture.capture(c, p);
             }
-            if (mediaProgress > 0f) {
-                // going over to the media: the rows above them fade into the background of the pages
-                final float mediaTop = mediaProgress < 1f ? listView.getY() + sharedMediaLayout.getY() : Float.MAX_VALUE;
-                captureFillPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
-                captureFillPaint.setAlpha((int) (255 * mediaProgress));
-                c.drawRect(p.left, p.top, p.right, Math.min(p.bottom, mediaTop), captureFillPaint);
-            }
             sharedMediaLayout.capturePages(c, p, root);
             captureHeaderImage(avatarGooey, c, p, root);
             captureHeaderImage(avatarsViewPager, c, p, root);
@@ -6156,23 +6138,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         updateHeaderBlurViews();
     }
 
-    /**
-     * One progressive blur on the screen at a time, at the same place: the media's (under their tabs, over the rows
-     * as well, it is the last of the list's children) while the media are in the list, otherwise the screen's.
-     * They swap only where they are the same, never crossfade.
-     */
+    /** Keep the blur on the profile until the media reach it and their tabs need to draw above it. */
     private void updateHeaderBlurViews() {
         if (headerBlurView == null || headerFadeView == null) {
             return;
         }
-        final boolean media = sharedMediaLayout != null && sharedMediaLayout.getParent() == listView && sharedMediaLayout.isAttachedToWindow();
+        final boolean mediaAttached = sharedMediaLayout != null && sharedMediaLayout.getParent() == listView && sharedMediaLayout.isAttachedToWindow();
+        final float mediaTop = mediaAttached ? listView.getY() + sharedMediaLayout.getY() : Float.POSITIVE_INFINITY;
+        final boolean mediaOverlapsBlur = mediaTop < headerBlurView.getLayoutParams().height;
         final float alpha = getHeaderSimpleFactor();
-        headerBlurView.setAlpha(media ? 0 : alpha);
-        headerBlurView.setVisibility(!media && alpha > 0 ? View.VISIBLE : View.GONE);
-        headerFadeView.setAlpha(media ? alpha : 0);
-        if (media) {
-            // at the top of the screen wherever the media are
-            headerFadeView.setTranslationY(-(listView.getY() + sharedMediaLayout.getY()));
+        headerBlurView.setAlpha(mediaOverlapsBlur ? 0 : alpha);
+        headerBlurView.setVisibility(!mediaOverlapsBlur && alpha > 0 ? View.VISIBLE : View.INVISIBLE);
+        headerFadeView.setAlpha(mediaOverlapsBlur ? alpha : 0);
+        if (mediaOverlapsBlur) {
+            headerFadeView.setTranslationY(-mediaTop);
         }
     }
 
@@ -17501,7 +17480,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private ViewPositionWatcher viewPositionWatcher;
 
     private IBlur3Capture iBlur3Capture;
-    private final Paint captureFillPaint = new Paint();
 
     @Override
     public GlassSourceRenderNode getGlassSource() {
