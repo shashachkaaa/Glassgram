@@ -483,12 +483,18 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             vy = .17 * x;
         }
 
-        void launch(long now, double startX, double startY, double pullX, double pullY) {
+        void launch(long now, double startX, double startY, double pullX, double pullY,
+                    double rx, double ry, double diameter) {
             x = startX;
             y = startY;
-            double gain = Math.min(12, 27 / Math.max(.001, Math.hypot(pullX, pullY)));
-            vx = -gain * pullX;
-            vy = -gain * pullY;
+            // Measure pull in visible bubble diameters, equally in every direction.
+            double pull = Math.hypot(pullX, pullY);
+            double diameters = pull / diameter;
+            double gain = 2 + 2 * Math.min(1, diameters / 3);
+            double speed = 7 * diameter * Math.tanh(diameters * gain / 7);
+            double impulse = pull > 0 ? speed / pull : 0;
+            vx = -impulse * pullX / rx;
+            vy = -impulse * pullY / ry;
             epoch = now;
         }
 
@@ -498,9 +504,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             double radial = vx * nx + vy * ny;
             double tangent = vy * nx - vx * ny;
             if (Math.abs(tangent) > .12) direction = Math.signum(tangent);
-            // A wide excursion is pulled back gradually. Keep tangential momentum through the turn.
-            double ar = -5.5 * (r - 1) - 1.55 * radial - Math.min(2, tangent * tangent / r);
-            double at = .78 * (.17 * direction - tangent);
+            // Bend the flight around the ellipse. A radial nudge also feeds the
+            // orbit so even a square hit carries the bubbles past the contact.
+            double ar = -9 * (r - 1) - 3.6 * radial - tangent * tangent / Math.max(.65, r);
+            double at = .85 * (.17 * direction - tangent) + direction * 1.6 * Math.abs(radial);
             vx += (ar * nx - at * ny) * dt;
             vy += (ar * ny + at * nx) * dt;
             x += vx * dt;
@@ -606,10 +613,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 Orbit body = gift.orbit;
                 if (gift == held) continue;
                 body.advance(dt);
-                // Keep a fast shot in reach at the edges of the visible profile.
+                // Ease out only the outward component as the rim approaches the
+                // viewport. An oblique shot can keep travelling along the edge.
                 double cx = orbitCenterX + body.x * rx, cy = orbitCenterY + body.y * ry;
-                if (cx < radius && body.vx < 0 || cx > getWidth() - radius && body.vx > 0) body.vx *= -.78;
-                if (cy < radius && body.vy < 0 || cy > dragHost.getHeight() - radius && body.vy > 0) body.vy *= -.78;
+                body.vx = limitAtEdge(body.vx, cx, getWidth(), radius, rx);
+                body.vy = limitAtEdge(body.vy, cy, dragHost.getHeight(), radius, ry);
             }
             for (int i = 0; i < gifts.size(); i++) {
                 Gift a = gifts.get(i);
@@ -627,6 +635,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
         lastDragX = dragX;
         lastDragY = dragY;
+    }
+
+    private static double limitAtEdge(double velocity, double center, double extent, double radius, double orbitRadius) {
+        double room = velocity > 0 ? extent - radius - center : center - radius;
+        double maxSpeed = 6 * Math.max(0, room) / orbitRadius;
+        return Math.copySign(Math.min(Math.abs(velocity), maxSpeed), velocity);
     }
 
     private final TimeInterpolator giftCollapseXInterpolator = new DecelerateInterpolator();
@@ -860,7 +874,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 double startX = (gift.bounds.centerX() + dragX - orbitCenterX) / orbitRadiusX;
                 double startY = (gift.bounds.centerY() + dragY - orbitCenterY) / orbitRadiusY;
                 gift.orbit.launch(SystemClock.uptimeMillis(), startX, startY,
-                        dragX / orbitRadiusX, dragY / orbitRadiusY);
+                        dragX, dragY, orbitRadiusX, orbitRadiusY, dpf2(42));
                 gift.bounds.offset(dragX, dragY);
                 released = true;
                 invalidate();
