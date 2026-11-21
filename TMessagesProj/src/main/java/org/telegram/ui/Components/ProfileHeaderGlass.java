@@ -15,6 +15,7 @@ import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.graphics.ColorUtils;
 
@@ -240,6 +241,12 @@ public class ProfileHeaderGlass {
      *              content on it over a light photo, and shows by a brighter, wider rim
      */
     public void draw(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, float white, float alpha, float photo) {
+        draw(canvas, piece, press, rect, radius, white, alpha, photo, null);
+    }
+
+    /** Extra layers already drawn behind this piece, in the view's coordinates. */
+    public void draw(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, float white, float alpha,
+                     float photo, @Nullable GlassLayer.Backdrop behindPiece) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
@@ -252,15 +259,18 @@ public class ProfileHeaderGlass {
             ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white),
             ColorUtils.setAlphaComponent(Color.BLACK, 0x24), photo);
 
+        final RenderNode node = (RenderNode) backdropNode;
+        final float left = rect.left, top = rect.top;
+        final GlassLayer.Backdrop source = backdrop -> {
+            backdrop.translate(-left, -top);
+            backdrop.drawRenderNode(node);
+            if (behindPiece != null) behindPiece.draw(backdrop);
+        };
+
         // During a sibling's capture use the static glass path. Replaying an interactive
         // button into the node used as its own backdrop would create a display-list cycle.
-        if (backdropNode != null && !isNested()) {
-            final RenderNode source = (RenderNode) backdropNode;
-            final float x = rect.left, y = rect.top;
-            if (press.drawGlass(canvas, x, y, rect.right, rect.bottom, radius, backdrop -> {
-                backdrop.translate(-x, -y);
-                backdrop.drawRenderNode(source);
-            }, tint, 0, Math.round(alpha * 255))) {
+        if (node != null && !isNested()) {
+            if (press.drawGlass(canvas, left, top, rect.right, rect.bottom, radius, source, tint, 0, Math.round(alpha * 255))) {
                 return;
             }
         }
@@ -278,7 +288,7 @@ public class ProfileHeaderGlass {
             canvas.restore();
         }
 
-        if (backdropNode == null) {
+        if (node == null) {
             tintPaint.setColor(ColorUtils.setAlphaComponent(tint, (int) (Color.alpha(tint) * alpha)));
             canvas.drawRoundRect(rect, radius, radius, tintPaint);
             return;
@@ -287,8 +297,6 @@ public class ProfileHeaderGlass {
         if (piece.layer == null) {
             piece.layer = new GlassLayer();
         }
-        final RenderNode node = (RenderNode) backdropNode;
-        final float left = rect.left, top = rect.top;
         final float density = AndroidUtilities.density;
         final int restore = alpha < 1f
             ? canvas.saveLayerAlpha(rect.left, rect.top, rect.right, rect.bottom, (int) (255 * alpha))
@@ -300,11 +308,7 @@ public class ProfileHeaderGlass {
             // gallery's blur around hides, like the edge of a round picture on a white ground
             AndroidUtilities.lerp(veil ? 4f : BackdropGlass.BlurRadius, 10f, photo) * density,
             Math.max(1, Math.min(dp(12), Math.min(rect.width(), rect.height()) / 4)), dpf2(24),
-            false, true, dark,
-            backdrop -> {
-                backdrop.translate(-left, -top);
-                backdrop.drawRenderNode(node);
-            },
+            false, true, dark, source,
             tint, AndroidUtilities.lerp(veil ? 0.8f : 1f, 1f, photo), AndroidUtilities.lerp(1f, 1.8f, photo));
         canvas.restoreToCount(restore);
     }

@@ -12,8 +12,11 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RadialGradient;
+import android.graphics.RecordingCanvas;
 import android.graphics.RectF;
+import android.graphics.RenderNode;
 import android.graphics.Shader;
+import android.os.Build;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
@@ -22,6 +25,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.MessagesController;
@@ -250,6 +254,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         private final ProfileHeaderGlass.Piece frontPiece = new ProfileHeaderGlass.Piece();
         private final LiquidPressEffect press = new LiquidPressEffect(ProfileGiftsView.this);
         public final RectF bounds = new RectF();
+        private final RectF visualBounds = new RectF();
+        private final ArrayList<Gift> lowerGifts = new ArrayList<>();
+        private boolean sampledByOtherGift;
+        private Object renderedGift;
         public final ButtonBounce bounce = new ButtonBounce(ProfileGiftsView.this);
 
         private Orbit orbit;
@@ -277,6 +285,31 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.scale(scale, scale);
             drawArtwork(canvas, alpha, 1f - .5f * (float) orbit.lift, advanceParticles);
             canvas.restore();
+        }
+
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        private void recordAndDraw(Canvas canvas, ProfileHeaderGlass glass) {
+            if (renderedGift == null) renderedGift = new RenderNode("ProfileGift");
+            final RenderNode node = (RenderNode) renderedGift;
+            final int left = (int) Math.floor(visualBounds.left), top = (int) Math.floor(visualBounds.top);
+            node.setPosition(left, top, (int) Math.ceil(visualBounds.right), (int) Math.ceil(visualBounds.bottom));
+            final RecordingCanvas recording = node.beginRecording();
+            try {
+                recording.translate(-left, -top);
+                clipGiftLayer(recording);
+                draw(recording, glass, true, true);
+            } finally {
+                node.endRecording();
+            }
+            canvas.drawRenderNode(node);
+        }
+
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        private void drawLowerGifts(Canvas backdrop) {
+            for (Gift gift : lowerGifts) {
+                final RenderNode node = (RenderNode) gift.renderedGift;
+                if (node != null && node.hasDisplayList()) backdrop.drawRenderNode(node);
+            }
         }
 
         private void drawBubble(Canvas canvas, RectF box, float alpha, float angle, float stretch,
@@ -311,10 +344,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             bubbleOutline.close();
             canvas.save();
             canvas.clipPath(bubbleOutline);
-            if (glassEnabled) {
+            if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lensBounds.set(box);
                 lensBounds.inset(-r * .12f, -r * .12f);
-                glass.draw(canvas, layer, effect, lensBounds, lensBounds.width() / 2, 1f, alpha, 0f);
+                glass.draw(canvas, layer, effect, lensBounds, lensBounds.width() / 2, 1f, alpha, 0f,
+                        lowerGifts.isEmpty() ? null : this::drawLowerGifts);
             } else {
                 bubblePaint.setColor(Theme.multAlpha(0x30FFFFFF, alpha));
                 canvas.drawPath(bubbleOutline, bubblePaint);
@@ -824,6 +858,32 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float rim = dpf2(BUBBLE_DIAMETER / 2) * scale * (float) gift.orbit.radiusScale();
             gift.bounds.set(gx - rim, gy - rim, gx + rim, gy + rim);
             gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .55 * gift.orbit.lift));
+            // Room for the stretched rim and the glow surrounding the gift.
+            float extent = Math.max(1.48f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
+            gift.visualBounds.set(gx - extent, gy - extent, gx + extent, gy + extent);
+        }
+    }
+
+    private void clipGiftLayer(Canvas canvas) {
+        if (collapseProgress < 1f || expandProgress > 0f) canvas.clipRect(0, 0, getWidth(), expandY);
+    }
+
+    private void findOverlappingGifts(boolean front) {
+        for (Gift gift : drawOrder) {
+            if (gift.inFront != front) continue;
+            gift.lowerGifts.clear();
+            gift.sampledByOtherGift = false;
+        }
+        for (int i = 1; i < drawOrder.size(); i++) {
+            Gift upper = drawOrder.get(i);
+            if (upper.alpha <= 0f || upper.inFront != front) continue;
+            for (int j = 0; j < i; j++) {
+                Gift lower = drawOrder.get(j);
+                if (lower.alpha > 0f && lower.inFront == front && RectF.intersects(upper.visualBounds, lower.visualBounds)) {
+                    upper.lowerGifts.add(lower);
+                    lower.sampledByOtherGift = true;
+                }
+            }
         }
     }
 
@@ -838,13 +898,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
         if (!hasVisibleGift) return;
         final int save = canvas.save();
-        if (collapseProgress < 1f || expandProgress > 0f) canvas.clipRect(0, 0, getWidth(), expandY);
+        clipGiftLayer(canvas);
         ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
         boolean capturing = ViewBehindBackdrop.isAnyDrawing();
         boolean hasGlass = !capturing && glass.begin(canvas);
+        if (hasGlass) findOverlappingGifts(front);
         for (Gift gift : drawOrder) {
             if (gift.alpha > 0f && gift.inFront == front) {
-                gift.draw(canvas, glass, hasGlass, !capturing);
+                // Each node refers only to nodes already drawn below it in this pass.
+                if (hasGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && gift.sampledByOtherGift) {
+                    gift.recordAndDraw(canvas, glass);
+                } else {
+                    gift.draw(canvas, glass, hasGlass, !capturing);
+                }
             }
         }
         canvas.restoreToCount(save);
