@@ -839,12 +839,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double MAX_STRETCH = .18, STRETCH_EASE = .12;
     private static final float STRETCH_SPEED = 1300;
     /**
-     * Thrown, by a flick at least this fast, dp/s, it flies off the way of the finger, as fast but
-     * no faster than the most, slows down as if thrown along a table, and once it nearly stops or
-     * after a while springs back to its orbit.
+     * Thrown, by a flick at least this fast, dp/s, it slides round its orbit the way the flick
+     * went along it, at most this fast, ring radii a second, a fraction of the flick, and slows
+     * down to its own pace in about this long, s: a quick flick takes it a third of the way round.
      */
-    private static final float THROW_SPEED = 600, MAX_THROW_SPEED = 2200, FLIGHT_STOP_SPEED = 160;
-    private static final double FLIGHT_DRAG = .15, MAX_FLIGHT = .6;
+    private static final float THROW_SPEED = 600;
+    private static final double MAX_THROW_ALONG = 3.5, THROW_ALONG = .3, THROW_SLOWDOWN = .7;
     private static final float MAX_RELEASE_SPEED = 700;
     private static final double MAX_SPIN = 3;
     /** A bubble knocked by another takes at most this speed from it, dp/s, and barely bounces. */
@@ -927,9 +927,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             return perspectiveScale() * (1 + LIFT_SCALE * lift);
         }
 
-        /** Held, thrown or springing back: over everything, the avatar included. */
+        /**
+         * Held, springing back, or just thrown: over everything, the avatar included. A thrown
+         * bubble slides round its orbit, and once its lift is gone, goes behind the avatar or
+         * in front of it as its place on the orbit has it.
+         */
         boolean isLifted() {
-            return state != FREE;
+            return state == HELD || state == RETURNING || state == FLYING && lift >= .5;
         }
 
         /** Thrown or springing back: it flies over the others, it does not push them. */
@@ -1001,38 +1005,33 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     body.lift += (1 - body.lift) * -Math.expm1(-18 * dt);
                     continue;
                 }
-                if (body.state == Orbit.FLYING) {
-                    // straight on, slowing down, still lifted
-                    final double drag = Math.exp(-dt / FLIGHT_DRAG);
-                    body.vx *= drag;
-                    body.vy *= drag;
-                    body.x += body.vx * dt;
-                    body.y += body.vy * dt;
-                    body.flightTime += dt;
-                    if (Math.hypot(body.vx * rx, body.vy * ry) < dpf2(FLIGHT_STOP_SPEED) || body.flightTime > MAX_FLIGHT) {
-                        body.state = Orbit.RETURNING;
-                    }
-                    continue;
-                }
                 final double u = body.u(), v = body.v(), vu = body.vu(), vv = body.vv();
                 final double r = Math.max(.05, Math.hypot(u, v));
                 final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
                 final double vr = vu * nu + vv * nv, vt = vu * tu + vv * tv;
                 final double target = body.radiusAt(physicsTime);
                 final boolean returning = body.state == Orbit.RETURNING;
+                final boolean thrown = body.state == Orbit.FLYING;
                 // Held on its orbit at any speed, its radius following its own drift; one let go
-                // of springs back to it
+                // of, or thrown, springs back to it
                 double ar = -vt * vt / r;
-                if (returning) {
+                if (returning || thrown) {
                     ar += -RETURN_SPRING * RETURN_SPRING * (r - target) - 2 * RETURN_DAMPING * RETURN_SPRING * vr;
                 } else {
                     ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
                 }
                 // let go, it drops the finger's speed along the orbit at once and goes back to
-                // where it was, it does not whirl round the avatar
-                double at = orbitHeld && !returning ? SPIN_DRIVE * (spinRate * r - vt)
-                        : (returning ? RETURN_PACE : PACE_DRIVE) * (body.speed - vt);
-                if (count > 1) {
+                // where it was, it does not whirl round the avatar; thrown, it slides round its
+                // orbit and slows down to its own pace
+                double at;
+                if (thrown) {
+                    at = (body.speed - vt) / THROW_SLOWDOWN;
+                } else if (orbitHeld && !returning) {
+                    at = SPIN_DRIVE * (spinRate * r - vt);
+                } else {
+                    at = (returning ? RETURN_PACE : PACE_DRIVE) * (body.speed - vt);
+                }
+                if (count > 1 && !body.isPassing()) {
                     for (int j = 0; j < count; j++) {
                         if (j == i || gifts.get(j).orbit.isPassing()) continue;
                         final double d = Math.atan2(Math.sin(ringAngles[i] - ringAngles[j]), Math.cos(ringAngles[i] - ringAngles[j]));
@@ -1041,7 +1040,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
                 double au = ar * nu + at * tu, av = ar * nv + at * tv;
                 // the others close by on the disk push it away a little
-                for (int j = 0; j < count; j++) {
+                for (int j = 0; j < count && !body.isPassing(); j++) {
                     if (j == i) continue;
                     final Orbit other = gifts.get(j).orbit;
                     if (other.isPassing()) continue;
@@ -1060,7 +1059,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     nvv = across * nv + along * tv;
                 }
                 body.setDisk(u + nvu * dt, v + nvv * dt, nvu, nvv);
-                body.lift *= Math.exp(-(returning ? 4 : 5.2) * dt);
+                body.lift *= Math.exp(-(returning ? 4 : thrown ? 3 : 5.2) * dt);
+                if (thrown && Math.abs(vt - body.speed) < .25 && Math.abs(r - target) < .12) {
+                    body.state = Orbit.FREE;
+                    body.sunk = false;
+                }
                 if (returning) {
                     // On its way to the far side it goes behind the avatar as soon as it is clear
                     // of it, not with a jump once it is there
@@ -1607,7 +1610,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /**
      * A bubble is picked up and pulled away from its orbit, as far as the finger goes. Let go, it
      * springs back to it with a part of the finger's speed, a little past it, and flies on; thrown
-     * by a flick, it first flies off the way of the finger, over the others, and slows down.
+     * by a flick, it slides round its orbit the way of the flick, over the others, slowing down.
      */
     private boolean onGiftTouch(MotionEvent event, boolean front) {
         float x = event.getX(), y = event.getY();
@@ -1674,11 +1677,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         body.y = (y - orbitCenterY) / ry;
         final double fingerSpeed = Math.hypot(vx, vy);
         if (fingerSpeed >= dpf2(THROW_SPEED)) {
-            final double scale = Math.min(fingerSpeed, dpf2(MAX_THROW_SPEED)) / fingerSpeed;
+            // Along the orbit where it is let go: the flick's part along the ring's tangent there
+            final double u = body.u(), v = body.v(), r = Math.max(.05, Math.hypot(u, v));
+            final double tu = -v / r, tv = u / r;
+            // the flick on the disk, in ring radii a second
+            final double fu = vx / rx / RING_WIDTH, fv = (vy / ry - RING_SLOPE * vx / rx) / RING_HEIGHT;
+            final double along = Math.max(-MAX_THROW_ALONG, Math.min(MAX_THROW_ALONG, (fu * tu + fv * tv) * THROW_ALONG));
             body.state = Orbit.FLYING;
             body.flightTime = 0;
-            body.vx = vx * scale / rx;
-            body.vy = vy * scale / ry;
+            body.setDisk(u, v, along * tu, along * tv);
             return;
         }
         double speed = fingerSpeed * RELEASE_SPEED;
