@@ -1036,6 +1036,44 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
             }
             collide(rx, ry, -Math.expm1(-30 * dt));
+            for (int i = 0; i < count; i++) {
+                keepOnScreen(gifts.get(i).orbit, rx, ry);
+            }
+        }
+    }
+
+    /**
+     * No bubble leaves the screen, the held one included: at an edge it stops, flattened against
+     * it, and keeps only its speed along it.
+     */
+    private void keepOnScreen(Orbit body, double rx, double ry) {
+        final int width = getWidth(), height = getHeight();
+        if (width <= 0 || height <= 0 || rx <= 0 || ry <= 0) return;
+        // as big as it is drawn: swelling on the beat and wobbling
+        final double r = dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale() * (1 + .12 * musicPulse) * 1.06 + dpf2(2);
+        final double px = orbitCenterX + body.x * rx, py = orbitCenterY + body.y * ry;
+        final double left = r, right = width - r, top = r, bottom = height - r;
+        if (left < right) {
+            if (px < left) {
+                body.x = (left - orbitCenterX) / rx;
+                if (body.vx < 0) body.vx = 0;
+                body.press(Math.min(.14, (left - px) / r * .5 + .04), -1, 0);
+            } else if (px > right) {
+                body.x = (right - orbitCenterX) / rx;
+                if (body.vx > 0) body.vx = 0;
+                body.press(Math.min(.14, (px - right) / r * .5 + .04), 1, 0);
+            }
+        }
+        if (top < bottom) {
+            if (py < top) {
+                body.y = (top - orbitCenterY) / ry;
+                if (body.vy < 0) body.vy = 0;
+                body.press(Math.min(.14, (top - py) / r * .5 + .04), 0, -1);
+            } else if (py > bottom) {
+                body.y = (bottom - orbitCenterY) / ry;
+                if (body.vy > 0) body.vy = 0;
+                body.press(Math.min(.14, (py - bottom) / r * .5 + .04), 0, 1);
+            }
         }
     }
 
