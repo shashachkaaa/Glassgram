@@ -836,7 +836,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double MAX_DRIFT = 1.13;
     private static final double RELEASE_SPEED = .2;
     /** The film stretches at most by this, softly, half of it at this speed, dp/s, and eases into it, s. */
-    private static final double MAX_STRETCH = .18, STRETCH_SPEED = 1300, STRETCH_EASE = .12;
+    private static final double MAX_STRETCH = .18, STRETCH_EASE = .12;
+    private static final float STRETCH_SPEED = 1300;
     /**
      * Thrown, by a flick at least this fast, dp/s, it flies off the way of the finger, as fast but
      * no faster than the most, slows down as if thrown along a table, and once it nearly stops or
