@@ -47,7 +47,6 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.ButtonBounce;
 import org.telegram.ui.Components.CubicBezierInterpolator;
-import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.ProfileHeaderGlass;
 import org.telegram.ui.Components.ViewBehindBackdrop;
 
@@ -272,19 +271,28 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             final float gsz = dp(36);
             particles.bounds.set(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f);
 
-            // The film is thin and clear in the middle and thickens towards the rim, where it
-            // catches the most light: the backdrop's center color going over to its edge color.
+            // Clear in the middle, the glass thickens towards the rim into a band of the
+            // backdrop's color, as a ball of tinted glass seen edge on, and catches light at it.
             filmPaint.setShader(new RadialGradient(0, 0, 1f,
                     new int[]{
-                            Theme.multAlpha(color, .14f),
-                            Theme.multAlpha(color, .24f),
-                            Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .5f), .42f),
-                            Theme.multAlpha(lightColor, .66f),
-                            Theme.multAlpha(lightColor, .86f)
+                            Theme.multAlpha(color, 0f),
+                            Theme.multAlpha(color, .04f),
+                            Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .4f), .26f),
+                            Theme.multAlpha(color, .62f),
+                            Theme.multAlpha(lightColor, .82f)
                     },
-                    new float[]{0f, .55f, .82f, .95f, 1f}, Shader.TileMode.CLAMP));
+                    new float[]{0f, .5f, .76f, .92f, 1f}, Shader.TileMode.CLAMP));
             lightShader = new RadialGradient(0, 0, 1f,
                     new int[]{lightColor, Theme.multAlpha(lightColor, .55f), Theme.multAlpha(lightColor, .16f), Theme.multAlpha(lightColor, 0f)},
+                    new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
+            // The glint on the rims around keeps the gift's own color: added to the header it
+            // went white over a mid-tone one
+            final float[] hsv = new float[3];
+            Color.colorToHSV(color, hsv);
+            hsv[2] = Math.max(hsv[2], .92f);
+            final int glint = Color.HSVToColor(hsv);
+            glintShader = new RadialGradient(0, 0, 1f,
+                    new int[]{glint, Theme.multAlpha(glint, .6f), Theme.multAlpha(glint, .2f), Theme.multAlpha(glint, 0f)},
                     new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
         }
 
@@ -303,11 +311,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         private final Matrix filmMatrix = new Matrix();
         /** Unit radius around (0, 0): the light, strongest at the bubble, fading out. */
         private RadialGradient lightShader;
+        /** The same in the gift's saturated color, for the rims it shines on. */
+        private RadialGradient glintShader;
         private PatternParticles patterns = new PatternParticles();
 
         private final ProfileHeaderGlass.Piece rearPiece = new ProfileHeaderGlass.Piece();
         private final ProfileHeaderGlass.Piece frontPiece = new ProfileHeaderGlass.Piece();
-        private final LiquidPressEffect press = new LiquidPressEffect(ProfileGiftsView.this);
         public final RectF bounds = new RectF();
         private final RectF visualBounds = new RectF();
         private final ArrayList<Gift> lowerGifts = new ArrayList<>();
@@ -336,7 +345,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             double vx = orbit.vx * orbitRadiusX, vy = orbit.vy * orbitRadiusY;
             float stretch = (float) Math.min(.25, Math.hypot(vx, vy) / dpf2(950));
             drawBubble(canvas, bounds, alpha, (float) Math.toDegrees(Math.atan2(vy, vx)), stretch,
-                    hasGlass, glass, inFront ? frontPiece : rearPiece, press);
+                    hasGlass, glass, inFront ? frontPiece : rearPiece);
             canvas.translate(bounds.centerX(), bounds.centerY());
             final float scale = artworkScale * bounce.getScale(0.1f);
             canvas.scale(scale, scale);
@@ -370,8 +379,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
 
         private void drawBubble(Canvas canvas, RectF box, float alpha, float angle, float stretch,
-                                boolean glassEnabled, ProfileHeaderGlass glass, ProfileHeaderGlass.Piece layer,
-                                LiquidPressEffect effect) {
+                                boolean glassEnabled, ProfileHeaderGlass glass, ProfileHeaderGlass.Piece layer) {
             float cx = box.centerX(), cy = box.centerY(), r = box.width() * .5f;
             double time = SystemClock.uptimeMillis() * .0032 + (id % 337);
             float ripple = (float) Math.sin(time);
@@ -399,13 +407,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.clipPath(bubbleOutline);
             if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lensBounds.set(box);
-                lensBounds.inset(-r * .12f, -r * .12f);
-                // The glass itself is tinted with the gift's backdrop, as a soap film of that color
-                glass.drawTinted(canvas, layer, effect, lensBounds, lensBounds.width() / 2,
-                        ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, edgeColor, .35f), 0x3A), alpha,
+                lensBounds.inset(-r * .04f, -r * .04f);
+                // A ball of glass tinted with the gift's backdrop: what is behind it (the name,
+                // the avatar's rim, the buttons) shows through it magnified and bent
+                glass.drawSphere(canvas, layer, lensBounds,
+                        ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, edgeColor, .35f), 0x40), alpha, 1.18f,
                         lowerGifts.isEmpty() ? null : this::drawLowerGifts);
             } else {
-                bubblePaint.setColor(Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .35f), .3f * alpha));
+                bubblePaint.setColor(Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .35f), .25f * alpha));
                 canvas.drawPath(bubbleOutline, bubblePaint);
             }
             filmMatrix.setScale(r * 1.03f, r * 1.03f);
@@ -424,7 +433,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 flashPaint.setShader(null);
             }
             if (patternDrawable != null) {
-                patterns.draw(canvas, patternDrawable, patternColor, cx, cy, r, alpha, musicPulse);
+                // pale and see-through, as the pattern is pressed into the glass
+                patterns.draw(canvas, patternDrawable, ColorUtils.blendARGB(patternColor, Color.WHITE, .6f), cx, cy, r, alpha, musicPulse);
             }
             drawSpecular(canvas, cx, cy, r, alpha);
             canvas.restore();
@@ -443,7 +453,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 particles.draw(canvas, color, alpha);
             }
             if (gradientPaint != null) {
-                gradientPaint.setAlpha((int) (0xFF * alpha * gradientAlpha * .8f));
+                // only a hint of the glow behind the gift: the bubble is clear around it
+                gradientPaint.setAlpha((int) (0xFF * alpha * gradientAlpha * .3f));
                 canvas.drawRect(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f, gradientPaint);
             }
             if (emojiDrawable != null) {
@@ -474,7 +485,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 new int[]{0x99FFFFFF, 0x38FFFFFF, 0x00FFFFFF}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
     }
 
-    /** The window reflected in the film, up and to the left. */
+    private final Paint reflexPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF reflexOval = new RectF();
+
+    {
+        reflexPaint.setStyle(Paint.Style.STROKE);
+        reflexPaint.setStrokeCap(Paint.Cap.ROUND);
+        reflexPaint.setColor(Color.WHITE);
+    }
+
+    /**
+     * The window reflected in the glass, up and to the left, and the light coming through the
+     * ball caught again on its inner side, a thin bright crescent down and to the right.
+     */
     private void drawSpecular(Canvas canvas, float cx, float cy, float r, float alpha) {
         final float x = cx - r * .36f, y = cy - r * .46f;
         specularMatrix.setScale(r * .44f, r * .25f);
@@ -483,6 +506,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         specularPaint.getShader().setLocalMatrix(specularMatrix);
         specularPaint.setAlpha((int) (0xFF * alpha));
         canvas.drawCircle(x, y, r * .46f, specularPaint);
+
+        final float inset = r * .14f;
+        reflexOval.set(cx - r + inset, cy - r + inset, cx + r - inset, cy + r - inset);
+        reflexPaint.setStrokeWidth(r * .07f);
+        reflexPaint.setAlpha((int) (0x5C * alpha));
+        canvas.drawArc(reflexOval, 18f, 64f, false, reflexPaint);
     }
 
     /**
@@ -490,7 +519,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
      * the clock, not the frames: the rear and the front layer, and the captures, draw the same.
      */
     private static final class PatternParticles {
-        private static final int COUNT = 7;
+        private static final int COUNT = 9;
         private static final java.util.Random RANDOM = new java.util.Random();
 
         private final float[] x = new float[COUNT], y = new float[COUNT];
@@ -504,15 +533,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         /** Positions are in bubble radii from its center, speeds in radii per second. */
         private void spawn(int i, long now, boolean initial) {
             final double angle = RANDOM.nextDouble() * 2 * Math.PI;
-            // Around the gift, not over it
-            final double distance = .36 + .4 * Math.sqrt(RANDOM.nextDouble());
+            // Around the gift, towards the rim, not over it
+            final double distance = .42 + .44 * Math.sqrt(RANDOM.nextDouble());
             x[i] = (float) (Math.cos(angle) * distance);
             y[i] = (float) (Math.sin(angle) * distance);
             final double heading = angle + (RANDOM.nextBoolean() ? 1 : -1) * Math.PI / 2 + (RANDOM.nextDouble() - .5) * .9;
             final double speed = .035 + .05 * RANDOM.nextDouble();
             vx[i] = (float) (Math.cos(heading) * speed);
             vy[i] = (float) (Math.sin(heading) * speed);
-            size[i] = .3f + .14f * RANDOM.nextFloat();
+            size[i] = .2f + .11f * RANDOM.nextFloat();
             rotation[i] = (RANDOM.nextFloat() - .5f) * 50f;
             life[i] = 2600 + RANDOM.nextInt(2400);
             start[i] = initial ? now - RANDOM.nextInt((int) life[i]) : now + RANDOM.nextInt(450);
@@ -534,7 +563,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             drawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
             drawable.setColorFilter(filter);
             for (int i = 0; i < COUNT; i++) {
-                float px = x[i], py = y[i], fade = .8f;
+                float px = x[i], py = y[i], fade = .85f;
                 if (animate) {
                     long age = now - start[i];
                     if (age >= life[i]) {
@@ -547,7 +576,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     py += vy[i] * seconds;
                     fade = (float) Math.sin(Math.PI * age / life[i]);
                 }
-                final int a = (int) (0xFF * Math.min(1f, alpha * fade * (.9f + .3f * pulse)));
+                final int a = (int) (0xFF * Math.min(1f, alpha * fade * (.62f + .3f * pulse)));
                 if (a <= 0) continue;
                 final float push = 1f + .14f * pulse;
                 canvas.save();
@@ -966,10 +995,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private final Matrix lightMatrix = new Matrix();
 
     {
-        final PorterDuffXfermode add = new PorterDuffXfermode(PorterDuff.Mode.ADD);
-        lightPaint.setXfermode(add);
-        haloPaint.setXfermode(add);
-        flashPaint.setXfermode(add);
+        // the glow is screened over the header: added, it went white over a mid-tone header
+        haloPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SCREEN));
+        flashPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.ADD));
     }
 
     public void setLitShapes(LitShapes source) {
@@ -1031,7 +1059,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             lightMatrix.postTranslate(cx, cy);
             gift.lightShader.setLocalMatrix(lightMatrix);
             haloPaint.setShader(gift.lightShader);
-            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(.42f * strength * gift.alpha)));
+            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(.36f * strength * gift.alpha)));
             canvas.drawCircle(cx, cy, radius, haloPaint);
         }
         haloPaint.setShader(null);
@@ -1045,10 +1073,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private void drawLight(Canvas canvas) {
         if (litCount == 0) return;
         final float strength = lightStrength();
-        final float rimWidth = dpf2(1.6f);
+        final float rimWidth = dpf2(1.3f);
         lightPaint.setStrokeWidth(rimWidth);
         for (Gift gift : drawOrder) {
-            if (gift.alpha <= 0f || gift.lightShader == null) continue;
+            if (gift.alpha <= 0f || gift.glintShader == null) continue;
             final float bx = gift.bounds.centerX(), by = gift.bounds.centerY();
             final float br = gift.bounds.width() / 2f;
             final float reach = br * 2.4f * (1f + .3f * musicPulse);
@@ -1070,16 +1098,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     final float lightRadius = br + reach * 1.25f;
                     lightMatrix.setScale(lightRadius, lightRadius);
                     lightMatrix.postTranslate(bx, by);
-                    gift.lightShader.setLocalMatrix(lightMatrix);
-                    lightPaint.setShader(gift.lightShader);
+                    gift.glintShader.setLocalMatrix(lightMatrix);
+                    lightPaint.setShader(gift.glintShader);
                 }
                 litRect.set(l, t, r, b);
                 lightPaint.setStyle(Paint.Style.FILL);
-                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.26f * intensity)));
+                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.1f * intensity)));
                 canvas.drawRoundRect(litRect, radius, radius, lightPaint);
                 litRect.inset(rimWidth / 2f, rimWidth / 2f);
                 lightPaint.setStyle(Paint.Style.STROKE);
-                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(intensity)));
+                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.9f * intensity)));
                 final float rimRadius = Math.max(0, radius - rimWidth / 2f);
                 canvas.drawRoundRect(litRect, rimRadius, rimRadius, lightPaint);
             }
@@ -1196,7 +1224,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (movingGift != null) {
             if (dragging) movingGift.orbit.stopDrag();
             movingGift.bounce.setPressed(false);
-            movingGift.press.onTouch(MotionEvent.ACTION_CANCEL, 0, 0);
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
         }
         movingGift = null;
@@ -1225,7 +1252,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             getParent().requestDisallowInterceptTouchEvent(true);
         }
         if (movingGift == null) return false;
-        movingGift.press.onTouch(action, x - movingGift.bounds.left, y - movingGift.bounds.top);
         if (action == MotionEvent.ACTION_MOVE) {
             float dx = x - downX, dy = y - downY;
             int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();

@@ -250,33 +250,14 @@ public class ProfileHeaderGlass {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
+        radius = Math.min(radius, Math.min(rect.width(), rect.height()) / 2f);
+        final boolean veil = white >= 0.5f;
         final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
         final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
         final int frosted = ColorUtils.setAlphaComponent(surface, (int) (255 * BackdropGlass.tintAlpha(dark)));
         final int tint = ColorUtils.blendARGB(
             ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white),
             ColorUtils.setAlphaComponent(Color.BLACK, 0x24), photo);
-        drawGlass(canvas, piece, press, rect, radius, tint, white, dark, alpha, photo, behindPiece);
-    }
-
-    /**
-     * A clear piece, as under white content over the colored header, tinted with a color of its own
-     * (the gifts' bubbles take the color of the gift's backdrop).
-     */
-    public void drawTinted(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, int tint, float alpha,
-                           @Nullable GlassLayer.Backdrop behindPiece) {
-        if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return;
-        }
-        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
-        final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
-        drawGlass(canvas, piece, press, rect, radius, tint, 1f, dark, alpha, 0f, behindPiece);
-    }
-
-    private void drawGlass(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, int tint, float white,
-                           boolean dark, float alpha, float photo, @Nullable GlassLayer.Backdrop behindPiece) {
-        radius = Math.min(radius, Math.min(rect.width(), rect.height()) / 2f);
-        final boolean veil = white >= 0.5f;
 
         final RenderNode node = (RenderNode) backdropNode;
         final float left = rect.left, top = rect.top;
@@ -329,6 +310,53 @@ public class ProfileHeaderGlass {
             Math.max(1, Math.min(dp(12), Math.min(rect.width(), rect.height()) / 4)), dpf2(24),
             false, true, dark, source,
             tint, AndroidUtilities.lerp(veil ? 0.8f : 1f, 1f, photo), AndroidUtilities.lerp(1f, 1.8f, photo));
+        canvas.restoreToCount(restore);
+    }
+
+    /**
+     * A glass bubble: the whole of it is a lens, a sphere magnifying and bending what is under it,
+     * its glass tinted with a color of its own (the gifts take the color of their backdrop). Drawn
+     * without the press effect's button, whose lens bends only a band at the edge: the bubble
+     * wobbles and stretches by itself.
+     *
+     * @param magnify how much bigger what is under the bubble shows through it
+     */
+    public void drawSphere(Canvas canvas, Piece piece, RectF rect, int tint, float alpha, float magnify,
+                           @Nullable GlassLayer.Backdrop behindPiece) {
+        if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        final float width = rect.width(), height = rect.height();
+        final float radius = Math.min(width, height) / 2f;
+        final RenderNode node = (RenderNode) backdropNode;
+        if (node == null) {
+            tintPaint.setColor(ColorUtils.setAlphaComponent(tint, (int) (Color.alpha(tint) * alpha)));
+            canvas.drawRoundRect(rect, radius, radius, tintPaint);
+            return;
+        }
+        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
+        final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
+        final float left = rect.left, top = rect.top;
+        final GlassLayer.Backdrop source = backdrop -> {
+            backdrop.scale(magnify, magnify, width / 2f, height / 2f);
+            backdrop.translate(-left, -top);
+            backdrop.drawRenderNode(node);
+            if (behindPiece != null) behindPiece.draw(backdrop);
+        };
+        if (piece.layer == null) {
+            piece.layer = new GlassLayer();
+        }
+        final float density = AndroidUtilities.density;
+        final int restore = alpha < 1f
+            ? canvas.saveLayerAlpha(rect.left, rect.top, rect.right, rect.bottom, (int) (255 * alpha))
+            : canvas.save();
+        canvas.translate(left, top);
+        // The refraction reaches the middle and bends deep, the depth effect makes it a dome
+        ((GlassLayer) piece.layer).draw(canvas, width, height, radius, density,
+            dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
+            1.5f * density, radius * .92f, radius * .8f,
+            true, true, dark, source,
+            tint, 1f, 1.2f);
         canvas.restoreToCount(restore);
     }
 }
