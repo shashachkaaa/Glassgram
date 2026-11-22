@@ -1382,6 +1382,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
+        private final Paint musicDimPaint = new Paint();
         private final Paint musicGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final float[] musicGlowHsv = new float[3];
         private int musicGlowBase;
@@ -1466,6 +1467,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
                 // the profile color goes on under the header, over the whole page
                 updatePageColors(backgroundGradientColor1, progressToGradient);
+                // the ring of the stories in the profile color, as on iOS
+                if (storyView != null) storyView.setProfileRingColor(backgroundGradientColor2, progressToGradient);
                 if (progressToGradient < 1) {
                     canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
                 }
@@ -1473,7 +1476,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     backgroundPaint.setAlpha((int) (0xFF * progressToGradient));
                     canvas.drawRect(0, 0, getMeasuredWidth(), y1, backgroundPaint);
                 }
-                drawMusicGlow(canvas, y1);
                 if (hasEmoji && !capturing) {
                     final float loadedScale = emojiLoadedT.set(isEmojiLoaded());
                     boolean shoudIgnore = openAnimationInProgress && playProfileAnimation == 2;
@@ -1486,6 +1488,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         canvas.restore();
                     }
                 }
+                // The lights go down over the header while the music plays; its glow on the beat
+                // comes over them
+                if (profileMusicDim > 0f && progressToGradient > 0f) {
+                    musicDimPaint.setColor(Theme.multAlpha(Color.BLACK, .27f * profileMusicDim * progressToGradient));
+                    canvas.drawRect(0, 0, getMeasuredWidth(), y1, musicDimPaint);
+                }
+                drawMusicGlow(canvas, y1);
                 drawProfileThemeFade(canvas, y1, height);
                 if (previousTransitionFragment != null) {
                     ActionBar actionBar = previousTransitionFragment.getActionBar();
@@ -9490,6 +9499,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return resourcesProvider instanceof ProfilePageColors ? ((ProfilePageColors) resourcesProvider).getBase() : resourcesProvider;
     }
 
+    private void updatePageDim(float dim) {
+        if (pageColors == null || !pageColors.setDim(dim)) return;
+        if (!pageColorsUpdatePosted) {
+            pageColorsUpdatePosted = true;
+            AndroidUtilities.runOnUIThread(applyPageColors);
+        }
+    }
+
     private void updatePageColors(int color, float progress) {
         if (pageColors == null) return;
         // Views bound to theme colors are rebound on a change: in steps while the color fades in
@@ -9548,6 +9565,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (fragmentView != null) fragmentView.removeCallbacks(musicBeatFrame);
         musicBeatFramePosted = false;
         applyProfileMusicPulse(0f);
+        applyProfileMusicDim(0f);
     }
 
     private void updateMusicBeatFrame() {
@@ -9564,14 +9582,33 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 * (1f - mediaHeaderAnimationProgress) * (1f - Utilities.clamp01(buttonsPhotoProgress));
         final float target = profileMusicBeat != null && !player.isBuffering() ? header * profileMusicBeat.getPulse() : 0f;
         final long now = SystemClock.uptimeMillis();
-        final float blend = (float) -Math.expm1(-Math.max(0, now - lastMusicBeatFrame) / (target > profileMusicPulse ? 12f : 55f));
+        final long elapsed = Math.max(0, now - lastMusicBeatFrame);
+        final float blend = (float) -Math.expm1(-elapsed / (target > profileMusicPulse ? 12f : 55f));
         lastMusicBeatFrame = now;
         final float pulse = AndroidUtilities.lerp(profileMusicPulse, target, blend);
         applyProfileMusicPulse(pulse > .002f ? pulse : 0f);
-        if (profileMusicBeat != null || profileMusicPulse > 0f) {
+        // The lights go down slowly while a track plays, and come back up sooner when it stops
+        final float dimTarget = profileMusicBeat != null && !player.isBuffering() ? 1f : 0f;
+        final float dimBlend = (float) -Math.expm1(-elapsed / (dimTarget > profileMusicDim ? 800f : 380f));
+        final float dim = AndroidUtilities.lerp(profileMusicDim, dimTarget, dimBlend);
+        applyProfileMusicDim(Math.abs(dim - dimTarget) < .004f ? dimTarget : dim);
+        if (profileMusicBeat != null || profileMusicPulse > 0f || profileMusicDim > 0f) {
             musicBeatFramePosted = true;
-            fragmentView.postOnAnimationDelayed(musicBeatFrame, header == 0f && profileMusicPulse == 0f ? 100 : 0);
+            final boolean idle = header == 0f && profileMusicPulse == 0f && (profileMusicDim == 0f || profileMusicDim == 1f);
+            fragmentView.postOnAnimationDelayed(musicBeatFrame, idle ? 100 : 0);
         }
+    }
+
+    /** 0..1, how far the lights went down for the profile's music. */
+    private float profileMusicDim;
+
+    private void applyProfileMusicDim(float dim) {
+        if (profileMusicDim == dim) return;
+        profileMusicDim = dim;
+        if (topView != null) topView.invalidate();
+        if (giftsView != null) giftsView.setMusicDim(dim);
+        // the page's colors are rebound to the theme's views: in steps
+        updatePageDim(Math.round(dim * 16f) / 16f);
     }
 
     private void applyProfileMusicPulse(float pulse) {

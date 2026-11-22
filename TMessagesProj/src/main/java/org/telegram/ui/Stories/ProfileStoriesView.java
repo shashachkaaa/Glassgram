@@ -419,6 +419,28 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
 
     }
 
+    /* glassGram: over a profile color the ring of seen stories is that color, light, thicker and
+       glowing a little, as on iOS; without one it is the plain white ring */
+
+    private int profileRingColor;
+    private float profileRingProgress;
+    private final Paint readGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    {
+        readGlowPaint.setStyle(Paint.Style.STROKE);
+        readGlowPaint.setStrokeCap(Paint.Cap.ROUND);
+    }
+
+    /** @param color the profile color in the middle of the header; progress 0 for none */
+    public void setProfileRingColor(int color, float progress) {
+        progress = clamp(progress, 1, 0);
+        if (profileRingColor != color || profileRingProgress != progress) {
+            profileRingColor = color;
+            profileRingProgress = progress;
+            invalidate();
+        }
+    }
+
     private float expandProgress;
     public void setExpandProgress(float progress) {
         if (this.expandProgress != progress) {
@@ -636,8 +658,10 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                 separatorAngle = lerp(collapsedGapAngle, separatorAngle, avatarPullProgress);
 
                 final float widthAngle = (360 - Math.max(0, animcount) * separatorAngle) / Math.max(1, animcount);
-                readPaint.setColor(ColorUtils.blendARGB(0x5affffff, 0x3a000000, actionBarProgress));
+                final int profileRead = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(profileRingColor | 0xFF000000, Color.WHITE, .7f), 0xF2);
+                readPaint.setColor(ColorUtils.blendARGB(ColorUtils.blendARGB(0x5affffff, profileRead, profileRingProgress), 0x3a000000, actionBarProgress));
                 readPaintAlpha = readPaint.getAlpha();
+                readGlowPaint.setColor(profileRead);
                 float a = -90 - separatorAngle / 2f;
 
                 boolean hasLive = false;
@@ -694,10 +718,16 @@ public class ProfileStoriesView extends View implements NotificationCenter.Notif
                     }
 
                     if (read > 0) {
+                        if (!isLive && profileRingProgress > 0) {
+                            // the glow around the ring, over the gap down to the photo too
+                            readGlowPaint.setAlpha((int) (0x40 * read * segmentsAlpha * profileRingProgress * (1f - actionBarProgress)));
+                            readGlowPaint.setStrokeWidth(dpf2(5f));
+                            drawArc(canvas, rect3, a, -widthAngle * appear, false, readGlowPaint);
+                        }
                         paint = isLive ? livePaint : readPaint;
                         final int wasAlpha = paint.getAlpha();
                         paint.setAlpha((int) (wasAlpha * read * segmentsAlpha));
-                        paint.setStrokeWidth(dpf2(isLive ? 3 : 1.5f));
+                        paint.setStrokeWidth(isLive ? dpf2(3) : lerp(dpf2(1.5f), dpf2(1.9f), profileRingProgress));
                         drawArc(canvas, rect3, a, -widthAngle * appear, false, paint);
                         paint.setAlpha(wasAlpha);
                     }

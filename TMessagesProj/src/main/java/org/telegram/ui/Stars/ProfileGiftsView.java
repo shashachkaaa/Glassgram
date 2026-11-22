@@ -109,6 +109,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
      * flare and widen, their light reaches further. avatarScale is how much the avatar swells
      * on it, so that the light falls on the avatar's rim as it is drawn.
      */
+    private float musicDim;
+
+    /** How far the lights went down for the profile's music, 0..1: the bubbles glow stronger over the dark. */
+    public void setMusicDim(float dim) {
+        if (musicDim != dim) {
+            musicDim = dim;
+            invalidate();
+        }
+    }
+
     public void setMusicPulse(float pulse, float avatarScale) {
         if (musicPulse != pulse || avatarPulseScale != avatarScale) {
             musicPulse = pulse;
@@ -1044,7 +1054,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     private float lightStrength() {
-        return 1f + .6f * musicPulse;
+        return (1f + .6f * musicPulse) * (1f + .35f * musicDim);
     }
 
     /** The glow around every bubble on the header, under the avatar and the buttons. */

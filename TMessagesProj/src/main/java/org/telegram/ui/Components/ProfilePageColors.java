@@ -21,8 +21,10 @@ public final class ProfilePageColors implements Theme.CompactModeResourcesProvid
 
     @Nullable
     private final Theme.ResourcesProvider base;
+    private int profileColor;
+    private float progress, dim;
     private int pageColor, cardColor;
-    private float progress;
+    private float appliedProgress;
 
     public ProfilePageColors(@Nullable Theme.ResourcesProvider base) {
         this.base = base;
@@ -39,25 +41,45 @@ public final class ProfilePageColors implements Theme.CompactModeResourcesProvid
      * @return whether the colors changed
      */
     public boolean setProfileColor(int color, float progress) {
-        progress = Utilities.clamp01(progress);
+        profileColor = color;
+        this.progress = Utilities.clamp01(progress);
+        return update();
+    }
+
+    /**
+     * The lights going down while the profile's music plays: the page and the cards darken a
+     * little, under the header that darkens more. Only over a profile color.
+     *
+     * @return whether the colors changed
+     */
+    public boolean setDim(float dim) {
+        this.dim = Utilities.clamp01(dim);
+        return update();
+    }
+
+    private boolean update() {
         int page = 0, card = 0;
         if (progress > 0f) {
-            page = color | 0xFF000000;
+            page = profileColor | 0xFF000000;
             final int themeCard = baseColor(Theme.key_windowBackgroundWhite) | 0xFF000000;
             final boolean dark = ColorUtils.calculateLuminance(themeCard) < .5f;
             card = dark ? ColorUtils.blendARGB(page, Color.BLACK, .2f) : ColorUtils.blendARGB(page, Color.WHITE, .78f);
+            if (dim > 0f) {
+                page = ColorUtils.blendARGB(page, Color.BLACK, .2f * dim);
+                card = ColorUtils.blendARGB(card, Color.BLACK, .12f * dim);
+            }
         }
-        if (page == pageColor && card == cardColor && progress == this.progress) {
+        if (page == pageColor && card == cardColor && progress == appliedProgress) {
             return false;
         }
         pageColor = page;
         cardColor = card;
-        this.progress = progress;
+        appliedProgress = progress;
         return true;
     }
 
     public boolean isTinted() {
-        return progress > 0f;
+        return appliedProgress > 0f;
     }
 
     private int baseColor(int key) {
@@ -65,6 +87,7 @@ public final class ProfilePageColors implements Theme.CompactModeResourcesProvid
     }
 
     private int tint(int key, int color) {
+        final float progress = appliedProgress;
         if (progress <= 0f) {
             return color;
         }
