@@ -250,14 +250,33 @@ public class ProfileHeaderGlass {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
-        radius = Math.min(radius, Math.min(rect.width(), rect.height()) / 2f);
-        final boolean veil = white >= 0.5f;
         final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
         final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
         final int frosted = ColorUtils.setAlphaComponent(surface, (int) (255 * BackdropGlass.tintAlpha(dark)));
         final int tint = ColorUtils.blendARGB(
             ColorUtils.blendARGB(frosted, ColorUtils.setAlphaComponent(Color.WHITE, 0x2E), white),
             ColorUtils.setAlphaComponent(Color.BLACK, 0x24), photo);
+        drawGlass(canvas, piece, press, rect, radius, tint, white, dark, alpha, photo, behindPiece);
+    }
+
+    /**
+     * A clear piece, as under white content over the colored header, tinted with a color of its own
+     * (the gifts' bubbles take the color of the gift's backdrop).
+     */
+    public void drawTinted(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, int tint, float alpha,
+                           @Nullable GlassLayer.Backdrop behindPiece) {
+        if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
+        final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
+        drawGlass(canvas, piece, press, rect, radius, tint, 1f, dark, alpha, 0f, behindPiece);
+    }
+
+    private void drawGlass(Canvas canvas, Piece piece, LiquidPressEffect press, RectF rect, float radius, int tint, float white,
+                           boolean dark, float alpha, float photo, @Nullable GlassLayer.Backdrop behindPiece) {
+        radius = Math.min(radius, Math.min(rect.width(), rect.height()) / 2f);
+        final boolean veil = white >= 0.5f;
 
         final RenderNode node = (RenderNode) backdropNode;
         final float left = rect.left, top = rect.top;

@@ -8,9 +8,14 @@ import static org.telegram.ui.Stars.StarsController.findAttribute;
 import android.animation.TimeInterpolator;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
 import android.graphics.RecordingCanvas;
 import android.graphics.RectF;
@@ -26,8 +31,10 @@ import android.view.animation.LinearInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.Utilities;
@@ -176,6 +183,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         for (Gift gift : gifts) {
             gift.emojiDrawable.addView(this);
+            if (gift.patternDrawable != null) gift.patternDrawable.addView(this);
         }
 
         update();
@@ -192,6 +200,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         for (Gift gift : gifts) {
             gift.emojiDrawable.removeView(this);
+            if (gift.patternDrawable != null) gift.patternDrawable.removeView(this);
         }
     }
 
@@ -209,7 +218,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         public final long id;
         public final TLRPC.Document document;
         public final long documentId;
-        public final int color;
+        /** The colors of the gift's backdrop: the bubble is made of them. */
+        public final int color, edgeColor, patternColor;
+        /** The light the bubble gives off: its color, bright. */
+        public final int lightColor;
+        /** The gift's pattern, the symbols drifting inside the bubble. */
+        public final TLRPC.Document patternDocument;
+        public final long patternDocumentId;
         public final String slug;
         private StarsReactionsSheet.Particles particles;
 
@@ -220,7 +235,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             document = gift.getDocument();
             documentId = document == null ? 0 : document.id;
             final TL_stars.starGiftAttributeBackdrop backdrop = findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class);
-            color = backdrop.center_color | 0xFF000000;
+            final TL_stars.starGiftAttributePattern pattern = findAttribute(gift.attributes, TL_stars.starGiftAttributePattern.class);
+            color = backdrop != null ? backdrop.center_color | 0xFF000000 : DEFAULT_BUBBLE_COLOR;
+            edgeColor = backdrop != null ? backdrop.edge_color | 0xFF000000 : color;
+            patternColor = backdrop != null ? backdrop.pattern_color | 0xFF000000 : Color.WHITE;
+            patternDocument = pattern != null ? pattern.document : null;
+            patternDocumentId = patternDocument != null ? patternDocument.id : 0;
+            lightColor = lightColorOf(color);
             slug = gift.slug;
             initParticles();
         }
@@ -230,6 +251,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             document = null;
             documentId = status.document_id;
             color = status.center_color | 0xFF000000;
+            edgeColor = status.edge_color | 0xFF000000;
+            patternColor = status.pattern_color | 0xFF000000;
+            patternDocument = null;
+            patternDocumentId = status.pattern_document_id;
+            lightColor = lightColorOf(color);
             slug = status.slug;
             initParticles();
         }
@@ -238,6 +264,21 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             particles = new StarsReactionsSheet.Particles(StarsReactionsSheet.Particles.TYPE_RADIAL, 6);
             final float gsz = dp(36);
             particles.bounds.set(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f);
+
+            // The film is thin and clear in the middle and thickens towards the rim, where it
+            // catches the most light: the backdrop's center color going over to its edge color.
+            filmPaint.setShader(new RadialGradient(0, 0, 1f,
+                    new int[]{
+                            Theme.multAlpha(color, .14f),
+                            Theme.multAlpha(color, .24f),
+                            Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .5f), .42f),
+                            Theme.multAlpha(lightColor, .66f),
+                            Theme.multAlpha(lightColor, .86f)
+                    },
+                    new float[]{0f, .55f, .82f, .95f, 1f}, Shader.TileMode.CLAMP));
+            lightShader = new RadialGradient(0, 0, 1f,
+                    new int[]{lightColor, Theme.multAlpha(lightColor, .55f), Theme.multAlpha(lightColor, .16f), Theme.multAlpha(lightColor, 0f)},
+                    new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
         }
 
         public boolean equals(Gift b) {
@@ -248,7 +289,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         public final Matrix gradientMatrix = new Matrix();
         public Paint gradientPaint;
         public AnimatedEmojiDrawable emojiDrawable;
+        public AnimatedEmojiDrawable patternDrawable;
         public AnimatedFloat animatedFloat;
+
+        private final Paint filmPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Matrix filmMatrix = new Matrix();
+        /** Unit radius around (0, 0): the light, strongest at the bubble, fading out. */
+        private RadialGradient lightShader;
+        private PatternParticles patterns = new PatternParticles();
 
         private final ProfileHeaderGlass.Piece rearPiece = new ProfileHeaderGlass.Piece();
         private final ProfileHeaderGlass.Piece frontPiece = new ProfileHeaderGlass.Piece();
@@ -268,6 +316,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             orbit = b.orbit;
             gradient = b.gradient;
             emojiDrawable = b.emojiDrawable;
+            patternDrawable = b.patternDrawable;
+            patterns = b.patterns;
             gradientPaint = b.gradientPaint;
             animatedFloat = b.animatedFloat;
             particles = b.particles;
@@ -343,26 +393,40 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lensBounds.set(box);
                 lensBounds.inset(-r * .12f, -r * .12f);
-                glass.draw(canvas, layer, effect, lensBounds, lensBounds.width() / 2, 1f, alpha, 0f,
+                // The glass itself is tinted with the gift's backdrop, as a soap film of that color
+                glass.drawTinted(canvas, layer, effect, lensBounds, lensBounds.width() / 2,
+                        ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, edgeColor, .35f), 0x3A), alpha,
                         lowerGifts.isEmpty() ? null : this::drawLowerGifts);
             } else {
-                bubblePaint.setColor(Theme.multAlpha(0x30FFFFFF, alpha));
+                bubblePaint.setColor(Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .35f), .3f * alpha));
                 canvas.drawPath(bubbleOutline, bubblePaint);
             }
+            filmMatrix.setScale(r * 1.03f, r * 1.03f);
+            filmMatrix.postTranslate(cx, cy);
+            filmPaint.getShader().setLocalMatrix(filmMatrix);
+            filmPaint.setAlpha((int) (0xFF * alpha));
+            canvas.drawPath(bubbleOutline, filmPaint);
+            if (patternDrawable != null) {
+                patterns.draw(canvas, patternDrawable, patternColor, cx, cy, r, alpha);
+            }
+            drawSpecular(canvas, cx, cy, r, alpha);
             canvas.restore();
             rimPaint.setStyle(Paint.Style.STROKE);
-            rimPaint.setStrokeWidth(dpf2(.7f));
-            rimPaint.setColor(Theme.multAlpha(0x52FFFFFF, alpha));
+            rimPaint.setStrokeWidth(dpf2(1f));
+            rimPaint.setColor(Theme.multAlpha(lightColor, .85f * alpha));
             canvas.drawPath(bubbleOutline, rimPaint);
             canvas.restore();
         }
 
         private void drawArtwork(Canvas canvas, float alpha, float gradientAlpha, boolean advanceParticles) {
             final float gsz = dp(45);
-            if (advanceParticles) particles.process();
-            particles.draw(canvas, color, alpha);
+            if (patternDrawable == null) {
+                // No pattern to show (an old status): the stars of the gift's color instead
+                if (advanceParticles) particles.process();
+                particles.draw(canvas, color, alpha);
+            }
             if (gradientPaint != null) {
-                gradientPaint.setAlpha((int) (0xFF * alpha * gradientAlpha));
+                gradientPaint.setAlpha((int) (0xFF * alpha * gradientAlpha * .8f));
                 canvas.drawRect(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f, gradientPaint);
             }
             if (emojiDrawable != null) {
@@ -371,6 +435,113 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 emojiDrawable.setAlpha((int) (0xFF * alpha));
                 emojiDrawable.draw(canvas);
             }
+        }
+    }
+
+    private static final int DEFAULT_BUBBLE_COLOR = 0xFF8E8E93;
+
+    /** The color of the light a bubble of this color gives off: its hue, bright and a little washed out. */
+    private static int lightColorOf(int color) {
+        final float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[1] = Math.min(hsv[1], .7f);
+        hsv[2] = Math.max(hsv[2], .95f);
+        return Color.HSVToColor(hsv);
+    }
+
+    private final Paint specularPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Matrix specularMatrix = new Matrix();
+
+    {
+        specularPaint.setShader(new RadialGradient(0, 0, 1f,
+                new int[]{0x99FFFFFF, 0x38FFFFFF, 0x00FFFFFF}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+    }
+
+    /** The window reflected in the film, up and to the left. */
+    private void drawSpecular(Canvas canvas, float cx, float cy, float r, float alpha) {
+        final float x = cx - r * .36f, y = cy - r * .46f;
+        specularMatrix.setScale(r * .44f, r * .25f);
+        specularMatrix.postRotate(-36f);
+        specularMatrix.postTranslate(x, y);
+        specularPaint.getShader().setLocalMatrix(specularMatrix);
+        specularPaint.setAlpha((int) (0xFF * alpha));
+        canvas.drawCircle(x, y, r * .46f, specularPaint);
+    }
+
+    /**
+     * The symbols of the gift's pattern drifting inside its bubble, fading in and out. They follow
+     * the clock, not the frames: the rear and the front layer, and the captures, draw the same.
+     */
+    private static final class PatternParticles {
+        private static final int COUNT = 7;
+        private static final java.util.Random RANDOM = new java.util.Random();
+
+        private final float[] x = new float[COUNT], y = new float[COUNT];
+        private final float[] vx = new float[COUNT], vy = new float[COUNT];
+        private final float[] size = new float[COUNT], rotation = new float[COUNT];
+        private final long[] start = new long[COUNT], life = new long[COUNT];
+        private boolean initialized;
+        private ColorFilter filter;
+        private int filterColor;
+
+        /** Positions are in bubble radii from its center, speeds in radii per second. */
+        private void spawn(int i, long now, boolean initial) {
+            final double angle = RANDOM.nextDouble() * 2 * Math.PI;
+            // Around the gift, not over it
+            final double distance = .36 + .4 * Math.sqrt(RANDOM.nextDouble());
+            x[i] = (float) (Math.cos(angle) * distance);
+            y[i] = (float) (Math.sin(angle) * distance);
+            final double heading = angle + (RANDOM.nextBoolean() ? 1 : -1) * Math.PI / 2 + (RANDOM.nextDouble() - .5) * .9;
+            final double speed = .035 + .05 * RANDOM.nextDouble();
+            vx[i] = (float) (Math.cos(heading) * speed);
+            vy[i] = (float) (Math.sin(heading) * speed);
+            size[i] = .3f + .14f * RANDOM.nextFloat();
+            rotation[i] = (RANDOM.nextFloat() - .5f) * 50f;
+            life[i] = 2600 + RANDOM.nextInt(2400);
+            start[i] = initial ? now - RANDOM.nextInt((int) life[i]) : now + RANDOM.nextInt(450);
+        }
+
+        void draw(Canvas canvas, AnimatedEmojiDrawable drawable, int color, float cx, float cy, float r, float alpha) {
+            final long now = SystemClock.uptimeMillis();
+            if (!initialized) {
+                initialized = true;
+                for (int i = 0; i < COUNT; i++) spawn(i, now, true);
+            }
+            final boolean animate = LiteMode.isEnabled(LiteMode.FLAG_PARTICLES);
+            if (filter == null || filterColor != color) {
+                filterColor = color;
+                filter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);
+            }
+            final int sz = dp(12);
+            drawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
+            drawable.setColorFilter(filter);
+            for (int i = 0; i < COUNT; i++) {
+                float px = x[i], py = y[i], fade = .8f;
+                if (animate) {
+                    long age = now - start[i];
+                    if (age >= life[i]) {
+                        spawn(i, now, false);
+                        age = now - start[i];
+                    }
+                    if (age < 0) continue;
+                    final float seconds = age / 1000f;
+                    px += vx[i] * seconds;
+                    py += vy[i] * seconds;
+                    fade = (float) Math.sin(Math.PI * age / life[i]);
+                }
+                final int a = (int) (0xFF * alpha * fade * .9f);
+                if (a <= 0) continue;
+                canvas.save();
+                canvas.translate(cx + px * r, cy + py * r);
+                canvas.rotate(rotation[i]);
+                final float scale = size[i] * r / sz;
+                canvas.scale(scale, scale);
+                drawable.setAlpha(a);
+                drawable.draw(canvas);
+                canvas.restore();
+            }
+            drawable.setColorFilter(null);
+            drawable.setAlpha(0xFF);
         }
     }
 
@@ -449,10 +620,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 } else {
                     g.emojiDrawable = AnimatedEmojiDrawable.make(currentAccount, AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES, g.documentId);
                 }
+                if (g.patternDocument != null) {
+                    g.patternDrawable = AnimatedEmojiDrawable.make(currentAccount, AnimatedEmojiDrawable.CACHE_TYPE_ALERT_PREVIEW_STATIC, g.patternDocument);
+                } else if (g.patternDocumentId != 0) {
+                    g.patternDrawable = AnimatedEmojiDrawable.make(currentAccount, AnimatedEmojiDrawable.CACHE_TYPE_ALERT_PREVIEW_STATIC, g.patternDocumentId);
+                }
                 g.animatedFloat = new AnimatedFloat(this, 0, 320, null);
                 g.animatedFloat.force(0.0f);
                 if (isAttachedToWindow()) {
                     g.emojiDrawable.addView(this);
+                    if (g.patternDrawable != null) g.patternDrawable.addView(this);
                 }
             }
         }
@@ -474,6 +651,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (newGift == null) {
                 g.emojiDrawable.removeView(this);
                 g.emojiDrawable = null;
+                if (g.patternDrawable != null) {
+                    g.patternDrawable.removeView(this);
+                    g.patternDrawable = null;
+                }
                 g.gradient = null;
             } else {
                 positions.remove((Object) g.position);
@@ -742,6 +923,144 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float extent = Math.max(1.48f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
             gift.visualBounds.set(gx - extent, gy - extent, gx + extent, gy + extent);
         }
+        collectLitShapes(realX, realY, realW, realH);
+    }
+
+    /* The light of the bubbles: each glows in the color of its gift, on the header around it and
+       on the rims of the buttons and of the avatar it flies close to */
+
+    /** Collects the shapes over the header the bubbles' light falls on, see {@link #addLitShape}. */
+    public interface LitShapes {
+        void collect(ProfileGiftsView gifts);
+    }
+
+    private static final int MAX_LIT_SHAPES = 16;
+    private static final int LIT_FIELDS = 6;
+    private final float[] litShapes = new float[MAX_LIT_SHAPES * LIT_FIELDS];
+    private int litCount;
+    private LitShapes litShapesSource;
+    private final int[] ownLocation = new int[2], otherLocation = new int[2];
+    private final RectF litRect = new RectF();
+    private final Paint lightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Matrix lightMatrix = new Matrix();
+
+    {
+        final PorterDuffXfermode add = new PorterDuffXfermode(PorterDuff.Mode.ADD);
+        lightPaint.setXfermode(add);
+        haloPaint.setXfermode(add);
+    }
+
+    public void setLitShapes(LitShapes source) {
+        litShapesSource = source;
+        invalidate();
+    }
+
+    /** A rounded shape of another view in that view's coordinates, lit as long as it is drawn with alpha. */
+    public void addLitShape(View owner, RectF rect, float radius, float alpha) {
+        if (litCount >= MAX_LIT_SHAPES || alpha <= .01f || rect.isEmpty() || owner == null) return;
+        float dx, dy;
+        if (owner.getParent() == getParent()) {
+            dx = owner.getX() - getX();
+            dy = owner.getY() - getY();
+        } else {
+            owner.getLocationInWindow(otherLocation);
+            getLocationInWindow(ownLocation);
+            dx = otherLocation[0] - ownLocation[0];
+            dy = otherLocation[1] - ownLocation[1];
+        }
+        final int i = litCount++ * LIT_FIELDS;
+        litShapes[i] = rect.left + dx;
+        litShapes[i + 1] = rect.top + dy;
+        litShapes[i + 2] = rect.right + dx;
+        litShapes[i + 3] = rect.bottom + dy;
+        litShapes[i + 4] = Math.min(radius, Math.min(rect.width(), rect.height()) / 2f);
+        litShapes[i + 5] = Utilities.clamp01(alpha);
+    }
+
+    private void collectLitShapes(float avatarX, float avatarY, float avatarW, float avatarH) {
+        litCount = 0;
+        if (avatarContainer.getVisibility() == VISIBLE && avatarContainer.getAlpha() > 0f && avatarW > 0) {
+            final int i = litCount++ * LIT_FIELDS;
+            litShapes[i] = avatarX;
+            litShapes[i + 1] = avatarY;
+            litShapes[i + 2] = avatarX + avatarW;
+            litShapes[i + 3] = avatarY + avatarH;
+            litShapes[i + 4] = Math.min(avatarW, avatarH) / 2f;
+            litShapes[i + 5] = avatarContainer.getAlpha();
+        }
+        if (litShapesSource != null) litShapesSource.collect(this);
+    }
+
+    private float lightStrength() {
+        return 1f + .6f * musicPulse;
+    }
+
+    /** The glow around every bubble on the header, under the avatar and the buttons. */
+    private void drawHalos(Canvas canvas) {
+        final float strength = lightStrength();
+        for (Gift gift : drawOrder) {
+            if (gift.alpha <= 0f || gift.lightShader == null) continue;
+            final float cx = gift.bounds.centerX(), cy = gift.bounds.centerY();
+            final float radius = gift.bounds.width() * 1.15f;
+            lightMatrix.setScale(radius, radius);
+            lightMatrix.postTranslate(cx, cy);
+            gift.lightShader.setLocalMatrix(lightMatrix);
+            haloPaint.setShader(gift.lightShader);
+            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(.42f * strength * gift.alpha)));
+            canvas.drawCircle(cx, cy, radius, haloPaint);
+        }
+        haloPaint.setShader(null);
+    }
+
+    /**
+     * The light on the shapes near the bubbles: a glint along the rim facing the bubble and a
+     * little of its color spilt over the glass. The light falls off with the distance from the
+     * bubble's surface, so a button lights up as a bubble flies past it.
+     */
+    private void drawLight(Canvas canvas) {
+        if (litCount == 0) return;
+        final float strength = lightStrength();
+        final float rimWidth = dpf2(1.6f);
+        lightPaint.setStrokeWidth(rimWidth);
+        for (Gift gift : drawOrder) {
+            if (gift.alpha <= 0f || gift.lightShader == null) continue;
+            final float bx = gift.bounds.centerX(), by = gift.bounds.centerY();
+            final float br = gift.bounds.width() / 2f;
+            final float reach = br * 2.4f;
+            boolean shaderSet = false;
+            for (int s = 0; s < litCount; s++) {
+                final int i = s * LIT_FIELDS;
+                final float l = litShapes[i], t = litShapes[i + 1], r = litShapes[i + 2], b = litShapes[i + 3];
+                final float radius = litShapes[i + 4];
+                final float dx = Math.max(0, Math.max(l - bx, bx - r));
+                final float dy = Math.max(0, Math.max(t - by, by - b));
+                final float gap = Math.max(0, (float) Math.hypot(dx, dy) - br);
+                if (gap >= reach) continue;
+                final float near = 1f - gap / reach;
+                final float intensity = near * near * gift.alpha * litShapes[i + 5] * strength;
+                if (intensity <= .01f) continue;
+                if (!shaderSet) {
+                    shaderSet = true;
+                    // the light's own falloff makes the rim brightest on the side facing the bubble
+                    final float lightRadius = br + reach * 1.25f;
+                    lightMatrix.setScale(lightRadius, lightRadius);
+                    lightMatrix.postTranslate(bx, by);
+                    gift.lightShader.setLocalMatrix(lightMatrix);
+                    lightPaint.setShader(gift.lightShader);
+                }
+                litRect.set(l, t, r, b);
+                lightPaint.setStyle(Paint.Style.FILL);
+                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.26f * intensity)));
+                canvas.drawRoundRect(litRect, radius, radius, lightPaint);
+                litRect.inset(rimWidth / 2f, rimWidth / 2f);
+                lightPaint.setStyle(Paint.Style.STROKE);
+                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(intensity)));
+                final float rimRadius = Math.max(0, radius - rimWidth / 2f);
+                canvas.drawRoundRect(litRect, rimRadius, rimRadius, lightPaint);
+            }
+        }
+        lightPaint.setShader(null);
     }
 
     private void clipGiftLayer(Canvas canvas) {
@@ -769,27 +1088,39 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private void drawLayer(Canvas canvas, boolean front) {
         if (!areGiftsVisible()) return;
-        boolean hasVisibleGift = false;
+        boolean hasAnyGift = false, hasVisibleGift = false;
         for (Gift gift : gifts) {
-            if (gift.alpha > 0f && gift.inFront == front) {
-                hasVisibleGift = true;
-                break;
+            if (gift.alpha > 0f) {
+                hasAnyGift = true;
+                if (gift.inFront == front) {
+                    hasVisibleGift = true;
+                    break;
+                }
             }
         }
-        if (!hasVisibleGift) return;
+        if (!hasAnyGift) return;
         final int save = canvas.save();
         clipGiftLayer(canvas);
-        ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
-        boolean capturing = ViewBehindBackdrop.isAnyDrawing();
-        boolean hasGlass = !capturing && glass.begin(canvas);
-        if (hasGlass) findOverlappingGifts(front);
-        for (Gift gift : drawOrder) {
-            if (gift.alpha > 0f && gift.inFront == front) {
-                // Each node refers only to nodes already drawn below it in this pass.
-                if (hasGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && gift.sampledByOtherGift) {
-                    gift.recordAndDraw(canvas, glass);
-                } else {
-                    gift.draw(canvas, glass, hasGlass, !capturing);
+        // The halos go on the header under everything; the light on the avatar and the buttons
+        // over them, under the bubbles in front of them
+        if (front) {
+            drawLight(canvas);
+        } else {
+            drawHalos(canvas);
+        }
+        if (hasVisibleGift) {
+            ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
+            boolean capturing = ViewBehindBackdrop.isAnyDrawing();
+            boolean hasGlass = !capturing && glass.begin(canvas);
+            if (hasGlass) findOverlappingGifts(front);
+            for (Gift gift : drawOrder) {
+                if (gift.alpha > 0f && gift.inFront == front) {
+                    // Each node refers only to nodes already drawn below it in this pass.
+                    if (hasGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && gift.sampledByOtherGift) {
+                        gift.recordAndDraw(canvas, glass);
+                    } else {
+                        gift.draw(canvas, glass, hasGlass, !capturing);
+                    }
                 }
             }
         }

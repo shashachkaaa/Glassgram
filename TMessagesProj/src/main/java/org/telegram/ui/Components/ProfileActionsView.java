@@ -253,9 +253,36 @@ public class ProfileActionsView extends View {
         return (w - betweenPadding * (activeCount - 1) - xpadding * 2f) / Math.max(1, activeCount);
     }
 
+    /** A button's circle as it was last drawn, in this view's coordinates. */
+    public interface DrawnButton {
+        void add(RectF circle, float radius, float alpha);
+    }
+
+    private float drawnAlpha;
+    private float drawnClipBottom;
+    private final RectF drawnRect = new RectF();
+
+    /** The buttons as they are on screen now, for the light of the profile's gifts falling on them. */
+    public void forEachDrawnButton(DrawnButton callback) {
+        if (drawnAlpha <= 0f) return;
+        for (int i = 0, c = actions.size(); i < c; i++) {
+            final Action action = actions.get(i);
+            if (action.isDeleted) continue;
+            getCircle(drawnRect, action);
+            drawnRect.inset(
+                drawnRect.width() / 2.0f * (1.0f - action.getScale()),
+                drawnRect.height() / 2.0f * (1.0f - action.getScale())
+            );
+            if (drawnRect.isEmpty() || drawnRect.bottom > drawnClipBottom) continue;
+            callback.add(drawnRect, Math.min(getRoundRadius(), drawnRect.width() / 2f), action.getAlpha() * drawnAlpha);
+        }
+    }
+
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         glassUsed = 0;
+        drawnAlpha = 0f;
+        drawnClipBottom = clipHeight >= 0f ? clipHeight - getY() : Float.MAX_VALUE;
         if (clipHeight >= 0f) {
             final float bottom = clipHeight - getY();
             if (bottom <= 0) {
@@ -304,6 +331,7 @@ public class ProfileActionsView extends View {
             hideUnusedGlass();
             return;
         }
+        drawnAlpha = alphaFraction1;
 
         glassDrawn = glass != null && glass.begin(canvas);
         if (glassDrawn) {

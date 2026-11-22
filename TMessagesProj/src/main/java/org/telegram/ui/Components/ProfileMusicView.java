@@ -60,6 +60,18 @@ public class ProfileMusicView extends View {
 
     private final RectF rect = new RectF();
 
+    private float drawnAlpha;
+
+    /**
+     * The pill as it was last drawn, in this view's coordinates, for the light of the profile's
+     * gifts falling on it; returns its alpha, 0 when it is not drawn.
+     */
+    public float getDrawnPill(RectF out) {
+        if (drawnAlpha <= 0f || getVisibility() != VISIBLE) return 0f;
+        out.set(rect);
+        return drawnAlpha * getAlpha();
+    }
+
     public void getButtonBoundsOnScreen(RectF bounds) {
         int[] location = new int[2];
         getLocationOnScreen(location);
@@ -354,10 +366,12 @@ public class ProfileMusicView extends View {
 
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
+        drawnAlpha = 0f;
         if (this.author == null || this.title == null) return;
 
         final float alpha = Utilities.clamp01((currentHeight) / dp(21));
         final float scale = press.isLibraryButton() ? 1f : bounce.getScale(0.02f);
+        drawnAlpha = alpha;
         if (alpha <= 0) {
             if (buttonsGlass != null) {
                 buttonsGlass.setAlpha(0);

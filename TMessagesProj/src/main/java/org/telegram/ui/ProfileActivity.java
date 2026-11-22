@@ -274,6 +274,7 @@ import org.telegram.ui.Components.Premium.boosts.UserSelectorBottomSheet;
 import org.telegram.ui.Components.ProfileGalleryView;
 import org.telegram.ui.Components.ProfileGooeyView;
 import org.telegram.ui.Components.ProfileMusicView;
+import org.telegram.ui.Components.ProfilePageColors;
 import org.telegram.ui.Components.ProfileBalanceView;
 import org.telegram.ui.Wallet.ProfileWalletCardDialog;
 import org.telegram.ui.Components.RLottieDrawable;
@@ -1463,6 +1464,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 paint.setColor(currentColor);
                 updateBackgroundPaint();
                 final float progressToGradient = (playProfileAnimation == 0 ? 1f : avatarAnimationProgress) * hasColorAnimated.set(hasColorById);
+                // the profile color goes on under the header, over the whole page
+                updatePageColors(backgroundGradientColor1, progressToGradient);
                 if (progressToGradient < 1) {
                     canvas.drawRect(0, 0, getMeasuredWidth(), y1, paint);
                 }
@@ -2525,6 +2528,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (lastFragment instanceof ChatActivity && ((ChatActivity) lastFragment).themeDelegate != null && ((ChatActivity) lastFragment).themeDelegate.getCurrentTheme() != null && !((ChatActivity) lastFragment).themeDelegate.isGiftTheme()) {
             resourcesProvider = lastFragment.getResourceProvider();
         }
+        wrapResourcesProvider();
         ActionBar actionBar = new ActionBar(context, resourcesProvider) {
             @Override
             public boolean onTouchEvent(MotionEvent event) {
@@ -2640,6 +2644,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (lastFragment instanceof ChatActivity && ((ChatActivity) lastFragment).themeDelegate != null && ((ChatActivity) lastFragment).themeDelegate.getCurrentTheme() != null && !((ChatActivity) lastFragment).themeDelegate.isGiftTheme()) {
             resourcesProvider = lastFragment.getResourceProvider();
         }
+        wrapResourcesProvider();
         searchTransitionOffset = 0;
         searchTransitionProgress = 1f;
         searchMode = false;
@@ -2687,7 +2692,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else if (id == edit_contact) {
                     Bundle args = new Bundle();
                     args.putLong("user_id", userId);
-                    presentFragment(new ContactAddActivity(args, resourcesProvider));
+                    presentFragment(new ContactAddActivity(args, getBaseResourcesProvider()));
                 } else if (id == delete_contact) {
                     final TLRPC.User user = getMessagesController().getUser(userId);
                     if (user == null || getParentActivity() == null) {
@@ -5662,6 +5667,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         avatarContainer2.addView(storyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, topView);
+        giftsView.setLitShapes(this::collectGiftLitShapes);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         avatarContainer2.addView(giftsView.getFrontLayer(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         updateProfileData(true);
@@ -6776,7 +6782,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     Bundle args = new Bundle();
                     args.putLong("dialog_id", did);
                     args.putLong("topic_id", topicId);
-                    presentFragment(new ProfileNotificationsActivity(args, resourcesProvider));
+                    presentFragment(new ProfileNotificationsActivity(args, getBaseResourcesProvider()));
                 }
             }
 
@@ -9455,6 +9461,66 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         });
         if (!savedMusicList.loading && !savedMusicList.endReached) savedMusicList.load();
+    }
+
+    /* The profile color over the whole page, see ProfilePageColors */
+
+    private ProfilePageColors pageColors;
+    private boolean pageColorsUpdatePosted;
+    private final Runnable applyPageColors = () -> {
+        pageColorsUpdatePosted = false;
+        if (listView != null) {
+            ThemeBind.updateTree(listView, true);
+            listView.invalidate();
+        }
+        if (fragmentView != null) fragmentView.invalidate();
+    };
+
+    /** The profile's colors are the theme's with the profile color over them: wraps the theme in them once. */
+    private void wrapResourcesProvider() {
+        if (resourcesProvider instanceof ProfilePageColors) return;
+        if (pageColors == null || pageColors.getBase() != resourcesProvider) {
+            pageColors = new ProfilePageColors(resourcesProvider);
+        }
+        resourcesProvider = pageColors;
+    }
+
+    /** The theme without the profile color, for the screens opened from the profile. */
+    private Theme.ResourcesProvider getBaseResourcesProvider() {
+        return resourcesProvider instanceof ProfilePageColors ? ((ProfilePageColors) resourcesProvider).getBase() : resourcesProvider;
+    }
+
+    private void updatePageColors(int color, float progress) {
+        if (pageColors == null) return;
+        // Views bound to theme colors are rebound on a change: in steps while the color fades in
+        if (!pageColors.setProfileColor(color, Math.round(progress * 12f) / 12f)) return;
+        if (!pageColorsUpdatePosted) {
+            pageColorsUpdatePosted = true;
+            AndroidUtilities.runOnUIThread(applyPageColors);
+        }
+    }
+
+    /* The buttons over the header that the light of the gifts' bubbles falls on */
+
+    private final RectF giftLitRect = new RectF();
+    private float giftLitActionsAlpha;
+    private final ProfileActionsView.DrawnButton giftLitButton = (circle, radius, alpha) -> {
+        if (giftsView != null) giftsView.addLitShape(actionsView, circle, radius, alpha * giftLitActionsAlpha);
+    };
+
+    private void collectGiftLitShapes(ProfileGiftsView gifts) {
+        if (actionsView != null && actionsView.getVisibility() == View.VISIBLE && actionsView.getAlpha() > 0f) {
+            giftLitActionsAlpha = actionsView.getAlpha();
+            actionsView.forEachDrawnButton(giftLitButton);
+        }
+        addGiftLitPill(gifts, musicView);
+        addGiftLitPill(gifts, balanceView);
+    }
+
+    private void addGiftLitPill(ProfileGiftsView gifts, ProfileMusicView pill) {
+        if (pill == null || pill.getParent() == null) return;
+        final float alpha = pill.getDrawnPill(giftLitRect);
+        if (alpha > 0f) gifts.addLitShape(pill, giftLitRect, giftLitRect.height() / 2f, alpha);
     }
 
     private ProfileMusicBeat profileMusicBeat;
@@ -15267,7 +15333,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         private static SearchResult[] onCreateSearchArray(final BaseFragment f) {
             final int currentAccount = f.getCurrentAccount();
-            final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
+            final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider() instanceof ProfilePageColors
+                    ? ((ProfilePageColors) f.getResourceProvider()).getBase() : f.getResourceProvider();
             return new SearchResult[]{
                     new SearchResult(500, getString(R.string.EditName), 0, () -> f.presentFragment(new ChangeNameActivity(resourcesProvider))),
                     new SearchResult(501, getString(R.string.ChangePhoneNumber), 0, () -> f.presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANGE_PHONE_NUMBER))).withLink("tg://settings/edit/change-number"),
@@ -16915,7 +16982,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             final Bundle args = new Bundle();
             args.putLong("user_id", userId);
             args.putBoolean("focus_notes", true);
-            presentFragment(new ContactAddActivity(args, resourcesProvider));
+            presentFragment(new ContactAddActivity(args, getBaseResourcesProvider()));
         });
         o.add(R.drawable.msg_delete, getString(R.string.Remove), true, () -> {
             new AlertDialog.Builder(getContext(), resourcesProvider)
