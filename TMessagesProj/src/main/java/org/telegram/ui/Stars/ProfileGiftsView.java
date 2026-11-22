@@ -103,10 +103,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     private float musicPulse;
+    private float avatarPulseScale = 1f;
 
-    public void setMusicPulse(float pulse) {
-        if (musicPulse != pulse) {
+    /**
+     * The beat of the profile's music, 0..1: the bubbles swell, flash from inside, their halos
+     * flare and widen, their light reaches further. avatarScale is how much the avatar swells
+     * on it, so that the light falls on the avatar's rim as it is drawn.
+     */
+    public void setMusicPulse(float pulse, float avatarScale) {
+        if (musicPulse != pulse || avatarPulseScale != avatarScale) {
             musicPulse = pulse;
+            avatarPulseScale = avatarScale;
             invalidate();
         }
     }
@@ -406,14 +413,24 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             filmPaint.getShader().setLocalMatrix(filmMatrix);
             filmPaint.setAlpha((int) (0xFF * alpha));
             canvas.drawPath(bubbleOutline, filmPaint);
+            if (musicPulse > 0f && lightShader != null) {
+                // the bubble flashes from inside on the beat
+                filmMatrix.setScale(r * 1.1f, r * 1.1f);
+                filmMatrix.postTranslate(cx, cy);
+                lightShader.setLocalMatrix(filmMatrix);
+                flashPaint.setShader(lightShader);
+                flashPaint.setAlpha((int) (0xFF * Utilities.clamp01(.45f * musicPulse * alpha)));
+                canvas.drawPath(bubbleOutline, flashPaint);
+                flashPaint.setShader(null);
+            }
             if (patternDrawable != null) {
-                patterns.draw(canvas, patternDrawable, patternColor, cx, cy, r, alpha);
+                patterns.draw(canvas, patternDrawable, patternColor, cx, cy, r, alpha, musicPulse);
             }
             drawSpecular(canvas, cx, cy, r, alpha);
             canvas.restore();
             rimPaint.setStyle(Paint.Style.STROKE);
-            rimPaint.setStrokeWidth(dpf2(1f));
-            rimPaint.setColor(Theme.multAlpha(lightColor, .85f * alpha));
+            rimPaint.setStrokeWidth(dpf2(1f + .6f * musicPulse));
+            rimPaint.setColor(Theme.multAlpha(lightColor, Math.min(1f, .85f + .15f * musicPulse) * alpha));
             canvas.drawPath(bubbleOutline, rimPaint);
             canvas.restore();
         }
@@ -501,7 +518,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             start[i] = initial ? now - RANDOM.nextInt((int) life[i]) : now + RANDOM.nextInt(450);
         }
 
-        void draw(Canvas canvas, AnimatedEmojiDrawable drawable, int color, float cx, float cy, float r, float alpha) {
+        /** pulse: the music's beat, 0..1; the symbols are thrown out a little and flare with it. */
+        void draw(Canvas canvas, AnimatedEmojiDrawable drawable, int color, float cx, float cy, float r, float alpha, float pulse) {
             final long now = SystemClock.uptimeMillis();
             if (!initialized) {
                 initialized = true;
@@ -529,12 +547,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     py += vy[i] * seconds;
                     fade = (float) Math.sin(Math.PI * age / life[i]);
                 }
-                final int a = (int) (0xFF * alpha * fade * .9f);
+                final int a = (int) (0xFF * Math.min(1f, alpha * fade * (.9f + .3f * pulse)));
                 if (a <= 0) continue;
+                final float push = 1f + .14f * pulse;
                 canvas.save();
-                canvas.translate(cx + px * r, cy + py * r);
+                canvas.translate(cx + px * r * push, cy + py * r * push);
                 canvas.rotate(rotation[i]);
-                final float scale = size[i] * r / sz;
+                final float scale = size[i] * r / sz * (1f + .3f * pulse);
                 canvas.scale(scale, scale);
                 drawable.setAlpha(a);
                 drawable.draw(canvas);
@@ -943,12 +962,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private final RectF litRect = new RectF();
     private final Paint lightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint flashPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix lightMatrix = new Matrix();
 
     {
         final PorterDuffXfermode add = new PorterDuffXfermode(PorterDuff.Mode.ADD);
         lightPaint.setXfermode(add);
         haloPaint.setXfermode(add);
+        flashPaint.setXfermode(add);
     }
 
     public void setLitShapes(LitShapes source) {
@@ -981,12 +1002,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private void collectLitShapes(float avatarX, float avatarY, float avatarW, float avatarH) {
         litCount = 0;
         if (avatarContainer.getVisibility() == VISIBLE && avatarContainer.getAlpha() > 0f && avatarW > 0) {
+            // the photo swells around its center on the beat
+            final float growX = avatarW * (avatarPulseScale - 1f) / 2f, growY = avatarH * (avatarPulseScale - 1f) / 2f;
             final int i = litCount++ * LIT_FIELDS;
-            litShapes[i] = avatarX;
-            litShapes[i + 1] = avatarY;
-            litShapes[i + 2] = avatarX + avatarW;
-            litShapes[i + 3] = avatarY + avatarH;
-            litShapes[i + 4] = Math.min(avatarW, avatarH) / 2f;
+            litShapes[i] = avatarX - growX;
+            litShapes[i + 1] = avatarY - growY;
+            litShapes[i + 2] = avatarX + avatarW + growX;
+            litShapes[i + 3] = avatarY + avatarH + growY;
+            litShapes[i + 4] = Math.min(avatarW + 2 * growX, avatarH + 2 * growY) / 2f;
             litShapes[i + 5] = avatarContainer.getAlpha();
         }
         if (litShapesSource != null) litShapesSource.collect(this);
@@ -1002,7 +1025,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         for (Gift gift : drawOrder) {
             if (gift.alpha <= 0f || gift.lightShader == null) continue;
             final float cx = gift.bounds.centerX(), cy = gift.bounds.centerY();
-            final float radius = gift.bounds.width() * 1.15f;
+            // the halo flares wider on the beat, faster than the bubble swells
+            final float radius = gift.bounds.width() * 1.15f * (1f + .35f * musicPulse);
             lightMatrix.setScale(radius, radius);
             lightMatrix.postTranslate(cx, cy);
             gift.lightShader.setLocalMatrix(lightMatrix);
@@ -1027,7 +1051,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (gift.alpha <= 0f || gift.lightShader == null) continue;
             final float bx = gift.bounds.centerX(), by = gift.bounds.centerY();
             final float br = gift.bounds.width() / 2f;
-            final float reach = br * 2.4f;
+            final float reach = br * 2.4f * (1f + .3f * musicPulse);
             boolean shaderSet = false;
             for (int s = 0; s < litCount; s++) {
                 final int i = s * LIT_FIELDS;

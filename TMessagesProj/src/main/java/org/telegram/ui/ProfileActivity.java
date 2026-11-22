@@ -9578,14 +9578,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (profileMusicPulse == pulse) return;
         profileMusicPulse = pulse;
         if (topView != null) topView.invalidate();
+        final float avatarScale = 1f + .08f * pulse;
         if (avatarImage != null) {
             avatarImage.setPivotX(avatarImage.getWidth() * .5f);
             avatarImage.setPivotY(avatarImage.getHeight() * .5f);
-            final float scale = 1f + .08f * pulse;
-            avatarImage.setScaleX(scale);
-            avatarImage.setScaleY(scale);
+            avatarImage.setScaleX(avatarScale);
+            avatarImage.setScaleY(avatarScale);
         }
-        if (giftsView != null) giftsView.setMusicPulse(pulse);
+        // the gifts' light on the avatar follows it as it swells
+        if (giftsView != null) giftsView.setMusicPulse(pulse, avatarScale);
     }
 
     private void updateProfileMusicPlayback() {
