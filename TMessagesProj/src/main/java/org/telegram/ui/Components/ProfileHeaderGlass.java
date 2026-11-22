@@ -314,12 +314,13 @@ public class ProfileHeaderGlass {
     }
 
     /**
-     * A glass bubble: the whole of it is a lens, a sphere magnifying and bending what is under it,
-     * its glass tinted with a color of its own (the gifts take the color of their backdrop). Drawn
+     * A glass bubble: clear, the whole of it one lens. What is under it shows through sharp, a
+     * little bigger, and more and more stretched towards the edge, as through a drop of water, its
+     * glass tinted with a color of its own (the gifts take the color of their backdrop). Drawn
      * without the press effect's button, whose lens bends only a band at the edge: the bubble
      * wobbles and stretches by itself.
      *
-     * @param magnify how much bigger what is under the bubble shows through it
+     * @param magnify how much bigger what is under the bubble shows through its middle
      */
     public void drawSphere(Canvas canvas, Piece piece, RectF rect, int tint, float alpha, float magnify,
                            @Nullable GlassLayer.Backdrop behindPiece) {
@@ -334,8 +335,6 @@ public class ProfileHeaderGlass {
             canvas.drawRoundRect(rect, radius, radius, tintPaint);
             return;
         }
-        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite);
-        final boolean dark = ColorUtils.calculateLuminance(surface | 0xFF000000) < 0.5f;
         final float left = rect.left, top = rect.top;
         final GlassLayer.Backdrop source = backdrop -> {
             backdrop.scale(magnify, magnify, width / 2f, height / 2f);
@@ -346,17 +345,18 @@ public class ProfileHeaderGlass {
         if (piece.layer == null) {
             piece.layer = new GlassLayer();
         }
-        final float density = AndroidUtilities.density;
         final int restore = alpha < 1f
             ? canvas.saveLayerAlpha(rect.left, rect.top, rect.right, rect.bottom, (int) (255 * alpha))
             : canvas.save();
         canvas.translate(left, top);
-        // The refraction reaches the middle and bends deep, the depth effect makes it a dome
-        ((GlassLayer) piece.layer).draw(canvas, width, height, radius, density,
-            dark ? BackdropGlass.COLOR_CONTROLS_DARK : BackdropGlass.COLOR_CONTROLS_LIGHT,
-            1.5f * density, radius * .92f, radius * .8f,
-            true, true, dark, source,
-            tint, 1f, 1.2f);
+        // The lens reaches the middle and bends less than its own depth: the picture stays the
+        // right way round up to the very edge. No blur, no color controls, no rainbow fringe:
+        // text under the bubble stays text.
+        ((GlassLayer) piece.layer).draw(canvas, width, height, radius, AndroidUtilities.density,
+            BackdropGlass.COLOR_NONE,
+            0f, radius, radius * .3f,
+            false, false, false, source,
+            tint, 0f, 1f);
         canvas.restoreToCount(restore);
     }
 }

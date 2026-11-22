@@ -10,6 +10,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -285,18 +286,31 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             particles = new StarsReactionsSheet.Particles(StarsReactionsSheet.Particles.TYPE_RADIAL, 6);
             final float gsz = dp(36);
             particles.bounds.set(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f);
+            sparkles = new Sparkles(id);
 
-            // Clear in the middle, the glass thickens towards the rim into a band of the
-            // backdrop's color, as a ball of tinted glass seen edge on, and catches light at it.
+            // A soap bubble at rest: clear, with a breath of the backdrop's color that gathers
+            // towards the rim, where the film is seen edge on.
+            final int tint = ColorUtils.blendARGB(color, edgeColor, .25f);
             filmPaint.setShader(new RadialGradient(0, 0, 1f,
                     new int[]{
-                            Theme.multAlpha(color, 0f),
-                            Theme.multAlpha(color, .04f),
-                            Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .4f), .26f),
-                            Theme.multAlpha(color, .62f),
-                            Theme.multAlpha(lightColor, .82f)
+                            Theme.multAlpha(tint, 0f),
+                            Theme.multAlpha(tint, .06f),
+                            Theme.multAlpha(tint, .18f),
+                            Theme.multAlpha(tint, .32f),
+                            Theme.multAlpha(color, .44f)
                     },
-                    new float[]{0f, .5f, .76f, .92f, 1f}, Shader.TileMode.CLAMP));
+                    new float[]{0f, .55f, .8f, .93f, 1f}, Shader.TileMode.CLAMP));
+            // Picked up, it fills with its color like a ball of colored glass, clear only around
+            // the gift; drawn over the film by how far the bubble is lifted.
+            liftFilmPaint.setShader(new RadialGradient(0, 0, 1f,
+                    new int[]{
+                            Theme.multAlpha(color, .10f),
+                            Theme.multAlpha(color, .34f),
+                            Theme.multAlpha(color, .62f),
+                            Theme.multAlpha(ColorUtils.blendARGB(color, Color.WHITE, .15f), .8f)
+                    },
+                    new float[]{0f, .45f, .75f, 1f}, Shader.TileMode.CLAMP));
+            rimColor = ColorUtils.blendARGB(color, Color.WHITE, .55f);
             lightShader = new RadialGradient(0, 0, 1f,
                     new int[]{lightColor, Theme.multAlpha(lightColor, .55f), Theme.multAlpha(lightColor, .16f), Theme.multAlpha(lightColor, 0f)},
                     new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
@@ -328,14 +342,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         public AnimatedFloat animatedFloat;
 
         private final Paint filmPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint liftFilmPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Matrix filmMatrix = new Matrix();
+        /** The thin light line of the film's edge: the backdrop's color, washed out. */
+        private int rimColor;
         /** Unit radius around (0, 0): the light, strongest at the bubble, fading out. */
         private RadialGradient lightShader;
         /** The same in the gift's saturated color, for the rims it shines on. */
         private RadialGradient glintShader;
         /** The glow just around the bubble's rim, see {@link #drawHalos}. */
         private RadialGradient haloShader;
-        private PatternParticles patterns = new PatternParticles();
+        private Sparkles sparkles;
 
         private final ProfileHeaderGlass.Piece rearPiece = new ProfileHeaderGlass.Piece();
         private final ProfileHeaderGlass.Piece frontPiece = new ProfileHeaderGlass.Piece();
@@ -355,7 +372,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             gradient = b.gradient;
             emojiDrawable = b.emojiDrawable;
             patternDrawable = b.patternDrawable;
-            patterns = b.patterns;
+            sparkles = b.sparkles;
             gradientPaint = b.gradientPaint;
             animatedFloat = b.animatedFloat;
             particles = b.particles;
@@ -371,7 +388,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.translate(bounds.centerX(), bounds.centerY());
             final float scale = artworkScale * bounce.getScale(0.1f);
             canvas.scale(scale, scale);
-            drawArtwork(canvas, alpha, 1f - .5f * (float) orbit.lift, advanceParticles);
+            drawArtwork(canvas, alpha, advanceParticles);
             canvas.restore();
         }
 
@@ -423,8 +440,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             // Four smooth lobes change curvature as the film wobbles. Clip both the
             // refracted backdrop and the rim to the same outline, including in flight.
             float left = cx - r, right = cx + r, top = cy - r, bottom = cy + r;
-            float tx = cx + r * .15f * wave, bx = cx - r * .12f * ripple;
-            float ly = cy + r * .16f * ripple, ry = cy - r * .13f * wave;
+            float tx = cx + r * .17f * wave, bx = cx - r * .14f * ripple;
+            float ly = cy + r * .18f * ripple, ry = cy - r * .15f * wave;
             float k = r * .55f;
             bubbleOutline.rewind();
             bubbleOutline.moveTo(tx, top);
@@ -433,18 +450,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             bubbleOutline.cubicTo(bx - k, bottom, left, ly + k, left, ly);
             bubbleOutline.cubicTo(left, ly - k, tx - k, top, tx, top);
             bubbleOutline.close();
+            final float lift = (float) orbit.lift;
+            final int tint = ColorUtils.blendARGB(color, edgeColor, .25f);
             canvas.save();
             canvas.clipPath(bubbleOutline);
             if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 lensBounds.set(box);
-                lensBounds.inset(-r * .04f, -r * .04f);
-                // A ball of glass tinted with the gift's backdrop: what is behind it (the name,
-                // the avatar's rim, the buttons) shows through it magnified and bent
+                lensBounds.inset(-r * .14f, -r * .14f);
+                // A ball of clear glass: what is behind it (the name, the avatar's rim, the
+                // buttons) shows through it sharp, a little bigger and bent towards its edge
                 glass.drawSphere(canvas, layer, lensBounds,
-                        ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, edgeColor, .35f), 0x40), alpha, 1.18f,
+                        ColorUtils.setAlphaComponent(tint, (int) (0x1C + 0x30 * Math.min(1f, lift))), alpha, 1.22f,
                         lowerGifts.isEmpty() ? null : this::drawLowerGifts);
             } else {
-                bubblePaint.setColor(Theme.multAlpha(ColorUtils.blendARGB(color, edgeColor, .35f), .25f * alpha));
+                bubblePaint.setColor(Theme.multAlpha(tint, (.14f + .2f * lift) * alpha));
                 canvas.drawPath(bubbleOutline, bubblePaint);
             }
             filmMatrix.setScale(r * 1.03f, r * 1.03f);
@@ -452,43 +471,53 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             filmPaint.getShader().setLocalMatrix(filmMatrix);
             filmPaint.setAlpha((int) (0xFF * alpha));
             canvas.drawPath(bubbleOutline, filmPaint);
+            if (lift > .01f) {
+                liftFilmPaint.getShader().setLocalMatrix(filmMatrix);
+                liftFilmPaint.setAlpha((int) (0xFF * alpha * Math.min(1f, lift)));
+                canvas.drawPath(bubbleOutline, liftFilmPaint);
+            }
             if (musicPulse > 0f && lightShader != null) {
                 // the bubble flashes from inside on the beat
                 filmMatrix.setScale(r * 1.1f, r * 1.1f);
                 filmMatrix.postTranslate(cx, cy);
                 lightShader.setLocalMatrix(filmMatrix);
                 flashPaint.setShader(lightShader);
-                flashPaint.setAlpha((int) (0xFF * Utilities.clamp01(.45f * musicPulse * alpha)));
+                flashPaint.setAlpha((int) (0xFF * Utilities.clamp01(.4f * musicPulse * alpha)));
                 canvas.drawPath(bubbleOutline, flashPaint);
                 flashPaint.setShader(null);
             }
             if (patternDrawable != null) {
-                // pale and see-through, as the pattern is pressed into the glass
-                patterns.draw(canvas, patternDrawable, ColorUtils.blendARGB(patternColor, Color.WHITE, .6f), cx, cy, r, alpha, musicPulse);
+                // the gift's pattern as sparkles afloat in the bubble, nearly white
+                sparkles.draw(canvas, patternDrawable, ColorUtils.blendARGB(patternColor, Color.WHITE, .85f), cx, cy, r, alpha, musicPulse);
             }
-            drawSpecular(canvas, cx, cy, r, alpha);
+            drawSheen(canvas, cx, cy, r, alpha);
             canvas.restore();
+            // The film's edge: a thin line of its color, and the light it catches up and to the
+            // left and, fainter, down and to the right
             rimPaint.setStyle(Paint.Style.STROKE);
-            rimPaint.setStrokeWidth(dpf2(1f + .6f * musicPulse));
-            rimPaint.setColor(Theme.multAlpha(lightColor, Math.min(1f, .85f + .15f * musicPulse) * alpha));
+            rimPaint.setStrokeWidth(dpf2(1.1f + .5f * musicPulse));
+            rimPaint.setColor(Theme.multAlpha(rimColor, Math.min(1f, .4f + .4f * lift + .25f * musicPulse) * alpha));
             canvas.drawPath(bubbleOutline, rimPaint);
+            rimLightMatrix.setScale(r, r);
+            rimLightMatrix.postTranslate(cx, cy);
+            rimLightPaint.getShader().setLocalMatrix(rimLightMatrix);
+            rimLightPaint.setStrokeWidth(dpf2(1f));
+            rimLightPaint.setAlpha((int) (0xFF * alpha));
+            canvas.drawPath(bubbleOutline, rimLightPaint);
             canvas.restore();
         }
 
-        private void drawArtwork(Canvas canvas, float alpha, float gradientAlpha, boolean advanceParticles) {
-            final float gsz = dp(45);
+        private void drawArtwork(Canvas canvas, float alpha, boolean advanceParticles) {
             if (patternDrawable == null) {
                 // No pattern to show (an old status): the stars of the gift's color instead
                 if (advanceParticles) particles.process();
                 particles.draw(canvas, color, alpha);
             }
-            if (gradientPaint != null) {
-                // only a hint of the glow behind the gift: the bubble is clear around it
-                gradientPaint.setAlpha((int) (0xFF * alpha * gradientAlpha * .3f));
-                canvas.drawRect(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f, gradientPaint);
-            }
             if (emojiDrawable != null) {
+                // the gift floats in its bubble, it is not pinned to its middle
+                final double time = SystemClock.uptimeMillis() * .001 + (id % 89);
                 final int sz = dp(24);
+                canvas.translate(dpf2(1.1f) * (float) Math.sin(time * 1.3), dpf2(1.3f) * (float) Math.cos(time * 1.05));
                 emojiDrawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
                 emojiDrawable.setAlpha((int) (0xFF * alpha));
                 emojiDrawable.draw(canvas);
@@ -509,112 +538,105 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return Color.HSVToColor(hsv);
     }
 
-    private final Paint specularPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Matrix specularMatrix = new Matrix();
+    private final Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Matrix sheenMatrix = new Matrix();
+    private final Paint rimLightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Matrix rimLightMatrix = new Matrix();
 
     {
-        specularPaint.setShader(new RadialGradient(0, 0, 1f,
-                new int[]{0x99FFFFFF, 0x38FFFFFF, 0x00FFFFFF}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
-    }
-
-    private final Paint reflexPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF reflexOval = new RectF();
-
-    {
-        reflexPaint.setStyle(Paint.Style.STROKE);
-        reflexPaint.setStrokeCap(Paint.Cap.ROUND);
-        reflexPaint.setColor(Color.WHITE);
+        // Unit radius around (0, 0): white, fading out
+        sheenPaint.setShader(new RadialGradient(0, 0, 1f,
+                new int[]{0xFFFFFFFF, 0x66FFFFFF, 0x00FFFFFF}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+        sheenPaint.setStyle(Paint.Style.STROKE);
+        // Across the bubble from its upper left to its lower right, in its radii: the edge
+        // catches the light at both ends, more at the first
+        rimLightPaint.setShader(new LinearGradient(-.72f, -.72f, .72f, .72f,
+                new int[]{0xE6FFFFFF, 0x1CFFFFFF, 0x14FFFFFF, 0x8CFFFFFF}, new float[]{0f, .38f, .7f, 1f}, Shader.TileMode.CLAMP));
+        rimLightPaint.setStyle(Paint.Style.STROKE);
     }
 
     /**
-     * The window reflected in the glass, up and to the left, and the light coming through the
-     * ball caught again on its inner side, a thin bright crescent down and to the right.
+     * The light on the film: no hard glints, a soft sheen that hugs the rim up and to the left,
+     * a fainter one opposite, as a soap bubble has them. Each is a band along the inside of the
+     * rim lit from a point on it, wider and fainter towards the middle.
      */
-    private void drawSpecular(Canvas canvas, float cx, float cy, float r, float alpha) {
-        final float x = cx - r * .36f, y = cy - r * .46f;
-        specularMatrix.setScale(r * .44f, r * .25f);
-        specularMatrix.postRotate(-36f);
-        specularMatrix.postTranslate(x, y);
-        specularPaint.getShader().setLocalMatrix(specularMatrix);
-        specularPaint.setAlpha((int) (0xFF * alpha));
-        canvas.drawCircle(x, y, r * .46f, specularPaint);
+    private void drawSheen(Canvas canvas, float cx, float cy, float r, float alpha) {
+        drawSheen(canvas, cx, cy, r, -.72f, -.68f, 1.25f, .5f * alpha);
+        drawSheen(canvas, cx, cy, r, .64f, .76f, .95f, .26f * alpha);
+    }
 
-        final float inset = r * .14f;
-        reflexOval.set(cx - r + inset, cy - r + inset, cx + r - inset, cy + r - inset);
-        reflexPaint.setStrokeWidth(r * .07f);
-        reflexPaint.setAlpha((int) (0x5C * alpha));
-        canvas.drawArc(reflexOval, 18f, 64f, false, reflexPaint);
+    private void drawSheen(Canvas canvas, float cx, float cy, float r, float nx, float ny, float reach, float alpha) {
+        sheenMatrix.setScale(r * reach, r * reach);
+        sheenMatrix.postTranslate(cx + nx * r, cy + ny * r);
+        sheenPaint.getShader().setLocalMatrix(sheenMatrix);
+        sheenPaint.setStrokeWidth(r * .26f);
+        sheenPaint.setAlpha((int) (0xFF * alpha * .45f));
+        canvas.drawCircle(cx, cy, r * .84f, sheenPaint);
+        sheenPaint.setStrokeWidth(r * .12f);
+        sheenPaint.setAlpha((int) (0xFF * alpha * .55f));
+        canvas.drawCircle(cx, cy, r * .92f, sheenPaint);
     }
 
     /**
-     * The symbols of the gift's pattern drifting inside its bubble, fading in and out. They follow
-     * the clock, not the frames: the rear and the front layer, and the captures, draw the same.
+     * The gift's pattern as sparkles afloat in its bubble: small, nearly white, on a ball turning
+     * slowly inside it, brighter and bigger on its near side, twinkling. They follow the clock,
+     * not the frames: the rear and the front layer, and the captures, draw the same.
      */
-    private static final class PatternParticles {
-        private static final int COUNT = 9;
-        private static final java.util.Random RANDOM = new java.util.Random();
+    private static final class Sparkles {
+        private static final int COUNT = 13;
 
-        private final float[] x = new float[COUNT], y = new float[COUNT];
-        private final float[] vx = new float[COUNT], vy = new float[COUNT];
+        private final float[] x = new float[COUNT], y = new float[COUNT], z = new float[COUNT];
         private final float[] size = new float[COUNT], rotation = new float[COUNT];
-        private final long[] start = new long[COUNT], life = new long[COUNT];
-        private boolean initialized;
+        private final float[] twinkleSpeed = new float[COUNT], twinklePhase = new float[COUNT];
+        private final float speed, tiltCos, tiltSin, startAngle;
         private ColorFilter filter;
         private int filterColor;
 
-        /** Positions are in bubble radii from its center, speeds in radii per second. */
-        private void spawn(int i, long now, boolean initial) {
-            final double angle = RANDOM.nextDouble() * 2 * Math.PI;
-            // Around the gift, towards the rim, not over it
-            final double distance = .42 + .44 * Math.sqrt(RANDOM.nextDouble());
-            x[i] = (float) (Math.cos(angle) * distance);
-            y[i] = (float) (Math.sin(angle) * distance);
-            final double heading = angle + (RANDOM.nextBoolean() ? 1 : -1) * Math.PI / 2 + (RANDOM.nextDouble() - .5) * .9;
-            final double speed = .035 + .05 * RANDOM.nextDouble();
-            vx[i] = (float) (Math.cos(heading) * speed);
-            vy[i] = (float) (Math.sin(heading) * speed);
-            size[i] = .2f + .11f * RANDOM.nextFloat();
-            rotation[i] = (RANDOM.nextFloat() - .5f) * 50f;
-            life[i] = 2600 + RANDOM.nextInt(2400);
-            start[i] = initial ? now - RANDOM.nextInt((int) life[i]) : now + RANDOM.nextInt(450);
+        Sparkles(long seed) {
+            final java.util.Random random = new java.util.Random(seed * 31 + 7);
+            for (int i = 0; i < COUNT; i++) {
+                // evenly over the ball
+                final double h = 2 * random.nextDouble() - 1, a = random.nextDouble() * 2 * Math.PI;
+                final double w = Math.sqrt(1 - h * h);
+                x[i] = (float) (w * Math.cos(a));
+                y[i] = (float) h;
+                z[i] = (float) (w * Math.sin(a));
+                size[i] = .075f + .075f * random.nextFloat();
+                rotation[i] = (random.nextFloat() - .5f) * 70f;
+                twinkleSpeed[i] = 1.1f + 1.6f * random.nextFloat();
+                twinklePhase[i] = random.nextFloat() * 6.28f;
+            }
+            speed = (.22f + .16f * random.nextFloat()) * (random.nextBoolean() ? 1 : -1);
+            final double tilt = (random.nextDouble() - .5) * 1.1;
+            tiltCos = (float) Math.cos(tilt);
+            tiltSin = (float) Math.sin(tilt);
+            startAngle = random.nextFloat() * 6.28f;
         }
 
-        /** pulse: the music's beat, 0..1; the symbols are thrown out a little and flare with it. */
+        /** pulse: the music's beat, 0..1; the sparkles are thrown out a little and flare with it. */
         void draw(Canvas canvas, AnimatedEmojiDrawable drawable, int color, float cx, float cy, float r, float alpha, float pulse) {
-            final long now = SystemClock.uptimeMillis();
-            if (!initialized) {
-                initialized = true;
-                for (int i = 0; i < COUNT; i++) spawn(i, now, true);
-            }
-            final boolean animate = LiteMode.isEnabled(LiteMode.FLAG_PARTICLES);
+            final double time = LiteMode.isEnabled(LiteMode.FLAG_PARTICLES) ? SystemClock.uptimeMillis() * .001 : 0;
             if (filter == null || filterColor != color) {
                 filterColor = color;
                 filter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);
             }
+            final double angle = startAngle + time * speed;
+            final float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
             final int sz = dp(12);
+            final float spread = r * .8f * (1f + .12f * pulse);
             drawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
             drawable.setColorFilter(filter);
             for (int i = 0; i < COUNT; i++) {
-                float px = x[i], py = y[i], fade = .85f;
-                if (animate) {
-                    long age = now - start[i];
-                    if (age >= life[i]) {
-                        spawn(i, now, false);
-                        age = now - start[i];
-                    }
-                    if (age < 0) continue;
-                    final float seconds = age / 1000f;
-                    px += vx[i] * seconds;
-                    py += vy[i] * seconds;
-                    fade = (float) Math.sin(Math.PI * age / life[i]);
-                }
-                final int a = (int) (0xFF * Math.min(1f, alpha * fade * (.62f + .3f * pulse)));
-                if (a <= 0) continue;
-                final float push = 1f + .14f * pulse;
+                // turned around the ball's axis, the axis tilted towards the eye
+                final float tx = x[i] * cos + z[i] * sin, tz = z[i] * cos - x[i] * sin;
+                final float py = y[i] * tiltCos - tz * tiltSin, near = (y[i] * tiltSin + tz * tiltCos + 1f) * .5f;
+                final float twinkle = .72f + .28f * (float) Math.sin(time * twinkleSpeed[i] + twinklePhase[i]);
+                final int a = (int) (0xFF * Math.min(1f, alpha * (.3f + .6f * near) * twinkle * (1f + .35f * pulse)));
+                if (a <= 4) continue;
                 canvas.save();
-                canvas.translate(cx + px * r * push, cy + py * r * push);
+                canvas.translate(cx + tx * spread, cy + py * spread);
                 canvas.rotate(rotation[i]);
-                final float scale = size[i] * r / sz * (1f + .3f * pulse);
+                final float scale = size[i] * (.75f + .5f * near) * r / sz * (1f + .3f * pulse);
                 canvas.scale(scale, scale);
                 drawable.setAlpha(a);
                 drawable.draw(canvas);
@@ -752,14 +774,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
+        // The gifts share the ring evenly; when their number changes, they move over to make room
         drawOrder.clear();
-        for (Gift gift : gifts) {
-            if (gift.orbit == null) gift.orbit = new Orbit(gift.position);
+        for (int i = 0; i < gifts.size(); i++) {
+            final Gift gift = gifts.get(i);
+            final double slot = 2 * Math.PI * i / gifts.size();
+            if (gift.orbit == null) gift.orbit = new Orbit(ringPhase, slot);
+            gift.orbit.targetOffset = slot;
             drawOrder.add(gift);
         }
-        // In each avatar layer the faster orbit passes in front. Keep the order
-        // stable while bubbles overlap, even as their screen-space speeds change.
-        drawOrder.sort((a, b) -> Double.compare(a.orbit.path.speed, b.orbit.path.speed));
         renderOrder.clear();
         renderOrder.addAll(drawOrder);
 
@@ -777,35 +800,27 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (changed) invalidate();
     }
 
-    private static final class OrbitPath {
-        final double width, height, slope, speed, size;
+    /*
+     * The ring the gifts go round, as on iOS: one ellipse around the avatar, wide and flat, its
+     * right end a little up, all the gifts on it at the same pace and evenly apart, so that they
+     * never catch up with each other. It is a circle seen from above its near edge: its top is
+     * far, behind the avatar, the bubbles small there; its bottom is near, in front of the avatar,
+     * the bubbles nearly twice as big.
+     */
+    private static final double RING_WIDTH = .98, RING_HEIGHT = .95, RING_SLOPE = -.38, RING_SPEED = .30;
+    private static final double DEPTH_SCALE = .29, LIFT_SCALE = 1.05;
 
-        OrbitPath(double width, double height, double slope, double speed, double size) {
-            this.width = width;
-            this.height = height;
-            this.slope = slope;
-            this.speed = speed;
-            this.size = size;
-        }
-    }
+    /** The ring's turn, radians: every slot is at this plus its own offset. */
+    private double ringPhase = 1.1;
 
-    // Positions share the same coordinate system, so the differently shaped orbits can intersect.
-    // Each gift has a slot going round its path. The bubble rests on it, is pushed off it by the
+    // Each gift has a slot going round the ring. The bubble rests on it, is pushed off it by the
     // other bubbles and the avatar, and is held on a spring to it: pulled away by the finger and
     // let go, it springs back.
     private static final class Orbit {
         static final int SETTLED = 0, HELD = 1, RETURNING = 2;
-        private static final int[] SLOTS = {3, 4, 2, 0, 5, 1};
-        private static final OrbitPath[] PATHS = {
-                new OrbitPath(.98, .72, -.13, .34, .94),
-                new OrbitPath(.76, .91, .12, .28, .82),
-                new OrbitPath(.83, .94, -.11, .46, 1.12),
-                new OrbitPath(.94, .63, .15, .36, 1.05),
-                new OrbitPath(.66, .87, -.16, .50, .89),
-                new OrbitPath(.88, .77, .11, .41, 1.16),
-        };
-        final OrbitPath path;
-        /** The slot's angle on its path. */
+        /** The slot's angle from the ring's turn, and the one it moves to when the gifts change. */
+        double offset, targetOffset;
+        /** The slot's angle on the ring. */
         double phase;
         /** The bubble, in orbit radii from the orbit's center, and its speed in radii per second. */
         double x, y, vx, vy;
@@ -813,41 +828,52 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         /** How much a contact flattens the bubble, and the direction it is pressed in. */
         double squash, squashAngle;
         int state = SETTLED;
+        /** Springing back to a slot behind the avatar, and already gone behind it. */
+        boolean sunk;
 
-        Orbit(int position) {
-            int slot = Math.floorMod(position, SLOTS.length);
-            path = PATHS[slot];
-            phase = SLOTS[slot] * Math.PI / 3;
+        Orbit(double ringPhase, double offset) {
+            this.offset = targetOffset = offset;
+            phase = ringPhase + offset;
             x = slotX();
             y = slotY();
-            vx = slotVx(path.speed);
-            vy = slotVy(path.speed);
+            vx = slotVx(RING_SPEED);
+            vy = slotVy(RING_SPEED);
         }
 
         double slotX() {
-            return path.width * Math.cos(phase);
+            return RING_WIDTH * Math.cos(phase);
         }
 
         double slotY() {
-            return path.height * Math.sin(phase) + path.slope * slotX();
+            return RING_HEIGHT * Math.sin(phase) + RING_SLOPE * slotX();
         }
 
         /** The slot's speed while its angle changes at rate radians per second. */
         double slotVx(double rate) {
-            return -path.width * Math.sin(phase) * rate;
+            return -RING_WIDTH * Math.sin(phase) * rate;
         }
 
         double slotVy(double rate) {
-            return path.height * Math.cos(phase) * rate + path.slope * slotVx(rate);
+            return RING_HEIGHT * Math.cos(phase) * rate + RING_SLOPE * slotVx(rate);
         }
 
+        /** -1 at the ring's far side, behind the avatar, 1 at its near side. */
+        double depth() {
+            return Math.max(-1, Math.min(1, (y - RING_SLOPE * x) / RING_HEIGHT));
+        }
+
+        double slotDepth() {
+            return Math.sin(phase);
+        }
+
+        /** A lifted bubble is as near as the near side of the ring, wherever the finger takes it. */
         double perspectiveScale() {
-            double depth = Math.max(-1, Math.min(1, y));
-            return path.size * (1 + .12 * depth);
+            final double held = Math.min(1, lift);
+            return 1 + DEPTH_SCALE * (depth() * (1 - held) + .7 * held);
         }
 
         double radiusScale() {
-            return perspectiveScale() * (1 + .85 * lift);
+            return perspectiveScale() * (1 + LIFT_SCALE * lift);
         }
 
         /** Held, or springing back: over everything, the avatar included. */
@@ -856,7 +882,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
 
         boolean isInFront() {
-            return isLifted() || y >= 0;
+            return !sunk && (isLifted() || depth() >= 0);
         }
 
         void press(double amount, double nx, double ny) {
@@ -875,7 +901,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
      */
     private static final double RETURN_SPRING = 13, RETURN_DAMPING = .55, RELEASE_SPEED = .35;
     private static final float MAX_RELEASE_SPEED = 1400;
-    /** A spun orbit slows down to the paths' own pace. */
+    /** A spun orbit slows down to the ring's own pace. */
     private static final double SPIN_DECAY = .9, SPIN_RESUME = .5, MAX_SPIN = 6;
 
     private float orbitCenterX, orbitCenterY, orbitRadiusX, orbitRadiusY;
@@ -884,12 +910,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** The held bubble's center and speed, in this view's pixels. */
     private float heldX, heldY, heldVx, heldVy;
 
-    /** The orbit held by the finger, which turns it: the slots follow it and do not move on their own. */
+    /** The orbit held by the finger, which turns it: the ring does not go on by itself. */
     private boolean orbitHeld;
-    /** Radians per second added to every slot: the finger's while it holds the orbit, decaying after. */
+    /** Radians per second added to the ring's pace: the finger's as it lets the orbit go, decaying after. */
     private double spinRate;
-    /** How far the paths' own pace came back since the orbit was let go. */
+    /** How far the ring's own pace came back since the orbit was let go. */
     private double spinResume = 1;
+
+    private double ringRate() {
+        return orbitHeld ? 0 : RING_SPEED * spinResume + spinRate;
+    }
 
     private void advanceGifts(long now) {
         double elapsed = lastPhysicsFrame == 0 ? 0 : Math.min(.064, (now - lastPhysicsFrame) * .001);
@@ -902,6 +932,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (held != null) {
             Orbit body = held.orbit;
             body.state = Orbit.HELD;
+            body.sunk = false;
             body.x = (heldX - orbitCenterX) / rx;
             body.y = (heldY - orbitCenterY) / ry;
             body.vx = heldVx / rx;
@@ -912,11 +943,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 spinRate *= Math.exp(-dt / SPIN_DECAY);
                 spinResume += (1 - spinResume) * -Math.expm1(-dt / SPIN_RESUME);
             }
+            // The ring goes on while bubbles are away from it; the finger turns it itself
+            final double rate = ringRate();
+            ringPhase += rate * dt;
             for (int i = 0; i < gifts.size(); i++) {
                 Orbit body = gifts.get(i).orbit;
-                // The slots go on while their bubbles are away; the finger turns them itself
-                double rate = orbitHeld ? 0 : body.path.speed * spinResume + spinRate;
-                if (!orbitHeld) body.phase += rate * dt;
+                double shift = body.targetOffset - body.offset;
+                body.offset += Math.atan2(Math.sin(shift), Math.cos(shift)) * -Math.expm1(-3 * dt);
+                body.phase = ringPhase + body.offset;
                 body.squash *= Math.exp(-9 * dt);
                 if (body.state == Orbit.HELD) {
                     body.lift += (1 - body.lift) * -Math.expm1(-18 * dt);
@@ -933,24 +967,36 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     body.x += body.vx * dt;
                     body.y += body.vy * dt;
                     body.lift *= Math.exp(-(returning ? 4 : 5.2) * dt);
-                    if (returning && hasReturned(body, rx, ry)) body.state = Orbit.SETTLED;
+                    if (returning) {
+                        // On its way to a slot behind the avatar it goes behind it as soon as it
+                        // is clear of it, not with a jump once it is there
+                        if (!body.sunk && body.slotDepth() < 0 && body.lift < .6 && isClearOfAvatar(body, rx, ry)) {
+                            body.sunk = true;
+                        }
+                        if (hasReturned(body, rate, rx, ry)) {
+                            body.state = Orbit.SETTLED;
+                            body.sunk = false;
+                        }
+                    }
                 }
             }
             collide(rx, ry, -Math.expm1(-30 * dt));
         }
     }
 
-    /** Back on its slot. A slot behind the avatar is taken only clear of it: the bubble does not pop behind it. */
-    private boolean hasReturned(Orbit body, double rx, double ry) {
+    private boolean isClearOfAvatar(Orbit body, double rx, double ry) {
+        if (avatarRadius <= 0) return true;
+        double ax = orbitCenterX + body.x * rx - avatarCenterX, ay = orbitCenterY + body.y * ry - avatarCenterY;
+        return Math.hypot(ax, ay) > avatarRadius + dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale();
+    }
+
+    /** Back on its slot, and at rest on it. */
+    private boolean hasReturned(Orbit body, double rate, double rx, double ry) {
         double dx = (body.slotX() - body.x) * rx, dy = (body.slotY() - body.y) * ry;
         double near = dpf2(3);
         if (dx * dx + dy * dy > near * near || body.lift > .25) return false;
-        double rate = body.path.speed * spinResume + spinRate;
         double dvx = (body.slotVx(rate) - body.vx) * rx, dvy = (body.slotVy(rate) - body.vy) * ry;
-        if (Math.hypot(dvx, dvy) > dpf2(40)) return false;
-        if (body.y >= 0 || avatarRadius <= 0) return true;
-        double ax = orbitCenterX + body.x * rx - avatarCenterX, ay = orbitCenterY + body.y * ry - avatarCenterY;
-        return Math.hypot(ax, ay) > avatarRadius + dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale();
+        return Math.hypot(dvx, dvy) <= dpf2(40);
     }
 
     /**
@@ -969,32 +1015,37 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /**
-     * Soft contacts: the films overlap a little, are pushed apart over a few frames and flatten
-     * against each other. Bubbles at different depths pass each other; lifted ones are over the
-     * front ones. The bubbles on the orbit in front of the avatar press against it.
+     * Soft contacts, as on iOS. Bubbles may lie over each other and over the avatar: they are
+     * pushed apart only once they overlap deep, over a few frames, and what flattens them is the
+     * blow, how fast they meet, not the touch. Bubbles at different depths pass each other;
+     * lifted ones are over the front ones. Only the bubbles in front of the avatar meet it.
      */
     private void collide(double rx, double ry, double settle) {
         final double base = dpf2(BUBBLE_DIAMETER / 2);
+        final double blow = dpf2(1300);
         for (int i = 0; i < gifts.size(); i++) {
             Orbit a = gifts.get(i).orbit;
             double ra = base * a.radiusScale();
-            if (a.state == Orbit.SETTLED && a.y >= 0 && avatarRadius > 0) {
-                // it sinks a little into the avatar's rim, flattened against it, and no further
+            if (a.state != Orbit.HELD && a.isInFront() && avatarRadius > 0) {
                 double dx = orbitCenterX + a.x * rx - avatarCenterX, dy = orbitCenterY + a.y * ry - avatarCenterY;
                 double d = Math.hypot(dx, dy);
-                double solid = avatarRadius * .9 + ra * .7, touch = avatarRadius + ra * .95;
-                if (d < touch && d > .001) {
+                if (d < avatarRadius + ra * .5 && d > .001) {
                     double nx = dx / d, ny = dy / d;
-                    a.press(Math.min(.16, (touch - d) / ra * .45), nx, ny);
-                    if (d < solid) {
+                    // landing on the avatar's edge flattens the bubble against it
+                    double closing = -(a.vx * rx * nx + a.vy * ry * ny);
+                    if (closing > 0) a.press(Math.min(.2, closing / blow), nx, ny);
+                    // at rest on the ring's near side it lies half over the avatar; pushed
+                    // further in, it is held back
+                    double solid = avatarRadius * .62 + ra * .2;
+                    if (a.state == Orbit.SETTLED && d < solid) {
                         double depth = solid - d;
                         a.x += depth * settle * nx / rx;
                         a.y += depth * settle * ny / ry;
-                        double vn = a.vx * rx * nx + a.vy * ry * ny;
-                        if (vn < 0) {
-                            a.vx -= 1.15 * vn * nx / rx;
-                            a.vy -= 1.15 * vn * ny / ry;
+                        if (closing > 0) {
+                            a.vx += 1.15 * closing * nx / rx;
+                            a.vy += 1.15 * closing * ny / ry;
                         }
+                        a.press(Math.min(.14, depth / ra), nx, ny);
                     }
                 }
             }
@@ -1003,23 +1054,27 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 if (a.isInFront() != b.isInFront()) continue;
                 double rb = base * b.radiusScale();
                 double dx = (b.x - a.x) * rx, dy = (b.y - a.y) * ry;
-                // the films flatten against each other as they touch, and overlap a little before they push
-                double d = Math.hypot(dx, dy), touch = (ra + rb) * .97, contact = (ra + rb) * .8;
+                double d = Math.hypot(dx, dy), touch = (ra + rb) * .92, contact = (ra + rb) * .7;
                 if (d >= touch) continue;
                 double nx = d > .001 ? dx / d : 1, ny = d > .001 ? dy / d : 0;
-                double press = Math.min(.14, (touch - d) / (ra + rb) * 1.1);
-                a.press(press, nx, ny);
-                b.press(press, nx, ny);
+                double vn = (b.vx - a.vx) * rx * nx + (b.vy - a.vy) * ry * ny;
+                if (vn < 0) {
+                    double press = Math.min(.16, -vn / blow);
+                    a.press(press, nx, ny);
+                    b.press(press, nx, ny);
+                }
                 if (d >= contact) continue;
                 double ia = inverseMass(a), ib = inverseMass(b), sum = ia + ib;
                 if (sum <= 0) continue;
                 double depth = contact - d;
+                double press = Math.min(.1, depth / (ra + rb) * 1.2);
+                a.press(press, nx, ny);
+                b.press(press, nx, ny);
                 double move = depth * settle / sum;
                 a.x -= move * ia * nx / rx;
                 a.y -= move * ia * ny / ry;
                 b.x += move * ib * nx / rx;
                 b.y += move * ib * ny / ry;
-                double vn = (b.vx - a.vx) * rx * nx + (b.vy - a.vy) * ry * ny;
                 if (vn < 0) {
                     // a little bounce, most of it taken by the lighter bubble
                     double impulse = -1.2 * vn / sum;
@@ -1118,15 +1173,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             scale *= 1f + .12f * musicPulse;
             float rim = dpf2(BUBBLE_DIAMETER / 2) * scale * (float) gift.orbit.radiusScale();
             gift.bounds.set(gx - rim, gy - rim, gx + rim, gy + rim);
-            gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .55 * gift.orbit.lift));
+            gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .95 * gift.orbit.lift));
             // Room for the stretched rim and the glow surrounding the gift.
             float extent = Math.max(1.48f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
             gift.visualBounds.set(gx - extent, gy - extent, gx + extent, gy + extent);
         }
-        // Held and springing back bubbles go over the others, the most lifted on top
+        // The nearer bubbles go over the farther ones; held and springing back ones over them
+        // all, the most lifted on top
         renderOrder.clear();
         renderOrder.addAll(drawOrder);
-        renderOrder.sort((a, b) -> Double.compare(a.orbit.isLifted() ? 1 + a.orbit.lift : 0, b.orbit.isLifted() ? 1 + b.orbit.lift : 0));
+        renderOrder.sort((a, b) -> Double.compare(a.orbit.isLifted() ? 2 + a.orbit.lift : a.orbit.depth(), b.orbit.isLifted() ? 2 + b.orbit.lift : b.orbit.depth()));
         collectLitShapes(realX, realY, realW, realH);
     }
 
@@ -1204,13 +1260,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /**
-     * The bubble's own glow: its rim shines like neon, and only just around it, as on iOS. A wide
-     * glow over the header made the bubbles look blurred.
+     * The bubble's own glow, just around its rim. At rest it is a breath of its color, a soap
+     * bubble does not shine; picked up, and on the music's beat, it lights up.
      */
     private void drawHalos(Canvas canvas) {
-        final float strength = lightStrength();
+        final float dim = 1f + .35f * musicDim;
         for (Gift gift : drawOrder) {
             if (gift.alpha <= 0f || gift.haloShader == null) continue;
+            final float lift = (float) Math.min(1, gift.orbit.lift);
+            final float glow = (.12f + .55f * lift + .5f * musicPulse) * dim * gift.alpha;
+            if (glow <= .01f) continue;
             final float cx = gift.bounds.centerX(), cy = gift.bounds.centerY();
             // the glow flares wider on the beat
             final float radius = gift.bounds.width() / 2f * HALO_EXTENT * (1f + .25f * musicPulse);
@@ -1218,27 +1277,30 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             lightMatrix.postTranslate(cx, cy);
             gift.haloShader.setLocalMatrix(lightMatrix);
             haloPaint.setShader(gift.haloShader);
-            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(.8f * strength * gift.alpha)));
+            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(glow)));
             canvas.drawCircle(cx, cy, radius, haloPaint);
         }
         haloPaint.setShader(null);
     }
 
     /**
-     * The light on the shapes near the bubbles, as on iOS: a bright rim in the bubble's color along
-     * a wide arc facing it, and on the round ones (the avatar, the buttons) a soft band of it inside
-     * the edge. It falls off with the distance from the bubble's surface and reaches about a bubble
-     * and a half, so the avatar's rim takes the colors of the bubbles around it.
+     * The light on the shapes near the bubbles, as on iOS: a thin bright rim in the bubble's color
+     * on the side facing it, and on the round ones (the avatar, the buttons) a glow of it fading
+     * inwards from that rim. It falls off with the distance from the bubble's surface and reaches
+     * about its own width, so the avatar's rim takes the colors of the bubbles around it, each on
+     * its own side; a bubble picked up shines stronger and further.
      */
     private void drawLight(Canvas canvas) {
         if (litCount == 0) return;
         final float strength = lightStrength();
-        final float rimWidth = dpf2(1.6f);
+        final float rimWidth = dpf2(1.3f);
         for (Gift gift : drawOrder) {
             if (gift.alpha <= 0f || gift.glintShader == null) continue;
+            final float lift = (float) Math.min(1, gift.orbit.lift);
             final float bx = gift.bounds.centerX(), by = gift.bounds.centerY();
             final float br = gift.bounds.width() / 2f;
-            final float reach = br * 2.8f * (1f + .3f * musicPulse);
+            final float reach = br * 2.2f * (1f + .3f * musicPulse);
+            final float power = gift.alpha * strength * (.62f + .6f * lift);
             boolean shaderSet = false;
             for (int s = 0; s < litCount; s++) {
                 final int i = s * LIT_FIELDS;
@@ -1249,12 +1311,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 final float gap = Math.max(0, (float) Math.hypot(dx, dy) - br);
                 if (gap >= reach) continue;
                 final float near = 1f - gap / reach;
-                final float intensity = near * (.55f + .45f * near) * gift.alpha * litShapes[i + 5] * strength;
+                final float intensity = near * (.55f + .45f * near) * litShapes[i + 5] * power;
                 if (intensity <= .01f) continue;
                 if (!shaderSet) {
                     shaderSet = true;
-                    // the light's own falloff from the bubble makes the arc facing it the brightest
-                    final float lightRadius = br + reach * 1.35f;
+                    // the light's own falloff from the bubble keeps it to the side facing it
+                    final float lightRadius = br + reach;
                     lightMatrix.setScale(lightRadius, lightRadius);
                     lightMatrix.postTranslate(bx, by);
                     gift.glintShader.setLocalMatrix(lightMatrix);
@@ -1262,19 +1324,22 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
                 final boolean round = radius >= Math.min(r - l, b - t) / 2f - .5f && Math.abs((r - l) - (b - t)) < 1f;
                 litRect.set(l, t, r, b);
-                lightPaint.setStyle(Paint.Style.FILL);
-                lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.06f * intensity)));
-                canvas.drawRoundRect(litRect, radius, radius, lightPaint);
                 lightPaint.setStyle(Paint.Style.STROKE);
                 if (round) {
-                    // a soft band inside the edge: strokes going in, fainter
-                    final float cx = litRect.centerX(), cy = litRect.centerY(), rr = radius;
-                    lightPaint.setStrokeWidth(rr * .16f);
-                    lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.16f * intensity)));
-                    canvas.drawCircle(cx, cy, rr * .86f, lightPaint);
-                    lightPaint.setStrokeWidth(rr * .08f);
-                    lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.3f * intensity)));
-                    canvas.drawCircle(cx, cy, rr * .93f, lightPaint);
+                    // the glow inside the rim: thin rings going in, each fainter
+                    final float cx = litRect.centerX(), cy = litRect.centerY();
+                    final float step = radius * .045f;
+                    lightPaint.setStrokeWidth(step + 1f);
+                    for (int ring = 0; ring < 5; ring++) {
+                        final float fade = 1f - ring / 5f;
+                        lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.3f * fade * fade * intensity)));
+                        canvas.drawCircle(cx, cy, radius - step * (ring + .5f), lightPaint);
+                    }
+                } else {
+                    lightPaint.setStyle(Paint.Style.FILL);
+                    lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.07f * intensity)));
+                    canvas.drawRoundRect(litRect, radius, radius, lightPaint);
+                    lightPaint.setStyle(Paint.Style.STROKE);
                 }
                 lightPaint.setStrokeWidth(rimWidth);
                 lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(intensity)));
@@ -1580,9 +1645,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double delta = angle - orbitLastAngle;
         delta = Math.atan2(Math.sin(delta), Math.cos(delta));
         orbitLastAngle = angle;
-        for (Gift gift : gifts) {
-            gift.orbit.phase += delta;
-        }
+        ringPhase += delta;
         final double seconds = Math.max(.001, (time - orbitLastTime) / 1000.0);
         orbitLastTime = time;
         // the finger's pace, smoothed over a few events, is the spin it leaves the orbit with
