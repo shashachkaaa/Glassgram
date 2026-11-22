@@ -381,8 +381,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         private void draw(Canvas canvas, ProfileHeaderGlass glass, boolean hasGlass, boolean advanceParticles) {
             canvas.save();
-            double vx = orbit.vx * orbitRadiusX, vy = orbit.vy * orbitRadiusY;
-            float stretch = (float) Math.min(.25, Math.hypot(vx, vy) / dpf2(950));
+            // The film stretches with how fast the bubble goes, smoothed: the finger's speed
+            // jumps from one touch event to the next, the bubble must not twitch with it
+            double vx = orbit.stretchVx, vy = orbit.stretchVy;
+            float stretch = (float) (MAX_STRETCH * Math.tanh(Math.hypot(vx, vy) / dpf2(STRETCH_SPEED)));
             drawBubble(canvas, bounds, alpha, (float) Math.toDegrees(Math.atan2(vy, vx)), stretch,
                     hasGlass, glass, inFront ? frontPiece : rearPiece);
             canvas.translate(bounds.centerX(), bounds.centerY());
@@ -833,6 +835,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
     private static final double RELEASE_SPEED = .2;
+    /** The film stretches at most by this, softly, half of it at this speed, dp/s, and eases into it, s. */
+    private static final double MAX_STRETCH = .18, STRETCH_SPEED = 1300, STRETCH_EASE = .12;
     /**
      * Thrown, by a flick at least this fast, dp/s, it flies off the way of the finger, as fast but
      * no faster than the most, slows down as if thrown along a table, and once it nearly stops or
@@ -857,6 +861,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double lift;
         /** How much a contact flattens the bubble, and the direction it is pressed in. */
         double squash, squashAngle;
+        /** Its speed on the screen, px/s, smoothed, for how much the film stretches and where to. */
+        double stretchVx, stretchVy;
         int state = FREE;
         /** How long it has been flying since it was thrown, seconds. */
         double flightTime;
@@ -987,6 +993,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             for (int i = 0; i < count; i++) {
                 Orbit body = gifts.get(i).orbit;
                 body.squash *= Math.exp(-9 * dt);
+                final double ease = -Math.expm1(-dt / STRETCH_EASE);
+                body.stretchVx += (body.vx * rx - body.stretchVx) * ease;
+                body.stretchVy += (body.vy * ry - body.stretchVy) * ease;
                 if (body.state == Orbit.HELD) {
                     body.lift += (1 - body.lift) * -Math.expm1(-18 * dt);
                     continue;
