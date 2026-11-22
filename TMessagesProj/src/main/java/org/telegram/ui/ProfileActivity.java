@@ -3149,6 +3149,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (sharedMediaLayout != null && sharedMediaLayout.checkPinchToZoom(ev)) {
                     return true;
                 }
+                // A sideways drag around the avatar turns the gifts' orbit: from then on the
+                // gesture is the orbit's, the views under the finger lose it
+                if (giftsView != null && avatarContainer2 != null) {
+                    final boolean turning = giftsView.isTurningOrbit();
+                    final float gx = ev.getX() - avatarContainer2.getX() - giftsView.getX();
+                    final float gy = ev.getY() - avatarContainer2.getY() - giftsView.getY();
+                    if (giftsView.onOrbitTouch(ev, gx, gy)) {
+                        if (!turning) {
+                            final MotionEvent cancel = MotionEvent.obtain(ev);
+                            cancel.setAction(MotionEvent.ACTION_CANCEL);
+                            super.dispatchTouchEvent(cancel);
+                            cancel.recycle();
+                        }
+                        return true;
+                    }
+                }
                 return super.dispatchTouchEvent(ev);
             }
 
