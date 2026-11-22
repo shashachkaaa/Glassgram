@@ -812,12 +812,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double DEPTH_SCALE = .29, LIFT_SCALE = 1.05;
     /** Each bubble's own speed along its orbit, in ring radii per second, give or take a sixth. */
     private static final double ORBIT_SPEED = .32;
-    /** How fast a bubble gets back to its own speed after a spin, and takes the finger's, 1/s. */
-    private static final double PACE_DRIVE = 1.3, SPIN_DRIVE = 7;
-    /** How firmly a bubble follows its drifting orbit radius, and how much its radius swings. */
-    private static final double DRIFT_SPRING = 1.6, DRIFT_DAMPING = .8;
+    /**
+     * How fast a bubble gets back to its own speed after a spin, takes the finger's, and drops
+     * the speed along the orbit it was let go with, 1/s.
+     */
+    private static final double PACE_DRIVE = 2, SPIN_DRIVE = 7, RETURN_PACE = 14;
+    /** How firmly a bubble keeps to its drifting orbit radius: it is pushed off it, not flung. */
+    private static final double DRIFT_SPRING = 9, DRIFT_DAMPING = 4.5;
     /** The spring a bubble let go of springs back to its orbit on, rad/s, and its damping. */
     private static final double RETURN_SPRING = 12, RETURN_DAMPING = .75;
+    /** The fastest a free bubble moves across its orbit and along it, ring radii per second. */
+    private static final double MAX_ACROSS = 1.2, MAX_ALONG = 3.5;
     /** Bubbles closer than this on the disk drift apart. */
     private static final double SPACING = .42, SPACING_PUSH = 6;
     /**
@@ -827,9 +832,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double EVEN_PUSH = .3;
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
-    private static final double RELEASE_SPEED = .35;
-    private static final float MAX_RELEASE_SPEED = 1400;
-    private static final double MAX_SPIN = 6;
+    private static final double RELEASE_SPEED = .2;
+    private static final float MAX_RELEASE_SPEED = 700;
+    private static final double MAX_SPIN = 3;
+    /** A bubble knocked by another takes at most this speed from it, dp/s, and barely bounces. */
+    private static final float MAX_KNOCK = 400;
+    private static final double BOUNCE = .1;
 
     /** Seconds of the gifts' own time: their drifting follows it. */
     private double physicsTime;
@@ -983,7 +991,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 } else {
                     ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
                 }
-                double at = orbitHeld ? SPIN_DRIVE * (spinRate * r - vt) : PACE_DRIVE * (body.speed - vt);
+                // let go, it drops the finger's speed along the orbit at once and goes back to
+                // where it was, it does not whirl round the avatar
+                double at = orbitHeld && !returning ? SPIN_DRIVE * (spinRate * r - vt)
+                        : (returning ? RETURN_PACE : PACE_DRIVE) * (body.speed - vt);
                 if (count > 1) {
                     for (int j = 0; j < count; j++) {
                         if (j == i) continue;
@@ -1002,7 +1013,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                         av += SPACING_PUSH * (SPACING - d) * dv / d;
                     }
                 }
-                final double nvu = vu + au * dt, nvv = vv + av * dt;
+                double nvu = vu + au * dt, nvv = vv + av * dt;
+                if (!returning) {
+                    // however hard it is knocked, a free bubble does not fly off
+                    final double across = Math.max(-MAX_ACROSS, Math.min(MAX_ACROSS, nvu * nu + nvv * nv));
+                    final double along = Math.max(-MAX_ALONG, Math.min(MAX_ALONG, nvu * tu + nvv * tv));
+                    nvu = across * nu + along * tu;
+                    nvv = across * nv + along * tv;
+                }
                 body.setDisk(u + nvu * dt, v + nvv * dt, nvu, nvv);
                 body.lift *= Math.exp(-(returning ? 4 : 5.2) * dt);
                 if (returning) {
@@ -1090,6 +1108,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     double press = Math.min(.16, -vn / blow);
                     a.press(press, nx, ny);
                     b.press(press, nx, ny);
+                    vn = Math.max(vn, -dpf2(MAX_KNOCK));
                 }
                 if (d >= contact) continue;
                 double ia = inverseMass(a), ib = inverseMass(b), sum = ia + ib;
@@ -1104,8 +1123,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 b.x += move * ib * nx / rx;
                 b.y += move * ib * ny / ry;
                 if (vn < 0) {
-                    // a little bounce, most of it taken by the lighter bubble
-                    double impulse = -1.2 * vn / sum;
+                    // pushed aside, barely bouncing, most of it taken by the lighter bubble
+                    double impulse = -(1 + BOUNCE) * vn / sum;
                     a.vx -= impulse * ia * nx / rx;
                     a.vy -= impulse * ia * ny / ry;
                     b.vx += impulse * ib * nx / rx;
