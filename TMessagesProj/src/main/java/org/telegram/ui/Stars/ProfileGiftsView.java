@@ -323,11 +323,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             glintShader = new RadialGradient(0, 0, 1f,
                     new int[]{glint, Theme.multAlpha(glint, .6f), Theme.multAlpha(glint, .2f), Theme.multAlpha(glint, 0f)},
                     new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
-            // A ring at the rim: inside, the bubble covers it; outside it fades out at once
-            final float rim = 1f / HALO_EXTENT;
-            haloShader = new RadialGradient(0, 0, 1f,
-                    new int[]{Theme.multAlpha(glint, 0f), Theme.multAlpha(glint, 0f), Theme.multAlpha(glint, .55f), Theme.multAlpha(glint, .18f), Theme.multAlpha(glint, 0f)},
-                    new float[]{0f, rim * .9f, rim, rim + (1f - rim) * .35f, 1f}, Shader.TileMode.CLAMP);
+            glowColor = glint;
         }
 
         public boolean equals(Gift b) {
@@ -350,8 +346,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         private RadialGradient lightShader;
         /** The same in the gift's saturated color, for the rims it shines on. */
         private RadialGradient glintShader;
-        /** The glow just around the bubble's rim, see {@link #drawHalos}. */
-        private RadialGradient haloShader;
+        /** The color of the glow just around the bubble's rim, see {@link #drawGlow}. */
+        private int glowColor;
         private Sparkles sparkles;
 
         private final ProfileHeaderGlass.Piece rearPiece = new ProfileHeaderGlass.Piece();
@@ -454,6 +450,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             bubbleOutline.close();
             final float lift = (float) orbit.lift;
             final int tint = ColorUtils.blendARGB(color, edgeColor, .25f);
+            drawGlow(canvas, r, lift, alpha);
             canvas.save();
             canvas.clipPath(bubbleOutline);
             if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -509,6 +506,26 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.restore();
         }
 
+        /**
+         * The bubble's own glow, along its outline as it wobbles, stretches and flattens: strokes
+         * of it fading outwards, their inner halves under the glass drawn over them. At rest it is
+         * a breath of its color, a soap bubble does not shine; picked up, and on the music's beat,
+         * it lights up.
+         */
+        private void drawGlow(Canvas canvas, float r, float lift, float alpha) {
+            final float glow = (.12f + .55f * Math.min(1f, lift) + .5f * musicPulse) * (1f + .35f * musicDim) * alpha;
+            if (glow <= .01f) return;
+            final float spread = 1f + .25f * musicPulse;
+            haloPaint.setShader(null);
+            haloPaint.setStyle(Paint.Style.STROKE);
+            haloPaint.setStrokeJoin(Paint.Join.ROUND);
+            for (int i = 0; i < GLOW_WIDTHS.length; i++) {
+                haloPaint.setStrokeWidth(r * GLOW_WIDTHS[i] * spread);
+                haloPaint.setColor(Theme.multAlpha(glowColor, Utilities.clamp01(GLOW_ALPHAS[i] * glow)));
+                canvas.drawPath(bubbleOutline, haloPaint);
+            }
+        }
+
         private void drawArtwork(Canvas canvas, float alpha, boolean advanceParticles) {
             if (patternDrawable == null) {
                 // No pattern to show (an old status): the stars of the gift's color instead
@@ -528,8 +545,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     private static final int DEFAULT_BUBBLE_COLOR = 0xFF8E8E93;
-    /** How far the glow around a bubble reaches, in its radii. */
-    private static final float HALO_EXTENT = 1.32f;
+    /** The glow around a bubble: stroke widths in its radii, the widest faintest; half of each is outside. */
+    private static final float[] GLOW_WIDTHS = {.7f, .54f, .4f, .27f, .15f};
+    private static final float[] GLOW_ALPHAS = {.08f, .1f, .13f, .17f, .24f};
 
     /** The color of the light a bubble of this color gives off: its hue, bright and a little washed out. */
     private static int lightColorOf(int color) {
@@ -568,15 +586,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     private void drawSheen(Canvas canvas, float cx, float cy, float r, float nx, float ny, float reach, float alpha) {
+        // Along the outline itself, clipped to its inside: the band hugs the film as it wobbles
         sheenMatrix.setScale(r * reach, r * reach);
         sheenMatrix.postTranslate(cx + nx * r, cy + ny * r);
         sheenPaint.getShader().setLocalMatrix(sheenMatrix);
-        sheenPaint.setStrokeWidth(r * .26f);
+        sheenPaint.setStrokeJoin(Paint.Join.ROUND);
+        sheenPaint.setStrokeWidth(r * .5f);
         sheenPaint.setAlpha((int) (0xFF * alpha * .45f));
-        canvas.drawCircle(cx, cy, r * .84f, sheenPaint);
-        sheenPaint.setStrokeWidth(r * .12f);
+        canvas.drawPath(bubbleOutline, sheenPaint);
+        sheenPaint.setStrokeWidth(r * .22f);
         sheenPaint.setAlpha((int) (0xFF * alpha * .55f));
-        canvas.drawCircle(cx, cy, r * .92f, sheenPaint);
+        canvas.drawPath(bubbleOutline, sheenPaint);
     }
 
     /**
@@ -1302,8 +1322,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float rim = dpf2(BUBBLE_DIAMETER / 2) * scale * (float) gift.orbit.radiusScale();
             gift.bounds.set(gx - rim, gy - rim, gx + rim, gy + rim);
             gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .95 * gift.orbit.lift));
-            // Room for the stretched rim and the glow surrounding the gift.
-            float extent = Math.max(1.48f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
+            // Room for the stretched, flattened rim and the glow along it: drawn in the gift's
+            // own layer, it must not be cut off at its edges
+            float extent = Math.max(1.9f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
             gift.visualBounds.set(gx - extent, gy - extent, gx + extent, gy + extent);
         }
         // The nearer bubbles go over the farther ones; held and springing back ones over them
@@ -1385,30 +1406,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private float lightStrength() {
         return (1f + .6f * musicPulse) * (1f + .35f * musicDim);
-    }
-
-    /**
-     * The bubble's own glow, just around its rim. At rest it is a breath of its color, a soap
-     * bubble does not shine; picked up, and on the music's beat, it lights up.
-     */
-    private void drawHalos(Canvas canvas) {
-        final float dim = 1f + .35f * musicDim;
-        for (Gift gift : drawOrder) {
-            if (gift.alpha <= 0f || gift.haloShader == null) continue;
-            final float lift = (float) Math.min(1, gift.orbit.lift);
-            final float glow = (.12f + .55f * lift + .5f * musicPulse) * dim * gift.alpha;
-            if (glow <= .01f) continue;
-            final float cx = gift.bounds.centerX(), cy = gift.bounds.centerY();
-            // the glow flares wider on the beat
-            final float radius = gift.bounds.width() / 2f * HALO_EXTENT * (1f + .25f * musicPulse);
-            lightMatrix.setScale(radius, radius);
-            lightMatrix.postTranslate(cx, cy);
-            gift.haloShader.setLocalMatrix(lightMatrix);
-            haloPaint.setShader(gift.haloShader);
-            haloPaint.setAlpha((int) (0xFF * Utilities.clamp01(glow)));
-            canvas.drawCircle(cx, cy, radius, haloPaint);
-        }
-        haloPaint.setShader(null);
     }
 
     /**
@@ -1517,12 +1514,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (!hasAnyGift) return;
         final int save = canvas.save();
         clipGiftLayer(canvas);
-        // The halos go on the header under everything; the light on the avatar and the buttons
-        // over them, under the bubbles in front of them
+        // The light on the avatar and the buttons goes over them, under the bubbles in front of them
         if (front) {
             drawLight(canvas);
-        } else {
-            drawHalos(canvas);
         }
         if (hasVisibleGift) {
             ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
