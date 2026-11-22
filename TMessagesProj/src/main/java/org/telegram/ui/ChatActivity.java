@@ -8510,6 +8510,7 @@ public class ChatActivity extends BaseFragment implements
                 bottomViewsVisibilityController.setViewVisible(BOTTOM_OVERLAY_CHAT_CONTAINER, visibility == VISIBLE, getMeasuredWidth() > 0);
             }
         };
+        bottomChannelButtonsLayout.setupDrawableForContainer();
         bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
         bottomChannelButtonsLayout.setClipChildren(false);
         bottomChannelButtonsLayout.setAccentColor(getThemedColor(Theme.key_featuredStickers_addButton));
@@ -48162,7 +48163,9 @@ public class ChatActivity extends BaseFragment implements
             bottomOverlay.setTranslationY(dp(54) * hideFactor);
         }
         if (chatInputViewsContainer != null) {
-            chatInputViewsContainer.setInputBubbleAlpha((int) (255 * (1f - hideFactor)));
+            final float channelPillAlpha = bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE
+                ? bottomChannelButtonsLayout.getAlpha() : 0f;
+            chatInputViewsContainer.setInputBubbleAlpha((int) (255 * (1f - hideFactor)), channelPillAlpha);
             chatInputViewsContainer.setInputBubbleTranslationY(dp(54) * hideFactor);
             chatInputViewsContainer.setPullHintVisible(pullHintProgress > 0f);
         }
