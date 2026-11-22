@@ -833,6 +833,13 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
     private static final double RELEASE_SPEED = .2;
+    /**
+     * Thrown, by a flick at least this fast, dp/s, it flies off the way of the finger, as fast but
+     * no faster than the most, slows down as if thrown along a table, and once it nearly stops or
+     * after a while springs back to its orbit.
+     */
+    private static final float THROW_SPEED = 600, MAX_THROW_SPEED = 2200, FLIGHT_STOP_SPEED = 160;
+    private static final double FLIGHT_DRAG = .15, MAX_FLIGHT = .6;
     private static final float MAX_RELEASE_SPEED = 700;
     private static final double MAX_SPIN = 3;
     /** A bubble knocked by another takes at most this speed from it, dp/s, and barely bounces. */
@@ -844,13 +851,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private double[] ringAngles = new double[0];
 
     private static final class Orbit {
-        static final int FREE = 0, HELD = 1, RETURNING = 2;
+        static final int FREE = 0, HELD = 1, RETURNING = 2, FLYING = 3;
         /** The bubble, in orbit radii from the orbit's center, and its speed in radii per second. */
         double x, y, vx, vy;
         double lift;
         /** How much a contact flattens the bubble, and the direction it is pressed in. */
         double squash, squashAngle;
         int state = FREE;
+        /** How long it has been flying since it was thrown, seconds. */
+        double flightTime;
         /** Springing back to the far side of its orbit, and already gone behind the avatar. */
         boolean sunk;
         /** The radius its orbit drifts around, how far and how fast, and its own speed. */
@@ -911,9 +920,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             return perspectiveScale() * (1 + LIFT_SCALE * lift);
         }
 
-        /** Held, or springing back: over everything, the avatar included. */
+        /** Held, thrown or springing back: over everything, the avatar included. */
         boolean isLifted() {
             return state != FREE;
+        }
+
+        /** Thrown or springing back: it flies over the others, it does not push them. */
+        boolean isPassing() {
+            return state == FLYING || state == RETURNING;
         }
 
         boolean isInFront() {
@@ -977,6 +991,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     body.lift += (1 - body.lift) * -Math.expm1(-18 * dt);
                     continue;
                 }
+                if (body.state == Orbit.FLYING) {
+                    // straight on, slowing down, still lifted
+                    final double drag = Math.exp(-dt / FLIGHT_DRAG);
+                    body.vx *= drag;
+                    body.vy *= drag;
+                    body.x += body.vx * dt;
+                    body.y += body.vy * dt;
+                    body.flightTime += dt;
+                    if (Math.hypot(body.vx * rx, body.vy * ry) < dpf2(FLIGHT_STOP_SPEED) || body.flightTime > MAX_FLIGHT) {
+                        body.state = Orbit.RETURNING;
+                    }
+                    continue;
+                }
                 final double u = body.u(), v = body.v(), vu = body.vu(), vv = body.vv();
                 final double r = Math.max(.05, Math.hypot(u, v));
                 final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
@@ -997,7 +1024,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                         : (returning ? RETURN_PACE : PACE_DRIVE) * (body.speed - vt);
                 if (count > 1) {
                     for (int j = 0; j < count; j++) {
-                        if (j == i) continue;
+                        if (j == i || gifts.get(j).orbit.isPassing()) continue;
                         final double d = Math.atan2(Math.sin(ringAngles[i] - ringAngles[j]), Math.cos(ringAngles[i] - ringAngles[j]));
                         if (Math.abs(d) < even) at += EVEN_PUSH * Math.copySign(even - Math.abs(d), d) * r;
                     }
@@ -1007,6 +1034,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 for (int j = 0; j < count; j++) {
                     if (j == i) continue;
                     final Orbit other = gifts.get(j).orbit;
+                    if (other.isPassing()) continue;
                     final double du = u - other.u(), dv = v - other.v(), d = Math.hypot(du, dv);
                     if (d < SPACING && d > 1e-3) {
                         au += SPACING_PUSH * (SPACING - d) * du / d;
@@ -1110,7 +1138,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         for (int i = 0; i < gifts.size(); i++) {
             Orbit a = gifts.get(i).orbit;
             double ra = base * a.radiusScale();
-            if (a.state != Orbit.HELD && a.isInFront() && avatarRadius > 0) {
+            if (a.state != Orbit.HELD && a.state != Orbit.FLYING && a.isInFront() && avatarRadius > 0) {
                 double dx = orbitCenterX + a.x * rx - avatarCenterX, dy = orbitCenterY + a.y * ry - avatarCenterY;
                 double d = Math.hypot(dx, dy);
                 if (d < avatarRadius + ra * .5 && d > .001) {
@@ -1135,7 +1163,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
             for (int j = i + 1; j < gifts.size(); j++) {
                 Orbit b = gifts.get(j).orbit;
-                if (a.isInFront() != b.isInFront()) continue;
+                // a thrown or springing back bubble flies over the others
+                if (a.isInFront() != b.isInFront() || a.isPassing() || b.isPassing()) continue;
                 double rb = base * b.radiusScale();
                 double dx = (b.x - a.x) * rx, dy = (b.y - a.y) * ry;
                 double d = Math.hypot(dx, dy), touch = (ra + rb) * .92, contact = (ra + rb) * .7;
@@ -1566,8 +1595,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /**
-     * A bubble is picked up and pulled away from its orbit, as far as the finger goes; let go, it
-     * springs back to it with a part of the finger's speed, a little past it, and flies on.
+     * A bubble is picked up and pulled away from its orbit, as far as the finger goes. Let go, it
+     * springs back to it with a part of the finger's speed, a little past it, and flies on; thrown
+     * by a flick, it first flies off the way of the finger, over the others, and slows down.
      */
     private boolean onGiftTouch(MotionEvent event, boolean front) {
         float x = event.getX(), y = event.getY();
@@ -1632,8 +1662,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         final double rx = orbitRadiusX, ry = orbitRadiusY;
         body.x = (x - orbitCenterX) / rx;
         body.y = (y - orbitCenterY) / ry;
-        double speed = Math.hypot(vx, vy) * RELEASE_SPEED;
-        final double scale = speed > 0 ? Math.min(speed, dpf2(MAX_RELEASE_SPEED)) / Math.hypot(vx, vy) : 0;
+        final double fingerSpeed = Math.hypot(vx, vy);
+        if (fingerSpeed >= dpf2(THROW_SPEED)) {
+            final double scale = Math.min(fingerSpeed, dpf2(MAX_THROW_SPEED)) / fingerSpeed;
+            body.state = Orbit.FLYING;
+            body.flightTime = 0;
+            body.vx = vx * scale / rx;
+            body.vy = vy * scale / ry;
+            return;
+        }
+        double speed = fingerSpeed * RELEASE_SPEED;
+        final double scale = speed > 0 ? Math.min(speed, dpf2(MAX_RELEASE_SPEED)) / fingerSpeed : 0;
         body.state = Orbit.RETURNING;
         body.vx = vx * scale / rx;
         body.vy = vy * scale / ry;
