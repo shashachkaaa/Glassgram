@@ -801,17 +801,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /*
      * The gifts fly free around the avatar, as on iOS: each on its own orbit in a disk around it,
      * seen from above its near edge (its far side, at the top, behind the avatar, its near side
-     * in front of it). Each keeps about the same speed along its orbit, so the inner ones go round
-     * faster and overtake the outer ones, and each drifts in and out at its own pace. They push
-     * each other apart, and the ones in front of the avatar press against it.
+     * in front of it), at its own speed, drifting a little in and out at its own pace. Close
+     * neighbours along the ring push each other on, so they spread around it without being
+     * placed, and the ones in front of the avatar press against it.
      *
      * The disk's coordinates: its middle ring is the unit circle. On the screen, in orbit radii,
      * it is an ellipse, wide and flat, its right end a little up.
      */
     private static final double RING_WIDTH = .98, RING_HEIGHT = .95, RING_SLOPE = -.38;
     private static final double DEPTH_SCALE = .29, LIFT_SCALE = 1.05;
-    /** Each bubble's own speed along its orbit, in ring radii per second. */
-    private static final double ORBIT_SPEED = .37;
+    /** Each bubble's own speed along its orbit, in ring radii per second, give or take a sixth. */
+    private static final double ORBIT_SPEED = .32;
     /** How fast a bubble gets back to its own speed after a spin, and takes the finger's, 1/s. */
     private static final double PACE_DRIVE = 1.3, SPIN_DRIVE = 7;
     /** How firmly a bubble follows its drifting orbit radius, and how much its radius swings. */
@@ -820,12 +820,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double RETURN_SPRING = 12, RETURN_DAMPING = .75;
     /** Bubbles closer than this on the disk drift apart. */
     private static final double SPACING = .42, SPACING_PUSH = 6;
+    /**
+     * Neighbours closer along the ring than an even share of it push each other on, rad/s² for
+     * each radian closer: gently, so the gaps between them breathe but they never bunch.
+     */
+    private static final double EVEN_PUSH = .3;
+    /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
+    private static final double MAX_DRIFT = 1.13;
     private static final double RELEASE_SPEED = .35;
     private static final float MAX_RELEASE_SPEED = 1400;
     private static final double MAX_SPIN = 6;
 
     /** Seconds of the gifts' own time: their drifting follows it. */
     private double physicsTime;
+    private double[] ringAngles = new double[0];
 
     private static final class Orbit {
         static final int FREE = 0, HELD = 1, RETURNING = 2;
@@ -842,11 +850,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         Orbit(long id, double angle, double time) {
             final java.util.Random random = new java.util.Random(id * 7919 + 17);
-            base = .96 + .1 * random.nextDouble();
-            swing = .18 + .14 * random.nextDouble();
-            pace = .5 + .35 * random.nextDouble();
+            base = .98 + .04 * random.nextDouble();
+            swing = .06 + .05 * random.nextDouble();
+            pace = .35 + .25 * random.nextDouble();
             phase = random.nextDouble() * 2 * Math.PI;
-            speed = ORBIT_SPEED * (.9 + .2 * random.nextDouble());
+            speed = ORBIT_SPEED * (.84 + .32 * random.nextDouble());
             final double r = radiusAt(time);
             final double u = r * Math.cos(angle), v = r * Math.sin(angle);
             setDisk(u, v, -speed * Math.sin(angle), speed * Math.cos(angle));
@@ -945,9 +953,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (orbitHeld && SystemClock.uptimeMillis() - orbitMoveTime > 50) {
             spinRate *= Math.exp(-elapsed / .06);
         }
+        final int count = gifts.size();
+        if (ringAngles.length < count) ringAngles = new double[count];
+        final double even = count > 0 ? 2 * Math.PI / count : 0;
         for (int step = 0; step < steps; step++) {
             physicsTime += dt;
-            for (int i = 0; i < gifts.size(); i++) {
+            for (int i = 0; i < count; i++) {
+                final Orbit body = gifts.get(i).orbit;
+                ringAngles[i] = Math.atan2(body.v(), body.u());
+            }
+            for (int i = 0; i < count; i++) {
                 Orbit body = gifts.get(i).orbit;
                 body.squash *= Math.exp(-9 * dt);
                 if (body.state == Orbit.HELD) {
@@ -968,10 +983,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 } else {
                     ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
                 }
-                final double at = orbitHeld ? SPIN_DRIVE * (spinRate * r - vt) : PACE_DRIVE * (body.speed - vt);
+                double at = orbitHeld ? SPIN_DRIVE * (spinRate * r - vt) : PACE_DRIVE * (body.speed - vt);
+                if (count > 1) {
+                    for (int j = 0; j < count; j++) {
+                        if (j == i) continue;
+                        final double d = Math.atan2(Math.sin(ringAngles[i] - ringAngles[j]), Math.cos(ringAngles[i] - ringAngles[j]));
+                        if (Math.abs(d) < even) at += EVEN_PUSH * Math.copySign(even - Math.abs(d), d) * r;
+                    }
+                }
                 double au = ar * nu + at * tu, av = ar * nv + at * tv;
                 // the others close by on the disk push it away a little
-                for (int j = 0; j < gifts.size(); j++) {
+                for (int j = 0; j < count; j++) {
                     if (j == i) continue;
                     final Orbit other = gifts.get(j).orbit;
                     final double du = u - other.u(), dv = v - other.v(), d = Math.hypot(du, dv);
@@ -1133,7 +1155,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         final float realCX = realX + realW / 2.0f;
         final float realCY = realY + realH / 2.0f;
 
-        final float orbitX = Math.min(Math.min(acx, getWidth() - acx) - dp(23), aw * 2.1f);
+        // The ring and the bubbles drifting out of it, at their size on its sides, stay on the screen
+        final float orbitX = Math.min((float) ((Math.min(acx, getWidth() - acx) - dpf2(28)) / (RING_WIDTH * MAX_DRIFT)), aw * 2.1f);
         final float orbitY = ah * .57f;
         orbitCenterX = acx;
         orbitCenterY = acy;
