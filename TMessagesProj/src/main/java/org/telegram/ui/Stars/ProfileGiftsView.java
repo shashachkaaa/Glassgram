@@ -860,11 +860,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final float STRETCH_SPEED = 1300;
     /**
      * Thrown, by a flick at least this fast, dp/s, it slides round its orbit the way the flick
-     * went along it, at most this fast, ring radii a second, a fraction of the flick, and slows
-     * down to its own pace in about this long, s: a quick flick takes it a third of the way round.
+     * went along it (flicked straight at the avatar or away from it, its own way round), a
+     * fraction of the flick, ring radii a second, at least and at most this fast, and slows down
+     * to its own pace in about this long, s: from a sixth of the way round to half of it, never
+     * round and round.
      */
-    private static final float THROW_SPEED = 600;
-    private static final double MAX_THROW_ALONG = 3.5, THROW_ALONG = .3, THROW_SLOWDOWN = .7;
+    private static final float THROW_SPEED = 350;
+    private static final double MIN_THROW_ALONG = 1.4, MAX_THROW_ALONG = 3, THROW_ALONG = .3, THROW_SLOWDOWN = .85;
+    /**
+     * Flicked away from the avatar, it goes on outwards with this part of the flick, ring radii a
+     * second, and swings back to its orbit on a softer spring than a bubble just let go of.
+     */
+    private static final double THROW_OUT = .3, THROW_SPRING = 6, THROW_DAMPING = .8;
+    /** The finger's speed at its last move counts for the flick if it lifted within this, ms. */
+    private static final long FLICK_WINDOW = 40;
     private static final float MAX_RELEASE_SPEED = 700;
     private static final double MAX_SPIN = 3;
     /** A bubble knocked by another takes at most this speed from it, dp/s, and barely bounces. */
@@ -1035,7 +1044,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 // Held on its orbit at any speed, its radius following its own drift; one let go
                 // of, or thrown, springs back to it
                 double ar = -vt * vt / r;
-                if (returning || thrown) {
+                if (thrown) {
+                    ar += -THROW_SPRING * THROW_SPRING * (r - target) - 2 * THROW_DAMPING * THROW_SPRING * vr;
+                    body.flightTime += dt;
+                } else if (returning) {
                     ar += -RETURN_SPRING * RETURN_SPRING * (r - target) - 2 * RETURN_DAMPING * RETURN_SPRING * vr;
                 } else {
                     ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
@@ -1080,7 +1092,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
                 body.setDisk(u + nvu * dt, v + nvv * dt, nvu, nvv);
                 body.lift *= Math.exp(-(returning ? 4 : thrown ? 3 : 5.2) * dt);
-                if (thrown && Math.abs(vt - body.speed) < .25 && Math.abs(r - target) < .12) {
+                if (thrown && body.flightTime > .3 && Math.abs(vt - body.speed) < .25 && Math.abs(r - target) < .12) {
                     body.state = Orbit.FREE;
                     body.sunk = false;
                 }
@@ -1576,6 +1588,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private Gift movingGift;
     private float downX, downY, grabX, grabY;
+    private long lastMoveTime;
     private boolean dragging;
     private VelocityTracker velocityTracker;
 
@@ -1641,6 +1654,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     heldVx = velocityTracker.getXVelocity();
                     heldVy = velocityTracker.getYVelocity();
                 }
+                lastMoveTime = event.getEventTime();
                 invalidate();
             }
         } else if (action == MotionEvent.ACTION_UP) {
@@ -1652,6 +1666,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     velocityTracker.computeCurrentVelocity(1000);
                     vx = velocityTracker.getXVelocity();
                     vy = velocityTracker.getYVelocity();
+                }
+                // A flick's last instant often slows down as the finger lifts: its speed just
+                // before counts too, if it was just before
+                if (event.getEventTime() - lastMoveTime <= FLICK_WINDOW && Math.hypot(heldVx, heldVy) > Math.hypot(vx, vy)) {
+                    vx = heldVx;
+                    vy = heldVy;
                 }
                 releaseGift(gift, x - grabX, y - grabY, vx, vy);
                 dragging = false;
@@ -1671,15 +1691,19 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         body.y = (y - orbitCenterY) / ry;
         final double fingerSpeed = Math.hypot(vx, vy);
         if (fingerSpeed >= dpf2(THROW_SPEED)) {
-            // Along the orbit where it is let go: the flick's part along the ring's tangent there
+            // Round the orbit from where it is let go: the way the flick goes along the ring
+            // there, as fast as the whole flick, its part straight across the ring counting half
             final double u = body.u(), v = body.v(), r = Math.max(.05, Math.hypot(u, v));
-            final double tu = -v / r, tv = u / r;
+            final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
             // the flick on the disk, in ring radii a second
             final double fu = vx / rx / RING_WIDTH, fv = (vy / ry - RING_SLOPE * vx / rx) / RING_HEIGHT;
-            final double along = Math.max(-MAX_THROW_ALONG, Math.min(MAX_THROW_ALONG, (fu * tu + fv * tv) * THROW_ALONG));
+            final double ft = fu * tu + fv * tv, fn = fu * nu + fv * nv;
+            final double way = Math.abs(ft) >= .3 * Math.hypot(ft, fn) ? Math.signum(ft) : body.speed < 0 ? -1 : 1;
+            final double along = way * Math.max(MIN_THROW_ALONG, Math.min(MAX_THROW_ALONG, (Math.abs(ft) + .5 * Math.abs(fn)) * THROW_ALONG));
+            final double out = Math.min(MAX_ACROSS, Math.max(0, fn) * THROW_OUT);
             body.state = Orbit.FLYING;
             body.flightTime = 0;
-            body.setDisk(u, v, along * tu, along * tv);
+            body.setDisk(u, v, along * tu + out * nu, along * tv + out * nv);
             return;
         }
         double speed = fingerSpeed * RELEASE_SPEED;
