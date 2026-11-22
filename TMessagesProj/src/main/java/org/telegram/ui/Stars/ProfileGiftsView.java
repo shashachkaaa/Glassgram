@@ -796,11 +796,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
-        // A new gift starts on its own orbit around the avatar, spread out from the others
+        // A new gift starts on its own orbit around the avatar, spread out from the others: where
+        // round it, how fast, how its orbit drifts, new each time the profile is opened
         drawOrder.clear();
         for (int i = 0; i < gifts.size(); i++) {
             final Gift gift = gifts.get(i);
-            if (gift.orbit == null) gift.orbit = new Orbit(gift.id, 2 * Math.PI * i / gifts.size() + .3, physicsTime);
+            if (gift.orbit == null) {
+                final double angle = ringOffset + 2 * Math.PI * (i + .5 * (orbitRandom.nextDouble() - .5)) / gifts.size();
+                gift.orbit = new Orbit(orbitRandom, angle, physicsTime);
+            }
             drawOrder.add(gift);
         }
         renderOrder.clear();
@@ -854,6 +858,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double EVEN_PUSH = .3;
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
+    /**
+     * Pulled out of its ring by more than this, ring radii, a held bubble follows the finger
+     * less and less, at most some twice this much further: on a spring, it does not go off the
+     * header over the profile's cards however far the finger goes.
+     */
+    private static final double FREE_PULL = .5, PULL_GIVE = .4;
     private static final double RELEASE_SPEED = .2;
     /** The film stretches at most by this, softly, half of it at this speed, dp/s, and eases into it, s. */
     private static final double MAX_STRETCH = .18, STRETCH_EASE = .12;
@@ -882,6 +892,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     /** Seconds of the gifts' own time: their drifting follows it. */
     private double physicsTime;
+    private final java.util.Random orbitRandom = new java.util.Random();
+    /** Where round the avatar the gifts start, for the profile opened this time. */
+    private final double ringOffset = orbitRandom.nextDouble() * 2 * Math.PI;
     private double[] ringAngles = new double[0];
 
     private static final class Orbit {
@@ -901,8 +914,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         /** The radius its orbit drifts around, how far and how fast, and its own speed. */
         private final double base, swing, pace, phase, speed;
 
-        Orbit(long id, double angle, double time) {
-            final java.util.Random random = new java.util.Random(id * 7919 + 17);
+        Orbit(java.util.Random random, double angle, double time) {
             base = .98 + .04 * random.nextDouble();
             swing = .06 + .05 * random.nextDouble();
             pace = .35 + .25 * random.nextDouble();
@@ -1010,6 +1022,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             body.y = (heldY - orbitCenterY) / ry;
             body.vx = heldVx / rx;
             body.vy = heldVy / ry;
+            holdBack(body);
         }
         // A finger holding the orbit still stops it
         if (orbitHeld && SystemClock.uptimeMillis() - orbitMoveTime > 50) {
@@ -1084,8 +1097,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
                 double nvu = vu + au * dt, nvv = vv + av * dt;
                 if (!returning) {
-                    // however hard it is knocked, a free bubble does not fly off
-                    final double across = Math.max(-MAX_ACROSS, Math.min(MAX_ACROSS, nvu * nu + nvv * nv));
+                    // however hard it is knocked, a free bubble does not fly off; a thrown one
+                    // comes back to its orbit from wherever it was let go of as fast as its
+                    // spring takes it, it does not crawl back
+                    final double across = thrown ? nvu * nu + nvv * nv : Math.max(-MAX_ACROSS, Math.min(MAX_ACROSS, nvu * nu + nvv * nv));
                     final double along = Math.max(-MAX_ALONG, Math.min(MAX_ALONG, nvu * tu + nvv * tv));
                     nvu = across * nu + along * tu;
                     nvv = across * nv + along * tv;
@@ -1684,11 +1699,21 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return true;
     }
 
+    /** A held bubble pulled far out of its ring stays back from the finger, see {@link #FREE_PULL}. */
+    private static void holdBack(Orbit body) {
+        final double u = body.u(), v = body.v(), r = Math.hypot(u, v);
+        final double over = r - 1 - FREE_PULL;
+        if (over <= 0) return;
+        final double k = (1 + FREE_PULL + PULL_GIVE * Math.log1p(over / PULL_GIVE)) / r;
+        body.setDisk(u * k, v * k, body.vu(), body.vv());
+    }
+
     private void releaseGift(Gift gift, float x, float y, float vx, float vy) {
         final Orbit body = gift.orbit;
         final double rx = orbitRadiusX, ry = orbitRadiusY;
         body.x = (x - orbitCenterX) / rx;
         body.y = (y - orbitCenterY) / ry;
+        holdBack(body);
         final double fingerSpeed = Math.hypot(vx, vy);
         if (fingerSpeed >= dpf2(THROW_SPEED)) {
             // Round the orbit from where it is let go: the way the flick goes along the ring
@@ -1699,8 +1724,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             final double fu = vx / rx / RING_WIDTH, fv = (vy / ry - RING_SLOPE * vx / rx) / RING_HEIGHT;
             final double ft = fu * tu + fv * tv, fn = fu * nu + fv * nv;
             final double way = Math.abs(ft) >= .3 * Math.hypot(ft, fn) ? Math.signum(ft) : body.speed < 0 ? -1 : 1;
-            final double along = way * Math.max(MIN_THROW_ALONG, Math.min(MAX_THROW_ALONG, (Math.abs(ft) + .5 * Math.abs(fn)) * THROW_ALONG));
-            final double out = Math.min(MAX_ACROSS, Math.max(0, fn) * THROW_OUT);
+            // Let go of out of its ring, it speeds up round the avatar as it swings back in, as a
+            // comet does: it starts the slower for it, to get there no faster than from the ring
+            final double along = way * Math.max(MIN_THROW_ALONG, Math.min(MAX_THROW_ALONG, (Math.abs(ft) + .5 * Math.abs(fn)) * THROW_ALONG)) / Math.max(1, r);
+            // flicked outwards close to its ring, it goes on out a little; pulled far out
+            // already, it only swings back
+            final double out = r < 1 + FREE_PULL ? Math.min(MAX_ACROSS, Math.max(0, fn) * THROW_OUT) : 0;
             body.state = Orbit.FLYING;
             body.flightTime = 0;
             body.setDisk(u, v, along * tu + out * nu, along * tv + out * nv);
