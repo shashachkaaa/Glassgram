@@ -774,13 +774,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
-        // The gifts share the ring evenly; when their number changes, they move over to make room
+        // A new gift starts on its own orbit around the avatar, spread out from the others
         drawOrder.clear();
         for (int i = 0; i < gifts.size(); i++) {
             final Gift gift = gifts.get(i);
-            final double slot = 2 * Math.PI * i / gifts.size();
-            if (gift.orbit == null) gift.orbit = new Orbit(ringPhase, slot);
-            gift.orbit.targetOffset = slot;
+            if (gift.orbit == null) gift.orbit = new Orbit(gift.id, 2 * Math.PI * i / gifts.size() + .3, physicsTime);
             drawOrder.add(gift);
         }
         renderOrder.clear();
@@ -801,69 +799,90 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /*
-     * The ring the gifts go round, as on iOS: one ellipse around the avatar, wide and flat, its
-     * right end a little up, all the gifts on it at the same pace and evenly apart, so that they
-     * never catch up with each other. It is a circle seen from above its near edge: its top is
-     * far, behind the avatar, the bubbles small there; its bottom is near, in front of the avatar,
-     * the bubbles nearly twice as big.
+     * The gifts fly free around the avatar, as on iOS: each on its own orbit in a disk around it,
+     * seen from above its near edge (its far side, at the top, behind the avatar, its near side
+     * in front of it). Each keeps about the same speed along its orbit, so the inner ones go round
+     * faster and overtake the outer ones, and each drifts in and out at its own pace. They push
+     * each other apart, and the ones in front of the avatar press against it.
+     *
+     * The disk's coordinates: its middle ring is the unit circle. On the screen, in orbit radii,
+     * it is an ellipse, wide and flat, its right end a little up.
      */
-    private static final double RING_WIDTH = .98, RING_HEIGHT = .95, RING_SLOPE = -.38, RING_SPEED = .30;
+    private static final double RING_WIDTH = .98, RING_HEIGHT = .95, RING_SLOPE = -.38;
     private static final double DEPTH_SCALE = .29, LIFT_SCALE = 1.05;
+    /** Each bubble's own speed along its orbit, in ring radii per second. */
+    private static final double ORBIT_SPEED = .37;
+    /** How fast a bubble gets back to its own speed after a spin, and takes the finger's, 1/s. */
+    private static final double PACE_DRIVE = 1.3, SPIN_DRIVE = 7;
+    /** How firmly a bubble follows its drifting orbit radius, and how much its radius swings. */
+    private static final double DRIFT_SPRING = 1.6, DRIFT_DAMPING = .8;
+    /** The spring a bubble let go of springs back to its orbit on, rad/s, and its damping. */
+    private static final double RETURN_SPRING = 12, RETURN_DAMPING = .75;
+    /** Bubbles closer than this on the disk drift apart. */
+    private static final double SPACING = .42, SPACING_PUSH = 6;
+    private static final double RELEASE_SPEED = .35;
+    private static final float MAX_RELEASE_SPEED = 1400;
+    private static final double MAX_SPIN = 6;
 
-    /** The ring's turn, radians: every slot is at this plus its own offset. */
-    private double ringPhase = 1.1;
+    /** Seconds of the gifts' own time: their drifting follows it. */
+    private double physicsTime;
 
-    // Each gift has a slot going round the ring. The bubble rests on it, is pushed off it by the
-    // other bubbles and the avatar, and is held on a spring to it: pulled away by the finger and
-    // let go, it springs back.
     private static final class Orbit {
-        static final int SETTLED = 0, HELD = 1, RETURNING = 2;
-        /** The slot's angle from the ring's turn, and the one it moves to when the gifts change. */
-        double offset, targetOffset;
-        /** The slot's angle on the ring. */
-        double phase;
+        static final int FREE = 0, HELD = 1, RETURNING = 2;
         /** The bubble, in orbit radii from the orbit's center, and its speed in radii per second. */
         double x, y, vx, vy;
         double lift;
         /** How much a contact flattens the bubble, and the direction it is pressed in. */
         double squash, squashAngle;
-        int state = SETTLED;
-        /** Springing back to a slot behind the avatar, and already gone behind it. */
+        int state = FREE;
+        /** Springing back to the far side of its orbit, and already gone behind the avatar. */
         boolean sunk;
+        /** The radius its orbit drifts around, how far and how fast, and its own speed. */
+        private final double base, swing, pace, phase, speed;
 
-        Orbit(double ringPhase, double offset) {
-            this.offset = targetOffset = offset;
-            phase = ringPhase + offset;
-            x = slotX();
-            y = slotY();
-            vx = slotVx(RING_SPEED);
-            vy = slotVy(RING_SPEED);
+        Orbit(long id, double angle, double time) {
+            final java.util.Random random = new java.util.Random(id * 7919 + 17);
+            base = .96 + .1 * random.nextDouble();
+            swing = .18 + .14 * random.nextDouble();
+            pace = .5 + .35 * random.nextDouble();
+            phase = random.nextDouble() * 2 * Math.PI;
+            speed = ORBIT_SPEED * (.9 + .2 * random.nextDouble());
+            final double r = radiusAt(time);
+            final double u = r * Math.cos(angle), v = r * Math.sin(angle);
+            setDisk(u, v, -speed * Math.sin(angle), speed * Math.cos(angle));
         }
 
-        double slotX() {
-            return RING_WIDTH * Math.cos(phase);
+        /** The radius the bubble's orbit has drifted to at this time. */
+        double radiusAt(double time) {
+            return base + swing * Math.sin(pace * time + phase);
         }
 
-        double slotY() {
-            return RING_HEIGHT * Math.sin(phase) + RING_SLOPE * slotX();
+        double u() {
+            return x / RING_WIDTH;
         }
 
-        /** The slot's speed while its angle changes at rate radians per second. */
-        double slotVx(double rate) {
-            return -RING_WIDTH * Math.sin(phase) * rate;
+        double v() {
+            return (y - RING_SLOPE * x) / RING_HEIGHT;
         }
 
-        double slotVy(double rate) {
-            return RING_HEIGHT * Math.cos(phase) * rate + RING_SLOPE * slotVx(rate);
+        double vu() {
+            return vx / RING_WIDTH;
         }
 
-        /** -1 at the ring's far side, behind the avatar, 1 at its near side. */
+        double vv() {
+            return (vy - RING_SLOPE * vx) / RING_HEIGHT;
+        }
+
+        void setDisk(double u, double v, double vu, double vv) {
+            x = RING_WIDTH * u;
+            y = RING_HEIGHT * v + RING_SLOPE * x;
+            vx = RING_WIDTH * vu;
+            vy = RING_HEIGHT * vv + RING_SLOPE * vx;
+        }
+
+        /** -1 at the disk's far side, behind the avatar, 1 at its near side. */
         double depth() {
-            return Math.max(-1, Math.min(1, (y - RING_SLOPE * x) / RING_HEIGHT));
-        }
-
-        double slotDepth() {
-            return Math.sin(phase);
+            return Math.max(-1, Math.min(1, v()));
         }
 
         /** A lifted bubble is as near as the near side of the ring, wherever the finger takes it. */
@@ -878,11 +897,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         /** Held, or springing back: over everything, the avatar included. */
         boolean isLifted() {
-            return state != SETTLED;
+            return state != FREE;
         }
 
         boolean isInFront() {
-            return !sunk && (isLifted() || depth() >= 0);
+            return !sunk && (isLifted() || v() >= 0);
         }
 
         void press(double amount, double nx, double ny) {
@@ -893,33 +912,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
     }
 
-    /** How firmly a bubble keeps to its slot, rad/s. */
-    private static final double SETTLE_SPRING = 8;
-    /**
-     * The spring a bubble let go of springs back on: fast, and a little past its slot before it
-     * settles, as on iOS. It keeps a part of the finger's speed.
-     */
-    private static final double RETURN_SPRING = 13, RETURN_DAMPING = .55, RELEASE_SPEED = .35;
-    private static final float MAX_RELEASE_SPEED = 1400;
-    /** A spun orbit slows down to the ring's own pace. */
-    private static final double SPIN_DECAY = .9, SPIN_RESUME = .5, MAX_SPIN = 6;
-
     private float orbitCenterX, orbitCenterY, orbitRadiusX, orbitRadiusY;
     private float avatarCenterX, avatarCenterY, avatarRadius;
     private long lastPhysicsFrame;
     /** The held bubble's center and speed, in this view's pixels. */
     private float heldX, heldY, heldVx, heldVy;
 
-    /** The orbit held by the finger, which turns it: the ring does not go on by itself. */
+    /** The orbit held by the finger: the bubbles take its angular speed, even none. */
     private boolean orbitHeld;
-    /** Radians per second added to the ring's pace: the finger's as it lets the orbit go, decaying after. */
+    /** The finger's angular speed around the avatar on the disk, rad/s, while it holds the orbit. */
     private double spinRate;
-    /** How far the ring's own pace came back since the orbit was let go. */
-    private double spinResume = 1;
-
-    private double ringRate() {
-        return orbitHeld ? 0 : RING_SPEED * spinResume + spinRate;
-    }
+    private long orbitMoveTime;
 
     private void advanceGifts(long now) {
         double elapsed = lastPhysicsFrame == 0 ? 0 : Math.min(.064, (now - lastPhysicsFrame) * .001);
@@ -938,45 +941,57 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             body.vx = heldVx / rx;
             body.vy = heldVy / ry;
         }
+        // A finger holding the orbit still stops it
+        if (orbitHeld && SystemClock.uptimeMillis() - orbitMoveTime > 50) {
+            spinRate *= Math.exp(-elapsed / .06);
+        }
         for (int step = 0; step < steps; step++) {
-            if (!orbitHeld) {
-                spinRate *= Math.exp(-dt / SPIN_DECAY);
-                spinResume += (1 - spinResume) * -Math.expm1(-dt / SPIN_RESUME);
-            }
-            // The ring goes on while bubbles are away from it; the finger turns it itself
-            final double rate = ringRate();
-            ringPhase += rate * dt;
+            physicsTime += dt;
             for (int i = 0; i < gifts.size(); i++) {
                 Orbit body = gifts.get(i).orbit;
-                double shift = body.targetOffset - body.offset;
-                body.offset += Math.atan2(Math.sin(shift), Math.cos(shift)) * -Math.expm1(-3 * dt);
-                body.phase = ringPhase + body.offset;
                 body.squash *= Math.exp(-9 * dt);
                 if (body.state == Orbit.HELD) {
                     body.lift += (1 - body.lift) * -Math.expm1(-18 * dt);
+                    continue;
+                }
+                final double u = body.u(), v = body.v(), vu = body.vu(), vv = body.vv();
+                final double r = Math.max(.05, Math.hypot(u, v));
+                final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
+                final double vr = vu * nu + vv * nv, vt = vu * tu + vv * tv;
+                final double target = body.radiusAt(physicsTime);
+                final boolean returning = body.state == Orbit.RETURNING;
+                // Held on its orbit at any speed, its radius following its own drift; one let go
+                // of springs back to it
+                double ar = -vt * vt / r;
+                if (returning) {
+                    ar += -RETURN_SPRING * RETURN_SPRING * (r - target) - 2 * RETURN_DAMPING * RETURN_SPRING * vr;
                 } else {
-                    // A spring onto the moving slot: critically damped on the orbit, springy for
-                    // a bubble let go of, which overshoots its slot a little
-                    boolean returning = body.state == Orbit.RETURNING;
-                    double w = returning ? RETURN_SPRING : SETTLE_SPRING;
-                    double c = 2 * w * (returning ? RETURN_DAMPING : 1);
-                    double ax = w * w * (body.slotX() - body.x) + c * (body.slotVx(rate) - body.vx);
-                    double ay = w * w * (body.slotY() - body.y) + c * (body.slotVy(rate) - body.vy);
-                    body.vx += ax * dt;
-                    body.vy += ay * dt;
-                    body.x += body.vx * dt;
-                    body.y += body.vy * dt;
-                    body.lift *= Math.exp(-(returning ? 4 : 5.2) * dt);
-                    if (returning) {
-                        // On its way to a slot behind the avatar it goes behind it as soon as it
-                        // is clear of it, not with a jump once it is there
-                        if (!body.sunk && body.slotDepth() < 0 && body.lift < .6 && isClearOfAvatar(body, rx, ry)) {
-                            body.sunk = true;
-                        }
-                        if (hasReturned(body, rate, rx, ry)) {
-                            body.state = Orbit.SETTLED;
-                            body.sunk = false;
-                        }
+                    ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
+                }
+                final double at = orbitHeld ? SPIN_DRIVE * (spinRate * r - vt) : PACE_DRIVE * (body.speed - vt);
+                double au = ar * nu + at * tu, av = ar * nv + at * tv;
+                // the others close by on the disk push it away a little
+                for (int j = 0; j < gifts.size(); j++) {
+                    if (j == i) continue;
+                    final Orbit other = gifts.get(j).orbit;
+                    final double du = u - other.u(), dv = v - other.v(), d = Math.hypot(du, dv);
+                    if (d < SPACING && d > 1e-3) {
+                        au += SPACING_PUSH * (SPACING - d) * du / d;
+                        av += SPACING_PUSH * (SPACING - d) * dv / d;
+                    }
+                }
+                final double nvu = vu + au * dt, nvv = vv + av * dt;
+                body.setDisk(u + nvu * dt, v + nvv * dt, nvu, nvv);
+                body.lift *= Math.exp(-(returning ? 4 : 5.2) * dt);
+                if (returning) {
+                    // On its way to the far side it goes behind the avatar as soon as it is clear
+                    // of it, not with a jump once it is there
+                    if (!body.sunk && v < 0 && body.lift < .6 && isClearOfAvatar(body, rx, ry)) {
+                        body.sunk = true;
+                    }
+                    if (Math.abs(r - target) < .12 && Math.abs(vr) < .4 && body.lift < .3) {
+                        body.state = Orbit.FREE;
+                        body.sunk = false;
                     }
                 }
             }
@@ -988,15 +1003,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (avatarRadius <= 0) return true;
         double ax = orbitCenterX + body.x * rx - avatarCenterX, ay = orbitCenterY + body.y * ry - avatarCenterY;
         return Math.hypot(ax, ay) > avatarRadius + dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale();
-    }
-
-    /** Back on its slot, and at rest on it. */
-    private boolean hasReturned(Orbit body, double rate, double rx, double ry) {
-        double dx = (body.slotX() - body.x) * rx, dy = (body.slotY() - body.y) * ry;
-        double near = dpf2(3);
-        if (dx * dx + dy * dy > near * near || body.lift > .25) return false;
-        double dvx = (body.slotVx(rate) - body.vx) * rx, dvy = (body.slotVy(rate) - body.vy) * ry;
-        return Math.hypot(dvx, dvy) <= dpf2(40);
     }
 
     /**
@@ -1037,7 +1043,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     // at rest on the ring's near side it lies half over the avatar; pushed
                     // further in, it is held back
                     double solid = avatarRadius * .62 + ra * .2;
-                    if (a.state == Orbit.SETTLED && d < solid) {
+                    if (a.state == Orbit.FREE && d < solid) {
                         double depth = solid - d;
                         a.x += depth * settle * nx / rx;
                         a.y += depth * settle * ny / ry;
@@ -1459,7 +1465,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private void resetDrag() {
         if (movingGift != null) {
-            // let go (or the gesture taken away): it springs back to its slot
+            // let go (or the gesture taken away): it springs back to its orbit
             if (movingGift.orbit.state == Orbit.HELD) movingGift.orbit.state = Orbit.RETURNING;
             movingGift.bounce.setPressed(false);
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
@@ -1480,8 +1486,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /**
-     * A bubble is picked up and pulled away from its slot, as far as the finger goes; let go, it
-     * springs back to it with a part of the finger's speed, past it a little, and settles.
+     * A bubble is picked up and pulled away from its orbit, as far as the finger goes; let go, it
+     * springs back to it with a part of the finger's speed, a little past it, and flies on.
      */
     private boolean onGiftTouch(MotionEvent event, boolean front) {
         float x = event.getX(), y = event.getY();
@@ -1553,9 +1559,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         body.vy = vy * scale / ry;
     }
 
-    /* The orbit turned by a sideways drag around the avatar, off the bubbles. The profile feeds
-       its touches here before its views see them: a tap on the avatar, a vertical drag of the
-       list and a swipe back from the screen's edge stay theirs. */
+    /* The orbit stirred by a sideways drag around the avatar, off the bubbles: the bubbles take
+       the finger's angular speed, each on its own orbit, keep it when it lets go and slow back to
+       their own pace; a finger held still stops them. The profile feeds its touches here before
+       its views see them: a tap on the avatar, a vertical drag of the list and a swipe back from
+       the screen's edge stay theirs. */
 
     private boolean orbitCandidate;
     private float orbitDownX, orbitDownY;
@@ -1573,8 +1581,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return d > .2 && d < 1.8 && getGiftUnder(x, y, true) == null && getGiftUnder(x, y, false) == null;
     }
 
+    /** The angle of a point around the avatar on the disk the bubbles fly on. */
     private double orbitAngleAt(float x, float y) {
-        return Math.atan2((y - orbitCenterY) / orbitRadiusY, (x - orbitCenterX) / orbitRadiusX);
+        final double sx = (x - orbitCenterX) / orbitRadiusX, sy = (y - orbitCenterY) / orbitRadiusY;
+        final double u = sx / RING_WIDTH, v = (sy - RING_SLOPE * sx) / RING_HEIGHT;
+        return Math.atan2(v, u);
     }
 
     /**
@@ -1614,6 +1625,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 spinRate = 0;
                 orbitLastAngle = orbitAngleAt(x, y);
                 orbitLastTime = event.getEventTime();
+                orbitMoveTime = SystemClock.uptimeMillis();
                 invalidate();
                 return true;
             }
@@ -1623,12 +1635,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             final boolean candidate = orbitCandidate;
             orbitCandidate = false;
             if (orbitHeld) {
+                // let go, the bubbles fly on as fast as the finger took them and slow back to
+                // their own pace
                 orbitHeld = false;
-                // it spins on as fast as the finger went, and slows down to the paths' own pace;
-                // a finger that stopped before it was lifted leaves the orbit where it is
-                if (action == MotionEvent.ACTION_CANCEL || event.getEventTime() - orbitLastTime > 80) spinRate = 0;
-                spinRate = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, spinRate));
-                spinResume = 0;
+                spinRate = 0;
                 if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
                 invalidate();
                 return true;
@@ -1645,11 +1655,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         double delta = angle - orbitLastAngle;
         delta = Math.atan2(Math.sin(delta), Math.cos(delta));
         orbitLastAngle = angle;
-        ringPhase += delta;
         final double seconds = Math.max(.001, (time - orbitLastTime) / 1000.0);
         orbitLastTime = time;
-        // the finger's pace, smoothed over a few events, is the spin it leaves the orbit with
+        orbitMoveTime = SystemClock.uptimeMillis();
+        // the finger's angular speed, smoothed over a few events, is what the bubbles take
         spinRate += (delta / seconds - spinRate) * Math.min(1, seconds / .06);
+        spinRate = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, spinRate));
         invalidate();
     }
 
