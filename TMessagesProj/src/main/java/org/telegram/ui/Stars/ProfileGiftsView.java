@@ -823,14 +823,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
 
-        // A new gift starts on its own orbit around the avatar, spread out from the others: where
-        // round it, how fast, how its orbit drifts, new each time the profile is opened
+        // A new gift starts on its own orbit around the avatar, at a place of its own, not spread
+        // evenly with the others: some close together, some apart, as on iOS. Where round it, how
+        // fast, how its orbit drifts, new each time the profile is opened
         drawOrder.clear();
         for (int i = 0; i < gifts.size(); i++) {
             final Gift gift = gifts.get(i);
             if (gift.orbit == null) {
-                final double angle = ringOffset + 2 * Math.PI * (i + .5 * (orbitRandom.nextDouble() - .5)) / gifts.size();
-                gift.orbit = new Orbit(orbitRandom, angle, physicsTime);
+                gift.orbit = new Orbit(orbitRandom, freeAngle(gifts.size()), physicsTime);
             }
             drawOrder.add(gift);
         }
@@ -888,13 +888,12 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final double RETURN_DEFLATE = 14;
     /** The fastest a free bubble moves across its orbit and along it, ring radii per second. */
     private static final double MAX_ACROSS = 1.2, MAX_ALONG = 3.5;
-    /** Bubbles closer than this on the disk drift apart. */
-    private static final double SPACING = .42, SPACING_PUSH = 6;
     /**
-     * Neighbours closer along the ring than an even share of it push each other on, rad/s² for
-     * each radian closer: gently, so the gaps between them breathe but they never bunch.
+     * Bubbles closer than this on the disk drift apart: only so as not to lie over each other.
+     * They are not spread evenly round the ring: each keeps its own place, as on iOS, and a spin
+     * of the orbit leaves them as they were.
      */
-    private static final double EVEN_PUSH = .3;
+    private static final double SPACING = .42, SPACING_PUSH = 6;
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
     /**
@@ -916,9 +915,30 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** Seconds of the gifts' own time: their drifting follows it. */
     private double physicsTime;
     private final java.util.Random orbitRandom = new java.util.Random();
-    /** Where round the avatar the gifts start, for the profile opened this time. */
-    private final double ringOffset = orbitRandom.nextDouble() * 2 * Math.PI;
-    private double[] ringAngles = new double[0];
+    /**
+     * A place round the avatar for a new gift: at random, only not on top of another one, at
+     * least this much of an even share of the ring away from each of them.
+     */
+    private double freeAngle(int count) {
+        final double minGap = Math.min(.6, 2 * Math.PI / Math.max(1, count) * MIN_SHARE);
+        double angle = orbitRandom.nextDouble() * 2 * Math.PI;
+        for (int attempt = 0; attempt < 48; attempt++) {
+            boolean free = true;
+            for (Gift gift : gifts) {
+                if (gift.orbit == null) continue;
+                final double other = Math.atan2(gift.orbit.v(), gift.orbit.u());
+                if (Math.abs(Math.atan2(Math.sin(angle - other), Math.cos(angle - other))) < minGap) {
+                    free = false;
+                    break;
+                }
+            }
+            if (free) break;
+            angle = orbitRandom.nextDouble() * 2 * Math.PI;
+        }
+        return angle;
+    }
+
+    private static final double MIN_SHARE = .45;
 
     private static final class Orbit {
         static final int FREE = 0, HELD = 1, RETURNING = 2;
@@ -934,16 +954,31 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         boolean sunk;
         /** The radius its orbit drifts around, how far and how fast, and its own speed. */
         private final double base, swing, pace, phase, speed;
+        /** Its speed goes up and down by this part of it, at this pace: a train of them breaks up. */
+        private final double surge, surgePace, surgePhase;
+        /** How late it comes out of the avatar when the header opens, 0 to 1.6. */
+        final float enterDelay;
 
         Orbit(java.util.Random random, double angle, double time) {
-            base = .98 + .04 * random.nextDouble();
-            swing = .06 + .05 * random.nextDouble();
-            pace = .35 + .25 * random.nextDouble();
+            // each at its own distance and pace, some a good deal faster than others, as on iOS
+            base = .93 + .14 * random.nextDouble();
+            swing = .05 + .09 * random.nextDouble();
+            pace = .3 + .35 * random.nextDouble();
             phase = random.nextDouble() * 2 * Math.PI;
-            speed = ORBIT_SPEED * (.84 + .32 * random.nextDouble());
+            speed = ORBIT_SPEED * (.6 + .8 * random.nextDouble());
+            surge = .15 + .2 * random.nextDouble();
+            surgePace = .15 + .25 * random.nextDouble();
+            surgePhase = random.nextDouble() * 2 * Math.PI;
+            enterDelay = 1.6f * random.nextFloat();
             final double r = radiusAt(time);
             final double u = r * Math.cos(angle), v = r * Math.sin(angle);
-            setDisk(u, v, -speed * Math.sin(angle), speed * Math.cos(angle));
+            final double now = speedAt(time);
+            setDisk(u, v, -now * Math.sin(angle), now * Math.cos(angle));
+        }
+
+        /** Its own speed along its orbit at this time, ring radii per second. */
+        double speedAt(double time) {
+            return speed * (1 + surge * Math.sin(surgePace * time + surgePhase));
         }
 
         /** The radius the bubble's orbit has drifted to at this time. */
@@ -1050,14 +1085,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             spinRate *= Math.exp(-elapsed / .06);
         }
         final int count = gifts.size();
-        if (ringAngles.length < count) ringAngles = new double[count];
-        final double even = count > 0 ? 2 * Math.PI / count : 0;
         for (int step = 0; step < steps; step++) {
             physicsTime += dt;
-            for (int i = 0; i < count; i++) {
-                final Orbit body = gifts.get(i).orbit;
-                ringAngles[i] = Math.atan2(body.v(), body.u());
-            }
             for (int i = 0; i < count; i++) {
                 Orbit body = gifts.get(i).orbit;
                 body.squash *= Math.exp(-9 * dt);
@@ -1073,6 +1102,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
                 final double vr = vu * nu + vv * nv, vt = vu * tu + vv * tv;
                 final double target = body.radiusAt(physicsTime);
+                final double pace = body.speedAt(physicsTime);
                 final boolean returning = body.state == Orbit.RETURNING;
                 // Held on its orbit at any speed, its radius following its own drift; one let go
                 // of is not on its orbit, it flies straight on and its spring pulls it back to it
@@ -1088,18 +1118,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 // whirl round the avatar, and then goes on round at its own pace
                 double at;
                 if (returning) {
-                    at = 2 * RETURN_DAMPING * RETURN_SPRING * (body.speed - vt);
+                    at = 2 * RETURN_DAMPING * RETURN_SPRING * (pace - vt);
                 } else if (orbitHeld) {
                     at = SPIN_DRIVE * (spinRate * r - vt);
                 } else {
-                    at = PACE_DRIVE * (body.speed - vt);
-                }
-                if (count > 1 && !body.isPassing()) {
-                    for (int j = 0; j < count; j++) {
-                        if (j == i || gifts.get(j).orbit.isPassing()) continue;
-                        final double d = Math.atan2(Math.sin(ringAngles[i] - ringAngles[j]), Math.cos(ringAngles[i] - ringAngles[j]));
-                        if (Math.abs(d) < even) at += EVEN_PUSH * Math.copySign(even - Math.abs(d), d) * r;
-                    }
+                    at = PACE_DRIVE * (pace - vt);
                 }
                 double au = ar * nu + at * tu, av = ar * nv + at * tv;
                 // the others close by on the disk push it away a little
@@ -1131,7 +1154,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     if (!body.sunk && v < 0 && body.lift < .6 && isClearOfAvatar(body, rx, ry)) {
                         body.sunk = true;
                     }
-                    if (Math.abs(r - target) < .12 && Math.abs(vr) < .4 && Math.abs(vt - body.speed) < .5 && body.lift < .3) {
+                    if (Math.abs(r - target) < .12 && Math.abs(vr) < .4 && Math.abs(vt - pace) < .5 && body.lift < .3) {
                         body.state = Orbit.FREE;
                         body.sunk = false;
                     }
@@ -1334,7 +1357,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
             float gx = acx + orbitRadiusX * (float) gift.orbit.x;
             float gy = acy + orbitRadiusY * (float) gift.orbit.y;
-            float delayValue = gift.position % 3 == 0 ? 1.6f : gift.position % 3 == 1 ? 0f : .9f;
+            // each comes out of the avatar at its own moment
+            float delayValue = gift.orbit.enterDelay;
 
             final float collapseProgressWithEnter;
             if (isOpening || enter >= 1f) {
