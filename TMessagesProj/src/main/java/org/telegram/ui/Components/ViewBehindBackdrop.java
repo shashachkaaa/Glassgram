@@ -129,6 +129,18 @@ public class ViewBehindBackdrop implements GlassLayer.Backdrop {
                 return true;
             }
         }
+        return isMoved();
+    }
+
+    /**
+     * Whether the view or a sibling under it moved, turned, faded or came or went since the
+     * backdrop was drawn: unlike a sibling drawn anew in place, the glass would show it out of
+     * place at once. Reliable while drawing too, unlike the siblings' dirty flags.
+     */
+    public boolean isMoved() {
+        if (drawnStateLength < 0 || !(view.getParent() instanceof ViewGroup)) {
+            return false;
+        }
         final int length = collectState(false);
         if (length != drawnStateLength) {
             return true;

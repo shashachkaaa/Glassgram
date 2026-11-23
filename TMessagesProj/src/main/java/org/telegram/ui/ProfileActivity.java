@@ -10215,6 +10215,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if (giftsView != null) giftsView.setPaused(false);
+        if (musicView != null) musicView.setAnimationsPaused(false);
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
@@ -10267,6 +10269,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         super.onPause();
         stopProfileMusicBeat();
         if (musicMenu != null) musicMenu.dismiss();
+        // off the screen (covered, its tab away, in the background) the gifts and the playing
+        // bars stop: they drew themselves and their glass every frame for nothing
+        if (giftsView != null) giftsView.setPaused(true);
+        if (musicView != null) musicView.setAnimationsPaused(true);
         if (undoView != null) {
             undoView.hide(true, 0);
         }

@@ -52,9 +52,17 @@ public class ProfileHeaderGlass {
     private View photo;
     private Object backdropNode;
     private boolean active, refreshPosted;
+    /**
+     * Set by the watcher before a frame when what is under the view was drawn anew since it was
+     * recorded (a sibling's or the header's picture changed in place): recorded again at most
+     * every REFRESH_MS, see {@link #needsRecording}.
+     */
+    private boolean backdropChanged = true;
+    /** Whether the page under the header went into the last recording. */
+    private boolean recordedUnder;
     private long recordedAt;
     private long recordedPhotoGeneration;
-    private final float[] headerState = new float[8];
+    private final float[] headerState = new float[10];
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path shadowClip = new Path();
@@ -68,8 +76,10 @@ public class ProfileHeaderGlass {
             }
             if (photoGeneration() != recordedPhotoGeneration) {
                 // The live avatar already requested this frame. Refresh the glass in the same traversal.
+                backdropChanged = true;
                 view.invalidate();
             } else if (!refreshPosted && isStale()) {
+                backdropChanged = true;
                 final long wait = REFRESH_MS - (SystemClock.uptimeMillis() - recordedAt);
                 if (wait <= 0) {
                     view.invalidate();
@@ -138,10 +148,35 @@ public class ProfileHeaderGlass {
     public boolean begin(Canvas canvas) {
         active = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
             && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) && canvas.isHardwareAccelerated();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && active && !isNested()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && active && !isNested() && needsRecording()) {
             record();
         }
         return active;
+    }
+
+    /**
+     * Whether what is under the view has to be recorded again for this draw. A view drawn anew
+     * for itself (a pill's playing bars, the gifts flying, a button pressed) over a still header
+     * keeps what it recorded: recording the header and everything under the view every frame
+     * cost the most. Anything under it moved (a scroll, the view itself, the photo) is recorded at
+     * once, or the glass would show it out of place; a picture under it drawn anew in place, at
+     * most every REFRESH_MS, and so the page under it while it is wanted. Without the watcher (a
+     * view that asks for its glass only while it moves), every draw records, as before.
+     */
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private boolean needsRecording() {
+        if (backdropNode == null || tree == null || (under != null) != recordedUnder) {
+            return true;
+        }
+        final RenderNode node = (RenderNode) backdropNode;
+        if (node.getWidth() != view.getWidth() || node.getHeight() != view.getHeight()) {
+            return true;
+        }
+        if (photoGeneration() != recordedPhotoGeneration || behind.isMoved() || isHeaderMoved()) {
+            return true;
+        }
+        // the page under the header is not watched: it is taken again as often, while it is wanted
+        return (backdropChanged || under != null) && SystemClock.uptimeMillis() - recordedAt >= REFRESH_MS;
     }
 
     private static boolean isNested() {
@@ -151,6 +186,8 @@ public class ProfileHeaderGlass {
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private void record() {
         refreshPosted = false;
+        backdropChanged = false;
+        recordedUnder = under != null;
         recordedAt = SystemClock.uptimeMillis();
         final int w = view.getWidth(), h = view.getHeight();
         if (w <= 0 || h <= 0) {
@@ -203,6 +240,11 @@ public class ProfileHeaderGlass {
             s[5] = h.getTranslationY();
             s[6] = h.getAlpha();
             s[7] = h.getVisibility();
+        }
+        if (view.getParent() instanceof View) {
+            // where the header is drawn from depends on where the view's parent is
+            headerState[8] = ((View) view.getParent()).getX();
+            headerState[9] = ((View) view.getParent()).getY();
         }
     }
 
@@ -258,13 +300,25 @@ public class ProfileHeaderGlass {
             return true;
         }
         final View h = header;
+        if (h != null && h.isDirty()) {
+            return true;
+        }
+        return isHeaderMoved();
+    }
+
+    /** Whether the header, or the view's parent it is drawn against, moved since the recording. */
+    private boolean isHeaderMoved() {
+        final float[] s = headerState;
+        if (view.getParent() instanceof View) {
+            final View parent = (View) view.getParent();
+            if (s[8] != parent.getX() || s[9] != parent.getY()) {
+                return true;
+            }
+        }
+        final View h = header;
         if (h == null) {
             return false;
         }
-        if (h.isDirty()) {
-            return true;
-        }
-        final float[] s = headerState;
         return s[0] != h.getLeft() || s[1] != h.getTop() || s[2] != h.getRight() || s[3] != h.getBottom()
             || s[4] != h.getTranslationX() || s[5] != h.getTranslationY() || s[6] != h.getAlpha() || s[7] != h.getVisibility();
     }

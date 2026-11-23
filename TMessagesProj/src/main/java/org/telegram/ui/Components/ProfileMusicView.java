@@ -363,6 +363,17 @@ public class ProfileMusicView extends View {
         if (glass != null) {
             glass.watch(false);
         }
+        removeCallbacks(startSeeking);
+        seeking = false;
+    }
+
+    /** Off the screen the playing bars stand still: they drew the pill and its glass anew every frame. */
+    private boolean animationsPaused;
+
+    public void setAnimationsPaused(boolean paused) {
+        if (animationsPaused == paused) return;
+        animationsPaused = paused;
+        if (!paused) invalidate();
     }
 
     @Override
@@ -510,7 +521,7 @@ public class ProfileMusicView extends View {
             }
             canvas.drawRoundRect(x, cy - h, x + dp(2), cy + h, dp(1), dp(1), iconPaint);
         }
-        if (playing && getAlpha() > 0f) postInvalidateOnAnimation();
+        if (playing && !animationsPaused && getAlpha() > 0f) postInvalidateOnAnimation();
         canvas.translate(dp(16.6f), 0);
         this.author.draw(canvas, 0, cy, textColor, alpha);
         canvas.translate(this.author.getWidth(), 0);

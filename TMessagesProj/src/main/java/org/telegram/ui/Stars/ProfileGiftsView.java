@@ -72,6 +72,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private final Path bubbleOutline = new Path();
     private final RectF lensBounds = new RectF();
     private boolean active = true;
+    /** The profile is off the screen (covered, its tab away, the app in the background): nothing moves, nothing is drawn anew. */
+    private boolean paused;
+
+    public void setPaused(boolean paused) {
+        if (this.paused == paused) return;
+        this.paused = paused;
+        // back on the screen, the gifts go on from where they were, they do not jump the time away
+        lastPhysicsFrame = 0;
+        if (!paused) invalidate();
+    }
+
     public void setActive(boolean f) {
         this.active = f;
         if (!f) {
@@ -464,8 +475,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             canvas.save();
             canvas.clipPath(bubbleOutline);
             if (glassEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                lensBounds.set(box);
-                lensBounds.inset(-r * .14f, -r * .14f);
+                // Its size in steps of 2 px, a little over the bubble: the glass's effect is
+                // built anew only when it changes, not for every hair the bubble grows or shrinks
+                // by every frame as it goes round nearer and further
+                final float lensSize = Math.max(2f, 2f * Math.round(box.width() * 1.14f / 2f));
+                lensBounds.set(cx - lensSize / 2f, cy - lensSize / 2f, cx + lensSize / 2f, cy + lensSize / 2f);
                 // A ball of clear glass: what is behind it (the name, the avatar's rim, the
                 // buttons) shows through it sharp, a little bigger and bent towards its edge.
                 // Picked up, it is a thick ball of colored glass: what is behind it shows
@@ -1302,7 +1316,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (!areGiftsVisible()) return;
         if (!ViewBehindBackdrop.isAnyDrawing()) {
             prepareFrame(getDrawingTime());
-            if (active && actionBarProgress < 1f && isShown()) {
+            if (active && !paused && actionBarProgress < 1f && isShown()) {
                 postInvalidateOnAnimation();
                 frontLayer.postInvalidateOnAnimation();
             }

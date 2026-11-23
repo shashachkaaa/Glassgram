@@ -93,7 +93,10 @@ public class ProfileMusicMenu extends View {
     private final Paint checkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path check = new Path();
     private final Drawable folderIcon;
+    private int folderColor;
     private Text footerText;
+    /** Whether the page is dark, for this draw. */
+    private boolean dark;
 
     private static final class Row {
         long id;
@@ -205,14 +208,11 @@ public class ProfileMusicMenu extends View {
         return t * t * (3f - 2f * t);
     }
 
+    /** The panel's own color, darker than the page's on a dark one, lighter on a light one; sets {@link #dark}. */
     private int panelColor() {
         final int base = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider) | 0xFF000000;
-        final boolean dark = ColorUtils.calculateLuminance(base) < .5f;
+        dark = ColorUtils.calculateLuminance(base) < .5f;
         return dark ? ColorUtils.blendARGB(base, Color.BLACK, .35f) : ColorUtils.blendARGB(base, Color.WHITE, .25f);
-    }
-
-    private boolean isDark() {
-        return ColorUtils.calculateLuminance(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider) | 0xFF000000) < .5f;
     }
 
     private float contentHeight() {
@@ -291,7 +291,7 @@ public class ProfileMusicMenu extends View {
             // bent strongly at its edges as it spreads, as on iOS, then settling
             lens = dp(16) * (1f - .55f * smoothstep(.6f, 1f, u));
         }
-        tintAlpha = lerp(.1f, isDark() ? .88f : .82f, smoothstep(.45f, .92f, p));
+        tintAlpha = lerp(.1f, dark ? .88f : .82f, smoothstep(.45f, .92f, p));
         contentAlpha = smoothstep(.74f, 1f, p);
         blur = dp(5) + dp(5) * smoothstep(.25f, .8f, p);
         return true;
@@ -300,6 +300,7 @@ public class ProfileMusicMenu extends View {
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         if (progress <= 0f) return;
+        final int color = panelColor();
         if (!layout(progress)) {
             // the pill is gone (the header folded away): the panel goes with it
             if (open) post(this::dismiss);
@@ -310,7 +311,6 @@ public class ProfileMusicMenu extends View {
             hasGlass = glass.begin(canvas);
             recorded = true;
         }
-        final int color = panelColor();
         canvas.save();
         canvas.clipPath(shape);
         if (hasGlass) {
@@ -326,7 +326,7 @@ public class ProfileMusicMenu extends View {
         canvas.restore();
         // the glass's light rim, brighter while it is a drop
         rimPaint.setStrokeWidth(dpf2(1.1f));
-        rimPaint.setColor(Theme.multAlpha(Color.WHITE, lerp(.3f, isDark() ? .13f : .5f, smoothstep(.5f, 1f, progress))));
+        rimPaint.setColor(Theme.multAlpha(Color.WHITE, lerp(.3f, dark ? .13f : .5f, smoothstep(.5f, 1f, progress))));
         canvas.drawPath(shape, rimPaint);
     }
 
@@ -377,7 +377,10 @@ public class ProfileMusicMenu extends View {
         if (pressed == FOOTER) drawPressed(canvas, left, y, right, y + dp(FOOTER_DP), textColor, alpha);
         final float cy = y + dp(FOOTER_DP) / 2f;
         final int size = dp(22);
-        folderIcon.setColorFilter(new PorterDuffColorFilter(textColor, PorterDuff.Mode.SRC_IN));
+        if (folderColor != textColor) {
+            folderColor = textColor;
+            folderIcon.setColorFilter(new PorterDuffColorFilter(textColor, PorterDuff.Mode.SRC_IN));
+        }
         folderIcon.setAlpha((int) (0xFF * alpha));
         folderIcon.setBounds((int) (left + dp(17)), (int) (cy - size / 2f), (int) (left + dp(17)) + size, (int) (cy - size / 2f) + size);
         folderIcon.draw(canvas);
