@@ -424,6 +424,12 @@ public class ProfileHeaderGlass {
      * the caller to clip to a shape of its own.
      */
     public void drawPanel(Canvas canvas, Piece piece, RectF rect, float radius, int tint, float alpha, float blur, float lens) {
+        drawPanel(canvas, piece, rect, radius, tint, alpha, blur, lens, null);
+    }
+
+    /** As above, with more drawn under the glass, in the view's coordinates: blurred and bent with what is under it. */
+    public void drawPanel(Canvas canvas, Piece piece, RectF rect, float radius, int tint, float alpha, float blur, float lens,
+                          @Nullable GlassLayer.Backdrop behindPiece) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
@@ -438,6 +444,7 @@ public class ProfileHeaderGlass {
         final GlassLayer.Backdrop source = backdrop -> {
             backdrop.translate(-left, -top);
             backdrop.drawRenderNode(node);
+            if (behindPiece != null) behindPiece.draw(backdrop);
         };
         if (piece.layer == null) {
             piece.layer = new GlassLayer();

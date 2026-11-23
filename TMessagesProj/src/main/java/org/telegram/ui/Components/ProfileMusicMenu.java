@@ -16,6 +16,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.View;
@@ -63,9 +64,15 @@ public class ProfileMusicMenu extends View {
         void loadMore();
     }
 
-    private static final long OPEN_MS = 440, CLOSE_MS = 360;
-    /** The first part of the way: the drop splitting off the pill. */
-    private static final float SPLIT = .32f;
+    private static final long OPEN_MS = 440, CLOSE_MS = 320;
+    /**
+     * The way open, as on iOS: to DROP the pill swells down into a big drop of frosted glass under
+     * its middle, the panel's list showing blurred through it; to SPREAD the drop spreads into the
+     * panel, dark, the list in it at once, a little past its size and back; to 1 the list settles
+     * as the glass's bending at the edges eases. Closing goes back from SPREAD: the list and the
+     * dark go at once as the panel draws in to the drop, which flows back up into the pill.
+     */
+    private static final float DROP = .5f, SPREAD = .72f;
     private static final float PANEL_RADIUS_DP = 26, ROW_DP = 55, PAD_TOP_DP = 6, DIVIDER_DP = 9, FOOTER_DP = 52, PAD_BOTTOM_DP = 4;
     private static final int NONE = -1, FOOTER = -2;
 
@@ -77,15 +84,23 @@ public class ProfileMusicMenu extends View {
 
     private float progress;
     private boolean open, recorded, hasGlass;
+    /** Which way it is going: closing, the panel draws in without going past its size first. */
+    private boolean closing;
     private ValueAnimator animator;
 
     private final RectF pill = new RectF(), panel = new RectF(), body = new RectF(), source = new RectF();
     private final RectF glassRect = new RectF(), shapeBounds = new RectF();
     private final Path shape = new Path(), piecePath = new Path(), bridge = new Path(), bridgeEdges = new Path();
-    private float bodyRadius, glassRadius, lens, tintAlpha, contentAlpha, blur;
+    private float bodyRadius, glassRadius, lens, contentAlpha, blurredAlpha, contentScale, blur;
+    private int tint;
+    private final RectF drop = new RectF();
 
-    private final DecelerateInterpolator splitEase = new DecelerateInterpolator(1.6f);
-    private final OvershootInterpolator spreadEase = new OvershootInterpolator(1.1f);
+    private final DecelerateInterpolator dropEase = new DecelerateInterpolator(1.4f);
+    private final OvershootInterpolator spreadEase = new OvershootInterpolator(1.4f);
+    private final DecelerateInterpolator settleEase = new DecelerateInterpolator(1.5f);
+    private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG), subtitlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    /** The list drawn under the glass, blurred through the drop, see {@link #layout}. */
+    private final org.telegram.liquidglass.GlassLayer.Backdrop blurredList = canvas -> drawContent(canvas, blurredAlpha);
 
     private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -95,11 +110,13 @@ public class ProfileMusicMenu extends View {
     private final Drawable folderIcon;
     private int folderColor;
     private Text footerText;
+    private float footerWidth;
     /** Whether the page is dark, for this draw. */
     private boolean dark;
 
     private static final class Row {
         long id;
+        float width;
         Text title, subtitle;
     }
 
@@ -123,6 +140,8 @@ public class ProfileMusicMenu extends View {
         check.lineTo(dpf2(4.6f), dpf2(10f));
         check.lineTo(dpf2(13.5f), 0);
         folderIcon = context.getResources().getDrawable(R.drawable.msg_folders).mutate();
+        titlePaint.setTextSize(dp(15.5f));
+        subtitlePaint.setTextSize(dp(13f));
         setVisibility(GONE);
     }
 
@@ -171,9 +190,12 @@ public class ProfileMusicMenu extends View {
             animator = null;
             was.cancel();
         }
-        final float from = progress;
+        closing = target < progress;
+        // closing goes back from where the panel stands spread, not through its settling
+        final float from = closing ? Math.min(progress, SPREAD) : progress;
+        progress = from;
         final ValueAnimator next = ValueAnimator.ofFloat(from, target);
-        next.setDuration(Math.max(1, Math.round((target > from ? OPEN_MS : CLOSE_MS) * Math.abs(target - from))));
+        next.setDuration(Math.max(1, Math.round(closing ? CLOSE_MS * from / SPREAD : OPEN_MS * (target - from))));
         next.setInterpolator(new LinearInterpolator());
         next.addUpdateListener(a -> {
             progress = (float) a.getAnimatedValue();
@@ -225,7 +247,7 @@ public class ProfileMusicMenu extends View {
     }
 
     /** Lays the glass out for how far it is open, 0 to 1; false when there is nothing to draw. */
-    private boolean layout(float p) {
+    private boolean layout(float p, int color) {
         if (anchor == null) return false;
         anchor.getPillRect(pill);
         if (pill.isEmpty()) return false;
@@ -238,62 +260,78 @@ public class ProfileMusicMenu extends View {
         panel.set(pill.left, top, pill.left + panelWidth, top + panelHeight);
         scrollY = Math.max(0f, Math.min(scrollY, maxScroll()));
 
-        // where the drop falls to: under the left of the pill, as on iOS
-        final float dropR = dp(40);
-        final float dropX = Math.max(pill.left + pill.height() / 2f, Math.min(pill.left + panelWidth * .3f, pill.right - pill.height() / 2f));
-        final float dropCy = pill.bottom + dp(14) + dropR * 1.4f;
+        // The drop: a capsule of frosted glass hanging under the middle of the pill, some two fifths
+        // of the screen across, as on iOS
+        final float cx = pill.centerX();
+        final float dropW = Math.max(pill.height() * 2f, Math.min(width * .42f, panelWidth));
+        final float dropH = Math.min(dropW * 1.5f, Math.max(panelHeight, dropW));
+        final float dropTop = pill.top + pill.height() * .6f;
+        drop.set(cx - dropW / 2f, dropTop, cx + dropW / 2f, dropTop + dropH);
+        final int panelTint = ColorUtils.setAlphaComponent(color, (int) (0xFF * (dark ? .88f : .82f)));
+        // frosted: a veil of white over what is under it, as iOS's drop is lighter than the page
+        final int veil = dark ? 0x17FFFFFF : 0x4DFFFFFF;
 
         shape.rewind();
-        if (p < SPLIT) {
-            final float t = splitEase.getInterpolation(p / SPLIT);
-            // the pill draws in to where the drop leaves it, and is gone into it
+        if (p < DROP) {
+            final float t = dropEase.getInterpolation(p / DROP);
+            // the pill draws in to its middle as it swells down into the drop, and is gone into it
             final float vanish = 1f - smoothstep(.55f, 1f, t);
-            final float sh = pill.height() * (1f - .2f * t) * vanish;
-            final float sw = lerp(pill.width(), pill.height(), t) * vanish;
-            final float scx = lerp(pill.centerX(), dropX, t);
-            source.set(scx - sw / 2f, pill.centerY() - sh / 2f, scx + sw / 2f, pill.centerY() + sh / 2f);
-            // the drop swells out of it and falls a little
-            final float r = dropR * t;
-            final float cy = lerp(pill.centerY(), dropCy, t);
-            body.set(dropX - r, cy - r * 1.4f, dropX + r, cy + r * 1.4f);
-            bodyRadius = r;
+            final float sh = pill.height() * (1f - .25f * t) * vanish;
+            final float sw = Math.max(sh, lerp(pill.width(), pill.height(), smoothstep(0f, .7f, t)) * vanish);
+            source.set(cx - sw / 2f, pill.centerY() - sh / 2f, cx + sw / 2f, pill.centerY() + sh / 2f);
+            final float w = lerp(pill.height(), dropW, t), h = lerp(pill.height(), dropH, t);
+            final float dropY = lerp(pill.top, dropTop, t);
+            body.set(cx - w / 2f, dropY, cx + w / 2f, dropY + h);
+            bodyRadius = w / 2f;
             if (!source.isEmpty()) shape.addRoundRect(source, sh / 2f, sh / 2f, Path.Direction.CW);
-            if (!body.isEmpty()) {
-                piecePath.rewind();
-                piecePath.addRoundRect(body, r, r, Path.Direction.CW);
-                shape.op(piecePath, Path.Op.UNION);
-            }
-            // the neck between them, thinning as the drop goes, until it breaks
-            if (!source.isEmpty() && r > 0f) {
-                final float sr = sh / 2f;
-                final float neckX = Math.max(source.left + sr, Math.min(dropX, source.right - sr));
-                if (GlassMerge.metaball(bridge, bridgeEdges, neckX, pill.centerY(), sr, dropX, body.top + r, r, .25f + .55f * (1f - t))) {
-                    shape.op(bridge, Path.Op.UNION);
-                }
+            piecePath.rewind();
+            piecePath.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
+            shape.op(piecePath, Path.Op.UNION);
+            // a neck between the pill and the drop hanging from it, as the drop flows back up into it
+            if (!source.isEmpty() && GlassMerge.metaball(bridge, bridgeEdges, cx, pill.centerY(), sh / 2f, cx, body.top + bodyRadius, bodyRadius, .5f)) {
+                shape.op(bridge, Path.Op.UNION);
             }
             shape.computeBounds(shapeBounds, true);
             glassRect.set(shapeBounds);
             glassRadius = 0f;
             lens = 0f;
-        } else {
-            // the drop spreads into the panel, a little past it and back
-            final float u = (p - SPLIT) / (1f - SPLIT);
-            final float e = spreadEase.getInterpolation(u);
-            body.set(
-                lerp(dropX - dropR, panel.left, e),
-                lerp(dropCy - dropR * 1.4f, panel.top, e),
-                lerp(dropX + dropR, panel.right, e),
-                lerp(dropCy + dropR * 1.4f, panel.bottom, e));
-            bodyRadius = Math.min(lerp(dropR, dp(PANEL_RADIUS_DP), Math.min(1f, e)), Math.min(body.width(), body.height()) / 2f);
+            tint = veil;
+            blur = lerp(dp(6), dp(18), t);
+            blurredAlpha = .9f * smoothstep(.35f, 1f, t);
+            contentAlpha = 0f;
+            contentScale = 1f;
+        } else if (p < SPREAD) {
+            // the drop spreads into the panel: dark at once, the list in it, a little past it and back
+            final float u = (p - DROP) / (SPREAD - DROP);
+            final float e = closing ? smoothstep(0f, 1f, u) : spreadEase.getInterpolation(u);
+            body.set(lerp(drop.left, panel.left, e), lerp(drop.top, panel.top, e),
+                    lerp(drop.right, panel.right, e), lerp(drop.bottom, panel.bottom, e));
+            bodyRadius = Math.min(lerp(dropW / 2f, dp(PANEL_RADIUS_DP), Math.min(1f, e)), Math.min(body.width(), body.height()) / 2f);
             shape.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
             glassRect.set(body);
             glassRadius = bodyRadius;
-            // bent strongly at its edges as it spreads, as on iOS, then settling
-            lens = dp(16) * (1f - .55f * smoothstep(.6f, 1f, u));
+            // bent hard at its edges as it spreads; closing, the bending comes back as it draws in
+            lens = closing ? dp(7) + dp(9) * (1f - u) : dp(16) * smoothstep(0f, .6f, u);
+            tint = ColorUtils.blendARGB(veil, panelTint, closing ? smoothstep(.35f, 1f, u) : smoothstep(0f, .8f, u));
+            blur = lerp(dp(18), dp(10), u);
+            blurredAlpha = .9f;
+            contentAlpha = closing ? smoothstep(.55f, 1f, u) : smoothstep(.45f, 1f, u);
+            contentScale = closing ? 1f + .04f * (1f - u) : 1.05f;
+        } else {
+            // spread: the list settles as the bending at the edges eases
+            final float settle = settleEase.getInterpolation((p - SPREAD) / (1f - SPREAD));
+            body.set(panel);
+            bodyRadius = dp(PANEL_RADIUS_DP);
+            shape.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
+            glassRect.set(body);
+            glassRadius = bodyRadius;
+            lens = lerp(dp(16), dp(7), settle);
+            tint = panelTint;
+            blur = dp(10);
+            blurredAlpha = .9f * (1f - settle);
+            contentAlpha = 1f;
+            contentScale = lerp(1.05f, 1f, settle);
         }
-        tintAlpha = lerp(.1f, dark ? .88f : .82f, smoothstep(.45f, .92f, p));
-        contentAlpha = smoothstep(.74f, 1f, p);
-        blur = dp(5) + dp(5) * smoothstep(.25f, .8f, p);
         return true;
     }
 
@@ -301,7 +339,7 @@ public class ProfileMusicMenu extends View {
     protected void onDraw(@NonNull Canvas canvas) {
         if (progress <= 0f) return;
         final int color = panelColor();
-        if (!layout(progress)) {
+        if (!layout(progress, color)) {
             // the pill is gone (the header folded away): the panel goes with it
             if (open) post(this::dismiss);
             return;
@@ -314,19 +352,21 @@ public class ProfileMusicMenu extends View {
         canvas.save();
         canvas.clipPath(shape);
         if (hasGlass) {
-            glass.drawPanel(canvas, piece, glassRect, glassRadius, ColorUtils.setAlphaComponent(color, (int) (0xFF * tintAlpha)), 1f, blur, lens);
+            // the list under the glass too, blurred, while it is a drop and while it settles
+            glass.drawPanel(canvas, piece, glassRect, glassRadius, tint, 1f, blur, lens, blurredAlpha > .01f ? blurredList : null);
         } else {
-            fillPaint.setColor(ColorUtils.setAlphaComponent(color, (int) (0xFF * Math.max(tintAlpha, .96f))));
+            fillPaint.setColor(ColorUtils.setAlphaComponent(color, (int) (0xFF * .96f)));
             canvas.drawPath(shape, fillPaint);
         }
         if (contentAlpha > 0f) {
             canvas.clipRect(body);
+            if (contentScale != 1f) canvas.scale(contentScale, contentScale, panel.centerX(), panel.top + Math.min(panel.height(), contentHeight()) / 2f);
             drawContent(canvas, contentAlpha);
         }
         canvas.restore();
         // the glass's light rim, brighter while it is a drop
         rimPaint.setStrokeWidth(dpf2(1.1f));
-        rimPaint.setColor(Theme.multAlpha(Color.WHITE, lerp(.3f, dark ? .13f : .5f, smoothstep(.5f, 1f, progress))));
+        rimPaint.setColor(Theme.multAlpha(Color.WHITE, lerp(.3f, dark ? .13f : .5f, smoothstep(DROP, SPREAD, progress))));
         canvas.drawPath(shape, rimPaint);
     }
 
@@ -348,16 +388,18 @@ public class ProfileMusicMenu extends View {
             // the track playing is ticked in a column of its own before it, as on iOS
             final float x = left + (current ? dp(56) : dp(18));
             final Row row = rows.get(i);
-            if (row.title == null || row.id != track.getId()) {
+            final float textWidth = right - dp(16) - x;
+            if (row.title == null || row.id != track.getId() || row.width != textWidth) {
+                // cut with "…" once, as iOS does, not faded out in a layer of its own every draw
                 row.id = track.getId();
+                row.width = textWidth;
                 final CharSequence title = track.getMusicTitle();
                 final CharSequence author = track.getMusicAuthor();
-                row.title = new Text(TextUtils.isEmpty(title) ? LocaleController.getString(R.string.AudioUnknownTitle) : title, 15.5f);
-                row.subtitle = new Text(TextUtils.isEmpty(author) ? LocaleController.getString(R.string.AudioUnknownArtist) : author, 13f);
+                row.title = new Text(TextUtils.ellipsize(TextUtils.isEmpty(title) ? LocaleController.getString(R.string.AudioUnknownTitle) : title,
+                        titlePaint, Math.max(0f, textWidth), TextUtils.TruncateAt.END), 15.5f);
+                row.subtitle = new Text(TextUtils.ellipsize(TextUtils.isEmpty(author) ? LocaleController.getString(R.string.AudioUnknownArtist) : author,
+                        subtitlePaint, Math.max(0f, textWidth), TextUtils.TruncateAt.END), 13f);
             }
-            final float textWidth = right - dp(16) - x;
-            row.title.ellipsize(textWidth);
-            row.subtitle.ellipsize(textWidth);
             if (current) {
                 checkPaint.setColor(Theme.multAlpha(textColor, alpha));
                 canvas.save();
@@ -384,9 +426,12 @@ public class ProfileMusicMenu extends View {
         folderIcon.setAlpha((int) (0xFF * alpha));
         folderIcon.setBounds((int) (left + dp(17)), (int) (cy - size / 2f), (int) (left + dp(17)) + size, (int) (cy - size / 2f) + size);
         folderIcon.draw(canvas);
-        if (footerText == null) footerText = new Text(LocaleController.getString(R.string.GlassgramProfileShowPlaylist), 15.5f);
         final float footerX = left + dp(17 + 22 + 16);
-        footerText.ellipsize(right - dp(16) - footerX);
+        if (footerText == null || footerWidth != right - dp(16) - footerX) {
+            footerWidth = right - dp(16) - footerX;
+            footerText = new Text(TextUtils.ellipsize(LocaleController.getString(R.string.GlassgramProfileShowPlaylist),
+                    titlePaint, Math.max(0f, footerWidth), TextUtils.TruncateAt.END), 15.5f);
+        }
         footerText.draw(canvas, footerX, cy, textColor, alpha);
         if (delegate != null && scrollY >= maxScroll() - rowHeight * 2) delegate.loadMore();
     }
