@@ -181,7 +181,7 @@ public final class GlassMerge {
     }
 
     /** The bridge between two circles, spreading over them by v (0 to 1); false when there is none. */
-    private static boolean metaball(Path path, Path edges, float c1x, float c1y, float r1, float c2x, float c2y, float r2, float v) {
+    static boolean metaball(Path path, Path edges, float c1x, float c1y, float r1, float c2x, float c2y, float r2, float v) {
         final float dx = c2x - c1x, dy = c2y - c1y;
         final float d = (float) Math.hypot(dx, dy);
         if (r1 <= 0 || r2 <= 0 || v <= 0 || d <= Math.abs(r1 - r2) || d > r1 + r2 * 2.5f) {

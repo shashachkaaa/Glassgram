@@ -274,6 +274,7 @@ import org.telegram.ui.Components.Premium.boosts.UserSelectorBottomSheet;
 import org.telegram.ui.Components.ProfileGalleryView;
 import org.telegram.ui.Components.ProfileGooeyView;
 import org.telegram.ui.Components.ProfileMusicView;
+import org.telegram.ui.Components.ProfileMusicMenu;
 import org.telegram.ui.Components.ProfilePageColors;
 import org.telegram.ui.Components.ProfileBalanceView;
 import org.telegram.ui.Wallet.ProfileWalletCardDialog;
@@ -3151,7 +3152,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 // A sideways drag around the avatar turns the gifts' orbit: from then on the
                 // gesture is the orbit's, the views under the finger lose it
-                if (giftsView != null && avatarContainer2 != null) {
+                if (giftsView != null && avatarContainer2 != null && (musicMenu == null || musicMenu.getVisibility() != View.VISIBLE)) {
                     final boolean turning = giftsView.isTurningOrbit();
                     final float gx = ev.getX() - avatarContainer2.getX() - giftsView.getX();
                     final float gy = ev.getY() - avatarContainer2.getY() - giftsView.getY();
@@ -3890,6 +3891,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             });
             musicView.setColor(peerColor);
             updateProfileMusicPlayback();
+            // Held and moved along, the pill winds the playing track on, as on iOS
+            musicView.setSeekListener(new ProfileMusicView.SeekListener() {
+                @Override
+                public boolean canSeek() {
+                    return getActiveProfileTrack() != null;
+                }
+
+                @Override
+                public void onSeek(float progress) {
+                    final MessageObject track = getActiveProfileTrack();
+                    if (track != null) {
+                        MediaController.getInstance().seekToProgress(track, progress);
+                    }
+                    updateProfileMusicPlayback();
+                }
+            });
             musicView.setOnClickListener(v -> {
                 if (savedMusicList == null) {
                     if (
@@ -3904,7 +3921,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     }
                 }
-                showProfileTrackMenu();
+                showProfileMusicMenu();
             });
 
             actionsView = new ProfileActionsView(context, dp(88));
@@ -5696,6 +5713,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         giftsView.setPageBehind(listView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         avatarContainer2.addView(giftsView.getFrontLayer(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        if (musicView != null) {
+            // the music's panel over all of the profile, its glass made of the header and the cards
+            musicMenu = new ProfileMusicMenu(context, resourcesProvider);
+            musicMenu.setBackdrop(topView, listView);
+            avatarContainer2.addView(musicMenu, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
         updateProfileData(true);
 
         writeButton = new RLottieImageView(context);
@@ -6255,7 +6278,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int profilePillHeight() {
+        if (arePillsInRow()) return dp(32);
         return (hasMusic ? dp(32) : 0) + (hasBalance ? dp(33) : 0);
+    }
+
+    /**
+     * As on iOS, the music and the balance in one row, the music on the left, the balance on the
+     * right, when both are there and fit: one under the other only when the balance leaves the
+     * music too little room.
+     */
+    private boolean arePillsInRow() {
+        if (!hasMusic || !hasBalance || musicView == null || balanceView == null) return false;
+        final int width = musicView.getWidth() > 0 ? musicView.getWidth()
+                : listView != null && listView.getMeasuredWidth() > 0 ? listView.getMeasuredWidth() : AndroidUtilities.displaySize.x;
+        return ProfileMusicView.fitInRow(width, balanceView);
     }
 
     private int getHeaderExtraHeight() {
@@ -9415,78 +9451,72 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         isInLandscapeMode = size.x > size.y;
     }
 
-    private android.widget.ListPopupWindow trackMenu;
-    private android.widget.BaseAdapter trackAdapter;
+    /* The music's panel, as on iOS: see ProfileMusicMenu */
 
-    private void showProfileTrackMenu() {
-        final Context context = musicView.getContext();
-        final android.widget.ListPopupWindow popup = new android.widget.ListPopupWindow(context);
-        trackMenu = popup;
-        trackAdapter = new android.widget.BaseAdapter() {
-            public int getCount() { return savedMusicList.list.size(); }
-            public MessageObject getItem(int index) { return savedMusicList.list.get(index); }
-            public long getItemId(int index) { return getItem(index).getId(); }
-            public View getView(int index, View recycled, ViewGroup parent) {
-                LinearLayout row = (LinearLayout) recycled;
-                if (row == null) {
-                    row = new LinearLayout(context);
-                    row.setOrientation(LinearLayout.VERTICAL);
-                    row.setPadding(dp(14), dp(7), dp(14), dp(7));
-                    for (int line = 0; line < 2; line++) {
-                        TextView label = new TextView(context);
-                        label.setSingleLine(true);
-                        label.setEllipsize(TextUtils.TruncateAt.END);
-                        label.setTextSize(line == 0 ? 14 : 12);
-                        label.setTextColor(getThemedColor(line == 0 ? Theme.key_windowBackgroundWhiteBlackText
-                                : Theme.key_windowBackgroundWhiteGrayText));
-                        row.addView(label);
-                    }
-                }
-                MessageObject track = getItem(index);
-                ((TextView) row.getChildAt(0)).setText(track.getMusicTitle());
-                ((TextView) row.getChildAt(1)).setText(track.getMusicAuthor());
-                return row;
+    private ProfileMusicMenu musicMenu;
+
+    private void showProfileMusicMenu() {
+        if (musicMenu == null || musicView == null || savedMusicList == null) return;
+        musicMenu.setDelegate(new ProfileMusicMenu.Delegate() {
+            @Override
+            public int getTrackCount() {
+                return savedMusicList == null ? 0 : savedMusicList.list.size();
             }
-        };
-        popup.setAdapter(trackAdapter);
-        popup.setAnchorView(musicView);
-        popup.setModal(true);
-        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
-        int width = Math.min(dp(272), Math.round(musicView.getWidth() * .64f));
-        popup.setWidth(width);
-        popup.setHorizontalOffset((musicView.getWidth() - width) / 2);
-        final int menuRadius = dp(18);
-        final LiquidPanelDrawable menuBackground = new LiquidPanelDrawable(null, menuRadius, menuRadius,
-                () -> getThemedColor(Theme.key_windowBackgroundWhite));
-        menuBackground.setFollowScale(true);
-        popup.setBackgroundDrawable(menuBackground);
-        popup.setOnDismissListener(() -> { trackMenu = null; trackAdapter = null; });
-        popup.setOnItemClickListener((parent, row, position, id) -> {
-            MessageObject selected = savedMusicList.list.get(position);
-            popup.dismiss();
-            MediaController player = MediaController.getInstance();
-            if (player.currentSavedMusicList != savedMusicList) player.cleanup();
-            player.currentSavedMusicList = savedMusicList;
-            player.getPlaylist().clear();
-            player.getPlaylist().addAll(savedMusicList.list);
-            if (player.isPlayingMessage(selected) && !player.isMessagePaused()) {
-                player.pauseMessage(selected);
-            } else {
-                player.playMessage(selected);
+
+            @Override
+            public MessageObject getTrack(int index) {
+                return savedMusicList == null || index < 0 || index >= savedMusicList.list.size() ? null : savedMusicList.list.get(index);
             }
-            updateProfileMusicPlayback();
-        });
-        popup.show();
-        popup.getListView().setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
-            private boolean scrolling;
-            public void onScrollStateChanged(android.widget.AbsListView view, int state) {
-                scrolling = state != SCROLL_STATE_IDLE;
+
+            @Override
+            public boolean isCurrentTrack(MessageObject track) {
+                final MessageObject active = getActiveProfileTrack();
+                return active != null && track != null && active.getId() == track.getId();
             }
-            public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {
-                if (scrolling && visible > 0 && first + visible >= total && !savedMusicList.endReached) savedMusicList.load();
+
+            @Override
+            public void onTrackClick(MessageObject track) {
+                playProfileTrack(track);
+            }
+
+            @Override
+            public void onShowPlaylist() {
+                showProfilePlaylist();
+            }
+
+            @Override
+            public void loadMore() {
+                if (savedMusicList != null && !savedMusicList.loading && !savedMusicList.endReached) savedMusicList.load();
             }
         });
+        musicMenu.show(musicView);
         if (!savedMusicList.loading && !savedMusicList.endReached) savedMusicList.load();
+    }
+
+    /** Plays the track of this profile's music picked, or pauses it if it is the one playing. */
+    private void playProfileTrack(MessageObject selected) {
+        if (savedMusicList == null || selected == null) return;
+        MediaController player = MediaController.getInstance();
+        if (player.currentSavedMusicList != savedMusicList) player.cleanup();
+        player.currentSavedMusicList = savedMusicList;
+        player.getPlaylist().clear();
+        player.getPlaylist().addAll(savedMusicList.list);
+        if (player.isPlayingMessage(selected) && !player.isMessagePaused()) {
+            player.pauseMessage(selected);
+        } else {
+            player.playMessage(selected);
+        }
+        updateProfileMusicPlayback();
+    }
+
+    /** The whole of this profile's music in the player: playing it from the first track if none of it is. */
+    private void showProfilePlaylist() {
+        if (savedMusicList == null || getParentActivity() == null) return;
+        if (getActiveProfileTrack() == null) {
+            if (savedMusicList.list.isEmpty()) return;
+            playProfileTrack(savedMusicList.list.get(0));
+        }
+        showDialog(org.telegram.ui.music.GlassgramMusicPlayer.create(getParentActivity(), resourcesProvider));
     }
 
     /* The profile color over the whole page, see ProfilePageColors */
@@ -9643,13 +9673,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (giftsView != null) giftsView.setMusicPulse(pulse, avatarScale);
     }
 
-    private void updateProfileMusicPlayback() {
-        if (musicView == null) return;
+    /** The track of this profile's music that is playing or paused, or null. */
+    private MessageObject getActiveProfileTrack() {
         final MediaController player = MediaController.getInstance();
         final MessagesController.SavedMusicList list = player.currentSavedMusicList;
         final MessageObject track = player.getPlayingMessageObject();
-        boolean activeTrack = list != null && list.currentAccount == currentAccount && list.dialogId == getDialogId()
-                && track != null && list.list.contains(track);
+        return list != null && list.currentAccount == currentAccount && list.dialogId == getDialogId()
+                && track != null && list.list.contains(track) ? track : null;
+    }
+
+    private void updateProfileMusicPlayback() {
+        if (musicView == null) return;
+        final MediaController player = MediaController.getInstance();
+        final MessageObject track = player.getPlayingMessageObject();
+        boolean activeTrack = getActiveProfileTrack() != null;
         musicView.setMusicDocument(activeTrack ? track.getDocument() : userInfo == null ? null : userInfo.saved_music);
         musicView.setPlaybackProgress(activeTrack ? track.audioProgress : 0f);
         final boolean playing = activeTrack && !player.isMessagePaused();
@@ -9662,7 +9699,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void didReceivedNotification(int id, int account, final Object... args) {
         if (id == NotificationCenter.musicListLoaded) {
-            if (trackAdapter != null && args[0] == savedMusicList) trackAdapter.notifyDataSetChanged();
+            if (musicMenu != null && args[0] == savedMusicList) musicMenu.onListChanged();
         } else if (id == NotificationCenter.messagePlayingProgressDidChanged || id == NotificationCenter.messagePlayingDidStart || id == NotificationCenter.messagePlayingPlayStateChanged
                 || id == NotificationCenter.messagePlayingDidReset) {
             updateProfileMusicPlayback();
@@ -10229,7 +10266,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     public void onPause() {
         super.onPause();
         stopProfileMusicBeat();
-        if (trackMenu != null) trackMenu.dismiss();
+        if (musicMenu != null) musicMenu.dismiss();
         if (undoView != null) {
             undoView.hide(true, 0);
         }
@@ -10252,6 +10289,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public boolean isSwipeBackEnabled(MotionEvent event) {
+        if (musicMenu != null && musicMenu.getVisibility() == View.VISIBLE) {
+            return false;
+        }
         if (avatarsViewPager != null && avatarsViewPager.getVisibility() == View.VISIBLE && avatarsViewPager.getRealCount() > 1) {
             avatarsViewPager.getHitRect(rect);
             if (event != null && rect.contains((int) event.getX(), (int) event.getY() - actionBar.getMeasuredHeight())) {
@@ -10287,6 +10327,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     public boolean onBackPressed(boolean invoked) {
         // the old onBackPressed() was no override anymore: the selection and the reordering ignored the back
         if (!super.onBackPressed(invoked)) {
+            return false;
+        }
+        if (musicMenu != null && musicMenu.isOpen()) {
+            if (invoked) {
+                musicMenu.dismiss();
+            }
             return false;
         }
         if (sharedMediaLayout != null && sharedMediaLayout.scrollSlidingTextTabStrip != null && sharedMediaLayout.scrollSlidingTextTabStrip.isReordering()) {
@@ -12192,6 +12238,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         final float rowsBottom = bottom - dp(88);
         float y = rowsBottom - profilePillHeight();
         musicView.setAlpha(openAnimationInProgress ? avatarAnimationProgress : 1f);
+        final boolean inRow = arePillsInRow();
+        musicView.setInRow(inRow);
+        if (inRow) {
+            // side by side, both as tall, as on iOS
+            final float height = openingPhoto ? dp(32) : Math.min(dp(32), y + dp(32) - newTop);
+            musicView.updatePosition(y, height);
+            balanceView.updatePosition(y, height);
+            return;
+        }
         if (hasMusic) {
             musicView.updatePosition(y, openingPhoto ? dp(32) : Math.min(dp(32), y + dp(32) - newTop));
             y += dp(32);

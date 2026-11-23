@@ -365,6 +365,43 @@ public class ProfileHeaderGlass {
     }
 
     /**
+     * A panel of glass, as iOS's menus: what is under it blurred, bent at its edges by a lens of
+     * this depth (0 for none), its own color over it. A radius of 0 gives a plain rectangle, for
+     * the caller to clip to a shape of its own.
+     */
+    public void drawPanel(Canvas canvas, Piece piece, RectF rect, float radius, int tint, float alpha, float blur, float lens) {
+        if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        final float width = rect.width(), height = rect.height();
+        final RenderNode node = (RenderNode) backdropNode;
+        if (node == null) {
+            tintPaint.setColor(ColorUtils.setAlphaComponent(tint, (int) (Color.alpha(tint) * alpha)));
+            canvas.drawRoundRect(rect, radius, radius, tintPaint);
+            return;
+        }
+        final float left = rect.left, top = rect.top;
+        final GlassLayer.Backdrop source = backdrop -> {
+            backdrop.translate(-left, -top);
+            backdrop.drawRenderNode(node);
+        };
+        if (piece.layer == null) {
+            piece.layer = new GlassLayer();
+        }
+        final float depth = Math.max(0f, Math.min(lens, Math.min(width, height) / 2f));
+        final int restore = alpha < 1f
+            ? canvas.saveLayerAlpha(rect.left, rect.top, rect.right, rect.bottom, (int) (255 * alpha))
+            : canvas.save();
+        canvas.translate(left, top);
+        ((GlassLayer) piece.layer).draw(canvas, width, height, radius, AndroidUtilities.density,
+            BackdropGlass.COLOR_NONE,
+            blur < .5f ? 0f : Math.round(blur * 2f) / 2f, depth, depth * .6f,
+            false, false, false, source,
+            tint, depth > 0f ? .6f : 0f, 1f);
+        canvas.restoreToCount(restore);
+    }
+
+    /**
      * @param blur px: a thick ball of glass blurs what is behind it; 0 for a clear one, through
      *             which text stays text
      */

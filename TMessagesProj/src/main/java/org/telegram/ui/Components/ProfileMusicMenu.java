@@ -1,0 +1,470 @@
+package org.telegram.ui.Components;
+
+import static org.telegram.messenger.AndroidUtilities.dp;
+import static org.telegram.messenger.AndroidUtilities.dpf2;
+import static org.telegram.messenger.AndroidUtilities.lerp;
+
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.RectF;
+import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.OvershootInterpolator;
+
+import androidx.annotation.NonNull;
+import androidx.core.graphics.ColorUtils;
+
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.R;
+import org.telegram.ui.ActionBar.Theme;
+
+import java.util.ArrayList;
+
+/**
+ * glassGram: the profile's music as on iOS. A tap on the music pill splits a drop of its glass
+ * off: the pill draws in to it and lets it go, the drop falls a little, swells and spreads into a
+ * panel of dark glass as wide as the pill and a bit wider, its top where the pill was, listing the
+ * tracks (the one playing ticked) and, under a line, a way to the whole playlist. Closed, the panel
+ * draws back into a drop of clear glass that flows back up into the pill, which comes back from it.
+ * <p>
+ * It lies over the whole profile while it is there and takes all the touches: a track picked plays,
+ * a tap off the panel closes it, a drag along it scrolls the list.
+ */
+public class ProfileMusicMenu extends View {
+
+    public interface Delegate {
+        int getTrackCount();
+
+        MessageObject getTrack(int index);
+
+        /** Whether this is the track playing, or paused: it is ticked. */
+        boolean isCurrentTrack(MessageObject track);
+
+        void onTrackClick(MessageObject track);
+
+        void onShowPlaylist();
+
+        /** Near the end of the list: the next of it, if there is more. */
+        void loadMore();
+    }
+
+    private static final long OPEN_MS = 440, CLOSE_MS = 360;
+    /** The first part of the way: the drop splitting off the pill. */
+    private static final float SPLIT = .32f;
+    private static final float PANEL_RADIUS_DP = 26, ROW_DP = 55, PAD_TOP_DP = 6, DIVIDER_DP = 9, FOOTER_DP = 52, PAD_BOTTOM_DP = 4;
+    private static final int NONE = -1, FOOTER = -2;
+
+    private final Theme.ResourcesProvider resourcesProvider;
+    private final ProfileHeaderGlass glass;
+    private final ProfileHeaderGlass.Piece piece = new ProfileHeaderGlass.Piece();
+    private ProfileMusicView anchor;
+    private Delegate delegate;
+
+    private float progress;
+    private boolean open, recorded, hasGlass;
+    private ValueAnimator animator;
+
+    private final RectF pill = new RectF(), panel = new RectF(), body = new RectF(), source = new RectF();
+    private final RectF glassRect = new RectF(), shapeBounds = new RectF();
+    private final Path shape = new Path(), piecePath = new Path(), bridge = new Path(), bridgeEdges = new Path();
+    private float bodyRadius, glassRadius, lens, tintAlpha, contentAlpha, blur;
+
+    private final DecelerateInterpolator splitEase = new DecelerateInterpolator(1.6f);
+    private final OvershootInterpolator spreadEase = new OvershootInterpolator(1.1f);
+
+    private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint checkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path check = new Path();
+    private final Drawable folderIcon;
+    private Text footerText;
+
+    private static final class Row {
+        long id;
+        Text title, subtitle;
+    }
+
+    private final ArrayList<Row> rows = new ArrayList<>();
+
+    private float scrollY, scrollFrom, downX, downY;
+    private boolean dragging;
+    private int pressed = NONE;
+
+    public ProfileMusicMenu(Context context, Theme.ResourcesProvider resourcesProvider) {
+        super(context);
+        this.resourcesProvider = resourcesProvider;
+        glass = new ProfileHeaderGlass(this);
+        rimPaint.setStyle(Paint.Style.STROKE);
+        linePaint.setStyle(Paint.Style.STROKE);
+        checkPaint.setStyle(Paint.Style.STROKE);
+        checkPaint.setStrokeCap(Paint.Cap.ROUND);
+        checkPaint.setStrokeJoin(Paint.Join.ROUND);
+        checkPaint.setStrokeWidth(dpf2(2f));
+        check.moveTo(0, dpf2(5.5f));
+        check.lineTo(dpf2(4.6f), dpf2(10f));
+        check.lineTo(dpf2(13.5f), 0);
+        folderIcon = context.getResources().getDrawable(R.drawable.msg_folders).mutate();
+        setVisibility(GONE);
+    }
+
+    /** The header and the page under it, for the glass: the panel goes down over the cards. */
+    public void setBackdrop(View header, View page) {
+        glass.setHeader(header);
+        glass.setUnder(page);
+    }
+
+    public void setDelegate(Delegate delegate) {
+        this.delegate = delegate;
+    }
+
+    public boolean isOpen() {
+        return open;
+    }
+
+    public void show(ProfileMusicView anchor) {
+        if (open || anchor == null || delegate == null) return;
+        this.anchor = anchor;
+        open = true;
+        recorded = false;
+        pressed = NONE;
+        scrollY = 0;
+        rows.clear();
+        setVisibility(VISIBLE);
+        animateTo(1f);
+    }
+
+    public void dismiss() {
+        if (!open) return;
+        open = false;
+        pressed = NONE;
+        dragging = false;
+        animateTo(0f);
+    }
+
+    /** The list grew or changed: the panel follows it. */
+    public void onListChanged() {
+        if (getVisibility() == VISIBLE) invalidate();
+    }
+
+    private void animateTo(float target) {
+        if (animator != null) {
+            final ValueAnimator was = animator;
+            animator = null;
+            was.cancel();
+        }
+        final float from = progress;
+        final ValueAnimator next = ValueAnimator.ofFloat(from, target);
+        next.setDuration(Math.max(1, Math.round((target > from ? OPEN_MS : CLOSE_MS) * Math.abs(target - from))));
+        next.setInterpolator(new LinearInterpolator());
+        next.addUpdateListener(a -> {
+            progress = (float) a.getAnimatedValue();
+            updateAnchor();
+            invalidate();
+        });
+        next.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (animator != animation) return;
+                animator = null;
+                progress = target;
+                updateAnchor();
+                if (progress <= 0f) {
+                    setVisibility(GONE);
+                    anchor = null;
+                }
+                invalidate();
+            }
+        });
+        animator = next;
+        next.start();
+    }
+
+    /** The pill gives its glass to the drop: hidden while the drop is out of it. */
+    private void updateAnchor() {
+        if (anchor != null) anchor.setMenuHide(smoothstep(0f, .1f, progress));
+    }
+
+    private static float smoothstep(float edge0, float edge1, float x) {
+        final float t = Math.max(0f, Math.min(1f, (x - edge0) / (edge1 - edge0)));
+        return t * t * (3f - 2f * t);
+    }
+
+    private int panelColor() {
+        final int base = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider) | 0xFF000000;
+        final boolean dark = ColorUtils.calculateLuminance(base) < .5f;
+        return dark ? ColorUtils.blendARGB(base, Color.BLACK, .35f) : ColorUtils.blendARGB(base, Color.WHITE, .25f);
+    }
+
+    private boolean isDark() {
+        return ColorUtils.calculateLuminance(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider) | 0xFF000000) < .5f;
+    }
+
+    private float contentHeight() {
+        final int count = delegate != null ? delegate.getTrackCount() : 0;
+        return dp(PAD_TOP_DP) + count * dp(ROW_DP) + dp(DIVIDER_DP) + dp(FOOTER_DP) + dp(PAD_BOTTOM_DP);
+    }
+
+    private float maxScroll() {
+        return Math.max(0f, contentHeight() - panel.height());
+    }
+
+    /** Lays the glass out for how far it is open, 0 to 1; false when there is nothing to draw. */
+    private boolean layout(float p) {
+        if (anchor == null) return false;
+        anchor.getPillRect(pill);
+        if (pill.isEmpty()) return false;
+        pill.offset(anchor.getX() - getX(), anchor.getY() - getY());
+        final float width = getWidth();
+        final float panelWidth = Math.max(pill.width(), Math.min(width * .66f, width - pill.left - dp(12)));
+        final float top = pill.top - dp(2);
+        final float maxHeight = getHeight() - top - dp(24) - AndroidUtilities.navigationBarHeight;
+        final float panelHeight = Math.max(Math.min(dp(120), maxHeight), Math.min(contentHeight(), maxHeight));
+        panel.set(pill.left, top, pill.left + panelWidth, top + panelHeight);
+        scrollY = Math.max(0f, Math.min(scrollY, maxScroll()));
+
+        // where the drop falls to: under the left of the pill, as on iOS
+        final float dropR = dp(40);
+        final float dropX = Math.max(pill.left + pill.height() / 2f, Math.min(pill.left + panelWidth * .3f, pill.right - pill.height() / 2f));
+        final float dropCy = pill.bottom + dp(14) + dropR * 1.4f;
+
+        shape.rewind();
+        if (p < SPLIT) {
+            final float t = splitEase.getInterpolation(p / SPLIT);
+            // the pill draws in to where the drop leaves it, and is gone into it
+            final float vanish = 1f - smoothstep(.55f, 1f, t);
+            final float sh = pill.height() * (1f - .2f * t) * vanish;
+            final float sw = lerp(pill.width(), pill.height(), t) * vanish;
+            final float scx = lerp(pill.centerX(), dropX, t);
+            source.set(scx - sw / 2f, pill.centerY() - sh / 2f, scx + sw / 2f, pill.centerY() + sh / 2f);
+            // the drop swells out of it and falls a little
+            final float r = dropR * t;
+            final float cy = lerp(pill.centerY(), dropCy, t);
+            body.set(dropX - r, cy - r * 1.4f, dropX + r, cy + r * 1.4f);
+            bodyRadius = r;
+            if (!source.isEmpty()) shape.addRoundRect(source, sh / 2f, sh / 2f, Path.Direction.CW);
+            if (!body.isEmpty()) {
+                piecePath.rewind();
+                piecePath.addRoundRect(body, r, r, Path.Direction.CW);
+                shape.op(piecePath, Path.Op.UNION);
+            }
+            // the neck between them, thinning as the drop goes, until it breaks
+            if (!source.isEmpty() && r > 0f) {
+                final float sr = sh / 2f;
+                final float neckX = Math.max(source.left + sr, Math.min(dropX, source.right - sr));
+                if (GlassMerge.metaball(bridge, bridgeEdges, neckX, pill.centerY(), sr, dropX, body.top + r, r, .25f + .55f * (1f - t))) {
+                    shape.op(bridge, Path.Op.UNION);
+                }
+            }
+            shape.computeBounds(shapeBounds, true);
+            glassRect.set(shapeBounds);
+            glassRadius = 0f;
+            lens = 0f;
+        } else {
+            // the drop spreads into the panel, a little past it and back
+            final float u = (p - SPLIT) / (1f - SPLIT);
+            final float e = spreadEase.getInterpolation(u);
+            body.set(
+                lerp(dropX - dropR, panel.left, e),
+                lerp(dropCy - dropR * 1.4f, panel.top, e),
+                lerp(dropX + dropR, panel.right, e),
+                lerp(dropCy + dropR * 1.4f, panel.bottom, e));
+            bodyRadius = Math.min(lerp(dropR, dp(PANEL_RADIUS_DP), Math.min(1f, e)), Math.min(body.width(), body.height()) / 2f);
+            shape.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
+            glassRect.set(body);
+            glassRadius = bodyRadius;
+            // bent strongly at its edges as it spreads, as on iOS, then settling
+            lens = dp(16) * (1f - .55f * smoothstep(.6f, 1f, u));
+        }
+        tintAlpha = lerp(.1f, isDark() ? .88f : .82f, smoothstep(.45f, .92f, p));
+        contentAlpha = smoothstep(.74f, 1f, p);
+        blur = dp(5) + dp(5) * smoothstep(.25f, .8f, p);
+        return true;
+    }
+
+    @Override
+    protected void onDraw(@NonNull Canvas canvas) {
+        if (progress <= 0f) return;
+        if (!layout(progress)) {
+            // the pill is gone (the header folded away): the panel goes with it
+            if (open) post(this::dismiss);
+            return;
+        }
+        if (animator != null || !recorded) {
+            // what is under the glass, while it moves; still, it keeps what it took last
+            hasGlass = glass.begin(canvas);
+            recorded = true;
+        }
+        final int color = panelColor();
+        canvas.save();
+        canvas.clipPath(shape);
+        if (hasGlass) {
+            glass.drawPanel(canvas, piece, glassRect, glassRadius, ColorUtils.setAlphaComponent(color, (int) (0xFF * tintAlpha)), 1f, blur, lens);
+        } else {
+            fillPaint.setColor(ColorUtils.setAlphaComponent(color, (int) (0xFF * Math.max(tintAlpha, .96f))));
+            canvas.drawPath(shape, fillPaint);
+        }
+        if (contentAlpha > 0f) {
+            canvas.clipRect(body);
+            drawContent(canvas, contentAlpha);
+        }
+        canvas.restore();
+        // the glass's light rim, brighter while it is a drop
+        rimPaint.setStrokeWidth(dpf2(1.1f));
+        rimPaint.setColor(Theme.multAlpha(Color.WHITE, lerp(.3f, isDark() ? .13f : .5f, smoothstep(.5f, 1f, progress))));
+        canvas.drawPath(shape, rimPaint);
+    }
+
+    private void drawContent(Canvas canvas, float alpha) {
+        if (delegate == null) return;
+        final int textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+        final int grayColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider);
+        final int count = delegate.getTrackCount();
+        final float left = panel.left, right = panel.right;
+        final float rowHeight = dp(ROW_DP);
+        float y = panel.top + dp(PAD_TOP_DP) - scrollY;
+        while (rows.size() < count) rows.add(new Row());
+        for (int i = 0; i < count; i++, y += rowHeight) {
+            if (y + rowHeight < panel.top || y > panel.bottom) continue;
+            final MessageObject track = delegate.getTrack(i);
+            if (track == null) continue;
+            final boolean current = delegate.isCurrentTrack(track);
+            if (pressed == i) drawPressed(canvas, left, y, right, y + rowHeight, textColor, alpha);
+            // the track playing is ticked in a column of its own before it, as on iOS
+            final float x = left + (current ? dp(56) : dp(18));
+            final Row row = rows.get(i);
+            if (row.title == null || row.id != track.getId()) {
+                row.id = track.getId();
+                final CharSequence title = track.getMusicTitle();
+                final CharSequence author = track.getMusicAuthor();
+                row.title = new Text(TextUtils.isEmpty(title) ? LocaleController.getString(R.string.AudioUnknownTitle) : title, 15.5f);
+                row.subtitle = new Text(TextUtils.isEmpty(author) ? LocaleController.getString(R.string.AudioUnknownArtist) : author, 13f);
+            }
+            final float textWidth = right - dp(16) - x;
+            row.title.ellipsize(textWidth);
+            row.subtitle.ellipsize(textWidth);
+            if (current) {
+                checkPaint.setColor(Theme.multAlpha(textColor, alpha));
+                canvas.save();
+                canvas.translate(left + dp(24), y + rowHeight / 2f - dpf2(5));
+                canvas.drawPath(check, checkPaint);
+                canvas.restore();
+            }
+            row.title.draw(canvas, x, y + dp(19), textColor, alpha);
+            row.subtitle.draw(canvas, x, y + dp(37), grayColor, alpha);
+        }
+        // the line, then the whole playlist
+        linePaint.setStrokeWidth(Math.max(1f, dpf2(.66f)));
+        linePaint.setColor(Theme.multAlpha(textColor, .12f * alpha));
+        final float lineY = y + dp(DIVIDER_DP) / 2f;
+        canvas.drawLine(left + dp(18), lineY, right - dp(18), lineY, linePaint);
+        y += dp(DIVIDER_DP);
+        if (pressed == FOOTER) drawPressed(canvas, left, y, right, y + dp(FOOTER_DP), textColor, alpha);
+        final float cy = y + dp(FOOTER_DP) / 2f;
+        final int size = dp(22);
+        folderIcon.setColorFilter(new PorterDuffColorFilter(textColor, PorterDuff.Mode.SRC_IN));
+        folderIcon.setAlpha((int) (0xFF * alpha));
+        folderIcon.setBounds((int) (left + dp(17)), (int) (cy - size / 2f), (int) (left + dp(17)) + size, (int) (cy - size / 2f) + size);
+        folderIcon.draw(canvas);
+        if (footerText == null) footerText = new Text(LocaleController.getString(R.string.GlassgramProfileShowPlaylist), 15.5f);
+        final float footerX = left + dp(17 + 22 + 16);
+        footerText.ellipsize(right - dp(16) - footerX);
+        footerText.draw(canvas, footerX, cy, textColor, alpha);
+        if (delegate != null && scrollY >= maxScroll() - rowHeight * 2) delegate.loadMore();
+    }
+
+    private final RectF pressedRect = new RectF();
+
+    private void drawPressed(Canvas canvas, float left, float top, float right, float bottom, int color, float alpha) {
+        pressedRect.set(left + dp(6), top + dp(2), right - dp(6), bottom - dp(2));
+        fillPaint.setColor(Theme.multAlpha(color, .09f * alpha));
+        canvas.drawRoundRect(pressedRect, dp(16), dp(16), fillPaint);
+    }
+
+    /** The row under (x, y): a track's index, FOOTER, or NONE off them and off the panel. */
+    private int hit(float x, float y) {
+        if (!panel.contains(x, y) || delegate == null) return NONE;
+        final float inside = y - panel.top - dp(PAD_TOP_DP) + scrollY;
+        final int count = delegate.getTrackCount();
+        if (inside >= 0 && inside < count * dp(ROW_DP)) return (int) (inside / dp(ROW_DP));
+        final float footerTop = count * dp(ROW_DP) + dp(DIVIDER_DP);
+        if (inside >= footerTop && inside < footerTop + dp(FOOTER_DP)) return FOOTER;
+        return NONE;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (getVisibility() != VISIBLE || progress <= 0f) return false;
+        final float x = event.getX(), y = event.getY();
+        final boolean settled = open && animator == null;
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = x;
+                downY = y;
+                dragging = false;
+                scrollFrom = scrollY;
+                pressed = settled ? hit(x, y) : NONE;
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                invalidate();
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (!dragging && Math.abs(y - downY) > ViewConfiguration.get(getContext()).getScaledTouchSlop()) {
+                    dragging = true;
+                    pressed = NONE;
+                    invalidate();
+                }
+                if (dragging && settled && panel.contains(downX, downY)) {
+                    scrollY = Math.max(0f, Math.min(maxScroll(), scrollFrom - (y - downY)));
+                    invalidate();
+                }
+                return true;
+            case MotionEvent.ACTION_UP: {
+                final int was = pressed;
+                pressed = NONE;
+                if (!dragging) {
+                    final int at = settled ? hit(x, y) : NONE;
+                    if (at != NONE && at == was) {
+                        click(at);
+                    } else if (!panel.contains(x, y) || !settled) {
+                        dismiss();
+                    }
+                }
+                dragging = false;
+                invalidate();
+                return true;
+            }
+            case MotionEvent.ACTION_CANCEL:
+                pressed = NONE;
+                dragging = false;
+                invalidate();
+                return true;
+        }
+        return true;
+    }
+
+    private void click(int at) {
+        if (delegate == null) return;
+        if (at == FOOTER) {
+            delegate.onShowPlaylist();
+        } else if (at >= 0 && at < delegate.getTrackCount()) {
+            final MessageObject track = delegate.getTrack(at);
+            if (track != null) delegate.onTrackClick(track);
+        }
+        dismiss();
+    }
+}

@@ -16,8 +16,10 @@ import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextUtils;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -44,7 +46,7 @@ public class ProfileMusicView extends View {
     private ProfileMusicView trailingView;
 
 
-    // The pills have separate rows but share the header and its transitions.
+    // The pills share the header and its transitions; in a row, side by side, see setInRow.
     public void setTrailingView(ProfileMusicView view) {
         trailingView = view;
 
@@ -70,6 +72,20 @@ public class ProfileMusicView extends View {
         if (drawnAlpha <= 0f || getVisibility() != VISIBLE) return 0f;
         out.set(rect);
         return drawnAlpha * getAlpha();
+    }
+
+    /** The pill as it is laid out, in this view's coordinates, drawn or not. */
+    public void getPillRect(RectF out) {
+        out.set(rect);
+    }
+
+    private float menuHide;
+
+    /** How far the pill is gone into the music's panel, 0 to 1, see {@link ProfileMusicMenu}. */
+    public void setMenuHide(float hide) {
+        if (menuHide == hide) return;
+        menuHide = hide;
+        invalidate();
     }
 
     public void getButtonBoundsOnScreen(RectF bounds) {
@@ -124,7 +140,23 @@ public class ProfileMusicView extends View {
     public void setColor(MessagesController.PeerColor peerColor) {
         hasProfileColor = peerColor != null;
         if (trailingView != null) trailingView.setColor(peerColor);
+        progressColor = peerColor != null ? progressColorOf(peerColor.getBgColor1(Theme.isCurrentThemeDark())) : 0;
         invalidate();
+    }
+
+    /**
+     * As on iOS, how far the track has played fills the pill in the profile's color, full and
+     * bright (on a green profile a fresh green), the text white over it; 0 without a profile
+     * color: a light veil.
+     */
+    private int progressColor;
+
+    private static int progressColorOf(int color) {
+        final float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[1] = Math.max(hsv[1], .6f);
+        hsv[2] = .69f;
+        return Color.HSVToColor(hsv);
     }
 
     // Same color as ProfileActionsView buttons.
@@ -160,6 +192,62 @@ public class ProfileMusicView extends View {
     }
 
 
+
+    /* As on iOS, the music and the balance side by side in one row when both are there: the music
+       on the left, shortened as far as it has to be, the balance on the right, both as tall; the
+       two together in the middle when there is room to spare. The row is laid out by the music
+       pill as it draws, before the balance, which draws after it. */
+
+    private static final int ROW_SIDE = 16, ROW_GAP = 8;
+    private boolean inRow;
+    /** Where in this view the pill lies in the row; NaN alone, in the middle of the view. */
+    private float slotLeft = Float.NaN, slotRight = Float.NaN;
+
+    /** Whether this pill and the one beside it (see setTrailingView) are in one row. */
+    public void setInRow(boolean inRow) {
+        if (trailingView != null) trailingView.setInRow(inRow);
+        if (this.inRow == inRow) return;
+        this.inRow = inRow;
+        if (!inRow) setSlot(Float.NaN, Float.NaN);
+        invalidate();
+    }
+
+    private void setSlot(float left, float right) {
+        if (Float.compare(slotLeft, left) == 0 && Float.compare(slotRight, right) == 0) return;
+        slotLeft = left;
+        slotRight = right;
+        invalidate();
+    }
+
+    /** The pill's width with all of its text shown. */
+    public float getNaturalPillWidth() {
+        if (author == null || title == null) return 0;
+        return getPillWidth(dp(2000));
+    }
+
+    /** Whether the music and the balance beside it fit in one row of this width, the music not too short. */
+    public static boolean fitInRow(int width, ProfileMusicView balance) {
+        return width - dp(ROW_SIDE * 2 + ROW_GAP) - balance.getNaturalPillWidth() >= dp(120);
+    }
+
+    private void layoutRow() {
+        final ProfileMusicView beside = trailingView;
+        if (!inRow || beside == null || beside.getVisibility() != VISIBLE) {
+            setSlot(Float.NaN, Float.NaN);
+            return;
+        }
+        final float width = getWidth(), side = dp(ROW_SIDE), gap = dp(ROW_GAP);
+        final float besideWidth = beside.getNaturalPillWidth();
+        final float ownWidth = getNaturalPillWidth();
+        if (ownWidth + gap + besideWidth <= width - 2 * side) {
+            final float start = (width - ownWidth - gap - besideWidth) / 2f;
+            setSlot(start, start + ownWidth);
+            beside.setSlot(start + ownWidth + gap, start + ownWidth + gap + besideWidth);
+        } else {
+            setSlot(side, width - side - gap - besideWidth);
+            beside.setSlot(width - side - besideWidth, width - side);
+        }
+    }
 
     private TLRPC.Document displayedDocument;
     private float playbackProgress;
@@ -294,18 +382,83 @@ public class ProfileMusicView extends View {
         invalidate();
     }
 
+    /* As on iOS, the track is wound on by holding the pill and moving the finger along it: the
+       pill swells a little, the fill of how far it has played follows the finger, from where it
+       was, and the track goes on from there when the finger lifts. */
+
+    public interface SeekListener {
+        /** Whether there is a track playing (or paused) to wind on. */
+        boolean canSeek();
+
+        void onSeek(float progress);
+    }
+
+    /** Held this long, ms, without moving, the pill winds the track on. */
+    private static final long SEEK_HOLD = 300;
+    private SeekListener seekListener;
+    private boolean seeking;
+    private float seekFrom, seekProgress, seekX, downX, downY, lastX, lastY;
+    private final AnimatedFloat seekSwell = new AnimatedFloat(this, 0, 220, CubicBezierInterpolator.EASE_OUT_QUINT);
+
+    public void setSeekListener(SeekListener listener) {
+        seekListener = listener;
+    }
+
+    public boolean isSeeking() {
+        return seeking;
+    }
+
+    private final Runnable startSeeking = () -> {
+        if (!bounce.isPressed() || seekListener == null || !seekListener.canSeek()) return;
+        seeking = true;
+        clickEligible = false;
+        seekFrom = seekProgress = playbackProgress;
+        seekX = lastX;
+        bounce.setPressed(false);
+        press.onTouch(MotionEvent.ACTION_CANCEL, lastX - rect.left, lastY - rect.top);
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+        invalidate();
+    };
+
+    private void finishSeeking(boolean seek) {
+        if (!seeking) return;
+        seeking = false;
+        if (seek && seekListener != null) {
+            playbackProgress = seekProgress;
+            seekListener.onSeek(seekProgress);
+        }
+        if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+        invalidate();
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         final int action = event.getActionMasked();
         final float x = event.getX(), y = event.getY();
         final boolean inside = rect.contains(x, y);
+        lastX = x;
+        lastY = y;
         if (action == MotionEvent.ACTION_DOWN) {
             if (currentHeight <= 0 || !inside) return false;
             clickEligible = true;
             bounce.setPressed(true);
+            downX = x;
+            downY = y;
             if (press.isLibraryButton()) {
                 getParent().requestDisallowInterceptTouchEvent(true);
                 press.onTouch(action, x - rect.left, y - rect.top);
+            }
+            removeCallbacks(startSeeking);
+            if (seekListener != null) postDelayed(startSeeking, SEEK_HOLD);
+            return true;
+        }
+        if (seeking) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                seekProgress = Utilities.clamp01(seekFrom + (x - seekX) / Math.max(1f, rect.width()));
+                invalidate();
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                finishSeeking(action == MotionEvent.ACTION_UP);
             }
             return true;
         }
@@ -313,7 +466,11 @@ public class ProfileMusicView extends View {
         press.onTouch(action, x - rect.left, y - rect.top);
         if (action == MotionEvent.ACTION_MOVE) {
             clickEligible &= inside;
+            // moved before it held: not a hold
+            final int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+            if (Math.abs(x - downX) > slop || Math.abs(y - downY) > slop) removeCallbacks(startSeeking);
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            removeCallbacks(startSeeking);
             bounce.setPressed(false);
             if (action == MotionEvent.ACTION_UP && clickEligible && inside && currentHeight > 0) {
                 performClick();
@@ -369,26 +526,39 @@ public class ProfileMusicView extends View {
         drawnAlpha = 0f;
         if (this.author == null || this.title == null) return;
 
-        final float alpha = Utilities.clamp01((currentHeight) / dp(21));
-        final float scale = press.isLibraryButton() ? 1f : bounce.getScale(0.02f);
+        final float sizeAlpha = Utilities.clamp01((currentHeight) / dp(21));
+        // while the music's panel is out of it, the pill is gone into the panel's glass
+        final float alpha = sizeAlpha * (1f - menuHide);
+        // held to wind the track on, it swells a little, as on iOS
+        final float scale = (press.isLibraryButton() ? 1f : bounce.getScale(0.02f)) * (1f + .045f * seekSwell.set(seeking));
         drawnAlpha = alpha;
-        if (alpha <= 0) {
+        if (sizeAlpha <= 0) {
             if (buttonsGlass != null) {
                 buttonsGlass.setAlpha(0);
             }
             return;
         }
 
+        if (!(this instanceof ProfileBalanceView)) layoutRow();
+        final boolean row = inRow && !Float.isNaN(slotLeft) && slotRight > slotLeft;
         final int padding = dp(12);
-        final int available = Math.max(0, getWidth() - padding * 2);
-        final int maxWidth = this instanceof ProfileBalanceView ? available
+        final float available = row ? slotRight - slotLeft : Math.max(0, getWidth() - padding * 2);
+        final float maxWidth = row || this instanceof ProfileBalanceView ? available
                 : Math.min(available, Math.round(getWidth() * 0.76f));
 
         final float targetWidth = getPillWidth(maxWidth);
         final float containerWidth = this instanceof ProfileBalanceView ? targetWidth : Math.min(maxWidth, pillWidth.set(targetWidth));
-        final float left = (getWidth() - containerWidth) / 2f;
-        final float halfHeight = dp(this instanceof ProfileBalanceView ? 10 : 12) * alpha;
+        // in the row the music keeps to the left of its place and the balance to the right
+        final float left = !row ? (getWidth() - containerWidth) / 2f
+                : this instanceof ProfileBalanceView ? slotRight - containerWidth : slotLeft;
+        final float halfHeight = dp(this instanceof ProfileBalanceView && !row ? 10 : 12) * sizeAlpha;
         rect.set(left, getHeight() / 2f - halfHeight, left + containerWidth, getHeight() / 2f + halfHeight);
+        if (alpha <= 0f) {
+            if (buttonsGlass != null) {
+                buttonsGlass.setAlpha(0);
+            }
+            return;
+        }
         canvas.save();
         canvas.scale(scale, scale, rect.centerX(), getHeight() / 2f);
 
@@ -439,10 +609,16 @@ public class ProfileMusicView extends View {
 
         canvas.save();
         canvas.clipPath(clipPath);
-        if (playbackProgress > 0f) {
-            progressPaint.setColor(textColor);
-            progressPaint.setAlpha(Math.round(52 * alpha));
-            canvas.drawRect(rect.left, rect.top, rect.left + rect.width() * playbackProgress,
+        final float progress = seeking ? seekProgress : playbackProgress;
+        if (progress > 0f) {
+            if (progressColor != 0 && !isOnProfilePhoto()) {
+                progressPaint.setColor(progressColor);
+                progressPaint.setAlpha(Math.round(0xFF * alpha));
+            } else {
+                progressPaint.setColor(textColor);
+                progressPaint.setAlpha(Math.round((seeking ? 90 : 52) * alpha));
+            }
+            canvas.drawRect(rect.left, rect.top, rect.left + rect.width() * progress,
                     rect.bottom, progressPaint);
         }
         canvas.translate(rect.left + dp(8), 0);

@@ -1070,4 +1070,5 @@
     <string name="GlassgramMusicReverb">Реверберация</string>
     <string name="GlassgramMusicClassic">Плеер Telegram</string>
     <string name="GlassgramMusicClassicInfo">Открывать музыку в плеере Telegram вместо этого.</string>
+    <string name="GlassgramProfileShowPlaylist">Показать плейлист</string>
 </resources>
