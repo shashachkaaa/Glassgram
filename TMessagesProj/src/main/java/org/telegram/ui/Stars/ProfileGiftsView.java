@@ -289,19 +289,22 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             particles.bounds.set(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f);
             sparkles = new Sparkles(id);
 
-            // A soap bubble at rest: clear in the middle, the backdrop's color, light and full,
-            // gathering towards the rim, where the film is seen edge on: half of what is behind
-            // it there is the film's color (a lilac, a gold, a milky white one), as on iOS.
-            final int tint = filmColorOf(ColorUtils.blendARGB(color, edgeColor, .3f));
+            // A soap bubble at rest, as on iOS: a ball of the backdrop's color, light and full,
+            // thin in the middle and thick in a wide band along the rim, where the film is seen
+            // edge on: three quarters of what is behind it there is the film's color (a lilac,
+            // an amber, a milky white one), easing off just at the edge, which has no white line.
+            final int tint = filmColorOf(ColorUtils.blendARGB(color, edgeColor, .5f));
             filmPaint.setShader(new RadialGradient(0, 0, 1f,
                     new int[]{
-                            Theme.multAlpha(tint, 0f),
-                            Theme.multAlpha(tint, .08f),
-                            Theme.multAlpha(tint, .22f),
-                            Theme.multAlpha(tint, .45f),
-                            Theme.multAlpha(tint, .58f)
+                            Theme.multAlpha(tint, .04f),
+                            Theme.multAlpha(tint, .12f),
+                            Theme.multAlpha(tint, .3f),
+                            Theme.multAlpha(tint, .6f),
+                            Theme.multAlpha(tint, .74f),
+                            Theme.multAlpha(tint, .68f),
+                            Theme.multAlpha(tint, .5f)
                     },
-                    new float[]{0f, .5f, .78f, .92f, 1f}, Shader.TileMode.CLAMP));
+                    new float[]{0f, .35f, .6f, .8f, .9f, .97f, 1f}, Shader.TileMode.CLAMP));
             // Picked up, it fills with its color like a ball of colored glass, clear only around
             // the gift; drawn over the film by how far the bubble is lifted.
             liftFilmPaint.setShader(new RadialGradient(0, 0, 1f,
@@ -313,14 +316,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     },
                     new float[]{0f, .45f, .75f, 1f}, Shader.TileMode.CLAMP));
             filmColor = tint;
-            rimColor = ColorUtils.blendARGB(color, Color.WHITE, .55f);
+            // the edge is the film's own color, a shade lighter, not a white line
+            rimColor = ColorUtils.blendARGB(tint, Color.WHITE, .25f);
             lightShader = new RadialGradient(0, 0, 1f,
                     new int[]{lightColor, Theme.multAlpha(lightColor, .55f), Theme.multAlpha(lightColor, .16f), Theme.multAlpha(lightColor, 0f)},
                     new float[]{0f, .3f, .62f, 1f}, Shader.TileMode.CLAMP);
-            // The glint on the rims around keeps the gift's own color: added to the header it
-            // went white over a mid-tone one
+            // The glint on the rims around, the avatar's above all, is the film's own color, as
+            // on iOS: a lilac bubble lights the avatar lilac. Added to the header it went white
+            // over a mid-tone one
             final float[] hsv = new float[3];
-            Color.colorToHSV(color, hsv);
+            Color.colorToHSV(tint, hsv);
             hsv[2] = Math.max(hsv[2], .92f);
             final int glint = Color.HSVToColor(hsv);
             glintShader = new RadialGradient(0, 0, 1f,
@@ -502,13 +507,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             // left and, fainter, down and to the right
             rimPaint.setStyle(Paint.Style.STROKE);
             rimPaint.setStrokeWidth(dpf2(1.1f + .5f * musicPulse));
-            rimPaint.setColor(Theme.multAlpha(rimColor, Math.min(1f, .4f + .4f * lift + .25f * musicPulse) * alpha));
+            rimPaint.setColor(Theme.multAlpha(rimColor, Math.min(1f, .24f + .4f * lift + .25f * musicPulse) * alpha));
             canvas.drawPath(bubbleOutline, rimPaint);
             rimLightMatrix.setScale(r, r);
             rimLightMatrix.postTranslate(cx, cy);
             rimLightPaint.getShader().setLocalMatrix(rimLightMatrix);
             rimLightPaint.setStrokeWidth(dpf2(1f));
-            rimLightPaint.setAlpha((int) (0xFF * alpha));
+            // the light the edge catches: a glint, not a white outline
+            rimLightPaint.setAlpha((int) (0xFF * alpha * (.35f + .3f * Math.min(1f, lift))));
             canvas.drawPath(bubbleOutline, rimLightPaint);
             canvas.restore();
         }
@@ -563,8 +569,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static int filmColorOf(int color) {
         final float[] hsv = new float[3];
         Color.colorToHSV(color, hsv);
-        hsv[1] = Math.min(1f, hsv[1] * 1.15f);
-        hsv[2] = Math.max(hsv[2], .88f);
+        // on iOS a lilac film is some 0.45 saturated, an amber one 0.6, a light blue one 0.35,
+        // all of them bright
+        hsv[1] = Math.min(Math.max(hsv[1], hsv[1] * 1.35f), Math.max(hsv[1], .62f));
+        hsv[2] = Math.max(hsv[2], .93f);
         return Color.HSVToColor(hsv);
     }
 
@@ -611,10 +619,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         sheenPaint.getShader().setLocalMatrix(sheenMatrix);
         sheenPaint.setStrokeJoin(Paint.Join.ROUND);
         sheenPaint.setStrokeWidth(r * .5f);
-        sheenPaint.setAlpha((int) (0xFF * alpha * .45f));
+        sheenPaint.setAlpha((int) (0xFF * alpha * .25f));
         canvas.drawPath(bubbleOutline, sheenPaint);
         sheenPaint.setStrokeWidth(r * .22f);
-        sheenPaint.setAlpha((int) (0xFF * alpha * .55f));
+        sheenPaint.setAlpha((int) (0xFF * alpha * .3f));
         canvas.drawPath(bubbleOutline, sheenPaint);
     }
 
@@ -1382,6 +1390,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private final int[] ownLocation = new int[2], otherLocation = new int[2];
     private final RectF litRect = new RectF();
     private final Paint lightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The light washing over the photo from its rim: screened, it lights a dark photo up and leaves a light one be. */
+    private final Paint washPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** The first lit shape is the avatar's: lit much more, see {@link #drawLight}. */
+    private boolean avatarLit;
     private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint flashPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix lightMatrix = new Matrix();
@@ -1389,6 +1401,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     {
         // the glow is screened over the header: added, it went white over a mid-tone header
         haloPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SCREEN));
+        washPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SCREEN));
+        washPaint.setStyle(Paint.Style.STROKE);
         flashPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.ADD));
     }
 
@@ -1421,7 +1435,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     private void collectLitShapes(float avatarX, float avatarY, float avatarW, float avatarH) {
         litCount = 0;
+        avatarLit = false;
         if (avatarContainer.getVisibility() == VISIBLE && avatarContainer.getAlpha() > 0f && avatarW > 0) {
+            avatarLit = true;
             // the photo swells around its center on the beat
             final float growX = avatarW * (avatarPulseScale - 1f) / 2f, growY = avatarH * (avatarPulseScale - 1f) / 2f;
             final int i = litCount++ * LIT_FIELDS;
@@ -1441,10 +1457,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
     /**
      * The light on the shapes near the bubbles, as on iOS: a thin bright rim in the bubble's color
-     * on the side facing it, and on the round ones (the avatar, the buttons) a glow of it fading
-     * inwards from that rim. It falls off with the distance from the bubble's surface and reaches
-     * about its own width, so the avatar's rim takes the colors of the bubbles around it, each on
-     * its own side; a bubble picked up shines stronger and further.
+     * on the side facing it, and on the round ones (the buttons) a glow of it fading inwards from
+     * that rim. It falls off with the distance from the bubble's surface and reaches about its own
+     * width; a bubble picked up shines stronger and further.
+     * <p>
+     * The avatar is lit as a ball of glass is on iOS: its rim burns bright in the colors of the
+     * bubbles around it, each on its own side along a long arc, and their light washes in over the
+     * photo from there, a third of the way to its middle: a dark photo goes lilac or gold on the
+     * side of a lilac or a golden bubble.
      */
     private void drawLight(Canvas canvas) {
         if (litCount == 0) return;
@@ -1455,13 +1475,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             final float lift = (float) Math.min(1, gift.orbit.lift);
             final float bx = gift.bounds.centerX(), by = gift.bounds.centerY();
             final float br = gift.bounds.width() / 2f;
-            final float reach = br * 2.2f * (1f + .3f * musicPulse);
             final float power = gift.alpha * strength * (.62f + .6f * lift);
             boolean shaderSet = false;
             for (int s = 0; s < litCount; s++) {
                 final int i = s * LIT_FIELDS;
                 final float l = litShapes[i], t = litShapes[i + 1], r = litShapes[i + 2], b = litShapes[i + 3];
                 final float radius = litShapes[i + 4];
+                final boolean avatar = s == 0 && avatarLit;
+                // the avatar catches the light from further off: all of the bubbles round it
+                // tint its rim
+                final float reach = br * (avatar ? AVATAR_LIGHT_REACH : 2.2f) * (1f + .3f * musicPulse);
                 final float dx = Math.max(0, Math.max(l - bx, bx - r));
                 final float dy = Math.max(0, Math.max(t - by, by - b));
                 final float gap = Math.max(0, (float) Math.hypot(dx, dy) - br);
@@ -1469,10 +1492,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 final float near = 1f - gap / reach;
                 final float intensity = near * (.55f + .45f * near) * litShapes[i + 5] * power;
                 if (intensity <= .01f) continue;
-                if (!shaderSet) {
-                    shaderSet = true;
-                    // the light's own falloff from the bubble keeps it to the side facing it
-                    final float lightRadius = br + reach;
+                // the light's own falloff from the bubble keeps it to the side facing it
+                final float lightRadius = br + reach;
+                if (!shaderSet || avatar) {
+                    shaderSet = !avatar;
                     lightMatrix.setScale(lightRadius, lightRadius);
                     lightMatrix.postTranslate(bx, by);
                     gift.glintShader.setLocalMatrix(lightMatrix);
@@ -1481,6 +1504,22 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 final boolean round = radius >= Math.min(r - l, b - t) / 2f - .5f && Math.abs((r - l) - (b - t)) < 1f;
                 litRect.set(l, t, r, b);
                 lightPaint.setStyle(Paint.Style.STROKE);
+                if (avatar) {
+                    drawAvatarLight(canvas, gift, litRect.centerX(), litRect.centerY(), radius, intensity);
+                    // the rim, bright: on iOS it burns near white in the bubble's color
+                    final float avatarRim = dpf2(1.7f);
+                    lightPaint.setShader(gift.glintShader);
+                    lightPaint.setStrokeWidth(avatarRim);
+                    lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(1.5f * intensity)));
+                    canvas.drawCircle(litRect.centerX(), litRect.centerY(), Math.max(0, radius - avatarRim / 2f), lightPaint);
+                    // and a thin glow just outside it
+                    lightPaint.setStrokeWidth(avatarRim * 2.5f);
+                    lightPaint.setAlpha((int) (0xFF * Utilities.clamp01(.35f * intensity)));
+                    canvas.drawCircle(litRect.centerX(), litRect.centerY(), radius + avatarRim, lightPaint);
+                    // the buttons that come after take the gift's shader set afresh
+                    shaderSet = false;
+                    continue;
+                }
                 if (round) {
                     // the glow inside the rim: thin rings going in, each fainter
                     final float cx = litRect.centerX(), cy = litRect.centerY();
@@ -1505,6 +1544,32 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
         lightPaint.setShader(null);
+    }
+
+    /** How far a bubble lights the avatar, in its radii from its surface. */
+    private static final float AVATAR_LIGHT_REACH = 2.8f;
+    /** How far in from its rim the light washes over the photo, in the avatar's radius, and in how many rings. */
+    private static final float AVATAR_WASH_DEPTH = .36f;
+    private static final int AVATAR_WASH_RINGS = 12;
+
+    /**
+     * The bubble's light washing in over the photo from its rim: rings going in, each fainter,
+     * screened over the photo, in the bubble's own light, whose falloff from the bubble keeps it to
+     * the side facing it and fading along the rim.
+     */
+    private void drawAvatarLight(Canvas canvas, Gift gift, float cx, float cy, float radius, float intensity) {
+        if (gift.glintShader == null || intensity <= .01f) return;
+        final float step = radius * AVATAR_WASH_DEPTH / AVATAR_WASH_RINGS;
+        washPaint.setShader(gift.glintShader);
+        washPaint.setStrokeWidth(step + 1f);
+        for (int ring = 0; ring < AVATAR_WASH_RINGS; ring++) {
+            final float fade = 1f - (float) ring / AVATAR_WASH_RINGS;
+            final int a = (int) (0xFF * Utilities.clamp01(.8f * fade * fade * intensity));
+            if (a <= 1) continue;
+            washPaint.setAlpha(a);
+            canvas.drawCircle(cx, cy, radius - step * (ring + .5f), washPaint);
+        }
+        washPaint.setShader(null);
     }
 
     private void clipGiftLayer(Canvas canvas) {
