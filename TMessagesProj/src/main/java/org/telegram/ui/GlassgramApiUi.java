@@ -627,40 +627,242 @@ public final class GlassgramApiUi {
                 showDone(fragment, getString(R.string.GlassgramApiNoCrashes));
                 return;
             }
-            final CharSequence[] items = new CharSequence[crashes.length()];
-            for (int i = 0; i < crashes.length(); i++) {
-                final JSONObject crash = crashes.optJSONObject(i);
-                items[i] = "×" + crash.optInt("count") + " · " + formatString(R.string.GlassgramApiInstallsCount, crash.optInt("installs"))
-                        + "\n" + crash.optString("title");
+            showCrashList(fragment, crashes);
+        });
+    }
+
+    /* The crashes of 30 days as cards, the most frequent first: what kind of crash it is (an
+       exception in the code, memory running out, a crash in native code with its signal, the app
+       not responding, a plugin's Python), its name and message on two lines, how many times on how
+       many installs and in which versions, and a bar of how often against the most frequent one.
+       A card opens the crash: its devices, its last cases and the trace, to read and to copy. */
+
+    private static final int KIND_JAVA = 0, KIND_MEMORY = 1, KIND_NATIVE = 2, KIND_ANR = 3, KIND_PYTHON = 4, KIND_OTHER = 5;
+    private static final int[] KIND_COLORS = {0xFFE5534B, 0xFFF09A37, 0xFF9B6DFF, 0xFFE0B02E, 0xFF3D8BFF, 0xFF8E8E93};
+    private static final int[] KIND_LABELS = {
+            R.string.GlassgramApiCrashKindJava, R.string.GlassgramApiCrashKindMemory, R.string.GlassgramApiCrashKindNative,
+            R.string.GlassgramApiCrashKindAnr, R.string.GlassgramApiCrashKindPython, R.string.GlassgramApiCrashKindOther};
+
+    /** A crash's title read: its kind, a short name and the rest of it. */
+    private static final class CrashTitle {
+        int kind;
+        String name;
+        String detail;
+    }
+
+    private static CrashTitle readCrashTitle(String title) {
+        final CrashTitle read = new CrashTitle();
+        title = title == null ? "" : title.trim();
+        final String lower = title.toLowerCase(java.util.Locale.ROOT);
+        if (lower.startsWith("native crash")) {
+            read.kind = KIND_NATIVE;
+            final java.util.regex.Matcher status = java.util.regex.Pattern.compile("status (\\d+)").matcher(title);
+            read.name = status.find() ? signalName(Integer.parseInt(status.group(1))) : getString(R.string.GlassgramApiCrashKindNative);
+            read.detail = title.substring("native crash".length()).replaceFirst("^[,:\\s]+", "");
+            return read;
+        }
+        if (lower.startsWith("anr")) {
+            read.kind = KIND_ANR;
+            read.name = "ANR";
+            read.detail = title.replaceFirst("^(?i)anr[^,:]*[,:\\s]*", "");
+            return read;
+        }
+        // an exception: its class without its package, then its message
+        final int colon = title.indexOf(':');
+        final String type = (colon > 0 ? title.substring(0, colon) : title).trim();
+        read.detail = colon > 0 ? title.substring(colon + 1).trim() : "";
+        final int dot = type.lastIndexOf('.');
+        read.name = dot >= 0 && dot < type.length() - 1 ? type.substring(dot + 1) : type;
+        if (type.contains("OutOfMemory")) {
+            read.kind = KIND_MEMORY;
+        } else if (type.startsWith("com.chaquo.python")) {
+            read.kind = KIND_PYTHON;
+        } else if (type.indexOf(' ') < 0 && dot > 0) {
+            read.kind = KIND_JAVA;
+        } else {
+            read.kind = KIND_OTHER;
+            read.name = title;
+            read.detail = "";
+        }
+        if (TextUtils.isEmpty(read.name)) {
+            read.name = getString(R.string.GlassgramApiCrashKindOther);
+        }
+        return read;
+    }
+
+    /** A native crash's exit status, as its signal. */
+    private static String signalName(int status) {
+        switch (status) {
+            case 4: return "SIGILL";
+            case 5: return "SIGTRAP";
+            case 6: return "SIGABRT";
+            case 7: return "SIGBUS";
+            case 8: return "SIGFPE";
+            case 9: return "SIGKILL";
+            case 11: return "SIGSEGV";
+            default: return "status " + status;
+        }
+    }
+
+    /** Android's version for an SDK level, the way people know it. */
+    private static String androidVersion(int sdk) {
+        switch (sdk) {
+            case 36: return "16";
+            case 35: return "15";
+            case 34: return "14";
+            case 33: return "13";
+            case 32: return "12L";
+            case 31: return "12";
+            case 30: return "11";
+            case 29: return "10";
+            case 28: return "9";
+            case 27: return "8.1";
+            case 26: return "8";
+            default: return sdk > 0 ? "SDK " + sdk : "?";
+        }
+    }
+
+    private static String crashCounts(JSONObject crash) {
+        final StringBuilder meta = new StringBuilder();
+        meta.append(LocaleController.formatPluralString("GlassgramApiCrashTimes", crash.optInt("count")))
+                .append(" · ").append(LocaleController.formatPluralString("GlassgramApiCrashInstalls", crash.optInt("installs")));
+        final JSONArray versions = crash.optJSONArray("versions");
+        if (versions != null && versions.length() > 0) {
+            meta.append(" · ").append(join(versions));
+        }
+        return meta.toString();
+    }
+
+    private static void showCrashList(BaseFragment fragment, JSONArray crashes) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        int total = 0, most = 1;
+        for (int i = 0; i < crashes.length(); i++) {
+            final JSONObject crash = crashes.optJSONObject(i);
+            if (crash == null) continue;
+            total += crash.optInt("count");
+            most = Math.max(most, crash.optInt("count"));
+        }
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(context);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        list.setPadding(0, dp(4), 0, dp(8));
+        for (int i = 0; i < crashes.length(); i++) {
+            final JSONObject crash = crashes.optJSONObject(i);
+            if (crash == null) continue;
+            list.addView(crashCard(context, crash, most, () -> showCrash(fragment, crash)),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+        final ScrollView scroll = new ScrollView(context);
+        scroll.addView(list);
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiCrashesTitle))
+                .setSubtitle(formatString(R.string.GlassgramApiCrashesTotal, total, crashes.length()))
+                .setView(scroll)
+                .setNegativeButton(getString(R.string.Close), null)
+                .show();
+    }
+
+    private static View crashCard(Context context, JSONObject crash, int most, Runnable onClick) {
+        final CrashTitle title = readCrashTitle(crash.optString("title"));
+        final int color = KIND_COLORS[title.kind];
+        final android.widget.LinearLayout card = new android.widget.LinearLayout(context);
+        card.setOrientation(android.widget.LinearLayout.VERTICAL);
+        card.setPadding(dp(24), dp(10), dp(24), dp(10));
+        card.setBackground(Theme.getSelectorDrawable(false));
+        card.setOnClickListener(v -> onClick.run());
+
+        // the kind, as a chip of its color, then the name
+        final android.widget.LinearLayout head = new android.widget.LinearLayout(context);
+        head.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        final TextView chip = new TextView(context);
+        chip.setText(getString(KIND_LABELS[title.kind]));
+        chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+        chip.setTypeface(AndroidUtilities.bold());
+        chip.setTextColor(color);
+        chip.setSingleLine(true);
+        chip.setPadding(dp(7), dp(2), dp(7), dp(2));
+        chip.setBackground(Theme.createRoundRectDrawable(dp(6), Theme.multAlpha(color, .16f)));
+        head.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 8, 0));
+        final TextView name = new TextView(context);
+        name.setText(title.name);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        name.setTypeface(AndroidUtilities.bold());
+        name.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        head.addView(name, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
+        card.addView(head, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        // what it says, on two lines at most
+        if (!TextUtils.isEmpty(title.detail)) {
+            final TextView detail = new TextView(context);
+            detail.setText(title.detail);
+            detail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            detail.setTextColor(Theme.getColor(Theme.key_dialogTextGray3));
+            detail.setMaxLines(2);
+            detail.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(detail, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
+        }
+
+        // how many times, on how many installs, in which versions
+        final TextView meta = new TextView(context);
+        meta.setText(crashCounts(crash));
+        meta.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        meta.setTextColor(Theme.getColor(Theme.key_dialogTextGray2));
+        meta.setSingleLine(true);
+        meta.setEllipsize(TextUtils.TruncateAt.END);
+        card.addView(meta, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
+
+        // how often, against the most frequent one
+        final android.widget.LinearLayout bar = new android.widget.LinearLayout(context);
+        bar.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        bar.setBackground(Theme.createRoundRectDrawable(dp(2), Theme.multAlpha(Theme.getColor(Theme.key_dialogTextGray3), .15f)));
+        final View fill = new View(context);
+        fill.setBackground(Theme.createRoundRectDrawable(dp(2), color));
+        final int count = Math.max(1, crash.optInt("count"));
+        bar.addView(fill, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, (float) count));
+        if (most > count) {
+            bar.addView(new View(context), LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, (float) (most - count)));
+        }
+        card.addView(bar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 4, 0, 7, 0, 0));
+        return card;
+    }
+
+    /** A crash opened: what it is, how often and where, its last cases and the last trace. */
+    private static void showCrash(BaseFragment fragment, JSONObject crash) {
+        final AlertDialog loading = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/crashes/" + crash.optString("signature"), null, samples -> {
+            loading.dismiss();
+            if (!samples.ok()) {
+                showError(fragment, samples);
+                return;
             }
-            new AlertDialog.Builder(fragment.getParentActivity())
-                    .setTitle(getString(R.string.GlassgramApiCrashes))
-                    .setItems(items, (d, which) -> {
-                        final JSONObject crash = crashes.optJSONObject(which);
-                        final AlertDialog loading = progress(fragment);
-                        GlassgramApi.call(account, "GET", "/crashes/" + crash.optString("signature"), null, samples -> {
-                            loading.dismiss();
-                            if (!samples.ok()) {
-                                showError(fragment, samples);
-                                return;
-                            }
-                            final JSONArray list = samples.json.optJSONArray("samples");
-                            final StringBuilder text = new StringBuilder();
-                            text.append(formatString(R.string.GlassgramApiCrashSummary, crash.optInt("count"), crash.optInt("installs"),
-                                    join(crash.optJSONArray("versions") != null ? crash.optJSONArray("versions") : new JSONArray())));
-                            for (int i = 0; list != null && i < list.length(); i++) {
-                                final JSONObject sample = list.optJSONObject(i);
-                                text.append("\n\n— ").append(date(sample.optLong("created_at"))).append(", ").append(sample.optString("version"))
-                                        .append(", ").append(sample.optString("model")).append(", SDK ").append(sample.optInt("sdk"));
-                                if (i == 0) {
-                                    text.append("\n").append(sample.optString("trace"));
-                                }
-                            }
-                            showText(fragment, crash.optString("title"), text.toString());
-                        });
-                    })
-                    .setNegativeButton(getString(R.string.Close), null)
-                    .show();
+            final CrashTitle title = readCrashTitle(crash.optString("title"));
+            final JSONArray list = samples.json.optJSONArray("samples");
+            final StringBuilder text = new StringBuilder();
+            text.append(getString(KIND_LABELS[title.kind])).append(" · ").append(title.name);
+            text.append("\n").append(crash.optString("title"));
+            text.append("\n\n").append(crashCounts(crash));
+            if (list != null && list.length() > 0) {
+                text.append("\n\n").append(getString(R.string.GlassgramApiCrashCases));
+                for (int i = 0; i < list.length(); i++) {
+                    final JSONObject sample = list.optJSONObject(i);
+                    if (sample == null) continue;
+                    text.append("\n• ").append(date(sample.optLong("created_at")))
+                            .append(" · ").append(sample.optString("version"))
+                            .append(" · ").append(sample.optString("model"))
+                            .append(" · Android ").append(androidVersion(sample.optInt("sdk")));
+                }
+                final JSONObject last = list.optJSONObject(0);
+                final String trace = last != null ? last.optString("trace") : "";
+                if (!TextUtils.isEmpty(trace)) {
+                    text.append("\n\n").append(getString(R.string.GlassgramApiCrashTrace)).append("\n").append(trace);
+                }
+            }
+            showText(fragment, title.name, text.toString());
         });
     }
 
