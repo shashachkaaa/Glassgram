@@ -47,7 +47,6 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedFloat;
-import org.telegram.ui.Components.ButtonBounce;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.ProfileHeaderGlass;
 import org.telegram.ui.Components.ViewBehindBackdrop;
@@ -58,7 +57,9 @@ import java.util.List;
 
 public class ProfileGiftsView extends View implements NotificationCenter.NotificationCenterDelegate {
 
-    private static final float BUBBLE_DIAMETER = 42f;
+    private static final float BUBBLE_DIAMETER = 44f;
+    /** The gift inside its bubble, dp: some two fifths of it across, as on iOS. */
+    private static final int ARTWORK_SIZE = 21;
 
     private final int currentAccount;
     private final long dialogId;
@@ -288,28 +289,30 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             particles.bounds.set(-gsz / 2.0f, -gsz / 2.0f, gsz / 2.0f, gsz / 2.0f);
             sparkles = new Sparkles(id);
 
-            // A soap bubble at rest: clear, with a breath of the backdrop's color that gathers
-            // towards the rim, where the film is seen edge on.
-            final int tint = ColorUtils.blendARGB(color, edgeColor, .25f);
+            // A soap bubble at rest: clear in the middle, the backdrop's color, light and full,
+            // gathering towards the rim, where the film is seen edge on: half of what is behind
+            // it there is the film's color (a lilac, a gold, a milky white one), as on iOS.
+            final int tint = filmColorOf(ColorUtils.blendARGB(color, edgeColor, .3f));
             filmPaint.setShader(new RadialGradient(0, 0, 1f,
                     new int[]{
                             Theme.multAlpha(tint, 0f),
-                            Theme.multAlpha(tint, .06f),
-                            Theme.multAlpha(tint, .18f),
-                            Theme.multAlpha(tint, .32f),
-                            Theme.multAlpha(color, .44f)
+                            Theme.multAlpha(tint, .08f),
+                            Theme.multAlpha(tint, .22f),
+                            Theme.multAlpha(tint, .45f),
+                            Theme.multAlpha(tint, .58f)
                     },
-                    new float[]{0f, .55f, .8f, .93f, 1f}, Shader.TileMode.CLAMP));
+                    new float[]{0f, .5f, .78f, .92f, 1f}, Shader.TileMode.CLAMP));
             // Picked up, it fills with its color like a ball of colored glass, clear only around
             // the gift; drawn over the film by how far the bubble is lifted.
             liftFilmPaint.setShader(new RadialGradient(0, 0, 1f,
                     new int[]{
-                            Theme.multAlpha(color, .10f),
-                            Theme.multAlpha(color, .34f),
-                            Theme.multAlpha(color, .62f),
-                            Theme.multAlpha(ColorUtils.blendARGB(color, Color.WHITE, .15f), .8f)
+                            Theme.multAlpha(tint, .16f),
+                            Theme.multAlpha(tint, .38f),
+                            Theme.multAlpha(tint, .64f),
+                            Theme.multAlpha(ColorUtils.blendARGB(tint, Color.WHITE, .15f), .82f)
                     },
                     new float[]{0f, .45f, .75f, 1f}, Shader.TileMode.CLAMP));
+            filmColor = tint;
             rimColor = ColorUtils.blendARGB(color, Color.WHITE, .55f);
             lightShader = new RadialGradient(0, 0, 1f,
                     new int[]{lightColor, Theme.multAlpha(lightColor, .55f), Theme.multAlpha(lightColor, .16f), Theme.multAlpha(lightColor, 0f)},
@@ -342,6 +345,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         private final Matrix filmMatrix = new Matrix();
         /** The thin light line of the film's edge: the backdrop's color, washed out. */
         private int rimColor;
+        /** The film's own color: the backdrop's, light and full, see {@link #filmColorOf}. */
+        private int filmColor;
         /** Unit radius around (0, 0): the light, strongest at the bubble, fading out. */
         private RadialGradient lightShader;
         /** The same in the gift's saturated color, for the rims it shines on. */
@@ -357,7 +362,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         private final ArrayList<Gift> lowerGifts = new ArrayList<>();
         private boolean sampledByOtherGift;
         private Object renderedGift;
-        public final ButtonBounce bounce = new ButtonBounce(ProfileGiftsView.this);
 
         private Orbit orbit;
         private float alpha, artworkScale;
@@ -384,7 +388,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             drawBubble(canvas, bounds, alpha, (float) Math.toDegrees(Math.atan2(vy, vx)), stretch,
                     hasGlass, glass, inFront ? frontPiece : rearPiece);
             canvas.translate(bounds.centerX(), bounds.centerY());
-            final float scale = artworkScale * bounce.getScale(0.1f);
+            final float scale = artworkScale;
             canvas.scale(scale, scale);
             drawArtwork(canvas, alpha, advanceParticles);
             canvas.restore();
@@ -449,7 +453,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             bubbleOutline.cubicTo(left, ly - k, tx - k, top, tx, top);
             bubbleOutline.close();
             final float lift = (float) orbit.lift;
-            final int tint = ColorUtils.blendARGB(color, edgeColor, .25f);
+            final float held = Math.min(1f, lift);
+            final int tint = filmColor;
             drawGlow(canvas, r, lift, alpha);
             canvas.save();
             canvas.clipPath(bubbleOutline);
@@ -457,12 +462,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 lensBounds.set(box);
                 lensBounds.inset(-r * .14f, -r * .14f);
                 // A ball of clear glass: what is behind it (the name, the avatar's rim, the
-                // buttons) shows through it sharp, a little bigger and bent towards its edge
+                // buttons) shows through it sharp, a little bigger and bent towards its edge.
+                // Picked up, it is a thick ball of colored glass: what is behind it shows
+                // through blurred and bigger, as on iOS
                 glass.drawSphere(canvas, layer, lensBounds,
-                        ColorUtils.setAlphaComponent(tint, (int) (0x1C + 0x30 * Math.min(1f, lift))), alpha, 1.22f,
-                        lowerGifts.isEmpty() ? null : this::drawLowerGifts);
+                        ColorUtils.setAlphaComponent(tint, (int) (0x10 + 0x3C * held)), alpha, 1.22f + .1f * held,
+                        dpf2(LIFT_BLUR) * held, lowerGifts.isEmpty() ? null : this::drawLowerGifts);
             } else {
-                bubblePaint.setColor(Theme.multAlpha(tint, (.14f + .2f * lift) * alpha));
+                bubblePaint.setColor(Theme.multAlpha(tint, (.1f + .24f * lift) * alpha));
                 canvas.drawPath(bubbleOutline, bubblePaint);
             }
             filmMatrix.setScale(r * 1.03f, r * 1.03f);
@@ -535,7 +542,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             if (emojiDrawable != null) {
                 // the gift floats in its bubble, it is not pinned to its middle
                 final double time = SystemClock.uptimeMillis() * .001 + (id % 89);
-                final int sz = dp(24);
+                final int sz = dp(ARTWORK_SIZE);
                 canvas.translate(dpf2(1.1f) * (float) Math.sin(time * 1.3), dpf2(1.3f) * (float) Math.cos(time * 1.05));
                 emojiDrawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
                 emojiDrawable.setAlpha((int) (0xFF * alpha));
@@ -548,6 +555,18 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** The glow around a bubble: stroke widths in its radii, the widest faintest; half of each is outside. */
     private static final float[] GLOW_WIDTHS = {.7f, .54f, .4f, .27f, .15f};
     private static final float[] GLOW_ALPHAS = {.08f, .1f, .13f, .17f, .24f};
+
+    /**
+     * The color of a bubble's film: its backdrop's hue, a little fuller and light, so that over
+     * any header the rim reads as lilac, gold or cyan; a grey or silver backdrop gives a milky one.
+     */
+    private static int filmColorOf(int color) {
+        final float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[1] = Math.min(1f, hsv[1] * 1.15f);
+        hsv[2] = Math.max(hsv[2], .88f);
+        return Color.HSVToColor(hsv);
+    }
 
     /** The color of the light a bubble of this color gives off: its hue, bright and a little washed out. */
     private static int lightColorOf(int color) {
@@ -835,18 +854,30 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
      * it is an ellipse, wide and flat, its right end a little up.
      */
     private static final double RING_WIDTH = .98, RING_HEIGHT = .95, RING_SLOPE = -.38;
-    private static final double DEPTH_SCALE = .29, LIFT_SCALE = 1.05;
+    /**
+     * The near side of the disk is this much bigger, the far side this much smaller: in front of
+     * the avatar a bubble is some three fifths of it across, behind it a bit over a quarter, as on
+     * iOS. Picked up, it is as big as the avatar.
+     */
+    private static final double DEPTH_SCALE = .35, LIFT_SCALE = 1;
+    /** Picked up, how much it blurs what is behind it, dp. */
+    private static final float LIFT_BLUR = 5;
     /** Each bubble's own speed along its orbit, in ring radii per second, give or take a sixth. */
     private static final double ORBIT_SPEED = .32;
-    /**
-     * How fast a bubble gets back to its own speed after a spin, takes the finger's, and drops
-     * the speed along the orbit it was let go with, 1/s.
-     */
-    private static final double PACE_DRIVE = 2, SPIN_DRIVE = 7, RETURN_PACE = 14;
+    /** How fast a bubble gets back to its own speed after a spin, and takes the finger's, 1/s. */
+    private static final double PACE_DRIVE = 2, SPIN_DRIVE = 7;
     /** How firmly a bubble keeps to its drifting orbit radius: it is pushed off it, not flung. */
     private static final double DRIFT_SPRING = 9, DRIFT_DAMPING = 4.5;
-    /** The spring a bubble let go of springs back to its orbit on, rad/s, and its damping. */
-    private static final double RETURN_SPRING = 12, RETURN_DAMPING = .75;
+    /**
+     * Let go of, a bubble flies on as fast as the finger took it, wherever that is, and its own
+     * spring takes it back to its orbit: rad/s, and its damping ratio, which is also how fast it
+     * loses the finger's speed every way (some 14/s). Just let go of far off its orbit, over the
+     * cards, it is back in a quarter of a second, a little past it and back, as on iOS; flicked,
+     * it flies on a good way first, slowing down.
+     */
+    private static final double RETURN_SPRING = 11, RETURN_DAMPING = .62;
+    /** How fast a bubble let go of loses its lift (its size and its color), 1/s: in a sixth of a second. */
+    private static final double RETURN_DEFLATE = 14;
     /** The fastest a free bubble moves across its orbit and along it, ring radii per second. */
     private static final double MAX_ACROSS = 1.2, MAX_ALONG = 3.5;
     /** Bubbles closer than this on the disk drift apart. */
@@ -859,32 +890,16 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     /** The most a bubble's orbit drifts out of the ring, for keeping it on the screen. */
     private static final double MAX_DRIFT = 1.13;
     /**
-     * Pulled out of its ring by more than this, ring radii, a held bubble follows the finger
-     * less and less, at most some twice this much further: on a spring, it does not go off the
-     * header over the profile's cards however far the finger goes.
+     * The film stretches along the way it goes at most by this (some 1.7 times as long as it is
+     * wide, as a flung bubble on iOS), softly, three quarters of it at this speed, dp/s, and eases
+     * into it and out of it, s: it stays drawn out a moment after it stops.
      */
-    private static final double FREE_PULL = .5, PULL_GIVE = .4;
-    private static final double RELEASE_SPEED = .2;
-    /** The film stretches at most by this, softly, half of it at this speed, dp/s, and eases into it, s. */
-    private static final double MAX_STRETCH = .18, STRETCH_EASE = .12;
-    private static final float STRETCH_SPEED = 1300;
-    /**
-     * Thrown, by a flick at least this fast, dp/s, it slides round its orbit the way the flick
-     * went along it (flicked straight at the avatar or away from it, its own way round), a
-     * fraction of the flick, ring radii a second, at least and at most this fast, and slows down
-     * to its own pace in about this long, s: from a sixth of the way round to half of it, never
-     * round and round.
-     */
-    private static final float THROW_SPEED = 350;
-    private static final double MIN_THROW_ALONG = 1.4, MAX_THROW_ALONG = 3, THROW_ALONG = .3, THROW_SLOWDOWN = .85;
-    /**
-     * Flicked away from the avatar, it goes on outwards with this part of the flick, ring radii a
-     * second, and swings back to its orbit on a softer spring than a bubble just let go of.
-     */
-    private static final double THROW_OUT = .3, THROW_SPRING = 6, THROW_DAMPING = .8;
+    private static final double MAX_STRETCH = .3, STRETCH_EASE = .12;
+    private static final float STRETCH_SPEED = 1400;
     /** The finger's speed at its last move counts for the flick if it lifted within this, ms. */
     private static final long FLICK_WINDOW = 40;
-    private static final float MAX_RELEASE_SPEED = 700;
+    /** The fastest a bubble let go of flies off, dp/s. */
+    private static final float MAX_RELEASE_SPEED = 5000;
     private static final double MAX_SPIN = 3;
     /** A bubble knocked by another takes at most this speed from it, dp/s, and barely bounces. */
     private static final float MAX_KNOCK = 400;
@@ -898,7 +913,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private double[] ringAngles = new double[0];
 
     private static final class Orbit {
-        static final int FREE = 0, HELD = 1, RETURNING = 2, FLYING = 3;
+        static final int FREE = 0, HELD = 1, RETURNING = 2;
         /** The bubble, in orbit radii from the orbit's center, and its speed in radii per second. */
         double x, y, vx, vy;
         double lift;
@@ -907,8 +922,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         /** Its speed on the screen, px/s, smoothed, for how much the film stretches and where to. */
         double stretchVx, stretchVy;
         int state = FREE;
-        /** How long it has been flying since it was thrown, seconds. */
-        double flightTime;
         /** Springing back to the far side of its orbit, and already gone behind the avatar. */
         boolean sunk;
         /** The radius its orbit drifts around, how far and how fast, and its own speed. */
@@ -968,18 +981,17 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             return perspectiveScale() * (1 + LIFT_SCALE * lift);
         }
 
-        /**
-         * Held, springing back, or just thrown: over everything, the avatar included. A thrown
-         * bubble slides round its orbit, and once its lift is gone, goes behind the avatar or
-         * in front of it as its place on the orbit has it.
-         */
+        /** Held, or let go of and flying back: over everything, the avatar included. */
         boolean isLifted() {
-            return state == HELD || state == RETURNING || state == FLYING && lift >= .5;
+            return state == HELD || state == RETURNING;
         }
 
-        /** Thrown or springing back: it flies over the others, it does not push them. */
+        /**
+         * Held, or flying back: it goes over the others, it does not push them, as on iOS; they
+         * keep on their way under it.
+         */
         boolean isPassing() {
-            return state == FLYING || state == RETURNING;
+            return state == HELD || state == RETURNING;
         }
 
         boolean isInFront() {
@@ -1013,7 +1025,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         int steps = (int) Math.ceil(elapsed * 240);
         double dt = elapsed / steps;
         double rx = orbitRadiusX, ry = orbitRadiusY;
-        Gift held = dragging ? movingGift : null;
+        // Held from the moment it is touched: it swells under the finger where it is, then goes
+        // wherever the finger takes it, over the profile's cards too, as on iOS
+        Gift held = holding ? movingGift : null;
         if (held != null) {
             Orbit body = held.orbit;
             body.state = Orbit.HELD;
@@ -1022,7 +1036,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             body.y = (heldY - orbitCenterY) / ry;
             body.vx = heldVx / rx;
             body.vy = heldVy / ry;
-            holdBack(body);
         }
         // A finger holding the orbit still stops it
         if (orbitHeld && SystemClock.uptimeMillis() - orbitMoveTime > 50) {
@@ -1053,28 +1066,25 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 final double vr = vu * nu + vv * nv, vt = vu * tu + vv * tv;
                 final double target = body.radiusAt(physicsTime);
                 final boolean returning = body.state == Orbit.RETURNING;
-                final boolean thrown = body.state == Orbit.FLYING;
                 // Held on its orbit at any speed, its radius following its own drift; one let go
-                // of, or thrown, springs back to it
-                double ar = -vt * vt / r;
-                if (thrown) {
-                    ar += -THROW_SPRING * THROW_SPRING * (r - target) - 2 * THROW_DAMPING * THROW_SPRING * vr;
-                    body.flightTime += dt;
-                } else if (returning) {
+                // of is not on its orbit, it flies straight on and its spring pulls it back to it
+                // from wherever it is
+                double ar = returning ? 0 : -vt * vt / r;
+                if (returning) {
                     ar += -RETURN_SPRING * RETURN_SPRING * (r - target) - 2 * RETURN_DAMPING * RETURN_SPRING * vr;
                 } else {
                     ar += -DRIFT_SPRING * (r - target) - DRIFT_DAMPING * vr;
                 }
-                // let go, it drops the finger's speed along the orbit at once and goes back to
-                // where it was, it does not whirl round the avatar; thrown, it slides round its
-                // orbit and slows down to its own pace
+                // Let go of, it loses the finger's speed every way alike, as fast as its spring
+                // takes it in: flung, it flies on in a straight line and slows down, it does not
+                // whirl round the avatar, and then goes on round at its own pace
                 double at;
-                if (thrown) {
-                    at = (body.speed - vt) / THROW_SLOWDOWN;
-                } else if (orbitHeld && !returning) {
+                if (returning) {
+                    at = 2 * RETURN_DAMPING * RETURN_SPRING * (body.speed - vt);
+                } else if (orbitHeld) {
                     at = SPIN_DRIVE * (spinRate * r - vt);
                 } else {
-                    at = (returning ? RETURN_PACE : PACE_DRIVE) * (body.speed - vt);
+                    at = PACE_DRIVE * (body.speed - vt);
                 }
                 if (count > 1 && !body.isPassing()) {
                     for (int j = 0; j < count; j++) {
@@ -1097,70 +1107,75 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
                 double nvu = vu + au * dt, nvv = vv + av * dt;
                 if (!returning) {
-                    // however hard it is knocked, a free bubble does not fly off; a thrown one
-                    // comes back to its orbit from wherever it was let go of as fast as its
-                    // spring takes it, it does not crawl back
-                    final double across = thrown ? nvu * nu + nvv * nv : Math.max(-MAX_ACROSS, Math.min(MAX_ACROSS, nvu * nu + nvv * nv));
+                    // however hard it is knocked, a free bubble does not fly off; one let go of
+                    // flies back from wherever it is as fast as its spring takes it
+                    final double across = Math.max(-MAX_ACROSS, Math.min(MAX_ACROSS, nvu * nu + nvv * nv));
                     final double along = Math.max(-MAX_ALONG, Math.min(MAX_ALONG, nvu * tu + nvv * tv));
                     nvu = across * nu + along * tu;
                     nvv = across * nv + along * tv;
                 }
                 body.setDisk(u + nvu * dt, v + nvv * dt, nvu, nvv);
-                body.lift *= Math.exp(-(returning ? 4 : thrown ? 3 : 5.2) * dt);
-                if (thrown && body.flightTime > .3 && Math.abs(vt - body.speed) < .25 && Math.abs(r - target) < .12) {
-                    body.state = Orbit.FREE;
-                    body.sunk = false;
-                }
+                // let go of, it shrinks back and loses its color at once, on its way
+                body.lift *= Math.exp(-(returning ? RETURN_DEFLATE : 5.2) * dt);
                 if (returning) {
                     // On its way to the far side it goes behind the avatar as soon as it is clear
                     // of it, not with a jump once it is there
                     if (!body.sunk && v < 0 && body.lift < .6 && isClearOfAvatar(body, rx, ry)) {
                         body.sunk = true;
                     }
-                    if (Math.abs(r - target) < .12 && Math.abs(vr) < .4 && body.lift < .3) {
+                    if (Math.abs(r - target) < .12 && Math.abs(vr) < .4 && Math.abs(vt - body.speed) < .5 && body.lift < .3) {
                         body.state = Orbit.FREE;
                         body.sunk = false;
                     }
                 }
             }
             collide(rx, ry, -Math.expm1(-30 * dt));
+            // the held one goes wherever the finger does, even half off the screen; let go of
+            // there, it comes back on as it shrinks, it does not jump
+            final double cushion = -Math.expm1(-CUSHION * dt);
             for (int i = 0; i < count; i++) {
-                keepOnScreen(gifts.get(i).orbit, rx, ry);
+                final Orbit body = gifts.get(i).orbit;
+                if (body.state != Orbit.HELD) keepOnScreen(body, rx, ry, body.state == Orbit.RETURNING ? cushion : 1);
             }
         }
     }
 
+    /** How fast a bubble let go of over an edge of the screen comes back on, 1/s. */
+    private static final double CUSHION = 22;
+
     /**
-     * No bubble leaves the screen, the held one included: at an edge it stops, flattened against
-     * it, and keeps only its speed along it.
+     * No free bubble leaves the screen: at an edge it stops, flattened against it, and keeps only
+     * its speed along it. One let go of flies back as big as it is at rest: at an edge it stops
+     * and is eased back on, by this part of the way each step, not flattened.
      */
-    private void keepOnScreen(Orbit body, double rx, double ry) {
+    private void keepOnScreen(Orbit body, double rx, double ry, double ease) {
         final int width = getWidth(), height = getHeight();
         if (width <= 0 || height <= 0 || rx <= 0 || ry <= 0) return;
+        final boolean soft = ease < 1;
         // as big as it is drawn: swelling on the beat and wobbling
-        final double r = dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale() * (1 + .12 * musicPulse) * 1.06 + dpf2(2);
+        final double r = dpf2(BUBBLE_DIAMETER / 2) * (soft ? body.perspectiveScale() : body.radiusScale()) * (1 + .12 * musicPulse) * 1.06 + dpf2(2);
         final double px = orbitCenterX + body.x * rx, py = orbitCenterY + body.y * ry;
         final double left = r, right = width - r, top = r, bottom = height - r;
         if (left < right) {
             if (px < left) {
-                body.x = (left - orbitCenterX) / rx;
+                body.x += ((left - orbitCenterX) / rx - body.x) * ease;
                 if (body.vx < 0) body.vx = 0;
-                body.press(Math.min(.14, (left - px) / r * .5 + .04), -1, 0);
+                if (!soft) body.press(Math.min(.14, (left - px) / r * .5 + .04), -1, 0);
             } else if (px > right) {
-                body.x = (right - orbitCenterX) / rx;
+                body.x += ((right - orbitCenterX) / rx - body.x) * ease;
                 if (body.vx > 0) body.vx = 0;
-                body.press(Math.min(.14, (px - right) / r * .5 + .04), 1, 0);
+                if (!soft) body.press(Math.min(.14, (px - right) / r * .5 + .04), 1, 0);
             }
         }
         if (top < bottom) {
             if (py < top) {
-                body.y = (top - orbitCenterY) / ry;
+                body.y += ((top - orbitCenterY) / ry - body.y) * ease;
                 if (body.vy < 0) body.vy = 0;
-                body.press(Math.min(.14, (top - py) / r * .5 + .04), 0, -1);
+                if (!soft) body.press(Math.min(.14, (top - py) / r * .5 + .04), 0, -1);
             } else if (py > bottom) {
-                body.y = (bottom - orbitCenterY) / ry;
+                body.y += ((bottom - orbitCenterY) / ry - body.y) * ease;
                 if (body.vy > 0) body.vy = 0;
-                body.press(Math.min(.14, (py - bottom) / r * .5 + .04), 0, 1);
+                if (!soft) body.press(Math.min(.14, (py - bottom) / r * .5 + .04), 0, 1);
             }
         }
     }
@@ -1169,21 +1184,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         if (avatarRadius <= 0) return true;
         double ax = orbitCenterX + body.x * rx - avatarCenterX, ay = orbitCenterY + body.y * ry - avatarCenterY;
         return Math.hypot(ax, ay) > avatarRadius + dpf2(BUBBLE_DIAMETER / 2) * body.radiusScale();
-    }
-
-    /**
-     * How much a bubble gives way in a contact: the held one not at all, it pushes the others out
-     * of its way; one springing back little.
-     */
-    private static double inverseMass(Orbit body) {
-        switch (body.state) {
-            case Orbit.HELD:
-                return 0;
-            case Orbit.RETURNING:
-                return .15;
-            default:
-                return 1;
-        }
     }
 
     /**
@@ -1198,7 +1198,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         for (int i = 0; i < gifts.size(); i++) {
             Orbit a = gifts.get(i).orbit;
             double ra = base * a.radiusScale();
-            if (a.state != Orbit.HELD && a.state != Orbit.FLYING && a.isInFront() && avatarRadius > 0) {
+            // held or flying back, it goes over the avatar too, it does not land on it
+            if (!a.isPassing() && a.isInFront() && avatarRadius > 0) {
                 double dx = orbitCenterX + a.x * rx - avatarCenterX, dy = orbitCenterY + a.y * ry - avatarCenterY;
                 double d = Math.hypot(dx, dy);
                 if (d < avatarRadius + ra * .5 && d > .001) {
@@ -1238,8 +1239,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     vn = Math.max(vn, -dpf2(MAX_KNOCK));
                 }
                 if (d >= contact) continue;
-                double ia = inverseMass(a), ib = inverseMass(b), sum = ia + ib;
-                if (sum <= 0) continue;
+                // only free bubbles meet, and they give way alike: the held one and the ones
+                // flying back go over them
+                final double ia = 1, ib = 1, sum = ia + ib;
                 double depth = contact - d;
                 double press = Math.min(.1, depth / (ra + rb) * 1.2);
                 a.press(press, nx, ny);
@@ -1303,7 +1305,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
 
         // The ring and the bubbles drifting out of it, at their size on its sides, stay on the screen
         final float orbitX = Math.min((float) ((Math.min(acx, getWidth() - acx) - dpf2(28)) / (RING_WIDTH * MAX_DRIFT)), aw * 2.1f);
-        final float orbitY = ah * .57f;
+        // Flat, as on iOS: the bubbles in front come over the avatar's lower edge, under the
+        // name rather than over it, and the ones at the back are half hidden behind its top
+        final float orbitY = ah * .5f;
         orbitCenterX = acx;
         orbitCenterY = acy;
         orbitRadiusX = Math.max(1f, orbitX);
@@ -1351,7 +1355,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             gift.artworkScale = scale * (float) (gift.orbit.perspectiveScale() * (1 + .95 * gift.orbit.lift));
             // Room for the stretched, flattened rim and the glow along it: drawn in the gift's
             // own layer, it must not be cut off at its edges
-            float extent = Math.max(1.9f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
+            float extent = Math.max(2.05f * rim, dpf2(26) * gift.artworkScale) + dpf2(1);
             gift.visualBounds.set(gx - extent, gy - extent, gx + extent, gy + extent);
         }
         // The nearer bubbles go over the farther ones; held and springing back ones over them
@@ -1547,6 +1551,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         }
         if (hasVisibleGift) {
             ProfileHeaderGlass glass = front ? frontGlass : rearGlass;
+            // A bubble taken down over the profile's cards bends and blurs them as it does the
+            // header: they go into its glass then, and only then
+            glass.setUnder(isAnyGiftOverPage(front) ? pageBehind : null);
             boolean capturing = ViewBehindBackdrop.isAnyDrawing();
             boolean hasGlass = !capturing && glass.begin(canvas);
             if (hasGlass) findOverlappingGifts(front);
@@ -1562,6 +1569,21 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             }
         }
         canvas.restoreToCount(save);
+    }
+
+    /** The profile's list under the header, a sibling of this view's parent drawn before the header. */
+    private View pageBehind;
+
+    public void setPageBehind(View page) {
+        pageBehind = page;
+    }
+
+    private boolean isAnyGiftOverPage(boolean front) {
+        if (pageBehind == null) return false;
+        for (Gift gift : gifts) {
+            if (gift.alpha > 0f && gift.inFront == front && gift.visualBounds.bottom > expandY) return true;
+        }
+        return false;
     }
 
     private Gift getGiftUnder(float x, float y, boolean front) {
@@ -1604,17 +1626,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private Gift movingGift;
     private float downX, downY, grabX, grabY;
     private long lastMoveTime;
+    /** A bubble is under the finger: held where it is, swelling, from the moment it is touched. */
+    private boolean holding;
+    /** The finger has gone past the touch slop: it is a drag, not a tap. */
     private boolean dragging;
     private VelocityTracker velocityTracker;
 
     private void resetDrag() {
         if (movingGift != null) {
-            // let go (or the gesture taken away): it springs back to its orbit
+            // let go (or the gesture taken away): it flies back to its orbit from where it is
             if (movingGift.orbit.state == Orbit.HELD) movingGift.orbit.state = Orbit.RETURNING;
-            movingGift.bounce.setPressed(false);
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
         }
         movingGift = null;
+        holding = false;
         dragging = false;
         heldVx = heldVy = 0;
         if (velocityTracker != null) {
@@ -1630,9 +1655,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     /**
-     * A bubble is picked up and pulled away from its orbit, as far as the finger goes. Let go, it
-     * springs back to it with a part of the finger's speed, a little past it, and flies on; thrown
-     * by a flick, it slides round its orbit the way of the flick, over the others, slowing down.
+     * As on iOS: a bubble touched is picked up at once, it swells where it is into a ball of
+     * colored glass as big as the avatar, over everything, and goes wherever the finger takes it,
+     * down over the profile's cards too, drawn out the way it goes. Let go, it flies on as fast as
+     * the finger went, slowing down, shrinks back and loses its color on the way, and its spring
+     * takes it back to its orbit. A tap opens the gift.
      */
     private boolean onGiftTouch(MotionEvent event, boolean front) {
         float x = event.getX(), y = event.getY();
@@ -1648,9 +1675,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             // where on the bubble it was taken: it stays under the finger there
             grabX = x - hit.bounds.centerX();
             grabY = y - hit.bounds.centerY();
+            heldX = hit.bounds.centerX();
+            heldY = hit.bounds.centerY();
+            heldVx = heldVy = 0;
+            holding = true;
+            hit.orbit.state = Orbit.HELD;
+            hit.orbit.sunk = false;
             velocityTracker = VelocityTracker.obtain();
-            movingGift.bounce.setPressed(true);
             getParent().requestDisallowInterceptTouchEvent(true);
+            invalidate();
         }
         if (movingGift == null) return false;
         if (velocityTracker != null) velocityTracker.addMovement(event);
@@ -1659,7 +1692,6 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
             if (!dragging && dx * dx + dy * dy > slop * slop) {
                 dragging = true;
-                movingGift.orbit.state = Orbit.HELD;
             }
             if (dragging) {
                 heldX = x - grabX;
@@ -1675,8 +1707,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         } else if (action == MotionEvent.ACTION_UP) {
             final Gift gift = movingGift;
             final boolean wasDragging = dragging;
+            float vx = 0, vy = 0;
             if (wasDragging) {
-                float vx = 0, vy = 0;
                 if (velocityTracker != null) {
                     velocityTracker.computeCurrentVelocity(1000);
                     vx = velocityTracker.getXVelocity();
@@ -1689,7 +1721,9 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                     vy = heldVy;
                 }
                 releaseGift(gift, x - grabX, y - grabY, vx, vy);
-                dragging = false;
+            } else {
+                // tapped: it shrinks back where it is
+                releaseGift(gift, heldX, heldY, 0, 0);
             }
             resetDrag();
             if (!wasDragging) onGiftClick(gift);
@@ -1699,44 +1733,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         return true;
     }
 
-    /** A held bubble pulled far out of its ring stays back from the finger, see {@link #FREE_PULL}. */
-    private static void holdBack(Orbit body) {
-        final double u = body.u(), v = body.v(), r = Math.hypot(u, v);
-        final double over = r - 1 - FREE_PULL;
-        if (over <= 0) return;
-        final double k = (1 + FREE_PULL + PULL_GIVE * Math.log1p(over / PULL_GIVE)) / r;
-        body.setDisk(u * k, v * k, body.vu(), body.vv());
-    }
-
     private void releaseGift(Gift gift, float x, float y, float vx, float vy) {
         final Orbit body = gift.orbit;
         final double rx = orbitRadiusX, ry = orbitRadiusY;
         body.x = (x - orbitCenterX) / rx;
         body.y = (y - orbitCenterY) / ry;
-        holdBack(body);
+        // it flies on as fast as the finger went, see RETURN_SPRING
         final double fingerSpeed = Math.hypot(vx, vy);
-        if (fingerSpeed >= dpf2(THROW_SPEED)) {
-            // Round the orbit from where it is let go: the way the flick goes along the ring
-            // there, as fast as the whole flick, its part straight across the ring counting half
-            final double u = body.u(), v = body.v(), r = Math.max(.05, Math.hypot(u, v));
-            final double nu = u / r, nv = v / r, tu = -nv, tv = nu;
-            // the flick on the disk, in ring radii a second
-            final double fu = vx / rx / RING_WIDTH, fv = (vy / ry - RING_SLOPE * vx / rx) / RING_HEIGHT;
-            final double ft = fu * tu + fv * tv, fn = fu * nu + fv * nv;
-            final double way = Math.abs(ft) >= .3 * Math.hypot(ft, fn) ? Math.signum(ft) : body.speed < 0 ? -1 : 1;
-            // Let go of out of its ring, it speeds up round the avatar as it swings back in, as a
-            // comet does: it starts the slower for it, to get there no faster than from the ring
-            final double along = way * Math.max(MIN_THROW_ALONG, Math.min(MAX_THROW_ALONG, (Math.abs(ft) + .5 * Math.abs(fn)) * THROW_ALONG)) / Math.max(1, r);
-            // flicked outwards close to its ring, it goes on out a little; pulled far out
-            // already, it only swings back
-            final double out = r < 1 + FREE_PULL ? Math.min(MAX_ACROSS, Math.max(0, fn) * THROW_OUT) : 0;
-            body.state = Orbit.FLYING;
-            body.flightTime = 0;
-            body.setDisk(u, v, along * tu + out * nu, along * tv + out * nv);
-            return;
-        }
-        double speed = fingerSpeed * RELEASE_SPEED;
-        final double scale = speed > 0 ? Math.min(speed, dpf2(MAX_RELEASE_SPEED)) / fingerSpeed : 0;
+        final double scale = fingerSpeed > 0 ? Math.min(fingerSpeed, dpf2(MAX_RELEASE_SPEED)) / fingerSpeed : 0;
         body.state = Orbit.RETURNING;
         body.vx = vx * scale / rx;
         body.vy = vy * scale / ry;

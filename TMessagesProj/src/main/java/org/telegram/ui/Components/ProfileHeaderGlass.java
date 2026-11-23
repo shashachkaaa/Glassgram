@@ -10,6 +10,7 @@ import android.graphics.Path;
 import android.graphics.RecordingCanvas;
 import android.graphics.RectF;
 import android.graphics.RenderNode;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.View;
@@ -47,6 +48,7 @@ public class ProfileHeaderGlass {
     private final View view;
     private final ViewBehindBackdrop behind;
     private View header;
+    private View under;
     private View photo;
     private Object backdropNode;
     private boolean active, refreshPosted;
@@ -98,6 +100,15 @@ public class ProfileHeaderGlass {
     public void setPhoto(View photo) {
         this.photo = photo;
         view.invalidate();
+    }
+
+    /**
+     * The page under the header, a sibling of the view's parent drawn before the header (the
+     * profile's list, its cards), with its parent's background: for glass taken down over it.
+     * Null when no piece is there: recording the page costs.
+     */
+    public void setUnder(@Nullable View under) {
+        this.under = under;
     }
 
     /** The header drawn under the view, a sibling of its parent. */
@@ -163,6 +174,7 @@ public class ProfileHeaderGlass {
 
     // What is under the view, with (0, 0) at its top-left corner
     private void drawBehind(Canvas canvas) {
+        drawUnder(canvas);
         final View h = header;
         if (h != null && h.getVisibility() == View.VISIBLE && h.getAlpha() > 0f && view.getParent() instanceof View) {
             final View parent = (View) view.getParent();
@@ -192,6 +204,31 @@ public class ProfileHeaderGlass {
             s[6] = h.getAlpha();
             s[7] = h.getVisibility();
         }
+    }
+
+    // The page under the header, see setUnder: its parent's background, then the page itself
+    private void drawUnder(Canvas canvas) {
+        final View u = under;
+        if (u == null || u.getVisibility() != View.VISIBLE || u.getAlpha() <= 0f || !(view.getParent() instanceof View)) {
+            return;
+        }
+        final View parent = (View) view.getParent();
+        final int restore = canvas.save();
+        canvas.translate(-(parent.getX() + view.getX()), -(parent.getY() + view.getY()));
+        if (u.getParent() instanceof View) {
+            final Drawable background = ((View) u.getParent()).getBackground();
+            if (background != null) {
+                background.draw(canvas);
+            }
+        }
+        canvas.translate(u.getLeft(), u.getTop());
+        canvas.concat(u.getMatrix());
+        if (u.getAlpha() < 1f) {
+            canvas.saveLayerAlpha(0, 0, u.getWidth(), u.getHeight(), (int) (255 * u.getAlpha()));
+        }
+        canvas.translate(-u.getScrollX(), -u.getScrollY());
+        u.draw(canvas);
+        canvas.restoreToCount(restore);
     }
 
     private void drawMirroredPhoto(Canvas canvas) {
@@ -324,6 +361,15 @@ public class ProfileHeaderGlass {
      */
     public void drawSphere(Canvas canvas, Piece piece, RectF rect, int tint, float alpha, float magnify,
                            @Nullable GlassLayer.Backdrop behindPiece) {
+        drawSphere(canvas, piece, rect, tint, alpha, magnify, 0f, behindPiece);
+    }
+
+    /**
+     * @param blur px: a thick ball of glass blurs what is behind it; 0 for a clear one, through
+     *             which text stays text
+     */
+    public void drawSphere(Canvas canvas, Piece piece, RectF rect, int tint, float alpha, float magnify, float blur,
+                           @Nullable GlassLayer.Backdrop behindPiece) {
         if (!active || rect.isEmpty() || alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return;
         }
@@ -350,11 +396,12 @@ public class ProfileHeaderGlass {
             : canvas.save();
         canvas.translate(left, top);
         // The lens reaches the middle and bends less than its own depth: the picture stays the
-        // right way round up to the very edge. No blur, no color controls, no rainbow fringe:
-        // text under the bubble stays text.
+        // right way round up to the very edge. No color controls, no rainbow fringe, and, unless
+        // asked for, no blur: text under the bubble stays text. The blur goes in steps of half a
+        // pixel, the glass's effect is not built anew for every frame it changes by a hair
         ((GlassLayer) piece.layer).draw(canvas, width, height, radius, AndroidUtilities.density,
             BackdropGlass.COLOR_NONE,
-            0f, radius, radius * .3f,
+            blur < .5f ? 0f : Math.round(blur * 2f) / 2f, radius, radius * .3f,
             false, false, false, source,
             tint, 0f, 1f);
         canvas.restoreToCount(restore);
