@@ -60,6 +60,8 @@ public final class GlassgramJankRecorder {
     private int frames, lateFrames, missedVsyncs, uiLate, rtLate, gpuLate, waitLate;
     private final HashMap<String, long[]> inclusive = new HashMap<>(), self = new HashMap<>();
     private final ArrayList<Late> worst = new ArrayList<>();
+    // every frame's main thread, render thread and GPU times, ns
+    private long[] uiTimes = new long[1024], rtTimes = new long[1024], gpuTimes = new long[1024];
 
     private static final class Late {
         long vsync, total, ui, rt, gpu, wait;
@@ -93,6 +95,12 @@ public final class GlassgramJankRecorder {
     }
 
     private void begin() {
+        try {
+            org.telegram.messenger.plugins.PluginXposedHook.resetMainThreadStats();
+            com.exteragram.messenger.plugins.xposed.PyMethodHook.resetMainThreadStats();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
         startNanos = System.nanoTime();
         running = true;
         metricsThread.start();
@@ -127,6 +135,19 @@ public final class GlassgramJankRecorder {
         if (vsync < startNanos) {
             return;
         }
+        if (frames == uiTimes.length) {
+            uiTimes = java.util.Arrays.copyOf(uiTimes, frames * 2);
+            rtTimes = java.util.Arrays.copyOf(rtTimes, frames * 2);
+            gpuTimes = java.util.Arrays.copyOf(gpuTimes, frames * 2);
+        }
+        uiTimes[frames] = metrics.getMetric(FrameMetrics.INPUT_HANDLING_DURATION)
+                + metrics.getMetric(FrameMetrics.ANIMATION_DURATION)
+                + metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
+                + metrics.getMetric(FrameMetrics.DRAW_DURATION);
+        rtTimes[frames] = metrics.getMetric(FrameMetrics.SYNC_DURATION)
+                + metrics.getMetric(FrameMetrics.COMMAND_ISSUE_DURATION)
+                + metrics.getMetric(FrameMetrics.SWAP_BUFFERS_DURATION);
+        gpuTimes[frames] = metrics.getMetric(FrameMetrics.GPU_DURATION);
         frames++;
         final long total = metrics.getMetric(FrameMetrics.TOTAL_DURATION);
         final long deadline = metrics.getMetric(FrameMetrics.DEADLINE);
@@ -258,6 +279,22 @@ public final class GlassgramJankRecorder {
                         seconds, displayHz, frames, lateFrames, missedVsyncs))
                 .append(String.format(Locale.US, "\nLate frames held most by: main thread busy before the frame %d, main thread drawing %d, render thread %d, GPU %d",
                         waitLate, uiLate, rtLate, gpuLate));
+        r.append(String.format(Locale.US, "\nAll frames, ms (average / 90%% / max): main %s · render %s · GPU %s",
+                spread(uiTimes, frames), spread(rtTimes, frames), spread(gpuTimes, frames)));
+        r.append("\n\nPlugins' hooks on the main thread, the whole recording:");
+        final ArrayList<String> hooks = new ArrayList<>();
+        try {
+            hooks.addAll(org.telegram.messenger.plugins.PluginXposedHook.mainThreadStats());
+            hooks.addAll(com.exteragram.messenger.plugins.xposed.PyMethodHook.mainThreadStats());
+        } catch (Throwable e) {
+            hooks.add(e.toString());
+        }
+        if (hooks.isEmpty()) {
+            r.append("\n  none");
+        }
+        for (int i = 0; i < Math.min(15, hooks.size()); i++) {
+            r.append("\n  ").append(hooks.get(i));
+        }
         r.append("\n\nMain thread in late frames, ms (with what it called):");
         top(r, inclusive);
         r.append("\n\nMain thread in late frames, ms (where it was itself):");
@@ -277,6 +314,19 @@ public final class GlassgramJankRecorder {
             }
         }
         return r.toString();
+    }
+
+    private static String spread(long[] times, int count) {
+        if (count == 0) {
+            return "-";
+        }
+        final long[] sorted = java.util.Arrays.copyOf(times, count);
+        java.util.Arrays.sort(sorted);
+        long sum = 0;
+        for (int i = 0; i < count; i++) {
+            sum += sorted[i];
+        }
+        return String.format(Locale.US, "%.1f/%.1f/%.0f", sum / 1e6 / count, sorted[Math.min(count - 1, count * 9 / 10)] / 1e6, sorted[count - 1] / 1e6);
     }
 
     private static void top(StringBuilder r, HashMap<String, long[]> map) {

@@ -62,6 +62,9 @@ def _log(tag, text):
 
 def start(plugins_dir: str):
     global _plugins_dir, _libs_dir
+    # The main thread calls Python for plugins' hooks, often many times a frame, and waits for it
+    # while another thread has it: that thread lets go every 5 ms by default, a frame is 8 ms at 120 Hz
+    sys.setswitchinterval(0.001)
     with _lock:
         _plugins_dir = plugins_dir
         os.makedirs(_plugins_dir, exist_ok=True)

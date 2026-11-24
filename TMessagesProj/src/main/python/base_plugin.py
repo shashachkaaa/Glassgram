@@ -1,6 +1,7 @@
 """Plugin base class, hook results, menu items and Xposed-style method hooks."""
 
 import traceback
+from time import perf_counter_ns as _perf_ns
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -334,31 +335,42 @@ class _XposedBridgeHandler:
         # read once, not on every call
         self._before_filters = self._method_filters("before_hooked_method")
         self._after_filters = self._method_filters("after_hooked_method")
+        # the time in the plugin's own code, for the report of stutters (PluginXposedHook)
+        self.inside_ns = 0
 
     def _method_filters(self, name):
         fn = getattr(self.handler, name, None)
         return getattr(fn, "__hook_filters__", None) if fn is not None else None
 
     def before(self, param):
+        start = _perf_ns()
         try:
             if not self._before_filters or _passes(self._before_filters, param):
                 self.handler.before_hooked_method(param)
         except Exception:
             _report_error(self.plugin, "before_hooked_method", traceback.format_exc())
+        finally:
+            self.inside_ns += _perf_ns() - start
 
     def after(self, param):
+        start = _perf_ns()
         try:
             if not self._after_filters or _passes(self._after_filters, param):
                 self.handler.after_hooked_method(param)
         except Exception:
             _report_error(self.plugin, "after_hooked_method", traceback.format_exc())
+        finally:
+            self.inside_ns += _perf_ns() - start
 
     def replace(self, param):
+        start = _perf_ns()
         try:
             return self.handler.replace_hooked_method(param)
         except Exception:
             _report_error(self.plugin, "replace_hooked_method", traceback.format_exc())
             return None
+        finally:
+            self.inside_ns += _perf_ns() - start
 
 
 class XposedUnavailable(PluginError):
@@ -383,7 +395,8 @@ def _make_java_hook(plugin, xposed_hook, priority, before, after, before_filters
     java_hook_class = jclass("org.telegram.messenger.plugins.PluginXposedHook")
     java_hook = java_hook_class(handler, int(priority if priority is not None else 50), bool(replacement),
                                 replacement or _hook_defines(xposed_hook, "before_hooked_method"),
-                                not replacement and _hook_defines(xposed_hook, "after_hooked_method"))
+                                not replacement and _hook_defines(xposed_hook, "after_hooked_method"),
+                                str(getattr(plugin, "id", None) or "") or None)
     _state(plugin).xposed_handlers.append(handler)
     return java_hook
 
