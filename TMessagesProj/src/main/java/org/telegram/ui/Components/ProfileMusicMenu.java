@@ -64,7 +64,7 @@ public class ProfileMusicMenu extends View {
         void loadMore();
     }
 
-    private static final long OPEN_MS = 440, CLOSE_MS = 320;
+    private static final long OPEN_MS = 440, CLOSE_MS = 290;
     /**
      * The way open, as on iOS: to DROP the pill swells down into a big drop of frosted glass under
      * its middle, the panel's list showing blurred through it; to SPREAD the drop spreads into the
@@ -72,7 +72,9 @@ public class ProfileMusicMenu extends View {
      * as the glass's bending at the edges eases. Closing goes back from SPREAD: the list and the
      * dark go at once as the panel draws in to the drop, which flows back up into the pill.
      */
-    private static final float DROP = .5f, SPREAD = .72f;
+    private static final float DROP = .55f, SPREAD = .66f;
+    /** Closing, the part of its time the panel takes to draw in to the drop; the rest, the drop going into the pill. */
+    private static final float CLOSE_SPREAD_TIME = .35f;
     private static final float PANEL_RADIUS_DP = 26, ROW_DP = 55, PAD_TOP_DP = 6, DIVIDER_DP = 9, FOOTER_DP = 52, PAD_BOTTOM_DP = 4;
     private static final int NONE = -1, FOOTER = -2;
 
@@ -194,11 +196,26 @@ public class ProfileMusicMenu extends View {
         // closing goes back from where the panel stands spread, not through its settling
         final float from = closing ? Math.min(progress, SPREAD) : progress;
         progress = from;
-        final ValueAnimator next = ValueAnimator.ofFloat(from, target);
-        next.setDuration(Math.max(1, Math.round(closing ? CLOSE_MS * from / SPREAD : OPEN_MS * (target - from))));
+        final ValueAnimator next = ValueAnimator.ofFloat(0f, 1f);
+        // Closing, as on iOS: about a third of the time the panel draws in to the drop (the list
+        // and the dark going at once), the rest the drop draws in steadily into the pill
+        final float spreadPart = closing ? Math.max(0f, from - DROP) : 0f;
+        final long duration = closing
+                ? Math.round(CLOSE_MS * (spreadPart > 0f ? CLOSE_SPREAD_TIME + (1f - CLOSE_SPREAD_TIME) * Math.min(from, DROP) / DROP
+                        : (1f - CLOSE_SPREAD_TIME) * from / DROP))
+                : Math.round(OPEN_MS * (target - from));
+        next.setDuration(Math.max(1, duration));
         next.setInterpolator(new LinearInterpolator());
         next.addUpdateListener(a -> {
-            progress = (float) a.getAnimatedValue();
+            final float time = (float) a.getAnimatedValue();
+            if (!closing) {
+                progress = lerp(from, target, time);
+            } else if (spreadPart > 0f) {
+                final float split = CLOSE_SPREAD_TIME / (CLOSE_SPREAD_TIME + (1f - CLOSE_SPREAD_TIME) * Math.min(from, DROP) / DROP);
+                progress = time < split ? from - spreadPart * time / split : Math.min(from, DROP) * (1f - (time - split) / (1f - split));
+            } else {
+                progress = from * (1f - time);
+            }
             updateAnchor();
             invalidate();
         });
@@ -260,29 +277,33 @@ public class ProfileMusicMenu extends View {
         panel.set(pill.left, top, pill.left + panelWidth, top + panelHeight);
         scrollY = Math.max(0f, Math.min(scrollY, maxScroll()));
 
-        // The drop: a capsule of frosted glass hanging under the middle of the pill, some two fifths
-        // of the screen across, as on iOS
+        // The drop: a rounded slab of frosted glass hanging under the middle of the pill, nearly half
+        // the screen across opening, as on iOS, and a smaller one closing, that the panel draws in to
         final float cx = pill.centerX();
-        final float dropW = Math.max(pill.height() * 2f, Math.min(width * .42f, panelWidth));
-        final float dropH = Math.min(dropW * 1.5f, Math.max(panelHeight, dropW));
+        final float dropW = Math.max(pill.height() * 2f, Math.min(width * (closing ? .34f : .46f), panelWidth));
+        final float dropH = Math.min(dropW * (closing ? 1.18f : 1.48f), Math.max(panelHeight, dropW));
         final float dropTop = pill.top + pill.height() * .6f;
         drop.set(cx - dropW / 2f, dropTop, cx + dropW / 2f, dropTop + dropH);
+        final float dropRadius = dropW * .42f;
         final int panelTint = ColorUtils.setAlphaComponent(color, (int) (0xFF * (dark ? .88f : .82f)));
-        // frosted: a veil of white over what is under it, as iOS's drop is lighter than the page
-        final int veil = dark ? 0x17FFFFFF : 0x4DFFFFFF;
+        // Frosted, but clear: what is under it shows through, a little blurred, a little lighter,
+        // as through iOS's drop
+        final int veil = dark ? 0x14FFFFFF : 0x40FFFFFF;
 
         shape.rewind();
         if (p < DROP) {
-            final float t = dropEase.getInterpolation(p / DROP);
-            // the pill draws in to its middle as it swells down into the drop, and is gone into it
-            final float vanish = 1f - smoothstep(.55f, 1f, t);
-            final float sh = pill.height() * (1f - .25f * t) * vanish;
-            final float sw = Math.max(sh, lerp(pill.width(), pill.height(), smoothstep(0f, .7f, t)) * vanish);
-            source.set(cx - sw / 2f, pill.centerY() - sh / 2f, cx + sw / 2f, pill.centerY() + sh / 2f);
+            // opening it swells fast and slows; closing it draws in steadily
+            final float t = closing ? p / DROP : dropEase.getInterpolation(p / DROP);
+            // The pill draws in to its middle as fast as the drop swells out of it, never wider
+            // than the drop, and is gone into it by the time the drop is half grown
             final float w = lerp(pill.height(), dropW, t), h = lerp(pill.height(), dropH, t);
+            final float vanish = 1f - smoothstep(.25f, .45f, t);
+            final float sh = pill.height() * (1f - .25f * t) * vanish;
+            final float sw = Math.min(lerp(pill.width(), w, smoothstep(0f, .3f, t)), Math.max(w, sh)) * vanish;
+            source.set(cx - sw / 2f, pill.centerY() - sh / 2f, cx + sw / 2f, pill.centerY() + sh / 2f);
             final float dropY = lerp(pill.top, dropTop, t);
             body.set(cx - w / 2f, dropY, cx + w / 2f, dropY + h);
-            bodyRadius = w / 2f;
+            bodyRadius = Math.min(w / 2f, lerp(w / 2f, dropRadius, t));
             if (!source.isEmpty()) shape.addRoundRect(source, sh / 2f, sh / 2f, Path.Direction.CW);
             piecePath.rewind();
             piecePath.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
@@ -291,13 +312,20 @@ public class ProfileMusicMenu extends View {
             if (!source.isEmpty() && GlassMerge.metaball(bridge, bridgeEdges, cx, pill.centerY(), sh / 2f, cx, body.top + bodyRadius, bodyRadius, .5f)) {
                 shape.op(bridge, Path.Op.UNION);
             }
-            shape.computeBounds(shapeBounds, true);
-            glassRect.set(shapeBounds);
-            glassRadius = 0f;
-            lens = 0f;
+            if (source.isEmpty()) {
+                // the drop alone: its glass is its own shape, bent a little at its edge
+                glassRect.set(body);
+                glassRadius = bodyRadius;
+                lens = dp(10) * smoothstep(.45f, .75f, t);
+            } else {
+                shape.computeBounds(shapeBounds, true);
+                glassRect.set(shapeBounds);
+                glassRadius = 0f;
+                lens = 0f;
+            }
             tint = veil;
-            blur = lerp(dp(6), dp(18), t);
-            blurredAlpha = .9f * smoothstep(.35f, 1f, t);
+            blur = lerp(dp(3), dp(7), t);
+            blurredAlpha = .3f * smoothstep(.4f, 1f, t);
             contentAlpha = 0f;
             contentScale = 1f;
         } else if (p < SPREAD) {
@@ -306,16 +334,16 @@ public class ProfileMusicMenu extends View {
             final float e = closing ? smoothstep(0f, 1f, u) : spreadEase.getInterpolation(u);
             body.set(lerp(drop.left, panel.left, e), lerp(drop.top, panel.top, e),
                     lerp(drop.right, panel.right, e), lerp(drop.bottom, panel.bottom, e));
-            bodyRadius = Math.min(lerp(dropW / 2f, dp(PANEL_RADIUS_DP), Math.min(1f, e)), Math.min(body.width(), body.height()) / 2f);
+            bodyRadius = Math.min(lerp(dropRadius, dp(PANEL_RADIUS_DP), Math.min(1f, e)), Math.min(body.width(), body.height()) / 2f);
             shape.addRoundRect(body, bodyRadius, bodyRadius, Path.Direction.CW);
             glassRect.set(body);
             glassRadius = bodyRadius;
             // bent hard at its edges as it spreads; closing, the bending comes back as it draws in
             lens = closing ? dp(7) + dp(9) * (1f - u) : dp(16) * smoothstep(0f, .6f, u);
-            tint = ColorUtils.blendARGB(veil, panelTint, closing ? smoothstep(.35f, 1f, u) : smoothstep(0f, .8f, u));
-            blur = lerp(dp(18), dp(10), u);
-            blurredAlpha = .9f;
-            contentAlpha = closing ? smoothstep(.55f, 1f, u) : smoothstep(.45f, 1f, u);
+            tint = ColorUtils.blendARGB(veil, panelTint, closing ? smoothstep(.35f, 1f, u) : smoothstep(0f, .6f, u));
+            blur = lerp(dp(7), dp(10), u);
+            blurredAlpha = .3f;
+            contentAlpha = closing ? smoothstep(.55f, 1f, u) : smoothstep(.3f, .9f, u);
             contentScale = closing ? 1f + .04f * (1f - u) : 1.05f;
         } else {
             // spread: the list settles as the bending at the edges eases
@@ -328,7 +356,7 @@ public class ProfileMusicMenu extends View {
             lens = lerp(dp(16), dp(7), settle);
             tint = panelTint;
             blur = dp(10);
-            blurredAlpha = .9f * (1f - settle);
+            blurredAlpha = .3f * (1f - settle);
             contentAlpha = 1f;
             contentScale = lerp(1.05f, 1f, settle);
         }

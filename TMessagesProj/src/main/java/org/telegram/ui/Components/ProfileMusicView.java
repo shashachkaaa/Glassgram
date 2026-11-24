@@ -572,6 +572,10 @@ public class ProfileMusicView extends View {
         }
         canvas.save();
         canvas.scale(scale, scale, rect.centerX(), getHeight() / 2f);
+        if (menuHide > 0f) {
+            // going into the music's panel it draws in to its middle, coming back it grows out of it, as on iOS
+            canvas.scale(1f - .7f * menuHide, 1f - .25f * menuHide, rect.centerX(), getHeight() / 2f);
+        }
 
         // glassGram: the library's glass made of the header, as the action buttons above it
         final boolean glassDrawn = glass != null && glass.begin(canvas);
