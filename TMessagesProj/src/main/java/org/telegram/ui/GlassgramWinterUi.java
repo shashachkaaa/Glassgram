@@ -74,6 +74,25 @@ public final class GlassgramWinterUi {
                 getString(R.string.GlassgramWinterIconSet), () -> setWinterIcon(true)).show();
     }
 
+    /** Once, in the winter: a bulletin that offers the New Year hat for one's avatar, unless one has it. */
+    public static void offerHat(BaseFragment fragment) {
+        GlassgramWinter.markHatOffered();
+        if (org.telegram.messenger.GlassgramBadges.getHat(fragment.getUserConfig().getClientUserId()) != null) {
+            return;
+        }
+        BulletinFactory.of(fragment).createSimpleBulletin(R.raw.gift, getString(R.string.GlassgramWinterHatOffer),
+                getString(R.string.GlassgramWinterHatBuy), () -> buyHat(fragment)).show();
+    }
+
+    /** The bot that sells the hat, opened on it: it is paid there and worn on the next open of the app. */
+    public static void buyHat(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        org.telegram.messenger.browser.Browser.openUrl(fragment.getParentActivity(),
+                "https://t.me/" + org.telegram.messenger.GlassgramBadges.getShopBot() + "?start=hat");
+    }
+
     public static boolean isWinterIcon() {
         try {
             return LauncherIconController.isEnabled(LauncherIconController.LauncherIcon.WINTER);

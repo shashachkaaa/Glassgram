@@ -20,6 +20,7 @@
 | Стекло под пальцем (нажато, оттянуто) сбрасывает снег и не копит его, пока не отпущено | `GlassgramSnowView.touchAt` (касания из `MainTabsActivity` и `ChatActivity`) |
 | Гирлянда и отсчёт в шапке чатов (отсчёт и под историями на месте заголовка) | `ui/Components/GlassgramGarlandView.java`, `DialogsActivity.checkWinterHeader`, `DialogStoriesCell.setGlassgramSubtitle` |
 | Игрушки на подарках-шарах | `ProfileGiftsView.drawOrnamentCap` |
+| Новогодняя шапка на аватарке в профиле, 100 ₽ в боте (`/hat`, `?start=hat`), видна всем зимой | `ui/Components/GlassgramHatView.java`, `ProfileActivity.placeHat`, `GlassgramBadges.getHat` (раздел `hats` в `glassgram-api/badges.json`), пункт в настройках и разовое предложение (`GlassgramWinterUi.offerHat`, `buyHat`) |
 | Снег за сообщениями в чатах и сугробы на капсулах шапки, поля ввода, закрепа и круглых кнопок (на весь экран, с шапкой) | `ChatActivity` (`winterSnow`, `collectWinterSurfaces`) |
 | Конфетти, поздравление, «Поделиться», зимняя иконка | `ui/GlassgramWinterUi.java` |
 | Зимняя иконка | `branding/gen_icon_pack.py` (`winter`, `--only winter`), alias `GlassgramWinterIcon`, `LauncherIcon.WINTER` |

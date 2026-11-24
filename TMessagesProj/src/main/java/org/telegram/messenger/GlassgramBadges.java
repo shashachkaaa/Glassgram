@@ -145,6 +145,11 @@ public final class GlassgramBadges {
 
     private static volatile HashMap<Long, Badge> byPeer = new HashMap<>();
     private static volatile HashMap<String, Badge> byUsername = new HashMap<>();
+    // glassGram: the New Year hats bought for avatars (GlassgramWinter): a user's id to the hat's kind
+    private static volatile HashMap<Long, String> hats = new HashMap<>();
+    // The bot that sells them and takes donations (a supporter badge's donate_bot)
+    private static volatile String shopBot;
+    public static final String DEFAULT_SHOP_BOT = "glassGramBot";
     private static boolean loadedCache;
     private static long lastFetch;
     private static boolean fetching;
@@ -244,8 +249,30 @@ public final class GlassgramBadges {
                     }
                 }
             }
+            // "hats": {"<user id>": "santa"}, the hats bought in the bot
+            HashMap<Long, String> hatsByUser = new HashMap<>();
+            JSONObject hatsJson = root.optJSONObject("hats");
+            if (hatsJson != null) {
+                for (Iterator<String> it = hatsJson.keys(); it.hasNext(); ) {
+                    String key = it.next();
+                    Long userId = parseDialogId(key);
+                    String kind = hatsJson.optString(key, "").trim();
+                    if (userId != null && userId > 0 && !kind.isEmpty()) {
+                        hatsByUser.put(userId, kind);
+                    }
+                }
+            }
+            String bot = null;
+            for (Badge badge : badges.values()) {
+                if (badge.donateBot != null) {
+                    bot = badge.donateBot;
+                    break;
+                }
+            }
             byPeer = peers;
             byUsername = usernames;
+            hats = hatsByUser;
+            shopBot = bot;
             appliedJson = json;
             if (notify) {
                 AndroidUtilities.runOnUIThread(() -> {
@@ -386,6 +413,17 @@ public final class GlassgramBadges {
         layout.textView.setEllipsize(null);
         layout.textView.setText(text);
         org.telegram.ui.Components.Bulletin.make(fragment, layout, text.length() > 80 ? org.telegram.ui.Components.Bulletin.DURATION_PROLONG : org.telegram.ui.Components.Bulletin.DURATION_LONG).show();
+    }
+
+    /** glassGram: the New Year hat a user bought for their avatar ("santa"), null for none. */
+    public static String getHat(long userId) {
+        return userId > 0 ? hats.get(userId) : null;
+    }
+
+    /** The bot that sells the hats and takes donations, without @. */
+    public static String getShopBot() {
+        final String bot = shopBot;
+        return bot != null ? bot : DEFAULT_SHOP_BOT;
     }
 
     /** The current account's own badge for the chats list header, unless turned off. */

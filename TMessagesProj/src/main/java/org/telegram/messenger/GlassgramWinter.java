@@ -179,6 +179,20 @@ public final class GlassgramWinter {
         prefs().edit().putBoolean("icon_offered", true).apply();
     }
 
+    /** Whether the New Year hat was offered (once a winter). */
+    public static boolean wasHatOffered() {
+        return prefs().getBoolean(hatOfferKey(), false);
+    }
+
+    public static void markHatOffered() {
+        prefs().edit().putBoolean(hatOfferKey(), true).apply();
+    }
+
+    private static String hatOfferKey() {
+        // the winter's New Year: one offer from December to January
+        return TEST ? "hat_offered_test" : "hat_offered_" + greetingYearShown();
+    }
+
     /** The icon before the winter one, to give back: its alias's key, or null. */
     public static String iconBeforeWinter() {
         return prefs().getString("icon_before", null);

@@ -223,6 +223,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_HOLIDAY_MODE = 978;
     private static final int ID_HOLIDAY_CHAT_SNOW = 979;
     private static final int ID_HOLIDAY_GREETING = 981;
+    private static final int ID_HOLIDAY_HAT = 982;
     private static final int ID_MUSIC_PLAYER = 182;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
@@ -428,6 +429,12 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     if (org.telegram.messenger.GlassgramWinter.TEST) {
                         items.add(UItem.asButton(ID_HOLIDAY_GREETING, getString(R.string.GlassgramWinterGreetingTest)));
                     }
+                }
+                if (GlassgramConfig.holidayDecor) {
+                    // the New Year hat for one's avatar, bought in the bot
+                    final boolean hat = org.telegram.messenger.GlassgramBadges.getHat(getUserConfig().getClientUserId()) != null;
+                    items.add(UItem.asButton(ID_HOLIDAY_HAT, getString(R.string.GlassgramWinterHat),
+                            getString(hat ? R.string.GlassgramWinterHatOwned : R.string.GlassgramWinterHatPrice)));
                 }
                 items.add(UItem.asShadow(GlassgramConfig.holidayDecor ? LocaleController.formatString(R.string.GlassgramWinterInfo, org.telegram.messenger.GlassgramWinter.WINTER_DAY)
                         : getString(R.string.GlassgramWinterOffByTeam)));
@@ -1148,6 +1155,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     GlassgramConfig.putInt("holidayMode", which);
                     org.telegram.messenger.GlassgramWinter.onChanged();
                 });
+                return;
+            case ID_HOLIDAY_HAT:
+                GlassgramWinterUi.buyHat(this);
                 return;
             case ID_HOLIDAY_GREETING:
                 finishFragment();

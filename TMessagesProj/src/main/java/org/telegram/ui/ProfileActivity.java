@@ -5712,6 +5712,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         giftsView.setLitShapes(this::collectGiftLitShapes);
         giftsView.setPageBehind(listView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // glassGram: the New Year hat bought in the bot, on the avatar in the winter look; the gifts
+        // flying in front of the avatar fly in front of it too
+        avatarContainer2.addView(new org.telegram.ui.Components.GlassgramHatView(context, this::placeHat),
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         avatarContainer2.addView(giftsView.getFrontLayer(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         if (musicView != null) {
             // the music's panel over all of the profile, its glass made of the header and the cards
@@ -9562,6 +9566,30 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             pageColorsUpdatePosted = true;
             AndroidUtilities.runOnUIThread(applyPageColors);
         }
+    }
+
+    /* glassGram: the New Year hat on the avatar (GlassgramHatView) */
+
+    /** Where the avatar's circle is, over avatarContainer2, and how much of the hat shows: none without one. */
+    private float placeHat(float[] out) {
+        if (userId <= 0 || avatarContainer == null || avatarGooey == null || avatarContainer.getVisibility() != View.VISIBLE
+                || org.telegram.messenger.GlassgramBadges.getHat(userId) == null || !org.telegram.messenger.GlassgramWinter.isActive()) {
+            return 0f;
+        }
+        final float w = avatarContainer.getWidth() * avatarContainer.getScaleX(), h = avatarContainer.getHeight() * avatarContainer.getScaleY();
+        final float size = Math.min(w, h);
+        if (size <= 0f) {
+            return 0f;
+        }
+        // the container scales from its top left corner
+        out[0] = avatarGooey.getX() + avatarContainer.getX() + w / 2f;
+        out[1] = avatarGooey.getY() + avatarContainer.getY() + h / 2f;
+        out[2] = size / 2f;
+        // off as the photo opens to the whole header, and as the avatar shrinks into the top of the screen
+        float alpha = avatarContainer.getAlpha() * avatarGooey.getAlpha();
+        alpha *= Math.max(0f, 1f - currentExpandAnimatorValue * 3f);
+        alpha *= Math.max(0f, Math.min(1f, (size - AndroidUtilities.dp(44)) / AndroidUtilities.dp(28)));
+        return alpha;
     }
 
     /* glassGram: the profile's glass the winter's snow settles on (GlassgramWinter): the round buttons and the pills */

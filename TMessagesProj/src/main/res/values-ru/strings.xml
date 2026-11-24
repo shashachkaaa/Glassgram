@@ -363,8 +363,13 @@
     <string name="GlassgramWinterOff">Выкл.</string>
     <string name="GlassgramWinterChatSnow">Снег в чатах</string>
     <string name="GlassgramWinterGreetingTest">Показать новогоднее поздравление</string>
-    <string name="GlassgramWinterInfo">Снег, который ложится на стекло, гирлянда над чатами, ёлочные игрушки на подарках в профилях и снег в чатах — с %1$d декабря по 14 января; до этого шапка чатов отсчитывает время до зимы. Выключается в Lite mode и при экономии заряда.</string>
+    <string name="GlassgramWinterInfo">Снег, который ложится на стекло, гирлянда над чатами, ёлочные игрушки на подарках в профилях и снег в чатах — с %1$d декабря по 14 января; до этого шапка чатов отсчитывает время до зимы. Выключается в Lite mode и при экономии заряда. Новогоднюю шапку на аватарку покупают в боте один раз: её видят в вашем профиле все, у кого glassGram, каждую зиму.</string>
     <string name="GlassgramWinterOffByTeam">Праздничное оформление сейчас выключено командой glassGram.</string>
+    <string name="GlassgramWinterHat">Новогодняя шапка на аватарку</string>
+    <string name="GlassgramWinterHatPrice">100 ₽</string>
+    <string name="GlassgramWinterHatOwned">Ваша</string>
+    <string name="GlassgramWinterHatOffer">Наденьте новогоднюю шапку на аватарку — её увидят все, у кого glassGram</string>
+    <string name="GlassgramWinterHatBuy">100 ₽</string>
     <string name="GlassgramIconWinter">Зима</string>
     <string name="GlassgramFrameStatsOpen">Открытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>
     <string name="GlassgramFrameStatsClose">Закрытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>

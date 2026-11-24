@@ -11408,8 +11408,13 @@
     <string name="GlassgramWinterOff">Off</string>
     <string name="GlassgramWinterChatSnow">Snow in chats</string>
     <string name="GlassgramWinterGreetingTest">Show the New Year greeting</string>
-    <string name="GlassgramWinterInfo">Snow that settles on the glass, a garland over the chats, baubles on the gifts in profiles and snow in chats, from December %1$d to January 14; until then the chats\' header counts down to it. Turned off in Lite mode and when saving power.</string>
+    <string name="GlassgramWinterInfo">Snow that settles on the glass, a garland over the chats, baubles on the gifts in profiles and snow in chats, from December %1$d to January 14; until then the chats\' header counts down to it. Turned off in Lite mode and when saving power. A New Year hat for your avatar is bought in the bot, once: everyone with glassGram sees it on your profile every winter.</string>
     <string name="GlassgramWinterOffByTeam">The holiday look is turned off by the glassGram team for now.</string>
+    <string name="GlassgramWinterHat">New Year hat on your avatar</string>
+    <string name="GlassgramWinterHatPrice">100 ₽</string>
+    <string name="GlassgramWinterHatOwned">Yours</string>
+    <string name="GlassgramWinterHatOffer">Put a New Year hat on your avatar: everyone with glassGram will see it</string>
+    <string name="GlassgramWinterHatBuy">100 ₽</string>
     <string name="GlassgramIconWinter">Winter</string>
     <string name="GlassgramFrameStatsOpen">Opening: %1$d fps (display %2$d Hz, app %3$d Hz)</string>
     <string name="GlassgramFrameStatsClose">Closing: %1$d fps (display %2$d Hz, app %3$d Hz)</string>
