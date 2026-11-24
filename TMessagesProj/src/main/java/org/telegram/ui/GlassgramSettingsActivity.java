@@ -219,6 +219,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_INLINE_CURRENCY = 179;
     private static final int ID_INLINE_MEASURE = 180;
     private static final int ID_FRAME_STATS = 181;
+    private static final int ID_JANK_RECORD = 977;
     private static final int ID_MUSIC_PLAYER = 182;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
@@ -413,6 +414,8 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                     items.add(UItem.asCheck(ID_FRAME_STATS, getString(R.string.GlassgramFrameStats)).setChecked(GlassgramConfig.frameStats));
                     items.add(UItem.asShadow(getString(R.string.GlassgramFrameStatsInfo)));
+                    items.add(UItem.asButton(ID_JANK_RECORD, R.drawable.msg_stats, getString(R.string.GlassgramJankRecord)));
+                    items.add(UItem.asShadow(getString(R.string.GlassgramJankRecordInfo)));
                 }
                 break;
             case PAGE_CHATS: {
@@ -1117,6 +1120,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 value = GlassgramConfig.frameStats = !GlassgramConfig.frameStats;
                 GlassgramConfig.putBoolean("frameStats", value);
                 break;
+            case ID_JANK_RECORD:
+                recordJank();
+                return;
             case ID_HIDE_STICKER_TIME:
                 value = GlassgramConfig.hideTimeOnStickers = !GlassgramConfig.hideTimeOnStickers;
                 GlassgramConfig.putBoolean("hideTimeOnStickers", value);
@@ -2519,5 +2525,20 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
         return false;
+    }
+
+    /** Records the late frames for 20 s while the app is used (GlassgramJankRecorder), then shows the report. */
+    private void recordJank() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || getParentActivity() == null
+                || org.telegram.messenger.GlassgramJankRecorder.isRunning()) {
+            return;
+        }
+        org.telegram.messenger.GlassgramJankRecorder.start(getParentActivity(), 20, report -> {
+            final org.telegram.ui.ActionBar.BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment != null && fragment.getParentActivity() != null) {
+                GlassgramApiUi.showText(fragment, getString(R.string.GlassgramJankRecordTitle), report);
+            }
+        });
+        org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.GlassgramJankRecordStarted)).show();
     }
 }

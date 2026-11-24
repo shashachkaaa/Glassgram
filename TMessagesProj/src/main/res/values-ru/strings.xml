@@ -343,6 +343,10 @@
     <string name="GlassgramIosTransitionsInfo">Экраны выезжают справа поверх предыдущего, меню и шторки появляются на пружине, вкладки переключаются плавным затуханием, отправленные сообщения вылетают из поля ввода, а новые плавно появляются в чате, как на iPhone.</string>
     <string name="GlassgramFrameStats">Счётчик кадров</string>
     <string name="GlassgramFrameStatsInfo">После каждого перехода между экранами показывает, сколько кадров отрисовано и на что ушло их время, чтобы найти, что мешает плавности.</string>
+    <string name="GlassgramJankRecord">Записать рывки за 20 секунд</string>
+    <string name="GlassgramJankRecordInfo">Пока вы пользуетесь приложением, записывает, какие кадры опоздали и чем приложение было занято в них, и показывает отчёт, который можно скопировать и отправить разработчикам.</string>
+    <string name="GlassgramJankRecordStarted">Запись 20 секунд: пользуйтесь приложением там, где оно дёргается</string>
+    <string name="GlassgramJankRecordTitle">Рывки</string>
     <string name="GlassgramFrameStatsOpen">Открытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>
     <string name="GlassgramFrameStatsClose">Закрытие: %1$d к/с (экран %2$d Гц, приложение %3$d Гц)</string>
     <string name="GlassgramFrameStatsFrames">%1$d кадров за %2$d мс, пропущено %3$d, долгих %4$d</string>
