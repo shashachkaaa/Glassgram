@@ -10,6 +10,8 @@
  Licensed under the GNU GPL v. 3 or later, with the additional terms
  in ADDITIONAL_TERMS.md at the root of the repository.
 
+ Modified for glassGram, 2026: Java 8 (classes for the records, TypeHelper static).
+
 */
 
 package com.exteragram.messenger.plugins.utils;
@@ -710,30 +712,190 @@ public class ClassProxy {
         void apply(DexMaker dexMaker, TypeId<?> proxyType, TypeId<?> superType, List<TypeId<?>> interfaces);
     }
 
-    public record ProxyMethodSpec(String name, Class<?> returnType, Class<?>[] parameterTypes,
-                                  int modifiers, boolean overrideExisting, String implementation,
-                                  String mvelCode, List<String> argumentNames) {
-            public ProxyMethodSpec(String name, Class<?> returnType, Class<?>[] parameterTypes, int modifiers, boolean overrideExisting) {
-                this(name, returnType, parameterTypes, modifiers, overrideExisting, "python", null, null);
-            }
+    // glassGram: classes instead of records (this module is Java 8), with the records' accessors
+    public static final class ProxyMethodSpec {
+        private final String name;
+        private final Class<?> returnType;
+        private final Class<?>[] parameterTypes;
+        private final int modifiers;
+        private final boolean overrideExisting;
+        private final String implementation;
+        private final String mvelCode;
+        private final List<String> argumentNames;
 
-        public boolean isMvel() {
-                return "mvel".equals(implementation) && mvelCode != null;
-            }
+        public ProxyMethodSpec(String name, Class<?> returnType, Class<?>[] parameterTypes,
+                               int modifiers, boolean overrideExisting, String implementation,
+                               String mvelCode, List<String> argumentNames) {
+            this.name = name;
+            this.returnType = returnType;
+            this.parameterTypes = parameterTypes;
+            this.modifiers = modifiers;
+            this.overrideExisting = overrideExisting;
+            this.implementation = implementation;
+            this.mvelCode = mvelCode;
+            this.argumentNames = argumentNames;
         }
 
-    public record FieldSpec(String name, Class<?> type, int modifiers,
-                            List<FieldMethodSpec> methods) {
-            public FieldSpec(String name, Class<?> type, int modifiers) {
-                this(name, type, modifiers, null);
-            }
+        public ProxyMethodSpec(String name, Class<?> returnType, Class<?>[] parameterTypes, int modifiers, boolean overrideExisting) {
+            this(name, returnType, parameterTypes, modifiers, overrideExisting, "python", null, null);
+        }
 
+        public String name() {
+            return name;
+        }
+
+        public Class<?> returnType() {
+            return returnType;
+        }
+
+        public Class<?>[] parameterTypes() {
+            return parameterTypes;
+        }
+
+        public int modifiers() {
+            return modifiers;
+        }
+
+        public boolean overrideExisting() {
+            return overrideExisting;
+        }
+
+        public String implementation() {
+            return implementation;
+        }
+
+        public String mvelCode() {
+            return mvelCode;
+        }
+
+        public List<String> argumentNames() {
+            return argumentNames;
+        }
+
+        public boolean isMvel() {
+            return "mvel".equals(implementation) && mvelCode != null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof ProxyMethodSpec)) return false;
+            ProxyMethodSpec that = (ProxyMethodSpec) o;
+            return modifiers == that.modifiers && overrideExisting == that.overrideExisting
+                    && java.util.Objects.equals(name, that.name) && java.util.Objects.equals(returnType, that.returnType)
+                    && parameterTypes == that.parameterTypes && java.util.Objects.equals(implementation, that.implementation)
+                    && java.util.Objects.equals(mvelCode, that.mvelCode) && java.util.Objects.equals(argumentNames, that.argumentNames);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(name, returnType, System.identityHashCode(parameterTypes), modifiers, overrideExisting,
+                    implementation, mvelCode, argumentNames);
+        }
+
+        @Override
+        public String toString() {
+            return "ProxyMethodSpec[name=" + name + ", returnType=" + returnType + ", modifiers=" + modifiers
+                    + ", overrideExisting=" + overrideExisting + ", implementation=" + implementation + "]";
+        }
     }
 
-    public record FieldMethodSpec(String name, int modifiers, boolean getter) {
+    public static final class FieldSpec {
+        private final String name;
+        private final Class<?> type;
+        private final int modifiers;
+        private final List<FieldMethodSpec> methods;
+
+        public FieldSpec(String name, Class<?> type, int modifiers, List<FieldMethodSpec> methods) {
+            this.name = name;
+            this.type = type;
+            this.modifiers = modifiers;
+            this.methods = methods;
+        }
+
+        public FieldSpec(String name, Class<?> type, int modifiers) {
+            this(name, type, modifiers, null);
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public Class<?> type() {
+            return type;
+        }
+
+        public int modifiers() {
+            return modifiers;
+        }
+
+        public List<FieldMethodSpec> methods() {
+            return methods;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof FieldSpec)) return false;
+            FieldSpec that = (FieldSpec) o;
+            return modifiers == that.modifiers && java.util.Objects.equals(name, that.name)
+                    && java.util.Objects.equals(type, that.type) && java.util.Objects.equals(methods, that.methods);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(name, type, modifiers, methods);
+        }
+
+        @Override
+        public String toString() {
+            return "FieldSpec[name=" + name + ", type=" + type + ", modifiers=" + modifiers + ", methods=" + methods + "]";
+        }
     }
 
-    public class TypeHelper {
+    public static final class FieldMethodSpec {
+        private final String name;
+        private final int modifiers;
+        private final boolean getter;
+
+        public FieldMethodSpec(String name, int modifiers, boolean getter) {
+            this.name = name;
+            this.modifiers = modifiers;
+            this.getter = getter;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public int modifiers() {
+            return modifiers;
+        }
+
+        public boolean getter() {
+            return getter;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof FieldMethodSpec)) return false;
+            FieldMethodSpec that = (FieldMethodSpec) o;
+            return modifiers == that.modifiers && getter == that.getter && java.util.Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(name, modifiers, getter);
+        }
+
+        @Override
+        public String toString() {
+            return "FieldMethodSpec[name=" + name + ", modifiers=" + modifiers + ", getter=" + getter + "]";
+        }
+    }
+
+    public static class TypeHelper {
         public static Object box(int v) {
             return Integer.valueOf(v);
         }
