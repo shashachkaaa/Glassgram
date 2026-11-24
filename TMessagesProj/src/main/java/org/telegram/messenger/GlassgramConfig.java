@@ -88,13 +88,12 @@ public class GlassgramConfig {
     public static boolean iosTransitions = true;
     /** After every page slide, a bulletin with its frames: how many, and where their time went. */
     public static boolean frameStats;
-    /** The winter and New Year look (GlassgramWinter): HOLIDAY_AUTO in its days, always, or never. */
-    public static final int HOLIDAY_AUTO = 0, HOLIDAY_ALWAYS = 1, HOLIDAY_OFF = 2;
-    public static int holidayMode = HOLIDAY_AUTO;
-    /** Allowed at all: never set here, only a rule of the team (GlassgramRemoteConfig) turns it off. */
+    /**
+     * The winter and New Year look (GlassgramWinter), on by itself in its days (the team's, or
+     * December 10 to January 14): allowed at all, never set here, only a rule of the team
+     * (GlassgramRemoteConfig) turns it off.
+     */
     public static boolean holidayDecor = true;
-    /** Snow behind the messages in chats, while the winter look is on. */
-    public static boolean holidayChatSnow = true;
     /** glassGram's music player (ui/music) in place of Telegram's; its colors from the cover, its lyrics online. */
     public static boolean musicPlayer = true;
     public static boolean musicCoverColorsFull = true;
@@ -368,9 +367,7 @@ public class GlassgramConfig {
         splitInput = p.getBoolean("splitInput", true);
         iosTransitions = p.getBoolean("iosTransitions", true);
         frameStats = p.getBoolean("frameStats", false);
-        holidayMode = p.getInt("holidayMode", HOLIDAY_AUTO);
         holidayDecor = p.getBoolean("holidayDecor", true);
-        holidayChatSnow = p.getBoolean("holidayChatSnow", true);
         musicPlayer = p.getBoolean("musicPlayer", true);
         musicCoverColorsFull = p.getBoolean("musicCoverColorsFull", true);
         musicCoverColorsMini = p.getBoolean("musicCoverColorsMini", true);

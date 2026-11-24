@@ -7113,7 +7113,7 @@ public class ChatActivity extends BaseFragment implements
 
         contentView.addView(chatListView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         // glassGram: in the winter (GlassgramWinter), slow snow behind the messages, over the wallpaper
-        if (!inPreviewMode && org.telegram.messenger.GlassgramConfig.holidayChatSnow && org.telegram.messenger.GlassgramWinter.isAnimated()) {
+        if (!inPreviewMode && org.telegram.messenger.GlassgramWinter.isAnimated()) {
             winterSnow = new org.telegram.ui.Components.GlassgramSnowView(context);
             winterSnow.setSlow(true);
             winterSnow.setSurfaces(this::collectWinterSurfaces);

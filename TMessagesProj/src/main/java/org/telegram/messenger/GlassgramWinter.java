@@ -26,10 +26,10 @@ public final class GlassgramWinter {
 
     /**
      * A test build: the winter is on now unless the team set its days, and the New Year's greeting
-     * shows on the first open of the build (and from the settings). The release sets it false: the
-     * winter comes on its days.
+     * shows on the first open of the build. Off: the winter comes on its days, the team's or its own,
+     * and nothing else turns it on.
      */
-    public static final boolean TEST = true;
+    public static final boolean TEST = false;
 
     /** The winter comes on this day of December, local time; the header counts down to it before. */
     public static final int WINTER_DAY = 10;
@@ -170,8 +170,8 @@ public final class GlassgramWinter {
         final long uptime = SystemClock.uptimeMillis();
         if (uptime - cachedAt > 1000 || cachedAt == 0) {
             cachedAt = uptime;
-            cachedSeason = GlassgramConfig.holidayDecor && GlassgramConfig.holidayMode != GlassgramConfig.HOLIDAY_OFF
-                    && (GlassgramConfig.holidayMode == GlassgramConfig.HOLIDAY_ALWAYS || isSeasonNow());
+            // in its days only, unless the team turned it off on all phones
+            cachedSeason = GlassgramConfig.holidayDecor && isSeasonNow();
         }
         return cachedSeason;
     }
@@ -196,7 +196,7 @@ public final class GlassgramWinter {
 
     /** How long until the winter comes, ms, while the header counts down to it; -1 when it doesn't. */
     public static long countdownLeft() {
-        if (!GlassgramConfig.holidayDecor || GlassgramConfig.holidayMode == GlassgramConfig.HOLIDAY_OFF) {
+        if (!GlassgramConfig.holidayDecor) {
             return -1;
         }
         final long left = winterStart() - now();
@@ -238,7 +238,7 @@ public final class GlassgramWinter {
 
     /** Whether the New Year's confetti and greeting are due now (once a year, and the look allowed). */
     public static boolean isGreetingDue() {
-        return GlassgramConfig.holidayDecor && GlassgramConfig.holidayMode != GlassgramConfig.HOLIDAY_OFF && greetingYear() != 0;
+        return GlassgramConfig.holidayDecor && greetingYear() != 0;
     }
 
     /** The year the greeting is for: the coming one in a test build. */
