@@ -7116,6 +7116,7 @@ public class ChatActivity extends BaseFragment implements
         if (!inPreviewMode && org.telegram.messenger.GlassgramConfig.holidayChatSnow && org.telegram.messenger.GlassgramWinter.isAnimated()) {
             winterSnow = new org.telegram.ui.Components.GlassgramSnowView(context);
             winterSnow.setSlow(true);
+            winterSnow.setSurfaces(this::collectWinterSurfaces);
             contentView.addView(winterSnow, contentView.indexOfChild(chatListView), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
 
@@ -9153,8 +9154,74 @@ public class ChatActivity extends BaseFragment implements
             });
         }
 
+        if (winterSnow != null) {
+            // the snow lying on the header's and the input's glass, over everything else of the chat
+            contentView.addView(winterSnow.createDriftLayer(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
         glassgramCheckLock();
         return fragmentView;
+    }
+
+    // glassGram: the glass the winter's snow settles on in a chat (GlassgramWinter): the header's
+    // capsules, the input's pieces, the pinned message's panel and the round buttons over the list
+    private final int[] winterSnowLocation = new int[2], winterViewLocation = new int[2];
+    private final android.graphics.RectF[] winterPieces = {new android.graphics.RectF(), new android.graphics.RectF(), new android.graphics.RectF(),
+            new android.graphics.RectF(), new android.graphics.RectF(), new android.graphics.RectF()};
+    private final int[] winterTints = new int[6];
+    private final float[] winterRadii = new float[6];
+    private final View[] winterButtons = new View[7];
+
+    private int collectWinterSurfaces(android.graphics.RectF[] out, float[] radii) {
+        int count = 0;
+        winterSnow.getLocationInWindow(winterSnowLocation);
+        if (actionBar != null && actionBar.isShown() && actionBar.getAlpha() > .5f) {
+            final int pieces = actionBar.getGlassgramSnowPieces(winterPieces, winterTints);
+            actionBar.getLocationInWindow(winterViewLocation);
+            for (int i = 0; i < pieces && count < out.length; i++) {
+                out[count].set(winterPieces[i]);
+                out[count].offset(winterViewLocation[0] - winterSnowLocation[0], winterViewLocation[1] - winterSnowLocation[1]);
+                radii[count] = Math.min(out[count].width(), out[count].height()) / 2f;
+                count++;
+            }
+        }
+        if (topPanelLayout != null && topPanelLayout.isShown() && topPanelLayout.getAlpha() > .5f
+                && topPanelLayout.getHeight() - topPanelLayout.getPaddingTop() - topPanelLayout.getPaddingBottom() > dp(20) && count < out.length) {
+            topPanelLayout.getLocationInWindow(winterViewLocation);
+            final float left = winterViewLocation[0] - winterSnowLocation[0] + topPanelLayout.getPaddingLeft();
+            final float top = winterViewLocation[1] - winterSnowLocation[1] + topPanelLayout.getPaddingTop();
+            out[count].set(left, top, left + topPanelLayout.getWidth() - topPanelLayout.getPaddingLeft() - topPanelLayout.getPaddingRight(),
+                    top + topPanelLayout.getHeight() - topPanelLayout.getPaddingTop() - topPanelLayout.getPaddingBottom());
+            radii[count] = Math.min(dp(24), out[count].height() / 2f);
+            count++;
+        }
+        if (chatInputViewsContainer != null && chatInputViewsContainer.isShown() && count < out.length) {
+            final int pieces = chatInputViewsContainer.getGlassgramGlassPieces(winterPieces, winterRadii, 0);
+            chatInputViewsContainer.getLocationInWindow(winterViewLocation);
+            for (int i = 0; i < pieces && count < out.length; i++) {
+                out[count].set(winterPieces[i]);
+                out[count].offset(winterViewLocation[0] - winterSnowLocation[0], winterViewLocation[1] - winterSnowLocation[1]);
+                radii[count] = winterRadii[i];
+                count++;
+            }
+        }
+        if (sideControlsButtonsLayout != null && sideControlsButtonsLayout.isShown()) {
+            final int buttons = sideControlsButtonsLayout.getShownButtons(winterButtons);
+            final float inset = dp(org.telegram.ui.Components.chat.buttons.ChatActivityBlurredRoundButton.CLICK_ZONE_MARGIN);
+            for (int i = 0; i < buttons && count < out.length; i++) {
+                final View button = winterButtons[i];
+                button.getLocationInWindow(winterViewLocation);
+                final float size = Math.min(button.getWidth(), button.getHeight()) - inset * 2;
+                if (size < dp(16)) {
+                    continue;
+                }
+                final float cx = winterViewLocation[0] - winterSnowLocation[0] + button.getWidth() / 2f;
+                final float cy = winterViewLocation[1] - winterSnowLocation[1] + button.getHeight() / 2f;
+                out[count].set(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f);
+                radii[count] = size / 2f;
+                count++;
+            }
+        }
+        return count;
     }
 
     // glassGram: a locked chat (GlassgramChatLock) stays covered until the PIN or a fingerprint

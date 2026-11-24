@@ -181,6 +181,45 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         return true;
     }
 
+    /**
+     * The glass of the input as it shows, in this view's coordinates: the split pieces (the attach
+     * circle, the field, the send circle), or the one island. The winter's snow settles on it
+     * (GlassgramWinter). Returns the count put in out after start.
+     */
+    public int getGlassgramGlassPieces(android.graphics.RectF[] out, float[] radii, int start) {
+        int count = start;
+        if (getVisibility() != VISIBLE || getAlpha() < .5f || inputBubbleHeightRound <= 0) {
+            return count;
+        }
+        computeIslandRect(glassgramIsland);
+        final int pad = dp(7);
+        final float islandTop = glassgramIsland.top + pad, islandBottom = glassgramIsland.bottom - pad;
+        if (glassgramSegmentsProvider != null && inputBubbleOffsetLeft == 0 && inputBubbleOffsetRight == 0
+                && glassgramSegmentsProvider.getSegments(glassgramSegments)) {
+            final float buttonTop = Math.max(islandTop, islandBottom - dp(INPUT_BUBBLE_RADIUS * 2));
+            for (int i = 0; i < SEGMENT_COUNT && count < out.length; i++) {
+                final float left = glassgramSegments[i * 2], right = glassgramSegments[i * 2 + 1];
+                if (left < 0 || right - left < dp(8)) {
+                    continue;
+                }
+                float top = i == SEGMENT_FIELD ? islandTop : buttonTop;
+                if (i == SEGMENT_ATTACH && glassgramSegments[SEGMENT_ATTACH_HEIGHT] > dp(INPUT_BUBBLE_RADIUS * 2)) {
+                    top = Math.max(islandTop, islandBottom - glassgramSegments[SEGMENT_ATTACH_HEIGHT]);
+                }
+                out[count].set(left, top, right, islandBottom);
+                radii[count] = Math.min((islandBottom - top) / 2f, dp(INPUT_BUBBLE_RADIUS));
+                count++;
+            }
+            return count;
+        }
+        if (count < out.length && islandBottom - islandTop > dp(8)) {
+            out[count].set(glassgramIsland.left + pad, islandTop, glassgramIsland.right - pad, islandBottom);
+            radii[count] = Math.min((islandBottom - islandTop) / 2f, dp(INPUT_BUBBLE_RADIUS));
+            count++;
+        }
+        return count;
+    }
+
     /** Draws the pieces around the island rect (bounds with the drawables' padding); false when there are none. */
     private boolean drawGlassgramSegments(Canvas canvas, Rect island) {
         return drawGlassgramSegments(canvas, island, false);

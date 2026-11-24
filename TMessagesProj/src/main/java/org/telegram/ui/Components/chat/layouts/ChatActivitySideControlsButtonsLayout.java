@@ -6,6 +6,7 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 
 import androidx.annotation.DrawableRes;
@@ -99,6 +100,18 @@ public class ChatActivitySideControlsButtonsLayout extends FrameLayout implement
             return true;
         }
         return false;
+    }
+
+    /** The round buttons fully shown (page down, mentions, reactions...), for the winter's snow to settle on; their count. */
+    public int getShownButtons(View[] out) {
+        int count = 0;
+        for (ButtonHolder holder : buttonHolders) {
+            if (count < out.length && holder != null && holder.visibilityAnimator.getFloatValue() > .95f
+                    && holder.button.getVisibility() == VISIBLE && holder.button.isShown()) {
+                out[count++] = holder.button;
+            }
+        }
+        return count;
     }
 
     public void updateColors() {

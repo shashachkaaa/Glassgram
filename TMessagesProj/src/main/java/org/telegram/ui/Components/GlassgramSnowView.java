@@ -32,7 +32,7 @@ public class GlassgramSnowView extends View {
         int collect(RectF[] out, float[] radii);
     }
 
-    private static final int MAX_SURFACES = 8;
+    private static final int MAX_SURFACES = 12;
     private static final int MAX_CHUNKS = 140;
     private static final long FRAME_MS = 16;
 
@@ -204,6 +204,19 @@ public class GlassgramSnowView extends View {
             flakePaint.setAlpha((int) (0xFF * flake.alpha * (dark ? .9f : .75f)));
             canvas.drawCircle(flake.x, flake.y, flake.r, flakePaint);
         }
+        if (driftLayer != null) {
+            // the snow lying on the glass is drawn over it, by the layer above
+            driftLayer.invalidate();
+        } else {
+            drawDrifts(canvas);
+        }
+        if (running) {
+            postInvalidateDelayed(Math.max(0, FRAME_MS - (SystemClock.uptimeMillis() - now)));
+        }
+    }
+
+    private void drawDrifts(Canvas canvas) {
+        final boolean dark = Theme.isCurrentThemeDark();
         driftPaint.setColor(dark ? 0xF2FFFFFF : 0xFFFFFFFF);
         driftEdgePaint.setColor(dark ? 0x40FFFFFF : 0x26314558);
         for (Drift drift : drifts) {
@@ -224,9 +237,37 @@ public class GlassgramSnowView extends View {
             flakePaint.setAlpha((int) (0xFF * chunk.alpha));
             canvas.drawCircle(chunk.x, chunk.y, chunk.r, flakePaint);
         }
-        if (running) {
-            postInvalidateDelayed(Math.max(0, FRAME_MS - (SystemClock.uptimeMillis() - now)));
-        }
+    }
+
+    private View driftLayer;
+
+    /**
+     * A layer for the snow lying on the glass, to put over the glass while this view, falling,
+     * stays behind (the messages of a chat). It lays over this view exactly and takes no touches
+     * but notes where a finger comes down: the glass there shakes its snow off.
+     */
+    public View createDriftLayer(Context context) {
+        driftLayer = new View(context) {
+            @Override
+            protected void onDraw(Canvas canvas) {
+                // in the falling view's coordinates, wherever the two are laid out
+                canvas.save();
+                canvas.translate(GlassgramSnowView.this.getX() - getX(), GlassgramSnowView.this.getY() - getY());
+                drawDrifts(canvas);
+                canvas.restore();
+            }
+
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent event) {
+                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+                    touchAt(event.getX() + getX() - GlassgramSnowView.this.getX(), event.getY() + getY() - GlassgramSnowView.this.getY(), event.getActionMasked());
+                }
+                return false;
+            }
+        };
+        driftLayer.setWillNotDraw(false);
+        driftLayer.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return driftLayer;
     }
 
     private void step(float dt, float time) {
