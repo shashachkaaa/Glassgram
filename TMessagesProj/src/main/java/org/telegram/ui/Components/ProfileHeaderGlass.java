@@ -463,6 +463,40 @@ public class ProfileHeaderGlass {
     }
 
     /**
+     * What a piece of glass holds, seen through its lens alone, nothing under it: content laid in
+     * the glass, bent at its edges as through thick glass curving away there (the text of iOS's
+     * menus as they spread). No blur, no color, no rim; draws nothing when the glass is off.
+     *
+     * @return whether it drew: if not, the caller draws the content plainly
+     */
+    public boolean drawLensed(Canvas canvas, Piece piece, RectF rect, float radius, float lensHeight, float lensAmount,
+                              GlassLayer.Backdrop content) {
+        if (!active || rect.isEmpty() || content == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return false;
+        }
+        final float width = rect.width(), height = rect.height();
+        final float left = rect.left, top = rect.top;
+        final GlassLayer.Backdrop source = backdrop -> {
+            backdrop.translate(-left, -top);
+            content.draw(backdrop);
+        };
+        if (piece.layer == null) {
+            piece.layer = new GlassLayer();
+        }
+        // in steps of half a pixel: the effect is built anew only when they change by that
+        final float bandHeight = Math.round(Math.max(0f, Math.min(lensHeight, Math.min(width, height) / 2f)) * 2f) / 2f;
+        final float amount = Math.round(Math.max(0f, lensAmount) * 2f) / 2f;
+        final int restore = canvas.save();
+        canvas.translate(left, top);
+        ((GlassLayer) piece.layer).draw(canvas, width, height, radius, AndroidUtilities.density,
+            BackdropGlass.COLOR_NONE, 0f, bandHeight, amount,
+            true, false, false, source,
+            0, 0f, 1f);
+        canvas.restoreToCount(restore);
+        return true;
+    }
+
+    /**
      * @param blur px: a thick ball of glass blurs what is behind it; 0 for a clear one, through
      *             which text stays text
      */

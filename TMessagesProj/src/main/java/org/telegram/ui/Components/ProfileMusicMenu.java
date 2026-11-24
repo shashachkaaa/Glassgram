@@ -64,7 +64,7 @@ public class ProfileMusicMenu extends View {
         void loadMore();
     }
 
-    private static final long OPEN_MS = 440, CLOSE_MS = 290;
+    private static final long OPEN_MS = 400, CLOSE_MS = 290;
     /**
      * The way open, as on iOS: to DROP the pill swells down into a big drop of frosted glass under
      * its middle, the panel's list showing blurred through it; to SPREAD the drop spreads into the
@@ -72,7 +72,7 @@ public class ProfileMusicMenu extends View {
      * as the glass's bending at the edges eases. Closing goes back from SPREAD: the list and the
      * dark go at once as the panel draws in to the drop, which flows back up into the pill.
      */
-    private static final float DROP = .55f, SPREAD = .66f;
+    private static final float DROP = .35f, SPREAD = .72f;
     /** Closing, the part of its time the panel takes to draw in to the drop; the rest, the drop going into the pill. */
     private static final float CLOSE_SPREAD_TIME = .35f;
     private static final float PANEL_RADIUS_DP = 26, ROW_DP = 55, PAD_TOP_DP = 6, DIVIDER_DP = 9, FOOTER_DP = 52, PAD_BOTTOM_DP = 4;
@@ -97,8 +97,20 @@ public class ProfileMusicMenu extends View {
     private int tint;
     private final RectF drop = new RectF();
 
-    private final DecelerateInterpolator dropEase = new DecelerateInterpolator(1.4f);
-    private final OvershootInterpolator spreadEase = new OvershootInterpolator(1.4f);
+    private final DecelerateInterpolator dropEase = new DecelerateInterpolator(1f);
+    private final OvershootInterpolator spreadEase = new OvershootInterpolator(1.1f);
+    /**
+     * The list is laid in the glass while it spreads and settles, seen through a lens of its own
+     * that bends it hard at the edges, as through glass curving away there, and eases off.
+     */
+    private final ProfileHeaderGlass.Piece listPiece = new ProfileHeaderGlass.Piece();
+    private float listLensHeight, listLensAmount;
+    private final org.telegram.liquidglass.GlassLayer.Backdrop lensedList = canvas -> {
+        canvas.save();
+        if (contentScale != 1f) canvas.scale(contentScale, contentScale, panel.centerX(), panel.top + Math.min(panel.height(), contentHeight()) / 2f);
+        drawContent(canvas, contentAlpha);
+        canvas.restore();
+    };
     private final DecelerateInterpolator settleEase = new DecelerateInterpolator(1.5f);
     private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG), subtitlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     /** The list drawn under the glass, blurred through the drop, see {@link #layout}. */
@@ -328,6 +340,7 @@ public class ProfileMusicMenu extends View {
             blurredAlpha = .3f * smoothstep(.4f, 1f, t);
             contentAlpha = 0f;
             contentScale = 1f;
+            listLensHeight = listLensAmount = 0f;
         } else if (p < SPREAD) {
             // the drop spreads into the panel: dark at once, the list in it, a little past it and back
             final float u = (p - DROP) / (SPREAD - DROP);
@@ -339,12 +352,15 @@ public class ProfileMusicMenu extends View {
             glassRect.set(body);
             glassRadius = bodyRadius;
             // bent hard at its edges as it spreads; closing, the bending comes back as it draws in
-            lens = closing ? dp(7) + dp(9) * (1f - u) : dp(16) * smoothstep(0f, .6f, u);
-            tint = ColorUtils.blendARGB(veil, panelTint, closing ? smoothstep(.35f, 1f, u) : smoothstep(0f, .6f, u));
+            lens = closing ? dp(7) + dp(9) * (1f - u) : dp(16) * smoothstep(0f, .5f, u);
+            tint = ColorUtils.blendARGB(veil, panelTint, closing ? smoothstep(.35f, 1f, u) : smoothstep(0f, .45f, u));
             blur = lerp(dp(7), dp(10), u);
-            blurredAlpha = .3f;
-            contentAlpha = closing ? smoothstep(.55f, 1f, u) : smoothstep(.3f, .9f, u);
-            contentScale = closing ? 1f + .04f * (1f - u) : 1.05f;
+            blurredAlpha = .3f * (1f - smoothstep(0f, .4f, u));
+            // the list shows in it from the start, through the curving edge of the glass
+            contentAlpha = closing ? smoothstep(.55f, 1f, u) : smoothstep(0f, .4f, u);
+            contentScale = closing ? 1f + .04f * (1f - u) : lerp(1.06f, 1.04f, u);
+            listLensHeight = dp(30);
+            listLensAmount = closing ? dp(20) * (1f - u) : dp(20);
         } else {
             // spread: the list settles as the bending at the edges eases
             final float settle = settleEase.getInterpolation((p - SPREAD) / (1f - SPREAD));
@@ -356,9 +372,12 @@ public class ProfileMusicMenu extends View {
             lens = lerp(dp(16), dp(7), settle);
             tint = panelTint;
             blur = dp(10);
-            blurredAlpha = .3f * (1f - settle);
+            blurredAlpha = 0f;
             contentAlpha = 1f;
-            contentScale = lerp(1.05f, 1f, settle);
+            contentScale = lerp(1.04f, 1f, settle);
+            // the list straightens as the edge's bending eases
+            listLensHeight = lerp(dp(30), dp(14), settle);
+            listLensAmount = dp(20) * (1f - settle);
         }
         return true;
     }
@@ -388,8 +407,10 @@ public class ProfileMusicMenu extends View {
         }
         if (contentAlpha > 0f) {
             canvas.clipRect(body);
-            if (contentScale != 1f) canvas.scale(contentScale, contentScale, panel.centerX(), panel.top + Math.min(panel.height(), contentHeight()) / 2f);
-            drawContent(canvas, contentAlpha);
+            // through the lens while it bends it; once it has settled, plainly
+            if (!(hasGlass && listLensAmount >= .5f && glass.drawLensed(canvas, listPiece, glassRect, glassRadius, listLensHeight, listLensAmount, lensedList))) {
+                lensedList.draw(canvas);
+            }
         }
         canvas.restore();
         // the glass's light rim, brighter while it is a drop
