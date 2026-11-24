@@ -56,6 +56,8 @@ public class GlassgramSnowView extends View {
 
     private static final class Flake {
         float x, y, r, vy, sway, swayFreq, phase, alpha;
+        // how much it goes with the content moving under it: the near ones as much, the far ones less
+        float depth;
     }
 
     private static final class Chunk {
@@ -114,6 +116,96 @@ public class GlassgramSnowView extends View {
         lastFrame = 0;
         if (running) {
             invalidate();
+        } else {
+            pushX = pushY = carryVx = carryVy = 0;
+            dragging = false;
+        }
+    }
+
+    // --- The content moving under it ----------------------------------------------------------
+    // The snow goes with what is scrolled or swiped under it (a list, a chat, the folders, the tabs),
+    // the far flakes less than the near ones, and carries on a little after it, slowing down: it
+    // is in the air over the screen, not falling on its own apart from it
+
+    private static final float MAX_CARRY = 6000f;
+    private float pushX, pushY;
+    private float carryVx, carryVy;
+    private float carryDecay = 3f;
+
+    /** The content under the snow moved by (dx, dy) px on the screen (a list scrolled, a page swiped). */
+    public void push(float dx, float dy) {
+        pushX += dx;
+        pushY += dy;
+        // a scroll of its own (a fling) carries on with its pushes: what is left after it, slower
+        carryDecay = 4f;
+        if (running && lastFrame != 0) {
+            return;
+        }
+        invalidate();
+    }
+
+    /** The content goes on at (vx, vy) px/s as the finger leaves it (a fling): the snow carries on with it, slowing down. */
+    public void fling(float vx, float vy) {
+        carryVx = Math.max(-MAX_CARRY, Math.min(MAX_CARRY, vx));
+        carryVy = Math.max(-MAX_CARRY, Math.min(MAX_CARRY, vy));
+        // as a list flung on its own slows down
+        carryDecay = 2.2f;
+    }
+
+    // A finger dragging over the screen moves the content under it, along the way it scrolls: the
+    // snow goes with the finger, the same way, from the moment it is a drag (past the touch slop)
+    private boolean dragPushes = true;
+    private boolean dragging;
+    private int dragAxis; // 0 none yet, 1 across, 2 down
+    private float downX, downY, lastX, lastY, dragVx, dragVy;
+    private long lastMoveAt;
+
+    /** Whether the finger's drags move the snow (off where the content tells its scroll itself, a chat). */
+    public void setDragPushes(boolean pushes) {
+        dragPushes = pushes;
+    }
+
+    private void dragAt(float x, float y, int action) {
+        if (!dragPushes) {
+            return;
+        }
+        final long now = SystemClock.uptimeMillis();
+        if (action == android.view.MotionEvent.ACTION_DOWN) {
+            dragging = false;
+            dragAxis = 0;
+            downX = lastX = x;
+            downY = lastY = y;
+            dragVx = dragVy = 0;
+            lastMoveAt = now;
+            // a finger on the content stops what was carried on
+            carryVx = carryVy = 0;
+        } else if (action == android.view.MotionEvent.ACTION_MOVE) {
+            if (!dragging) {
+                final float slop = AndroidUtilities.dpf2(10);
+                final float ddx = x - downX, ddy = y - downY;
+                if (ddx * ddx + ddy * ddy < slop * slop) {
+                    return;
+                }
+                dragging = true;
+                dragAxis = Math.abs(ddx) > Math.abs(ddy) ? 1 : 2;
+                lastX = x;
+                lastY = y;
+                lastMoveAt = now;
+                return;
+            }
+            final float dx = dragAxis == 1 ? x - lastX : 0f, dy = dragAxis == 2 ? y - lastY : 0f;
+            final long elapsed = Math.max(1, now - lastMoveAt);
+            dragVx = dragVx * .5f + dx * 1000f / elapsed * .5f;
+            dragVy = dragVy * .5f + dy * 1000f / elapsed * .5f;
+            lastX = x;
+            lastY = y;
+            lastMoveAt = now;
+            push(dx, dy);
+        } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+            if (dragging && action == android.view.MotionEvent.ACTION_UP && now - lastMoveAt < 80) {
+                fling(dragVx, dragVy);
+            }
+            dragging = false;
         }
     }
 
@@ -140,6 +232,7 @@ public class GlassgramSnowView extends View {
      * snow off, the snow flying away from the finger, and holds none while it is held.
      */
     public void touchAt(float x, float y, int action) {
+        dragAt(x, y, action);
         if (action == android.view.MotionEvent.ACTION_DOWN) {
             holding = false;
             held.setEmpty();
@@ -213,6 +306,7 @@ public class GlassgramSnowView extends View {
         flake.swayFreq = .5f + .9f * random.nextFloat();
         flake.phase = random.nextFloat() * 6.283f;
         flake.alpha = .45f + .5f * near;
+        flake.depth = .3f + .6f * near;
         flake.x = random.nextFloat() * Math.max(1, getWidth());
         flake.y = anywhere ? random.nextFloat() * Math.max(1, getHeight()) : -flake.r - random.nextFloat() * AndroidUtilities.dp(40);
     }
@@ -326,10 +420,39 @@ public class GlassgramSnowView extends View {
             }
         }
 
-        // the flakes fall, sway, and settle on the glass they come down on
+        // what the content under the snow moved by since the last frame, or what it carries on with
+        float moveX = 0f, moveY = 0f;
+        if (pushX != 0f || pushY != 0f) {
+            moveX = pushX;
+            moveY = pushY;
+            // its speed, to carry on at once the pushes stop
+            carryVx = Math.max(-MAX_CARRY, Math.min(MAX_CARRY, carryVx * .6f + pushX / dt * .4f));
+            carryVy = Math.max(-MAX_CARRY, Math.min(MAX_CARRY, carryVy * .6f + pushY / dt * .4f));
+            pushX = pushY = 0f;
+        } else if (!dragging && (carryVx != 0f || carryVy != 0f)) {
+            moveX = carryVx * dt;
+            moveY = carryVy * dt;
+            final float decay = (float) Math.exp(-dt * carryDecay);
+            carryVx *= decay;
+            carryVy *= decay;
+            if (Math.abs(carryVx) < AndroidUtilities.dpf2(8) && Math.abs(carryVy) < AndroidUtilities.dpf2(8)) {
+                carryVx = carryVy = 0f;
+            }
+        }
+
+        // the flakes go with it, fall, sway, and settle on the glass they come down on
         final int width = getWidth(), height = getHeight();
+        final float margin = AndroidUtilities.dpf2(40);
         for (int i = 0; i < flakes.size(); i++) {
             final Flake flake = flakes.get(i);
+            if (moveX != 0f || moveY != 0f) {
+                flake.x += moveX * flake.depth;
+                flake.y += moveY * flake.depth;
+                // carried up past the top: it comes back in from under the bottom
+                if (flake.y < -flake.r - margin) {
+                    flake.y += height + margin + flake.r * 2;
+                }
+            }
             final float prevY = flake.y;
             flake.y += flake.vy * dt;
             flake.x += (float) Math.sin(flake.phase + time * flake.swayFreq * 6.283f) * flake.sway * dt;
@@ -394,6 +517,8 @@ public class GlassgramSnowView extends View {
         final float gravity = AndroidUtilities.dpf2(900f);
         for (int i = chunks.size() - 1; i >= 0; i--) {
             final Chunk chunk = chunks.get(i);
+            chunk.x += moveX;
+            chunk.y += moveY;
             chunk.vy += gravity * dt;
             chunk.x += chunk.vx * dt;
             chunk.y += chunk.vy * dt;

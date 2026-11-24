@@ -3144,6 +3144,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             public boolean dispatchTouchEvent(MotionEvent ev) {
+                if (winterProfileSnow != null) {
+                    // a winter profile's snow goes with the profile as it is scrolled, and the glass held sheds its snow
+                    winterProfileSnow.touchAt(ev.getX() - winterProfileSnow.getX(), ev.getY() - winterProfileSnow.getY(), ev.getActionMasked());
+                }
                 if (pinchToZoomHelper.isInOverlayMode()) {
                     return pinchToZoomHelper.onTouchEvent(ev);
                 }

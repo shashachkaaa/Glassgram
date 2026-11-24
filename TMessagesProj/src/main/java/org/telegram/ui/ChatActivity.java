@@ -7117,6 +7117,18 @@ public class ChatActivity extends BaseFragment implements
             winterSnow = new org.telegram.ui.Components.GlassgramSnowView(context);
             winterSnow.setSlow(true);
             winterSnow.setSurfaces(this::collectWinterSurfaces);
+            // the snow goes with the messages as they scroll, flung or dragged (not with the finger's
+            // other drags: a swipe to reply moves nothing under it)
+            winterSnow.setDragPushes(false);
+            final org.telegram.ui.Components.GlassgramSnowView snow = winterSnow;
+            chatListView.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull androidx.recyclerview.widget.RecyclerView recyclerView, int dx, int dy) {
+                    if (dy != 0) {
+                        snow.push(0, -dy);
+                    }
+                }
+            });
             contentView.addView(winterSnow, contentView.indexOfChild(chatListView), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
 
