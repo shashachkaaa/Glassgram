@@ -66,6 +66,8 @@ APK собирает GitHub Actions (`.github/workflows/build-apk.yml`) на к�
 
 ## Лицензия
 
-glassGram основан на исходном коде [Telegram for Android](https://github.com/DrKLO/Telegram) и распространяется под той же лицензией — [GNU GPL v2](LICENSE). glassGram не связан с Telegram FZ-LLC.
+glassGram основан на исходном коде [Telegram for Android](https://github.com/DrKLO/Telegram) (GNU GPL v2 или новее) и распространяется под [GNU GPL v3 или новее](LICENSE). glassGram не связан с Telegram FZ-LLC.
+
+Движок плагинов и Python SDK плагинов основаны на [exteraGram](https://github.com/exteraSquad/exteraGram) (GNU GPL v3 или новее) и подчиняются их [дополнительным условиям](ADDITIONAL_TERMS.md). glassGram — не exteraGram и не одобрен его авторами.
 
 Telegram API: https://core.telegram.org/api · MTProto: https://core.telegram.org/mtproto

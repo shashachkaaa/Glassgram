@@ -12533,4 +12533,5 @@
     <string name="GlassgramMusicClassic">Telegram\'s player</string>
     <string name="GlassgramMusicClassicInfo">Open music in Telegram\'s own player instead of this one.</string>
     <string name="GlassgramProfileShowPlaylist">Show Playlist</string>
+    <string name="GlassgramBasedOnExteraGram">Plugin engine based on exteraGram · github.com/exteraSquad/exteraGram</string>
 </resources>

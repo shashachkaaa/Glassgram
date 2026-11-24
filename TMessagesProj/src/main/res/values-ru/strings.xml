@@ -1125,4 +1125,5 @@
     <string name="GlassgramMusicClassic">Плеер Telegram</string>
     <string name="GlassgramMusicClassicInfo">Открывать музыку в плеере Telegram вместо этого.</string>
     <string name="GlassgramProfileShowPlaylist">Показать плейлист</string>
+    <string name="GlassgramBasedOnExteraGram">Движок плагинов основан на exteraGram · github.com/exteraSquad/exteraGram</string>
 </resources>

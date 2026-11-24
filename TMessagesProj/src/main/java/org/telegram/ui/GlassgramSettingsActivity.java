@@ -1759,6 +1759,17 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         version.setGravity(Gravity.CENTER);
         layout.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
 
+        // the notice exteraGram's terms ask for where the app shows its name and version: its plugin
+        // engine and SDK come from exteraGram (ADDITIONAL_TERMS.md)
+        TextView basedOn = new TextView(context);
+        basedOn.setText(getString(R.string.GlassgramBasedOnExteraGram));
+        basedOn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        basedOn.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText));
+        basedOn.setGravity(Gravity.CENTER);
+        basedOn.setPadding(dp(16), dp(4), dp(16), dp(4));
+        basedOn.setOnClickListener(v -> org.telegram.messenger.browser.Browser.openUrl(v.getContext(), "https://github.com/exteraSquad/exteraGram"));
+        layout.addView(basedOn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
+
         aboutHeader = layout;
         return aboutHeader;
     }
