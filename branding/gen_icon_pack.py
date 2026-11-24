@@ -19,7 +19,10 @@ REPO = sys.argv[1]
 RES = os.path.join(REPO, 'TMessagesProj/src/main/res')
 CHROME = '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell'
 if not os.path.exists(CHROME):
-    CHROME = '/opt/pw-browsers/chromium'
+    import glob
+    found = sorted(glob.glob('/opt/pw-browsers/chromium_headless_shell-*/chrome-*/headless_shell')
+                   + glob.glob('/opt/pw-browsers/chromium_headless_shell-*/chrome-*/chrome-headless-shell'))
+    CHROME = found[-1] if found else '/opt/pw-browsers/chromium'
 
 SIZE = 432  # 108dp at xxxhdpi
 DENSITIES = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
@@ -341,6 +344,48 @@ def bg_planet():
             + '<circle cx="84" cy="82" r="9" fill="#F97316"/><circle cx="81" cy="79" r="3" fill="#FDBA74" opacity="0.6"/>')
 
 
+def bg_winter():
+    """A winter night: deep blue, snow falling, a snowy hill at the bottom."""
+    out = linear([(0, '0B1A3A'), (0.6, '1D3A7A'), (1, '3B5FB0')], 0, 0, 30, 108)
+    out += stars(57, 70, sizes=(0.35, 1.05))
+    out += ('<defs><linearGradient id="hill" gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="108">'
+            '<stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9DBF5"/></linearGradient></defs>'
+            '<path d="M0,86 C16,79 34,88 54,83 C72,79 88,87 108,81 L108,108 L0,108 Z" fill="url(#hill)"/>'
+            '<path d="M0,86 C16,79 34,88 54,83 C72,79 88,87 108,81" fill="none" stroke="#FFFFFF" stroke-width="0.8" opacity="0.9"/>')
+    return out
+
+
+def snow_cap():
+    """Snow lying along the arrow's top edge (from its left corner to the tip), a little lumpy."""
+    lx, ly = LEFT
+    tx, ty = TIP
+    length = math.hypot(tx - lx, ty - ly)
+    dx, dy = (tx - lx) / length, (ty - ly) / length
+    nx, ny = dy, -dx  # outwards, up and to the left
+    base_off = STROKE / 2 - 0.4
+    top, base = [], []
+    steps = 48
+    for i in range(steps + 1):
+        t = 0.04 + 0.84 * i / steps
+        bx, by = lx + dx * length * t + nx * base_off, ly + dy * length * t + ny * base_off
+        k = math.sin(math.pi * (t - 0.04) / 0.84) ** 0.55
+        h = 4.6 * k + 0.55 * math.sin(t * 23) * k
+        top.append((bx + nx * h, by + ny * h))
+        base.append((bx - nx * 0.6, by - ny * 0.6))
+    pts = top + base[::-1]
+    d = 'M' + ' L'.join(f'{x:.2f},{y:.2f}' for x, y in pts) + ' Z'
+    # two drops of it on the arrow's face
+    drips = ''
+    for t, length_d in ((0.32, 2.6), (0.61, 3.4)):
+        bx, by = lx + dx * length * t, ly + dy * length * t
+        drips += f'<ellipse cx="{bx - nx * 1.2:.2f}" cy="{by - ny * 1.2 + 0.6:.2f}" rx="1.05" ry="{length_d / 2:.2f}" fill="#FFFFFF"/>'
+    return ('<defs><linearGradient id="cap" gradientUnits="userSpaceOnUse" x1="50" y1="34" x2="56" y2="48">'
+            '<stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D7E6FA"/></linearGradient>'
+            '<filter id="capf" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.1"/></filter></defs>'
+            f'<path d="{d}" transform="translate(0.4 1.2)" fill="#0B1A3A" opacity="0.28" filter="url(#capf)"/>'
+            f'<path d="{d}" fill="url(#cap)"/>' + drips)
+
+
 def ring_back():
     return '<ellipse cx="54" cy="54" rx="38" ry="12" transform="rotate(-25 54 54)" fill="none" stroke="#93C5FD" stroke-width="2.2" opacity="0.9"/>'
 
@@ -381,6 +426,7 @@ ICONS = [
     ('rainbow', 'Rainbow', 'Радуга', bg_rainbow(), arrow_solid('FFFFFF', 'F3F4F6', ('000000', 0.45))),
     ('pixel', 'Pixel', 'Пиксель', bg_pixel(), arrow_pixel()),
     ('sketch', 'Sketch', 'Набросок', bg_sketch(), arrow_sketch()),
+    ('winter', 'Winter', 'Зима', bg_winter(), arrow_solid('E6EFFD', 'A7C3EE', ('0B1A3A', 0.35)) + snow_cap()),
 ]
 
 
@@ -459,6 +505,9 @@ def main():
     preview = None
     if '--preview' in sys.argv:
         preview = sys.argv[sys.argv.index('--preview') + 1]
+    if '--only' in sys.argv:
+        wanted = set(sys.argv[sys.argv.index('--only') + 1].split(','))
+        ICONS[:] = [icon for icon in ICONS if icon[0] in wanted]
     tmp = tempfile.mkdtemp()
     columns = 8
     bgs = os.path.join(tmp, 'bgs.png')

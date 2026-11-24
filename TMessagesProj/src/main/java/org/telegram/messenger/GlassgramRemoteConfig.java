@@ -28,7 +28,9 @@ public final class GlassgramRemoteConfig {
     /** The options a rule may turn off: GlassgramConfig's fields, as the server allows them. */
     public static final String[] FEATURES = {
             "roundFps60", "roundStabilization", "roundHorizon", "roundWideCamera", "roundKeepZoom", "roundHighQuality",
-            "glassHeader", "glassPanels", "splitInput", "iosTransitions", "uploadBoost", "downloadBoost", "pluginsEngine"};
+            "glassHeader", "glassPanels", "splitInput", "iosTransitions", "uploadBoost", "downloadBoost", "pluginsEngine",
+            // the winter and New Year look, all of it (GlassgramWinter)
+            "holidayDecor"};
 
     private static final String PREFS = "glassgram_remote";
     /** How often the app's opening asks again; every start of the app asks once at any rate. */

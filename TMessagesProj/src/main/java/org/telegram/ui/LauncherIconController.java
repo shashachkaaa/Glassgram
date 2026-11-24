@@ -69,7 +69,9 @@ public class LauncherIconController {
         SAKURA("GlassgramSakuraIcon", R.drawable.glassgram_icon_bg_sakura, R.drawable.glassgram_icon_fg_sakura, R.string.GlassgramIconSakura),
         RAINBOW("GlassgramRainbowIcon", R.drawable.glassgram_icon_bg_rainbow, R.drawable.glassgram_icon_fg_rainbow, R.string.GlassgramIconRainbow),
         PIXEL("GlassgramPixelIcon", R.drawable.glassgram_icon_bg_pixel, R.drawable.glassgram_icon_fg_pixel, R.string.GlassgramIconPixel),
-        SKETCH("GlassgramSketchIcon", R.drawable.glassgram_icon_bg_sketch, R.drawable.glassgram_icon_fg_sketch, R.string.GlassgramIconSketch);
+        SKETCH("GlassgramSketchIcon", R.drawable.glassgram_icon_bg_sketch, R.drawable.glassgram_icon_fg_sketch, R.string.GlassgramIconSketch),
+        // The winter look's icon (GlassgramWinter), offered as the winter comes
+        WINTER("GlassgramWinterIcon", R.drawable.glassgram_icon_bg_winter, R.drawable.glassgram_icon_fg_winter, R.string.GlassgramIconWinter);
 
         public final String key;
         public final int background;

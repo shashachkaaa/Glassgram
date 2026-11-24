@@ -7112,6 +7112,12 @@ public class ChatActivity extends BaseFragment implements
         glassEngine.addScrolledView(chatListView);
 
         contentView.addView(chatListView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // glassGram: in the winter (GlassgramWinter), slow snow behind the messages, over the wallpaper
+        if (!inPreviewMode && org.telegram.messenger.GlassgramConfig.holidayChatSnow && org.telegram.messenger.GlassgramWinter.isAnimated()) {
+            winterSnow = new org.telegram.ui.Components.GlassgramSnowView(context);
+            winterSnow.setSlow(true);
+            contentView.addView(winterSnow, contentView.indexOfChild(chatListView), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
 
         chatActivityFadeView = new ChatActivityFadeView(context);
         chatActivityFadeView.setResourcesProvider(themeDelegate);
@@ -9154,6 +9160,8 @@ public class ChatActivity extends BaseFragment implements
     // glassGram: a locked chat (GlassgramChatLock) stays covered until the PIN or a fingerprint
 
     private ActionBarMenuItem.Item glassgramLockItem;
+    /** Snow behind the messages in the winter (GlassgramWinter), null otherwise. */
+    private org.telegram.ui.Components.GlassgramSnowView winterSnow;
     private ActionBarMenuItem.Item glassgramHideItem;
     private GlassgramChatLockView glassgramLockView;
 
@@ -30962,6 +30970,9 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onResume() {
         super.onResume();
+        if (winterSnow != null) {
+            winterSnow.setRunning(true);
+        }
         glassgramUpdateBackCounter(false);
         // back after long away: locked again
         glassgramCheckLock();
@@ -31181,6 +31192,9 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onPause() {
         super.onPause();
+        if (winterSnow != null) {
+            winterSnow.setRunning(false);
+        }
         scrolling = false;
         if (scrimPopupWindow != null) {
             scrimPopupWindow.setPauseNotifications(false);

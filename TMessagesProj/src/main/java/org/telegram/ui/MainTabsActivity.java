@@ -58,6 +58,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.INavigationLayout;
@@ -362,7 +363,76 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         checkUnreadCount(true);
 
         showAccountChangeHint();
+        if (winterSnow != null) {
+            winterSnow.setRunning(true);
+        }
+        AndroidUtilities.cancelRunOnUIThread(winterGreeting);
+        AndroidUtilities.runOnUIThread(winterGreeting, 900);
     }
+
+    /* glassGram: the winter look (GlassgramWinter): snow over the tabs, settling on the glass */
+
+    private org.telegram.ui.Components.GlassgramSnowView winterSnow;
+    private final int[] winterSnowLocation = new int[2], winterViewLocation = new int[2];
+    private final android.graphics.RectF[] winterHeaderPieces = {new android.graphics.RectF(), new android.graphics.RectF(),
+            new android.graphics.RectF(), new android.graphics.RectF(), new android.graphics.RectF(), new android.graphics.RectF()};
+    private final int[] winterHeaderTints = new int[6];
+
+    private void checkWinterSnow() {
+        final boolean want = contentView != null && org.telegram.messenger.GlassgramWinter.isAnimated();
+        if (want && winterSnow == null) {
+            winterSnow = new org.telegram.ui.Components.GlassgramSnowView(contentView.getContext());
+            winterSnow.setSurfaces(this::collectWinterSurfaces);
+            // over the pages and the tab bar, under the bar of an update
+            final int index = updateLayoutWrapper != null ? contentView.indexOfChild(updateLayoutWrapper) : -1;
+            contentView.addView(winterSnow, index >= 0 ? index : contentView.getChildCount(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            winterSnow.setRunning(!isPaused());
+        } else if (!want && winterSnow != null) {
+            winterSnow.setRunning(false);
+            AndroidUtilities.removeFromParent(winterSnow);
+            winterSnow = null;
+        }
+    }
+
+    /** The glass the snow settles on: the tab bar's capsule and the buttons of the header of the tab shown. */
+    private int collectWinterSurfaces(android.graphics.RectF[] out, float[] radii) {
+        int count = 0;
+        winterSnow.getLocationInWindow(winterSnowLocation);
+        final View bar = liquidTabs != null ? liquidTabs : tabsView;
+        if (bar != null && bar.isShown() && bar.getAlpha() > .5f && tabsViewWrapper != null && tabsViewWrapper.getAlpha() > .5f) {
+            bar.getLocationInWindow(winterViewLocation);
+            final float inset = dp(DialogsActivity.MAIN_TABS_MARGIN);
+            final float left = winterViewLocation[0] - winterSnowLocation[0] + inset, top = winterViewLocation[1] - winterSnowLocation[1] + inset;
+            out[count].set(left, top, left + bar.getWidth() - inset * 2, top + bar.getHeight() - inset * 2);
+            radii[count] = out[count].height() / 2f;
+            count++;
+        }
+        final BaseFragment page = getCurrentVisibleFragment();
+        final ActionBar header = page != null ? page.getActionBar() : null;
+        if (header != null && header.isShown() && header.getAlpha() > .5f) {
+            final int pieces = header.getGlassgramPieces(winterHeaderPieces, winterHeaderTints);
+            header.getLocationInWindow(winterViewLocation);
+            for (int i = 0; i < pieces && count < out.length; i++) {
+                out[count].set(winterHeaderPieces[i]);
+                out[count].offset(winterViewLocation[0] - winterSnowLocation[0], winterViewLocation[1] - winterSnowLocation[1]);
+                radii[count] = Math.min(out[count].width(), out[count].height()) / 2f;
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** On the first open of the new year, confetti and a greeting; else, once, the winter icon offered. */
+    private final Runnable winterGreeting = () -> {
+        if (isPaused() || getParentActivity() == null || !isLastFragment() || getVisibleDialog() != null) {
+            return;
+        }
+        if (org.telegram.messenger.GlassgramWinter.isGreetingDue()) {
+            GlassgramWinterUi.showNewYear(this, contentView);
+        } else if (org.telegram.messenger.GlassgramWinter.isActive() && !org.telegram.messenger.GlassgramWinter.wasIconOffered()) {
+            GlassgramWinterUi.offerIcon(this);
+        }
+    };
 
     private void checkContactsTabBadge() {
         if (tabsView != null && tabs[INDEX_CONTACTS] != null) {
@@ -384,6 +454,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (accountSwitchHint != null) {
             accountSwitchHint.hide();
         }
+        if (winterSnow != null) {
+            winterSnow.setRunning(false);
+        }
+        AndroidUtilities.cancelRunOnUIThread(winterGreeting);
     }
 
     @Override
@@ -498,6 +572,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         updateLayout();
         checkUnreadCount(false);
+        checkWinterSnow();
         return contentView;
     }
 
@@ -1073,6 +1148,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.glassgramHolidayChanged) {
+            checkWinterSnow();
+            return;
+        }
         if (id == NotificationCenter.notificationsCountUpdated || id == NotificationCenter.updateInterfaces) {
             checkUnreadCount(fragmentView != null && fragmentView.isAttachedToWindow());
         } else if (id == NotificationCenter.appUpdateLoading) {
@@ -1145,13 +1224,15 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             .add(NotificationCenter.contactsPermissionBadgeCheck)
             .addGlobal(NotificationCenter.appUpdateAvailable)
             .addGlobal(NotificationCenter.appUpdateLoading)
-            .addGlobal(NotificationCenter.needSetDayNightTheme);
+            .addGlobal(NotificationCenter.needSetDayNightTheme)
+            .addGlobal(NotificationCenter.glassgramHolidayChanged);
 
         return super.onFragmentCreate();
     }
 
     @Override
     public void onFragmentDestroy() {
+        AndroidUtilities.cancelRunOnUIThread(winterGreeting);
         Bulletin.removeDelegate(this);
         Bulletin.removeDelegate(contentView);
 

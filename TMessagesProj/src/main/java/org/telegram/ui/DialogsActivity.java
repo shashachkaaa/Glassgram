@@ -1743,6 +1743,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.getTitlesContainer().setVisibility(titleAlpha > 0 ? View.VISIBLE : View.INVISIBLE);
             actionBar.getAdditionalSubTitleOverlayContainer().setAlpha(titleAlpha);
             actionBar.getAdditionalSubTitleOverlayContainer().setVisibility(titleAlpha > 0 ? View.VISIBLE : View.INVISIBLE);
+            syncWinterSubtitle(titleAlpha, s);
         } else {
             actionBar.getTitlesContainer().setScaleY(1f);
             actionBar.getTitlesContainer().setScaleX(1f);
@@ -1756,6 +1757,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             actionBar.getTitlesContainer().setVisibility(titleAlpha > 0 ? View.VISIBLE : View.INVISIBLE);
             actionBar.getAdditionalSubTitleOverlayContainer().setAlpha(titleAlpha);
             actionBar.getAdditionalSubTitleOverlayContainer().setVisibility(titleAlpha > 0 ? View.VISIBLE : View.INVISIBLE);
+            syncWinterSubtitle(titleAlpha, 1f);
         }
     }
 
@@ -2918,6 +2920,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 .add(NotificationCenter.currentUserPremiumStatusChanged);
 
             observersGroup.addGlobal(NotificationCenter.didSetPasscode);
+            observersGroup.addGlobal(NotificationCenter.glassgramHolidayChanged);
         }
         observersGroup
             .add(NotificationCenter.messagesDeleted)
@@ -3177,6 +3180,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             final float tx = left - contentLeft;
             if (Math.abs(titles.getTranslationX() - tx) > 0.5f) {
                 titles.setTranslationX(tx);
+            }
+        }
+        // the countdown to the winter under the title, centered as it is
+        final SimpleTextView subtitle = winterCountdownShown ? actionBar.getSubtitleTextView() : null;
+        if (subtitle != null && subtitle.getWidth() > 0) {
+            final float width = subtitle.getTextWidth();
+            float left = (actionBar.getWidth() - width) / 2f;
+            left = Math.max(minLeft, Math.min(left, maxRight - width));
+            final float tx = left - subtitle.getLeft();
+            if (Math.abs(subtitle.getTranslationX() - tx) > 0.5f) {
+                subtitle.setTranslationX(tx);
             }
         }
         if (dialogStoriesCell != null) {
@@ -3456,6 +3470,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        AndroidUtilities.cancelRunOnUIThread(winterTick);
         if (observersGroup != null) {
             observersGroup.removeAllObservers();
             observersGroup = null;
@@ -6113,7 +6128,80 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         glassEngine.setPositionsMerger(new GlassPositionsMerger(Float.POSITIVE_INFINITY, dp(48)));
 
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        checkWinterHeader();
         return fragmentView;
+    }
+
+    /* glassGram: the winter look (GlassgramWinter): a garland along the header of the chats, and
+       before the winter comes, the time left to it under the title */
+
+    private org.telegram.ui.Components.GlassgramGarlandView winterGarland;
+    private boolean winterCountdownShown;
+    private final Runnable winterTick = this::updateWinterCountdown;
+
+    private boolean isWinterHeader() {
+        return actionBar != null && initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect && folderId == 0
+                && communityId == 0 && !inPreviewMode && !isArchive();
+    }
+
+    private void checkWinterHeader() {
+        if (!isWinterHeader()) {
+            return;
+        }
+        final boolean garland = org.telegram.messenger.GlassgramWinter.isActive();
+        if (garland && winterGarland == null) {
+            winterGarland = new org.telegram.ui.Components.GlassgramGarlandView(actionBar.getContext());
+            winterGarland.setTopOffset(actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);
+            actionBar.addView(winterGarland, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        } else if (!garland && winterGarland != null) {
+            winterGarland.setRunning(false);
+            AndroidUtilities.removeFromParent(winterGarland);
+            winterGarland = null;
+        }
+        if (winterGarland != null) {
+            winterGarland.setRunning(!isPaused() && org.telegram.messenger.GlassgramWinter.isAnimated());
+        }
+        updateWinterCountdown();
+    }
+
+    /** The time left to the winter under the title, every second while shown. */
+    private void updateWinterCountdown() {
+        AndroidUtilities.cancelRunOnUIThread(winterTick);
+        if (!isWinterHeader()) {
+            return;
+        }
+        final String text = org.telegram.messenger.GlassgramWinter.countdownText();
+        if (text != null) {
+            if (!winterCountdownShown || actionBar.getSubtitleTextView() == null) {
+                winterCountdownShown = true;
+                actionBar.setSubtitle(text);
+                if (actionBar.getSubtitleTextView() != null) {
+                    // the figures as wide as each other, or the line jumped every second
+                    actionBar.getSubtitleTextView().getTextPaint().setFontFeatureSettings("tnum");
+                }
+            } else {
+                actionBar.getSubtitleTextView().setText(text);
+            }
+            if (!isPaused()) {
+                AndroidUtilities.runOnUIThread(winterTick, 1000 - org.telegram.messenger.GlassgramWinter.now() % 1000);
+            }
+        } else if (winterCountdownShown) {
+            winterCountdownShown = false;
+            actionBar.setSubtitle(null);
+        }
+    }
+
+    /** The countdown under the title fades and shrinks with it (the stories over the header, the selection). */
+    private void syncWinterSubtitle(float alpha, float scale) {
+        if (!winterCountdownShown || actionBar == null || actionBar.getSubtitleTextView() == null) {
+            return;
+        }
+        final View subtitle = actionBar.getSubtitleTextView();
+        subtitle.setPivotX(glassgramTitlePivotX() - subtitle.getLeft());
+        subtitle.setPivotY(AndroidUtilities.statusBarHeight - subtitle.getTop());
+        subtitle.setScaleX(scale);
+        subtitle.setScaleY(scale);
+        subtitle.setAlpha(alpha);
     }
 
     private void setStoriesOvercroll(ViewPage viewPage, float storiesOverscroll) {
@@ -7501,6 +7589,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        checkWinterHeader();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -7721,6 +7810,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onPause() {
         super.onPause();
+        AndroidUtilities.cancelRunOnUIThread(winterTick);
+        if (winterGarland != null) {
+            winterGarland.setRunning(false);
+        }
         if (storiesBulletin != null) {
             storiesBulletin.hide();
             storiesBulletin = null;
@@ -11074,6 +11167,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @SuppressWarnings("unchecked")
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.glassgramHolidayChanged) {
+            checkWinterHeader();
+            return;
+        }
         if (id == NotificationCenter.dialogsNeedReload) {
             if (viewPages == null || dialogsListFrozen) {
                 return;

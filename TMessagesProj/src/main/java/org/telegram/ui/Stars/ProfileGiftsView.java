@@ -530,6 +530,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             // the light the edge catches: a glint, not a white outline
             rimLightPaint.setAlpha((int) (0xFF * alpha * (.35f + .3f * Math.min(1f, lift))));
             canvas.drawPath(bubbleOutline, rimLightPaint);
+            if (org.telegram.messenger.GlassgramWinter.isActive()) {
+                // in the winter, a tree's bauble: its cap on the film's top, wobbling with it
+                drawOrnamentCap(canvas, tx, top, r, alpha);
+            }
             canvas.restore();
         }
 
@@ -597,6 +601,50 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         hsv[1] = Math.min(hsv[1], .7f);
         hsv[2] = Math.max(hsv[2], .95f);
         return Color.HSVToColor(hsv);
+    }
+
+    // The winter's baubles (GlassgramWinter): a gold cap, its ring, and the thread it hangs by
+    private final Paint capPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint capLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Matrix capMatrix = new Matrix();
+    private final RectF capRect = new RectF();
+    private android.graphics.LinearGradient capShader;
+
+    private void drawOrnamentCap(Canvas canvas, float x, float top, float r, float alpha) {
+        if (capShader == null) {
+            capShader = new android.graphics.LinearGradient(0, 0, 1, 0,
+                    new int[]{0xFF7A5A1E, 0xFFC9A04A, 0xFFF8E6AE, 0xFFC9A04A, 0xFF6E5018},
+                    new float[]{0f, .3f, .5f, .72f, 1f}, Shader.TileMode.CLAMP);
+            capPaint.setShader(capShader);
+        }
+        final float w = r * .42f, h = r * .2f;
+        final float capTop = top - h, ringR = r * .085f, ringY = capTop - ringR * .9f;
+        // the thread, fading upwards
+        capLinePaint.setStyle(Paint.Style.STROKE);
+        capLinePaint.setStrokeCap(Paint.Cap.ROUND);
+        capLinePaint.setStrokeWidth(dpf2(.8f));
+        final float threadTop = ringY - ringR, threadLength = r * .95f;
+        for (int i = 0; i < 4; i++) {
+            capLinePaint.setColor(Theme.multAlpha(0xFFE9DDB8, alpha * (.55f - .13f * i)));
+            canvas.drawLine(x, threadTop - threadLength * i / 4f, x, threadTop - threadLength * (i + 1) / 4f, capLinePaint);
+        }
+        // the ring
+        capLinePaint.setStrokeWidth(dpf2(1f));
+        capLinePaint.setColor(Theme.multAlpha(0xFFD9B45E, alpha));
+        canvas.drawCircle(x, ringY, ringR, capLinePaint);
+        // the cap, lit from the middle, its ribs darker
+        capMatrix.setScale(w, 1f);
+        capMatrix.postTranslate(x - w / 2f, 0);
+        capShader.setLocalMatrix(capMatrix);
+        capPaint.setAlpha((int) (0xFF * alpha));
+        capRect.set(x - w / 2f, capTop, x + w / 2f, top + r * .07f);
+        canvas.drawRoundRect(capRect, r * .05f, r * .05f, capPaint);
+        capLinePaint.setStrokeWidth(dpf2(.6f));
+        capLinePaint.setColor(Theme.multAlpha(0xFF5C4413, alpha * .55f));
+        for (int i = 1; i <= 2; i++) {
+            final float y = capTop + (capRect.height()) * i / 3f;
+            canvas.drawLine(capRect.left + r * .02f, y, capRect.right - r * .02f, y, capLinePaint);
+        }
     }
 
     private final Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
