@@ -22,15 +22,19 @@ import org.telegram.ui.ActionBar.Theme;
 
 /**
  * glassGram: a garland along the top of the chats' header for the winter look (GlassgramWinter).
- * A wire hangs in loops across the width, glass bulbs in the colors of the theme's accent hang
- * from it and blink in turns (a chase, every other one, a twinkle), passing from one way to the
- * next. A bulb tapped flashes and swings. It takes only the taps on its bulbs.
+ * A wire runs along the bottom edge of the status bar, drooping a little between its points, and
+ * glass bulbs in the colors of the theme's accent stand up from it into the strip under the status
+ * bar's icons, blinking in turns (a chase, every other one, a twinkle), passing from one way to the
+ * next: nothing of it is over the header's buttons or its title. A bulb tapped flashes and swings.
+ * It takes only the taps on its bulbs.
  */
 public class GlassgramGarlandView extends View {
 
     private static final long FRAME_MS = 33;
-    private static final float SPACING_DP = 62;
-    private static final float SAG_DP = 8;
+    private static final float SPACING_DP = 54;
+    private static final float SAG_DP = 2.5f;
+    /** A bulb's full height (socket and glass) at its biggest, under a tall status bar. */
+    private static final float BULB_DP = 11.8f;
 
     private final Paint wirePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint socketPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -81,10 +85,15 @@ public class GlassgramGarlandView extends View {
         return inset;
     }
 
-    /** Where the wire hangs from in this view: under the status bar, wherever this view is on the screen. */
+    /** Where the wire runs in this view: along the bottom of the status bar, wherever this view is on the screen. */
     private float wireTop() {
         getLocationInWindow(location);
-        return Math.max(minTop, statusBarInset() - location[1]);
+        return Math.max(Math.max(minTop, statusBarInset() - location[1]), bulbHeight() + AndroidUtilities.dp(1));
+    }
+
+    /** How tall the bulbs are: as much of the status bar's strip under its icons as they may take. */
+    private float bulbHeight() {
+        return Math.max(AndroidUtilities.dpf2(6), Math.min(AndroidUtilities.dpf2(BULB_DP), statusBarInset() * .28f));
     }
 
     public void setRunning(boolean running) {
@@ -100,7 +109,8 @@ public class GlassgramGarlandView extends View {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (int) (Math.max(minTop, statusBarInset()) + AndroidUtilities.dp(SAG_DP + 22)));
+        // the wire and its droop, and the light of the bulbs a little under it
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (int) (Math.max(Math.max(minTop, statusBarInset()), bulbHeight()) + AndroidUtilities.dp(SAG_DP + 8)));
     }
 
     private void layoutBulbs(int width) {
@@ -176,7 +186,7 @@ public class GlassgramGarlandView extends View {
         if (laidOutWidth != width || Math.abs(wireY - top) > .5f) {
             top = wireY;
             layoutBulbs(width);
-            if (getHeight() < top + AndroidUtilities.dp(SAG_DP + 22)) {
+            if (getHeight() < top + AndroidUtilities.dp(SAG_DP + 8)) {
                 requestLayout();
             }
         }
@@ -190,8 +200,10 @@ public class GlassgramGarlandView extends View {
         wirePaint.setColor(dark ? 0x80C9D1DC : 0x8A4B5563);
         canvas.drawPath(wire, wirePaint);
 
-        final float socketW = AndroidUtilities.dpf2(3.2f), socketH = AndroidUtilities.dpf2(3f);
-        final float rx = AndroidUtilities.dpf2(3.4f), ry = AndroidUtilities.dpf2(4.8f);
+        // as tall as the strip under the status bar's icons lets them be
+        final float k = bulbHeight() / AndroidUtilities.dpf2(BULB_DP);
+        final float socketW = AndroidUtilities.dpf2(3.2f) * k, socketH = AndroidUtilities.dpf2(3f) * k;
+        final float rx = AndroidUtilities.dpf2(3.4f) * k, ry = AndroidUtilities.dpf2(4.8f) * k;
         socketPaint.setColor(dark ? 0xFF59616C : 0xFF4B5563);
         for (int i = 0; i < bulbX.length; i++) {
             // a tapped bulb flashes and swings back to rest
@@ -205,14 +217,16 @@ public class GlassgramGarlandView extends View {
             final int color = palette[i % 4];
 
             canvas.save();
-            canvas.rotate(sway, bulbX[i], bulbY[i]);
+            // standing up from the wire, into the status bar's strip, each leaning its own way
+            canvas.rotate(180f + sway, bulbX[i], bulbY[i]);
             final float sx = bulbX[i], sy = bulbY[i];
             oval.set(sx - socketW / 2, sy - AndroidUtilities.dpf2(.5f), sx + socketW / 2, sy + socketH);
             canvas.drawRoundRect(oval, AndroidUtilities.dpf2(.8f), AndroidUtilities.dpf2(.8f), socketPaint);
             final float cx = sx, cy = sy + socketH + ry - AndroidUtilities.dpf2(.8f);
 
             // its light around it
-            final float glowR = ry * (2.4f + 1.2f * flash[i]);
+            // small enough not to wash over the buttons under it
+            final float glowR = ry * (1.9f + 1.2f * flash[i]);
             glowMatrix.setScale(glowR, glowR);
             glowMatrix.postTranslate(cx, cy);
             glowPaint.getShader().setLocalMatrix(glowMatrix);
@@ -246,9 +260,11 @@ public class GlassgramGarlandView extends View {
             return event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_MOVE;
         }
         final float reach = AndroidUtilities.dpf2(13);
-        final float socketH = AndroidUtilities.dpf2(3f), ry = AndroidUtilities.dpf2(4.8f);
+        final float k = bulbHeight() / AndroidUtilities.dpf2(BULB_DP);
+        final float socketH = AndroidUtilities.dpf2(3f) * k, ry = AndroidUtilities.dpf2(4.8f) * k;
         for (int i = 0; i < bulbX.length; i++) {
-            final float dx = event.getX() - bulbX[i], dy = event.getY() - (bulbY[i] + socketH + ry);
+            // the bulbs stand up from the wire
+            final float dx = event.getX() - bulbX[i], dy = event.getY() - (bulbY[i] - socketH - ry);
             if (dx * dx + dy * dy <= reach * reach) {
                 flash[i] = 1f;
                 swingSpeed[i] += (dx < 0 ? 1 : -1) * 160f;

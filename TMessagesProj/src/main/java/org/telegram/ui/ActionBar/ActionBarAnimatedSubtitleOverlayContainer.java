@@ -53,6 +53,8 @@ public class ActionBarAnimatedSubtitleOverlayContainer extends FrameLayout imple
         setText(text, true);
         if (lastText != null) {
             lastText.setFontFeatureSettings("tnum");
+            // a little smaller than a status: under the title between the header's buttons it fits whole
+            lastText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
         }
     }
 
