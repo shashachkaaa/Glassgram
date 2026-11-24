@@ -374,7 +374,6 @@
     <string name="GlassgramApiGivePerks">Выдать зимние украшения</string>
     <string name="GlassgramApiPerksTitle">Украшения: %1$s</string>
     <string name="GlassgramApiPerksSaved">Украшения сохранены: glassGram покажет их при следующем открытии</string>
-    <string name="GlassgramApiUserIdHint">ID пользователя</string>
     <string name="GlassgramApiWinterDays">Дни зимнего оформления</string>
     <string name="GlassgramApiWinterNow">Сейчас: с %1$s по %2$s, как задала команда.</string>
     <string name="GlassgramApiWinterDefault">Сейчас: дни по умолчанию, с 10 декабря по 14 января.</string>

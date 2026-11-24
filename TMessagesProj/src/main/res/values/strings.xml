@@ -11419,7 +11419,6 @@
     <string name="GlassgramApiGivePerks">Give winter decorations</string>
     <string name="GlassgramApiPerksTitle">Decorations: %1$s</string>
     <string name="GlassgramApiPerksSaved">Decorations saved: glassGram shows them on its next open</string>
-    <string name="GlassgramApiUserIdHint">User ID</string>
     <string name="GlassgramApiWinterDays">Winter look\'s days</string>
     <string name="GlassgramApiWinterNow">Now: from %1$s to %2$s, as the team set.</string>
     <string name="GlassgramApiWinterDefault">Now: the app\'s own days, December 10 to January 14.</string>
