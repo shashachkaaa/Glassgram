@@ -48,10 +48,20 @@ public class GlassgramProfileDecorView extends View {
     private int glassIndex;
     private final Glass frosting = (rect, radius, alpha) -> {
         final int seed = glassIndex++;
-        if (radius * 2f >= Math.min(rect.width(), rect.height()) - 1f && Math.abs(rect.width() - rect.height()) < 2f) {
-            GlassgramFrost.drawCircle(drawing, rect.centerX(), rect.centerY(), rect.width() / 2f, drawingAlpha * alpha, seed);
+        final float w = rect.width(), h = rect.height();
+        if (w <= 0f || h <= 0f) {
+            return;
+        }
+        if (Math.max(w, h) / Math.min(w, h) < 1.3f) {
+            // a round button, stretched as it is pulled: its frost stretched with it
+            final float d = (w + h) / 2f;
+            drawing.save();
+            drawing.translate(rect.centerX(), rect.centerY());
+            drawing.scale(w / d, h / d);
+            GlassgramFrost.drawCircle(drawing, 0f, 0f, d / 2f, drawingAlpha * alpha, seed);
+            drawing.restore();
         } else {
-            GlassgramFrost.drawPill(drawing, rect, radius, drawingAlpha * alpha, seed);
+            GlassgramFrost.drawPill(drawing, rect, Math.min(radius, h / 2f), drawingAlpha * alpha, seed);
         }
     };
 

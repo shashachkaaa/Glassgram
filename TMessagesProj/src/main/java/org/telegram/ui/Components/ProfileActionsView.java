@@ -262,7 +262,10 @@ public class ProfileActionsView extends View {
     private float drawnClipBottom;
     private final RectF drawnRect = new RectF();
 
-    /** The buttons as they are on screen now, for the light of the profile's gifts falling on them. */
+    /**
+     * The buttons as they are on screen now, for the light of the profile's gifts falling on them
+     * and the winter's snow and frost on them: a pressed one where its press moved it.
+     */
     public void forEachDrawnButton(DrawnButton callback) {
         if (drawnAlpha <= 0f) return;
         for (int i = 0, c = actions.size(); i < c; i++) {
@@ -274,7 +277,12 @@ public class ProfileActionsView extends View {
                 drawnRect.height() / 2.0f * (1.0f - action.getScale())
             );
             if (drawnRect.isEmpty() || drawnRect.bottom > drawnClipBottom) continue;
-            callback.add(drawnRect, Math.min(getRoundRadius(), drawnRect.width() / 2f), action.getAlpha() * drawnAlpha);
+            final float radius = Math.min(getRoundRadius(), drawnRect.width() / 2f);
+            // the glass swells and leans with the press (its library button): only the glass drawn so moves
+            if (glassDrawn && action.press != null && action.press.isActive()) {
+                action.press.mapRect(drawnRect.left, drawnRect.top, drawnRect.right, drawnRect.bottom, drawnRect);
+            }
+            callback.add(drawnRect, radius, action.getAlpha() * drawnAlpha);
         }
     }
 

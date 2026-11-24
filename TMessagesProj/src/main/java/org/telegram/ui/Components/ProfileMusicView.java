@@ -66,13 +66,30 @@ public class ProfileMusicView extends View {
 
     /**
      * The pill as it was last drawn, in this view's coordinates, for the light of the profile's
-     * gifts falling on it; returns its alpha, 0 when it is not drawn.
+     * gifts falling on it and the winter's snow and frost on it: swollen as it bounces, pressed
+     * where its press moved it. Returns its alpha, 0 when it is not drawn.
      */
     public float getDrawnPill(RectF out) {
         if (drawnAlpha <= 0f || getVisibility() != VISIBLE) return 0f;
         out.set(rect);
+        float sx = drawnScale, sy = drawnScale;
+        if (menuHide > 0f) {
+            sx *= 1f - .7f * menuHide;
+            sy *= 1f - .25f * menuHide;
+        }
+        if (sx != 1f || sy != 1f) {
+            final float cx = rect.centerX(), cy = getHeight() / 2f;
+            out.set(cx + (out.left - cx) * sx, cy + (out.top - cy) * sy, cx + (out.right - cx) * sx, cy + (out.bottom - cy) * sy);
+        }
+        if (drawnGlass && press.isActive()) {
+            press.mapRect(out.left, out.top, out.right, out.bottom, out);
+        }
         return drawnAlpha * getAlpha();
     }
+
+    // How it was drawn last: its bounce's scale, and whether its glass moves with the press
+    private float drawnScale = 1f;
+    private boolean drawnGlass;
 
     /** The pill as it is laid out, in this view's coordinates, drawn or not. */
     public void getPillRect(RectF out) {
@@ -543,6 +560,7 @@ public class ProfileMusicView extends View {
         // held to wind the track on, it swells a little, as on iOS
         final float scale = (press.isLibraryButton() ? 1f : bounce.getScale(0.02f)) * (1f + .045f * seekSwell.set(seeking));
         drawnAlpha = alpha;
+        drawnScale = scale;
         if (sizeAlpha <= 0) {
             if (buttonsGlass != null) {
                 buttonsGlass.setAlpha(0);
@@ -579,6 +597,7 @@ public class ProfileMusicView extends View {
 
         // glassGram: the library's glass made of the header, as the action buttons above it
         final boolean glassDrawn = glass != null && glass.begin(canvas);
+        drawnGlass = glassDrawn;
         if (glassDrawn) {
             glass.draw(canvas, glassPiece, press, rect, rect.height() / 2f, textColor == Color.WHITE ? 1f : 0f, alpha, parentExpanded);
         } else if (buttonsGlass != null) {
