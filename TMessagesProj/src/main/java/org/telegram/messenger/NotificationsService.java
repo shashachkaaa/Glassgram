@@ -37,6 +37,10 @@ public class NotificationsService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        // In the foreground first: started with startForegroundService(), the service has 10 seconds
+        // (5 before Android 12) to get there or the app is closed, and the app's first start here
+        // (accounts, native libraries, the language) can take longer than that on a slow phone
+        startInForeground();
         ApplicationLoader.postInitApplication();
     }
 
@@ -46,51 +50,78 @@ public class NotificationsService extends Service {
         return START_STICKY;
     }
 
+    /** A text of the app's language, or of the phone's while the app's isn't loaded or fails. */
+    private String text(int resId) {
+        try {
+            return LocaleController.getString(resId);
+        } catch (Throwable e) {
+            return getString(resId);
+        }
+    }
+
     private void startInForeground() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return;
         }
         try {
-            final NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                final NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
-                    LocaleController.getString(R.string.GlassgramBackgroundChannel), NotificationManager.IMPORTANCE_MIN);
-                channel.setShowBadge(false);
-                channel.setSound(null, null);
-                channel.enableVibration(false);
-                channel.enableLights(false);
-                manager.createNotificationChannel(channel);
-            }
-            // Tapped, it opens its channel's system settings: Android raises a foreground service's
-            // notification to be seen however the app makes its channel, and only the user can turn
-            // the channel off. The service keeps running then, and messages keep arriving.
-            final Intent hide = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                .putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, hide, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-            final Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.notification)
-                .setContentTitle(LocaleController.getString(R.string.GlassgramBackgroundTitle))
-                .setContentText(LocaleController.getString(R.string.GlassgramBackgroundText))
-                .setPriority(NotificationCompat.PRIORITY_MIN)
-                .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                .setOngoing(true)
-                .setShowWhen(false)
-                .setSilent(true)
-                .setContentIntent(contentIntent)
-                .build();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // specialUse: dataSync is limited to 6 hours a day since Android 15
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
-            }
+            startForeground(buildNotification());
         } catch (Throwable e) {
             FileLog.e(e);
+            // Whatever failed, a plain notification: each startForegroundService() needs its
+            // startForeground(), or the system closes the app
+            try {
+                startForeground(new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.notification)
+                    .setPriority(NotificationCompat.PRIORITY_MIN)
+                    .setOngoing(true)
+                    .build());
+            } catch (Throwable e2) {
+                FileLog.e(e2);
+            }
         }
+    }
+
+    private void startForeground(Notification notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // specialUse: dataSync is limited to 6 hours a day since Android 15
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private Notification buildNotification() {
+        final NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            final NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
+                text(R.string.GlassgramBackgroundChannel), NotificationManager.IMPORTANCE_MIN);
+            channel.setShowBadge(false);
+            channel.setSound(null, null);
+            channel.enableVibration(false);
+            channel.enableLights(false);
+            manager.createNotificationChannel(channel);
+        }
+        // Tapped, it opens its channel's system settings: Android raises a foreground service's
+        // notification to be seen however the app makes its channel, and only the user can turn
+        // the channel off. The service keeps running then, and messages keep arriving.
+        final Intent hide = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
+            .putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, hide, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.notification)
+            .setContentTitle(text(R.string.GlassgramBackgroundTitle))
+            .setContentText(text(R.string.GlassgramBackgroundText))
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOngoing(true)
+            .setShowWhen(false)
+            .setSilent(true)
+            .setContentIntent(contentIntent)
+            .build();
     }
 
     @Override

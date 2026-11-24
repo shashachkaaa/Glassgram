@@ -11867,6 +11867,11 @@
     <string name="GlassgramApiModelInstalls">Installs: %1$d</string>
     <string name="GlassgramApiModelReport">Report %1$d</string>
     <string name="GlassgramApiCrashes">Crashes</string>
+    <string name="GlassgramLeaks">Find memory leaks</string>
+    <string name="GlassgramLeaksInfo">Dumps this phone’s memory and finds what keeps closed screens in it. The app stops for a few seconds; open and close a few chats first.</string>
+    <string name="GlassgramLeaksRunning">Looking for leaks… It can take a minute.</string>
+    <string name="GlassgramLeaksTitle">Memory leaks</string>
+    <string name="GlassgramLeaksNone">No closed screens are kept in memory.</string>
     <string name="GlassgramApiNoCrashes">No crashes in 30 days</string>
     <string name="GlassgramApiInstallsCount">installs: %1$d</string>
     <string name="GlassgramApiCrashSummary">%1$d times on %2$d installs\nVersions: %3$s</string>

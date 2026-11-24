@@ -34,6 +34,8 @@
     <init>();
 }
 -keep class org.telegram.messenger.camera.* { *; }
+# glassGram: the heap analysis finds the closed screens by this class's name (GlassgramLeakScan)
+-keep class org.telegram.messenger.GlassgramLeakScan$Closed
 -keep class org.telegram.messenger.secretmedia.* { *; }
 -keep class org.telegram.messenger.support.* { *; }
 -keep class org.telegram.messenger.support.* { *; }

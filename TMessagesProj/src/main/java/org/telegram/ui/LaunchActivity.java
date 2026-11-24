@@ -406,6 +406,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onCreate(Bundle savedInstanceState) {
         isActive = true;
         activeInstanceCount++;
+        // glassGram: a crash's report says whether closed activities are kept in memory
+        org.telegram.messenger.GlassgramCrashReporter.trackActivity(this);
         if (BuildVars.DEBUG_VERSION) {
             StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy())
                 .detectLeakedClosableObjects()

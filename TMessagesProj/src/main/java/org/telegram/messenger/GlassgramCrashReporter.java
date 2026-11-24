@@ -40,6 +40,8 @@ public final class GlassgramCrashReporter {
     // crash's trace says only where the memory ran out, not what holds it)
     private static final ArrayList<WeakReference<BaseFragment>> screens = new ArrayList<>();
     private static int screensPruneAt = 64;
+    // and the activities, which a screen kept after closing may be kept with
+    private static final ArrayList<WeakReference<Activity>> activities = new ArrayList<>();
 
     private GlassgramCrashReporter() {
     }
@@ -97,6 +99,46 @@ public final class GlassgramCrashReporter {
         }
     }
 
+    /** Counts an activity made (LaunchActivity), for the report of a crash. */
+    public static void trackActivity(Activity activity) {
+        synchronized (activities) {
+            for (int i = activities.size() - 1; i >= 0; i--) {
+                if (activities.get(i).get() == null) {
+                    activities.remove(i);
+                }
+            }
+            activities.add(new WeakReference<>(activity));
+        }
+    }
+
+    /** The screens closed that are still in memory. */
+    public static List<BaseFragment> closedScreens() {
+        final ArrayList<BaseFragment> closed = new ArrayList<>();
+        synchronized (screens) {
+            for (int i = 0; i < screens.size(); i++) {
+                final BaseFragment screen = screens.get(i).get();
+                if (screen != null && screen.isFinished) {
+                    closed.add(screen);
+                }
+            }
+        }
+        return closed;
+    }
+
+    /** The activities destroyed that are still in memory. */
+    public static List<Activity> destroyedActivities() {
+        final ArrayList<Activity> destroyed = new ArrayList<>();
+        synchronized (activities) {
+            for (int i = 0; i < activities.size(); i++) {
+                final Activity activity = activities.get(i).get();
+                if (activity != null && activity.isDestroyed()) {
+                    destroyed.add(activity);
+                }
+            }
+        }
+        return destroyed;
+    }
+
     /** The memory used, and the screens open and in memory, by kind. */
     private static String memoryReport() {
         final Runtime runtime = Runtime.getRuntime();
@@ -130,6 +172,21 @@ public final class GlassgramCrashReporter {
         for (Map.Entry<String, Integer> entry : destroyed.entrySet()) {
             report.append(kept ? ", " : "\nKept after closing: ").append(entry.getKey()).append(" x").append(entry.getValue());
             kept = true;
+        }
+        int activitiesAlive = 0, activitiesDestroyed = 0;
+        synchronized (activities) {
+            for (int i = 0; i < activities.size(); i++) {
+                final Activity a = activities.get(i).get();
+                if (a != null) {
+                    activitiesAlive++;
+                    if (a.isDestroyed()) {
+                        activitiesDestroyed++;
+                    }
+                }
+            }
+        }
+        if (activitiesAlive > 1 || activitiesDestroyed > 0) {
+            report.append("\nActivities in memory: ").append(activitiesAlive).append(", destroyed ").append(activitiesDestroyed);
         }
         return report.append('\n').toString();
     }

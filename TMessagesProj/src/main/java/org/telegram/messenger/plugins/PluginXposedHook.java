@@ -20,15 +20,33 @@ public class PluginXposedHook extends XC_MethodHook {
 
     private final PyObject handler;
     private final boolean replacement;
+    // Whether the plugin does anything before and after the call: Python isn't called for a part it
+    // left out, as a hooked method can run thousands of times a second (getUser while the chats
+    // are sorted) and each call into Python is slow on a weak phone
+    private final boolean before;
+    private final boolean after;
+
+    // The hooked method's parameter types, kept: getParameterTypes() copies its array on every call
+    private Member typesOf;
+    private Class<?>[] types;
 
     public PluginXposedHook(PyObject handler, int priority, boolean replacement) {
+        this(handler, priority, replacement, true, !replacement);
+    }
+
+    public PluginXposedHook(PyObject handler, int priority, boolean replacement, boolean before, boolean after) {
         super(priority);
         this.handler = handler;
         this.replacement = replacement;
+        this.before = before || replacement;
+        this.after = after && !replacement;
     }
 
     @Override
     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+        if (!before) {
+            return;
+        }
         if (replacement) {
             Object result;
             try {
@@ -43,7 +61,7 @@ public class PluginXposedHook extends XC_MethodHook {
             return;
         }
         handler.callAttr("before", param);
-        fixArgs(param);
+        fixArgs(param, parameterTypes(param.method));
         Object result = param.getResult();
         if (result != null) {
             param.setResult(coerce(returnType(param.method), result));
@@ -52,7 +70,7 @@ public class PluginXposedHook extends XC_MethodHook {
 
     @Override
     protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-        if (replacement) {
+        if (!after) {
             return;
         }
         handler.callAttr("after", param);
@@ -70,17 +88,33 @@ public class PluginXposedHook extends XC_MethodHook {
         return member instanceof Method ? ((Method) member).getReturnType() : null;
     }
 
+    private Class<?>[] parameterTypes(Member member) {
+        // one hook can be on several methods (hook_all_methods), and on several threads
+        synchronized (this) {
+            if (member != typesOf) {
+                types = typesOf(member);
+                typesOf = member;
+            }
+            return types;
+        }
+    }
+
+    private static Class<?>[] typesOf(Member member) {
+        if (member instanceof Method) {
+            return ((Method) member).getParameterTypes();
+        } else if (member instanceof Constructor) {
+            return ((Constructor<?>) member).getParameterTypes();
+        }
+        return null;
+    }
+
     /** The call's arguments set from Python, as the hooked method's own types. */
     public static void fixArgs(MethodHookParam param) {
-        if (param.args == null) {
-            return;
-        }
-        Class<?>[] types;
-        if (param.method instanceof Method) {
-            types = ((Method) param.method).getParameterTypes();
-        } else if (param.method instanceof Constructor) {
-            types = ((Constructor<?>) param.method).getParameterTypes();
-        } else {
+        fixArgs(param, typesOf(param.method));
+    }
+
+    private static void fixArgs(MethodHookParam param, Class<?>[] types) {
+        if (param.args == null || types == null) {
             return;
         }
         for (int i = 0; i < param.args.length && i < types.length; i++) {

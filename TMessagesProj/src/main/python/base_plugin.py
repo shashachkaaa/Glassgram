@@ -311,12 +311,29 @@ def _report_error(plugin, where: str, trace: str):
     _PluginsController.log(getattr(plugin, "id", None) or "plugin", "%s failed:\n%s" % (where, trace))
 
 
+def _hook_defines(hook, name) -> bool:
+    """Whether the hook does something before (or after) the call, so Java can skip calling Python
+    for the other: a hooked method can be called thousands of times a second (getUser, say), and
+    every call into Python costs on a slow phone."""
+    if isinstance(hook, BaseHook):
+        return (hook.before if name == "before_hooked_method" else hook.after) is not None
+    if name in getattr(hook, "__dict__", {}):
+        return True
+    fn = getattr(type(hook), name, None)
+    if fn is None:
+        return getattr(hook, name, None) is not None
+    return fn is not getattr(MethodHook, name)
+
+
 class _XposedBridgeHandler:
     """Called from Java for each hooked call; applies filters and keeps plugin errors contained."""
 
     def __init__(self, plugin, handler):
         self.plugin = plugin
         self.handler = handler
+        # read once, not on every call
+        self._before_filters = self._method_filters("before_hooked_method")
+        self._after_filters = self._method_filters("after_hooked_method")
 
     def _method_filters(self, name):
         fn = getattr(self.handler, name, None)
@@ -324,14 +341,14 @@ class _XposedBridgeHandler:
 
     def before(self, param):
         try:
-            if _passes(self._method_filters("before_hooked_method"), param):
+            if not self._before_filters or _passes(self._before_filters, param):
                 self.handler.before_hooked_method(param)
         except Exception:
             _report_error(self.plugin, "before_hooked_method", traceback.format_exc())
 
     def after(self, param):
         try:
-            if _passes(self._method_filters("after_hooked_method"), param):
+            if not self._after_filters or _passes(self._after_filters, param):
                 self.handler.after_hooked_method(param)
         except Exception:
             _report_error(self.plugin, "after_hooked_method", traceback.format_exc())
@@ -364,7 +381,9 @@ def _make_java_hook(plugin, xposed_hook, priority, before, after, before_filters
         hasattr(xposed_hook, "replace_hooked_method") and not hasattr(xposed_hook, "before_hooked_method"))
     handler = _XposedBridgeHandler(plugin, xposed_hook)
     java_hook_class = jclass("org.telegram.messenger.plugins.PluginXposedHook")
-    java_hook = java_hook_class(handler, int(priority if priority is not None else 50), bool(replacement))
+    java_hook = java_hook_class(handler, int(priority if priority is not None else 50), bool(replacement),
+                                replacement or _hook_defines(xposed_hook, "before_hooked_method"),
+                                not replacement and _hook_defines(xposed_hook, "after_hooked_method"))
     _state(plugin).xposed_handlers.append(handler)
     return java_hook
 

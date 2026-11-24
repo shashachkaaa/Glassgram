@@ -338,12 +338,15 @@ def _load(record: _Record) -> bool:
     if record.instance is not None:
         return True
     record.error = None
-    try:
-        from _sdk_version import __version__ as sdk_version
+    from _sdk_version import __version__ as sdk_version
 
-        if not _check_version(record.meta["sdk_version"], sdk_version):
-            raise RuntimeError("The plugin needs plugin SDK %s, this app has %s"
-                               % (record.meta["sdk_version"], sdk_version))
+    # A plugin asking for a newer SDK is loaded all the same: its author's app had that SDK, and
+    # most use nothing it added. Should it fail, the error says the SDK may be why.
+    newer_sdk = not _check_version(record.meta["sdk_version"], sdk_version)
+    if newer_sdk:
+        _log(record.id, "The plugin asks for plugin SDK %s, this app has %s: loading it anyway"
+             % (record.meta["sdk_version"], sdk_version))
+    try:
         if record.meta["requirements"]:
             import _glassgram_pip
 
@@ -406,6 +409,9 @@ def _load(record: _Record) -> bool:
             record.environment.close()
             record.environment = None
         record.error = traceback.format_exc()
+        if newer_sdk:
+            record.error = ("The plugin needs plugin SDK %s, this app has %s; it may need what the newer SDK added.\n\n"
+                            % (record.meta["sdk_version"], sdk_version)) + record.error
         _log(record.id, "Failed to load:\n" + record.error)
         _compat_engine_call("unloadPlugin", record.id)
         _release_name(record.id, record.module or sys.modules.get("plugins." + record.id.replace("-", "_")))

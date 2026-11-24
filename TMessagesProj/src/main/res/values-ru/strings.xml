@@ -826,6 +826,11 @@
     <string name="GlassgramApiModelInstalls">Установок: %1$d</string>
     <string name="GlassgramApiModelReport">Отчёт %1$d</string>
     <string name="GlassgramApiCrashes">Вылеты</string>
+    <string name="GlassgramLeaks">Найти утечки памяти</string>
+    <string name="GlassgramLeaksInfo">Снимает память этого телефона и находит, что держит в ней закрытые экраны. Приложение замрёт на несколько секунд; перед этим откройте и закройте несколько чатов.</string>
+    <string name="GlassgramLeaksRunning">Ищем утечки… Это может занять минуту.</string>
+    <string name="GlassgramLeaksTitle">Утечки памяти</string>
+    <string name="GlassgramLeaksNone">Закрытые экраны в памяти не остаются.</string>
     <string name="GlassgramApiNoCrashes">Вылетов за 30 дней нет</string>
     <string name="GlassgramApiInstallsCount">установок: %1$d</string>
     <string name="GlassgramApiCrashSummary">%1$d раз на %2$d установках\nВерсии: %3$s</string>

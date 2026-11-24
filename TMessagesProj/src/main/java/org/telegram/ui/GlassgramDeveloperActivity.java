@@ -48,6 +48,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_BANS = 17;
     private static final int ID_PROXIES = 18;
     private static final int ID_TUNNEL = 19;
+    private static final int ID_LEAKS = 20;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -73,6 +74,31 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     @Override
     protected CharSequence getTitle() {
         return getString(R.string.GlassgramApiTeam);
+    }
+
+    /** What keeps closed screens in this phone's memory (GlassgramLeakScan), to read and copy. */
+    private void findLeaks() {
+        if (getParentActivity() == null || org.telegram.messenger.GlassgramLeakScan.isRunning()) {
+            return;
+        }
+        new AlertDialog.Builder(getParentActivity())
+                .setTitle(getString(R.string.GlassgramLeaksTitle))
+                .setMessage(getString(R.string.GlassgramLeaksInfo))
+                .setPositiveButton(getString(R.string.GlassgramLeaks), (d, w) -> {
+                    final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+                    progress.setCanCancel(false);
+                    progress.setMessage(getString(R.string.GlassgramLeaksRunning));
+                    progress.show();
+                    org.telegram.messenger.GlassgramLeakScan.run((report, error) -> {
+                        try {
+                            progress.dismiss();
+                        } catch (Exception ignore) {
+                        }
+                        GlassgramApiUi.showText(this, getString(R.string.GlassgramLeaksTitle), report != null ? report : error);
+                    });
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
     }
 
     private void update() {
@@ -150,6 +176,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             if (stats) {
                 items.add(UItem.asButton(ID_FIND_MODEL, R.drawable.msg_search, getString(R.string.GlassgramApiFindModel)));
                 items.add(UItem.asButton(ID_CRASHES, R.drawable.msg_report, getString(R.string.GlassgramApiCrashes)));
+                items.add(UItem.asButton(ID_LEAKS, R.drawable.msg_search, getString(R.string.GlassgramLeaks)));
             }
             if (rules) {
                 items.add(UItem.asButton(ID_RULES, R.drawable.msg_settings, getString(R.string.GlassgramApiRules)));
@@ -210,6 +237,9 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 return;
             case ID_CRASHES:
                 GlassgramApiUi.showCrashes(this);
+                return;
+            case ID_LEAKS:
+                findLeaks();
                 return;
             case ID_GIVE_BADGE:
                 GlassgramApiUi.askHolderAndEditBadge(this);
