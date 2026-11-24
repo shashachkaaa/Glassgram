@@ -96,6 +96,11 @@
 -keep class org.telegram.** { *; }
 # exteraGram's classes that plugins made for it import (com.exteragram.messenger.ExteraConfig)
 -keep class com.exteragram.** { *; }
+# The Java code plugins carry (a dex of their own, like NoForwardLimit's, built with Kotlin) links
+# to the app's Kotlin library and to androidx classes by name, as exteraGram has them
+-keep class kotlin.** { *; }
+-dontwarn kotlin.**
+-keepnames class androidx.** { *; }
 -keep class com.chaquo.python.** { *; }
 -keep class de.robv.android.xposed.** { *; }
 -keep class com.aliucord.hook.** { *; }

@@ -889,7 +889,18 @@ public class ChatActivity extends BaseFragment implements
     private long dialog_id;
     private Long dialog_id_Long;
     private int lastLoadIndex = 1;
-    private SparseArray<MessageObject>[] selectedMessagesIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
+    // glassGram: of exteraGram's type, which plugins made for exteraGram read by reflection and
+    // replace with their own kind of it (NoForwardLimit's dex lifts the 100 messages' limit so)
+    private SparseArray<MessageObject>[] selectedMessagesIds = new SparseArrayWithTouch[]{new SparseArrayWithTouch<>(), new SparseArrayWithTouch<>()};
+
+    /**
+     * glassGram: exteraGram's selected messages: a SparseArray, and the ids picked by sliding a
+     * finger over the messages (exteraGram selects so; none here). Plugins made for exteraGram
+     * subclass it.
+     */
+    public static class SparseArrayWithTouch<T> extends SparseArray<T> {
+        public final ArrayList<Integer> withTouch = new ArrayList<>();
+    }
     private SparseArray<MessageObject>[] selectedMessagesCanCopyIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
     private SparseArray<MessageObject>[] selectedMessagesCanStarIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
     private boolean hasUnfavedSelected;
