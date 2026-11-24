@@ -58,14 +58,33 @@ public class GlassgramGarlandView extends View {
         glowPaint.setShader(new RadialGradient(0, 0, 1, new int[]{0xFFFFFFFF, 0x66FFFFFF, 0x00FFFFFF}, new float[]{0, .35f, 1}, Shader.TileMode.CLAMP));
     }
 
-    /** Where the wire hangs from: under the status bar. */
+    /** Where the wire hangs from at least (the bar's own top); it goes under the status bar anyway, wherever that is. */
     public void setTopOffset(float top) {
-        if (this.top != top) {
-            this.top = top;
+        if (this.minTop != top) {
+            this.minTop = top;
             laidOutWidth = 0;
             requestLayout();
             invalidate();
         }
+    }
+
+    private float minTop;
+    private final int[] location = new int[2];
+
+    /** The status bar's height from the window's insets: the static one is 0 until the first layout of the app. */
+    private int statusBarInset() {
+        int inset = AndroidUtilities.statusBarHeight;
+        final android.view.WindowInsets insets = getRootWindowInsets();
+        if (insets != null) {
+            inset = Math.max(inset, insets.getSystemWindowInsetTop());
+        }
+        return inset;
+    }
+
+    /** Where the wire hangs from in this view: under the status bar, wherever this view is on the screen. */
+    private float wireTop() {
+        getLocationInWindow(location);
+        return Math.max(minTop, statusBarInset() - location[1]);
     }
 
     public void setRunning(boolean running) {
@@ -81,7 +100,7 @@ public class GlassgramGarlandView extends View {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (int) (top + AndroidUtilities.dp(SAG_DP + 22)));
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (int) (Math.max(minTop, statusBarInset()) + AndroidUtilities.dp(SAG_DP + 22)));
     }
 
     private void layoutBulbs(int width) {
@@ -153,8 +172,13 @@ public class GlassgramGarlandView extends View {
         if (width <= 0) {
             return;
         }
-        if (laidOutWidth != width) {
+        final float wireY = wireTop();
+        if (laidOutWidth != width || Math.abs(wireY - top) > .5f) {
+            top = wireY;
             layoutBulbs(width);
+            if (getHeight() < top + AndroidUtilities.dp(SAG_DP + 22)) {
+                requestLayout();
+            }
         }
         updatePalette();
         final long now = SystemClock.uptimeMillis();

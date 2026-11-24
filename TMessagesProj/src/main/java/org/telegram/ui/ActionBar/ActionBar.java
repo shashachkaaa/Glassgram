@@ -488,6 +488,21 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (!glassMode) {
             return 0;
         }
+        return collectGlassgramPieces(out, tints);
+    }
+
+    /**
+     * As getGlassgramPieces, and the capsules of a bar with glass buttons only (a profile's back and
+     * menu): the glass the winter's snow settles on (GlassgramWinter).
+     */
+    public int getGlassgramSnowPieces(RectF[] out, int[] tints) {
+        if (!glassMode && !glassButtons) {
+            return 0;
+        }
+        return collectGlassgramPieces(out, tints);
+    }
+
+    private int collectGlassgramPieces(RectF[] out, int[] tints) {
         int count = 0;
         for (int surface : new int[]{GLASS_BACK, GLASS_PILL, GLASS_MENU}) {
             if (count < out.length && glassShown[surface] && !glassRect[surface].isEmpty()) {

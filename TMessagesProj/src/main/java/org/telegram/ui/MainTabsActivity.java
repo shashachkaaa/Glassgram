@@ -294,6 +294,15 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     protected FrameLayout createContentView(Context context) {
         return new FrameLayout(context) {
             @Override
+            public boolean dispatchTouchEvent(MotionEvent ev) {
+                // the glass touched (pressed, dragged) shakes its snow off (GlassgramWinter)
+                if (winterSnow != null) {
+                    winterSnow.touchAt(ev.getX() - winterSnow.getX(), ev.getY() - winterSnow.getY(), ev.getActionMasked());
+                }
+                return super.dispatchTouchEvent(ev);
+            }
+
+            @Override
             protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
                 super.onLayout(changed, left, top, right, bottom);
                 checkUi_tabsPosition();
@@ -417,7 +426,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         final BaseFragment page = getCurrentVisibleFragment();
         final ActionBar header = page != null ? page.getActionBar() : null;
         if (header != null && header.isShown() && header.getAlpha() > .5f) {
-            final int pieces = header.getGlassgramPieces(winterHeaderPieces, winterHeaderTints);
+            final int pieces = header.getGlassgramSnowPieces(winterHeaderPieces, winterHeaderTints);
             header.getLocationInWindow(winterViewLocation);
             for (int i = 0; i < pieces && count < out.length; i++) {
                 out[count].set(winterHeaderPieces[i]);

@@ -120,8 +120,30 @@ public class GlassgramSnowView extends View {
     public void shake() {
         for (Drift drift : drifts) {
             if (drift.valid) {
-                shed(drift);
+                shed(drift, Float.NaN, Float.NaN);
             }
+        }
+    }
+
+    /**
+     * A finger on the screen, in this view's coordinates: the glass under it (pressed, stretched,
+     * dragged) shakes its snow off, the snow flying away from the finger.
+     */
+    public void touchAt(float x, float y, int action) {
+        if (action != android.view.MotionEvent.ACTION_DOWN && action != android.view.MotionEvent.ACTION_MOVE) {
+            return;
+        }
+        final float reach = AndroidUtilities.dpf2(10);
+        boolean shed = false;
+        for (Drift drift : drifts) {
+            if (drift.valid && x >= drift.rect.left - reach && x <= drift.rect.right + reach
+                    && y >= drift.rect.top - reach * 2 && y <= drift.rect.bottom + reach) {
+                shed(drift, x, y);
+                shed = true;
+            }
+        }
+        if (shed && !running) {
+            invalidate();
         }
     }
 
@@ -138,7 +160,7 @@ public class GlassgramSnowView extends View {
 
     private int flakesWanted() {
         final float wDp = getWidth() / AndroidUtilities.density, hDp = getHeight() / AndroidUtilities.density;
-        return (int) Utilities.clamp(wDp * hDp / 8000f * density, 64, 12);
+        return (int) Utilities.clamp(wDp * hDp / 6500f * density, 72, 12);
     }
 
     private void fill(boolean anywhere) {
@@ -219,13 +241,13 @@ public class GlassgramSnowView extends View {
                 final RectF r = collected[i];
                 if (drift.valid && (Math.abs(drift.rect.left - r.left) > AndroidUtilities.dp(1) || Math.abs(drift.rect.top - r.top) > AndroidUtilities.dp(1)
                         || Math.abs(drift.rect.width() - r.width()) > AndroidUtilities.dp(2))) {
-                    shed(drift);
+                    shed(drift, Float.NaN, Float.NaN);
                 }
                 if (!drift.valid) {
                     setUp(drift, r, collectedRadii[i]);
                 }
             } else if (drift.valid) {
-                shed(drift);
+                shed(drift, Float.NaN, Float.NaN);
             }
         }
 
@@ -259,7 +281,7 @@ public class GlassgramSnowView extends View {
         fill(false);
 
         // the drifts melt slowly and slide where they are too steep
-        final float melt = 1f - .015f * dt;
+        final float melt = 1f - .006f * dt;
         for (int s = 0; s < MAX_SURFACES; s++) {
             final Drift drift = drifts[s];
             if (!drift.valid) {
@@ -360,7 +382,9 @@ public class GlassgramSnowView extends View {
     private void settle(Drift drift, float x, float r) {
         final float[] h = drift.heights;
         final int c = Math.round((x - drift.rect.left) / drift.column);
-        final float amount = r * .75f;
+        // a small button catches few flakes: each one lies thicker there, or it stayed bare
+        final float narrow = Math.max(1f, Math.min(3f, AndroidUtilities.dpf2(160) / Math.max(1f, drift.rect.width())));
+        final float amount = r * 1.1f * narrow;
         for (int d = -2; d <= 2; d++) {
             final int i = c + d;
             if (i < 0 || i >= h.length) {
@@ -373,8 +397,10 @@ public class GlassgramSnowView extends View {
         drift.dirty = true;
     }
 
-    private void shed(Drift drift) {
+    /** The drift's snow comes off and falls: away from (fromX, fromY) when a finger shook it, else just down. */
+    private void shed(Drift drift, float fromX, float fromY) {
         final float[] h = drift.heights;
+        final boolean pushed = !Float.isNaN(fromX);
         if (h != null) {
             for (int c = 0; c < h.length && chunks.size() < MAX_CHUNKS; c += 2) {
                 if (h[c] < AndroidUtilities.dpf2(.6f)) {
@@ -385,8 +411,15 @@ public class GlassgramSnowView extends View {
                 chunk.x = x;
                 chunk.y = contour(drift, x) - h[c] * .5f;
                 chunk.r = Math.min(h[c] * .55f, AndroidUtilities.dpf2(2f));
-                chunk.vx = AndroidUtilities.dpf2(-30f + 60f * random.nextFloat());
-                chunk.vy = AndroidUtilities.dpf2(-60f * random.nextFloat());
+                if (pushed) {
+                    // flung up and away from the finger
+                    final float away = Math.signum(x - fromX);
+                    chunk.vx = AndroidUtilities.dpf2(away * (40f + 90f * random.nextFloat()));
+                    chunk.vy = AndroidUtilities.dpf2(-120f - 120f * random.nextFloat());
+                } else {
+                    chunk.vx = AndroidUtilities.dpf2(-30f + 60f * random.nextFloat());
+                    chunk.vy = AndroidUtilities.dpf2(-60f * random.nextFloat());
+                }
                 chunk.alpha = .95f;
                 chunks.add(chunk);
             }
