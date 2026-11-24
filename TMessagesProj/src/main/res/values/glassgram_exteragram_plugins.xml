@@ -37,4 +37,7 @@
     <string name="RestartPluginSystemToApplyUpdate">Update loaded, restart Plugin Engine to apply</string>
     <!-- glassGram -->
     <string name="PluginsPySdk">Python SDK</string>
+    <string name="GlassgramPluginRequiredPlugins">Required plugins</string>
+    <string name="GlassgramPluginRequiredEnabled">%1$s is on</string>
+    <string name="GlassgramPluginBundledPackages">Packages inside: %1$s</string>
 </resources>

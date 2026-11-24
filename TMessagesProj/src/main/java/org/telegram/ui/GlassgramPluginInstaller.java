@@ -89,13 +89,34 @@ public final class GlassgramPluginInstaller {
         if (!canInstall(fragment)) {
             return true;
         }
-        // as exteraGram: its engine reads the file and asks (InstallPluginBottomSheet)
-        PluginsController.whenStarted(() -> {
-            if (fragment.getParentActivity() != null && !fragment.isFinished) {
-                com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, message, path);
-            }
-        });
+        // as exteraGram: the engine that runs it reads the file and asks (InstallPluginBottomSheet)
+        PluginsController.whenStarted(() -> whenEngineFound(fragment, new File(path), message, 0, () ->
+                com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, message, path)));
         return true;
+    }
+
+    /**
+     * Runs show once an engine takes the file: right away for a .plugin; an .elyx or .eaf one
+     * waits for ElyxCore, which joins the engines a moment after they start.
+     */
+    private static void whenEngineFound(BaseFragment fragment, File file, MessageObject message, int attempt, Runnable show) {
+        if (fragment.getParentActivity() == null || fragment.isFinished) {
+            return;
+        }
+        boolean found;
+        try {
+            found = com.exteragram.messenger.plugins.PluginsController.isPlugin(file, message);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            found = false;
+        }
+        if (found) {
+            show.run();
+        } else if (attempt < 40) {
+            AndroidUtilities.runOnUIThread(() -> whenEngineFound(fragment, file, message, attempt + 1, show), 250);
+        } else {
+            showError(fragment, getString(R.string.GlassgramPluginBadFile));
+        }
     }
 
     /** Copies a picked file to the cache and asks to install it. */
@@ -152,13 +173,8 @@ public final class GlassgramPluginInstaller {
             if (ownsFile) file.delete();
             return;
         }
-        PluginsController.whenStarted(() -> {
-            if (fragment.getParentActivity() == null || fragment.isFinished) {
-                if (ownsFile) file.delete();
-                return;
-            }
-            com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, file.getAbsolutePath(), false);
-        });
+        PluginsController.whenStarted(() -> whenEngineFound(fragment, file, null, 0, () ->
+                com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, file.getAbsolutePath(), false)));
     }
 
     private static boolean canInstall(BaseFragment fragment) {
@@ -225,7 +241,7 @@ public final class GlassgramPluginInstaller {
             final boolean trusted = isVouched(file);
             final String[] meta = {plugin.getId(), plugin.getName(), plugin.getVersion(), plugin.getAuthor(),
                     plugin.getDescription(), plugin.getIcon(), update ? "1" : "0", findings, analysis};
-            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, ownsFile, plugin, meta, trusted));
+            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, ownsFile, plugin, params, meta, trusted));
         });
     }
 
@@ -310,7 +326,9 @@ public final class GlassgramPluginInstaller {
         return false;
     }
 
-    private static void showConfirm(BaseFragment fragment, File file, boolean ownsFile, com.exteragram.messenger.plugins.Plugin plugin, String[] meta, boolean trusted) {
+    private static void showConfirm(BaseFragment fragment, File file, boolean ownsFile, com.exteragram.messenger.plugins.Plugin plugin,
+                                    com.exteragram.messenger.plugins.ui.components.InstallPluginBottomSheet.PluginInstallParams params,
+                                    String[] meta, boolean trusted) {
         Activity activity = fragment.getParentActivity();
         if (activity == null || fragment.isFinished) {
             if (ownsFile) file.delete();
@@ -326,6 +344,13 @@ public final class GlassgramPluginInstaller {
         LinearLayout layout = new LinearLayout(activity);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(16), dp(20), dp(16), dp(8));
+        // an .elyx archive's own icon (ElyxCore reads it), when it names no sticker
+        if (params.getIconDrawable() != null && TextUtils.isEmpty(meta[5])) {
+            final ImageView archiveIcon = new ImageView(activity);
+            archiveIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            archiveIcon.setImageDrawable(params.getIconDrawable());
+            layout.addView(archiveIcon, LayoutHelper.createLinear(90, 90, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12));
+        }
         layout.addView(createPluginHeader(activity, fragment.getCurrentAccount(), name, meta[2], meta[3], null, meta[5], resourcesProvider),
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         if (trusted) {
@@ -357,6 +382,35 @@ public final class GlassgramPluginInstaller {
             }
         }
 
+        // what an .elyx plugin needs (ElyxCore fills these in): the plugins it requires, the
+        // packages it carries, and why it can't be installed yet
+        final View requirements = createRequirementsCard(fragment, params, resourcesProvider);
+        if (requirements != null) {
+            layout.addView(requirements, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        }
+        final java.util.List<String> packages = params.getBundledPackages();
+        if (packages != null && !packages.isEmpty()) {
+            final TextView packagesView = new TextView(activity);
+            packagesView.setText(formatString(R.string.GlassgramPluginBundledPackages, TextUtils.join(", ", packages)));
+            packagesView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            packagesView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
+            layout.addView(packagesView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 12, 4, 0));
+        }
+        final boolean blocked = !TextUtils.isEmpty(params.getBlockedTitle());
+        if (blocked) {
+            final TextView blockedView = new TextView(activity);
+            final SpannableStringBuilder reason = new SpannableStringBuilder(params.getBlockedTitle());
+            reason.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, reason.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (!TextUtils.isEmpty(params.getBlockedSubtitle())) {
+                reason.append("\n").append(params.getBlockedSubtitle());
+            }
+            blockedView.setText(reason);
+            blockedView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            blockedView.setGravity(Gravity.CENTER_HORIZONTAL);
+            blockedView.setTextColor(Theme.getColor(Theme.key_text_RedBold, resourcesProvider));
+            layout.addView(blockedView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 16, 4, 0));
+        }
+
         final boolean[] enableAfter = {update || GlassgramConfig.pluginsEnableAfterInstall};
 
         ButtonWithCounterView button = new ButtonWithCounterView(activity, resourcesProvider);
@@ -384,7 +438,14 @@ public final class GlassgramPluginInstaller {
                 }
             });
         };
+        if (blocked) {
+            button.setEnabled(false);
+            button.setAlpha(.5f);
+        }
         button.setOnClickListener(v -> {
+            if (blocked) {
+                return;
+            }
             if (danger) {
                 confirmDangerous(activity, resourcesProvider, install);
             } else {
@@ -467,6 +528,65 @@ public final class GlassgramPluginInstaller {
                 done.run(id, null);
             }
         }, null);
+    }
+
+    /** The plugins an .elyx plugin requires, each with its state and what to do about it; null when none. */
+    private static View createRequirementsCard(BaseFragment fragment,
+                                               com.exteragram.messenger.plugins.ui.components.InstallPluginBottomSheet.PluginInstallParams params,
+                                               Theme.ResourcesProvider resourcesProvider) {
+        final java.util.List<com.exteragram.messenger.plugins.ui.components.RequiredPluginInfo> required = params.getRequiredPlugins();
+        final Activity activity = fragment.getParentActivity();
+        if (required == null || required.isEmpty() || activity == null) {
+            return null;
+        }
+        final LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(10), dp(14), dp(10));
+        card.setBackground(Theme.createRoundRectDrawable(dp(14), Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.06f)));
+        final TextView title = new TextView(activity);
+        title.setText(getString(R.string.GlassgramPluginRequiredPlugins));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        title.setTypeface(AndroidUtilities.bold());
+        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+        card.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 4));
+        for (com.exteragram.messenger.plugins.ui.components.RequiredPluginInfo info : required) {
+            final LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            final LinearLayout texts = new LinearLayout(activity);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            final TextView name = new TextView(activity);
+            name.setText(info.title());
+            name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            texts.addView(name);
+            final TextView state = new TextView(activity);
+            state.setText(info.subtitle());
+            state.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            state.setTextColor(Theme.getColor(info.isSatisfied() ? Theme.key_windowBackgroundWhiteGrayText : Theme.key_text_RedBold, resourcesProvider));
+            texts.addView(state);
+            row.addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
+            if (!info.isSatisfied()) {
+                final TextView action = new TextView(activity);
+                action.setText(info.actionText());
+                action.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                action.setTypeface(AndroidUtilities.bold());
+                action.setTextColor(Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider));
+                action.setPadding(dp(10), dp(6), dp(10), dp(6));
+                action.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, resourcesProvider), 8, 8));
+                action.setOnClickListener(v -> {
+                    if (info.state == com.exteragram.messenger.plugins.ui.components.RequiredPluginInfo.STATE_DISABLED) {
+                        PluginsController.setPluginEnabled(info.id, true, () -> BulletinFactory.of(fragment)
+                                .createSimpleBulletin(R.raw.contact_check, formatString(R.string.GlassgramPluginRequiredEnabled, info.title())).show());
+                    } else if (!TextUtils.isEmpty(info.downloadUrl)) {
+                        Browser.openUrl(activity, info.downloadUrl);
+                    }
+                });
+                row.addView(action, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+            }
+            card.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+        }
+        return card;
     }
 
     private static View actionButton(Context context, int icon, String description, View.OnClickListener click, Theme.ResourcesProvider resourcesProvider) {

@@ -133,7 +133,8 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
                 if (id == -1) {
                     finishFragment();
                 } else if (id == ID_ENGINE_OPTIONS) {
-                    presentFragment(new GlassgramPluginEngineActivity());
+                    // exteraGram's class for it, which ElyxCore adds its settings to
+                    presentFragment(new com.exteragram.messenger.plugins.ui.PluginsInfoActivity());
                 }
             }
         });
@@ -308,11 +309,19 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     }
 
     void sharePlugin(PluginInfo plugin) {
-        GlassgramPluginInstaller.sharePlugin(this, plugin);
+        if (plugin.path == null) {
+            PluginsController.sharePlugin(plugin.id);
+        } else {
+            GlassgramPluginInstaller.sharePlugin(this, plugin);
+        }
     }
 
     void openSource(PluginInfo plugin) {
-        GlassgramPluginInstaller.openSource(this, new File(plugin.path), plugin.name);
+        if (plugin.path == null) {
+            PluginsController.openPluginSource(plugin.id);
+        } else {
+            GlassgramPluginInstaller.openSource(this, new File(plugin.path), plugin.name);
+        }
     }
 
     void togglePin(PluginInfo plugin) {

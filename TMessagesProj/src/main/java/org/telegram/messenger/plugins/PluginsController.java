@@ -152,6 +152,7 @@ public final class PluginsController {
                     flushStarted();
                 }
                 notifyChanged();
+                AndroidUtilities.runOnUIThread(() -> migrateElyxArchives(0));
             });
         });
     }
@@ -232,6 +233,51 @@ public final class PluginsController {
         }
     }
 
+    private static final String ELYX_ENGINE = "elyx-py";
+
+    /**
+     * .elyx plugins installed before the engine was exteraGram's lay as archives in plugins/; its
+     * ElyxCore keeps them unpacked (plugins/ElyxPlugins). Once ElyxCore has joined the engines (a
+     * moment after they start), each is installed again, on if it was, and its archive put aside.
+     */
+    private static void migrateElyxArchives(int attempt) {
+        final java.io.File dir = new java.io.File(ApplicationLoader.getFilesDirFixed(), PluginsConstants.PLUGINS);
+        final java.io.File[] archives = dir.listFiles((d, name) -> name.endsWith(".elyx") || name.endsWith(".eaf"));
+        if (archives == null || archives.length == 0 || !isStarted()) {
+            return;
+        }
+        final com.exteragram.messenger.plugins.PluginsController.PluginsEngine elyx =
+                com.exteragram.messenger.plugins.PluginsController.getEngines().get(ELYX_ENGINE);
+        if (elyx == null) {
+            if (attempt < 60) {
+                AndroidUtilities.runOnUIThread(() -> migrateElyxArchives(attempt + 1), 500);
+            }
+            return;
+        }
+        final android.content.SharedPreferences prefs = ApplicationLoader.applicationContext
+                .getSharedPreferences("plugin_settings", android.content.Context.MODE_PRIVATE);
+        for (java.io.File archive : archives) {
+            final String name = archive.getName();
+            final String id = name.substring(0, name.lastIndexOf('.'));
+            final boolean wasEnabled = prefs.getBoolean(com.exteragram.messenger.plugins.PluginsController.PREF_PLUGIN_ENABLED_KEY_PREFIX + id, false);
+            final java.io.File moving = new java.io.File(dir, name + ".migrating");
+            if (!archive.renameTo(moving)) {
+                continue;
+            }
+            runOnPluginsQueue(() -> elyx.loadPluginFromFile(moving.getAbsolutePath(), null, error -> {
+                if (error != null) {
+                    log(id, "Moving the .elyx plugin to the new engine failed: " + error);
+                    moving.renameTo(new java.io.File(dir, name + ".failed"));
+                    return;
+                }
+                moving.delete();
+                if (wasEnabled) {
+                    setPluginEnabled(id, true, null);
+                }
+            }, null));
+        }
+    }
+
     private static String readText(java.io.File file) throws java.io.IOException {
         final byte[] data = new byte[(int) Math.min(file.length(), 16 * 1024 * 1024)];
         try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
@@ -290,13 +336,32 @@ public final class PluginsController {
         } else if (plugin.isNotResponding()) {
             errorText = "Not responding";
         }
-        String path = null;
-        try {
-            path = controller.getPluginPath(id);
-        } catch (Throwable ignore) {
-        }
+        // a .plugin's file; an .elyx plugin is a folder that its engine zips on asking (sharePlugin)
+        final String engineName = plugin.getEngine() != null ? plugin.getEngine() : PluginsConstants.PYTHON;
+        final String path = PluginsConstants.PYTHON.equals(engineName)
+                ? new java.io.File(controller.getPluginsDir(), id + ".py").getAbsolutePath() : null;
         return new PluginInfo(id, plugin.getName(), plugin.getDescription(), plugin.getAuthor(), plugin.getVersion(), plugin.getIcon(),
-                plugin.isEnabled() || error != null, errorText, controller.hasPluginSettings(id), path);
+                plugin.isEnabled() || error != null, errorText, controller.hasPluginSettings(id), path, engineName);
+    }
+
+    /** Shares a plugin that isn't a single file (an .elyx one) as its engine packs it. */
+    public static void sharePlugin(String id) {
+        runOnPluginsQueue(() -> {
+            final com.exteragram.messenger.plugins.PluginsController.PluginsEngine pluginEngine = engine().getPluginEngine(id);
+            if (pluginEngine != null) {
+                pluginEngine.sharePlugin(id);
+            }
+        });
+    }
+
+    /** Opens the code of a plugin that isn't a single file (an .elyx one) as its engine does. */
+    public static void openPluginSource(String id) {
+        runOnPluginsQueue(() -> {
+            final com.exteragram.messenger.plugins.PluginsController.PluginsEngine pluginEngine = engine().getPluginEngine(id);
+            if (pluginEngine != null && pluginEngine.canOpenInExternalApp()) {
+                pluginEngine.openInExternalApp(id);
+            }
+        });
     }
 
     public static List<PluginInfo> getPlugins() {

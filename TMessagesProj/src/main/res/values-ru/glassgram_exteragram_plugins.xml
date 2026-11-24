@@ -37,4 +37,7 @@
     <string name="RestartPluginSystemToApplyUpdate">Обновление загружено, перезапустите систему плагинов для применения</string>
     <!-- glassGram -->
     <string name="PluginsPySdk">Python SDK</string>
+    <string name="GlassgramPluginRequiredPlugins">Нужные плагины</string>
+    <string name="GlassgramPluginRequiredEnabled">%1$s включён</string>
+    <string name="GlassgramPluginBundledPackages">Пакеты внутри: %1$s</string>
 </resources>

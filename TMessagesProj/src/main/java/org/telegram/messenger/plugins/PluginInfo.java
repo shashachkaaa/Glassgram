@@ -12,9 +12,12 @@ public final class PluginInfo {
     public final boolean enabled;
     public final String error;
     public final boolean hasSettings;
+    /** Its file, for a .plugin; null for one that is a folder (an .elyx plugin). */
     public final String path;
+    /** The engine that runs it: "python" for a .plugin, "elyx-py" for an .elyx or .eaf one. */
+    public final String engine;
 
-    PluginInfo(String id, String name, String description, String author, String version, String icon, boolean enabled, String error, boolean hasSettings, String path) {
+    PluginInfo(String id, String name, String description, String author, String version, String icon, boolean enabled, String error, boolean hasSettings, String path, String engine) {
         this.id = id;
         this.name = name;
         this.description = description == null ? "" : description;
@@ -25,6 +28,7 @@ public final class PluginInfo {
         this.error = error;
         this.hasSettings = hasSettings;
         this.path = path;
+        this.engine = engine;
     }
 
     public String getId() {

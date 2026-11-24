@@ -744,7 +744,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 presentFragment(new GlassgramSettingsActivity(PAGE_FILTERS));
                 return;
             case ID_PLUGINS:
-                presentFragment(new GlassgramPluginsActivity());
+                presentFragment(new com.exteragram.messenger.plugins.ui.PluginsActivity());
                 return;
             case ID_SEND_REPORT:
                 GlassgramApiUi.sendReport(this);
