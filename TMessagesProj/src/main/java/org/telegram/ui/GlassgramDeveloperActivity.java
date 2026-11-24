@@ -49,6 +49,8 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
     private static final int ID_PROXIES = 18;
     private static final int ID_TUNNEL = 19;
     private static final int ID_LEAKS = 20;
+    private static final int ID_GIVE_PERKS = 21;
+    private static final int ID_WINTER = 22;
     private static final int ID_BREAKDOWN = 100;
 
     /** The summary's [value, count] lists, and what they are. */
@@ -180,6 +182,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             }
             if (rules) {
                 items.add(UItem.asButton(ID_RULES, R.drawable.msg_settings, getString(R.string.GlassgramApiRules)));
+                items.add(UItem.asButton(ID_WINTER, R.drawable.msg_calendar2, getString(R.string.GlassgramApiWinterDays)));
             }
             if (catalog) {
                 items.add(UItem.asButton(ID_CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog)));
@@ -195,6 +198,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             }
             if (badges) {
                 items.add(UItem.asButton(ID_GIVE_BADGE, R.drawable.msg_premium_badge, getString(R.string.GlassgramApiGiveBadge)));
+                items.add(UItem.asButton(ID_GIVE_PERKS, R.drawable.msg_gift_premium, getString(R.string.GlassgramApiGivePerks)));
             }
             if (support) {
                 items.add(UItem.asButton(ID_REPORTS, R.drawable.msg_log, getString(R.string.GlassgramApiReports)));
@@ -240,6 +244,12 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
                 return;
             case ID_LEAKS:
                 findLeaks();
+                return;
+            case ID_GIVE_PERKS:
+                GlassgramApiUi.askUserAndEditPerks(this);
+                return;
+            case ID_WINTER:
+                GlassgramApiUi.showWinterDays(this);
                 return;
             case ID_GIVE_BADGE:
                 GlassgramApiUi.askHolderAndEditBadge(this);

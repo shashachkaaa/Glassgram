@@ -448,7 +448,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return count;
     }
 
-    /** On the first open of the new year, confetti and a greeting; else, once each, the winter icon and the New Year hat offered. */
+    /** On the first open of the new year, confetti and a greeting; else, once each, the winter icon and the winter decorations offered. */
     private final Runnable winterGreeting = () -> {
         if (isPaused() || getParentActivity() == null || !isLastFragment() || getVisibleDialog() != null) {
             return;
@@ -457,9 +457,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             GlassgramWinterUi.showNewYear(this, contentView);
         } else if (org.telegram.messenger.GlassgramWinter.isActive() && !org.telegram.messenger.GlassgramWinter.wasIconOffered()) {
             GlassgramWinterUi.offerIcon(this);
-        } else if (org.telegram.messenger.GlassgramWinter.isActive() && !org.telegram.messenger.GlassgramWinter.wasHatOffered()) {
+        } else if (org.telegram.messenger.GlassgramWinter.isActive() && !org.telegram.messenger.GlassgramWinter.wasDecorOffered()) {
             // on another open, not over the icon's offer
-            GlassgramWinterUi.offerHat(this);
+            GlassgramWinterUi.offerDecor(this);
         }
     };
 

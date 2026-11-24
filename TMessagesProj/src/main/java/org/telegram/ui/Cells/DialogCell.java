@@ -4922,6 +4922,16 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 storyParams.forceState = s;
             }
 
+            // glassGram: the garland a user wears around the avatar in the winter look (GlassgramAvatarGarland)
+            if (user != null && !user.self && !drawMonoforumAvatar && !drawCommunityAvatar
+                    && org.telegram.ui.Components.GlassgramAvatarGarland.isWorn(user.id)) {
+                org.telegram.ui.Components.GlassgramAvatarGarland.draw(canvas, storyParams.originalAvatarRect.centerX(),
+                        storyParams.originalAvatarRect.centerY(), storyParams.originalAvatarRect.width() / 2f, 1f);
+                if (org.telegram.ui.Components.GlassgramAvatarGarland.isBlinking()) {
+                    postInvalidateDelayed(org.telegram.ui.Components.GlassgramAvatarGarland.FRAME_MS);
+                }
+            }
+
             if (!insideCommunityList && (chat != null && chat.linked_community_id != 0 || user != null && user.linked_community_id != 0) && !drawCommunityAvatar && isDialogCell && !isDialogFolder()) {
                 final float ccx = storyParams.originalAvatarRect.centerX() + dp(20.33f);
                 final float ccy = storyParams.originalAvatarRect.centerY() + dp(19);

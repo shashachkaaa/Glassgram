@@ -622,6 +622,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int glassgram_badge = 950;
     private final static int glassgram_reports = 951;
     private final static int glassgram_ban = 952;
+    private final static int glassgram_perks = 954;
 
     private Rect rect = new Rect();
 
@@ -2860,6 +2861,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else if (id == glassgram_badge) {
                     GlassgramApiUi.editBadge(ProfileActivity.this, GlassgramApiUi.holderOf(userId, chatId != 0 ? getMessagesController().getChat(chatId) : null),
                             DialogObject.getName(getDialogId()));
+                } else if (id == glassgram_perks) {
+                    GlassgramApiUi.editPerks(ProfileActivity.this, userId, DialogObject.getName(getDialogId()));
                 } else if (id == glassgram_reports) {
                     GlassgramApiUi.showReports(ProfileActivity.this, userId);
                 } else if (id == glassgram_ban) {
@@ -5712,10 +5715,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         giftsView.setLitShapes(this::collectGiftLitShapes);
         giftsView.setPageBehind(listView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        // glassGram: the New Year hat bought in the bot, on the avatar in the winter look; the gifts
-        // flying in front of the avatar fly in front of it too
-        avatarContainer2.addView(new org.telegram.ui.Components.GlassgramHatView(context, this::placeHat),
-                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // glassGram: the winter decorations (the garland around the avatar, the frost of a winter
+        // profile) in the winter look; the gifts flying in front of the avatar fly in front of them too
+        profileDecorView = new org.telegram.ui.Components.GlassgramProfileDecorView(context, profileDecor);
+        avatarContainer2.addView(profileDecorView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         avatarContainer2.addView(giftsView.getFrontLayer(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         if (musicView != null) {
             // the music's panel over all of the profile, its glass made of the header and the cards
@@ -9568,12 +9571,61 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
-    /* glassGram: the New Year hat on the avatar (GlassgramHatView) */
+    /* glassGram: the winter decorations (GlassgramProfileDecorView): the garland around the avatar,
+       and a winter profile's frost, snow and fireworks */
 
-    /** Where the avatar's circle is, over avatarContainer2, and how much of the hat shows: none without one. */
-    private float placeHat(float[] out) {
+    private org.telegram.ui.Components.GlassgramProfileDecorView profileDecorView;
+    private org.telegram.ui.Components.GlassgramSnowView winterProfileSnow;
+    private boolean winterFireworksShown;
+    private final int[] decorLocation = new int[2];
+    private final RectF[] decorPieces = new RectF[10];
+    private final float[] decorRadii = new float[10];
+
+    {
+        for (int i = 0; i < decorPieces.length; i++) {
+            decorPieces[i] = new RectF();
+        }
+    }
+
+    /** Whether this is a winter profile now: the user's decoration, and the winter look on. */
+    private boolean isWinterProfile() {
+        return userId > 0 && org.telegram.messenger.GlassgramBadges.hasPerk(userId, org.telegram.messenger.GlassgramBadges.PERK_WINTER_PROFILE)
+                && org.telegram.messenger.GlassgramWinter.isActive();
+    }
+
+    private final org.telegram.ui.Components.GlassgramProfileDecorView.Source profileDecor = new org.telegram.ui.Components.GlassgramProfileDecorView.Source() {
+        @Override
+        public float place(float[] avatar) {
+            return placeDecor(avatar);
+        }
+
+        @Override
+        public boolean garland() {
+            return org.telegram.ui.Components.GlassgramAvatarGarland.isWorn(userId);
+        }
+
+        @Override
+        public boolean frost() {
+            return isWinterProfile();
+        }
+
+        @Override
+        public void forEachGlass(org.telegram.ui.Components.GlassgramProfileDecorView.Glass glass) {
+            if (profileDecorView == null) {
+                return;
+            }
+            profileDecorView.getLocationInWindow(decorLocation);
+            final int count = getGlassgramSnowPieces(decorPieces, decorRadii, 0, decorLocation);
+            for (int i = 0; i < count; i++) {
+                glass.add(decorPieces[i], decorRadii[i], 1f);
+            }
+        }
+    };
+
+    /** Where the avatar's circle is, over avatarContainer2, and how much of the decorations shows: none without any. */
+    private float placeDecor(float[] out) {
         if (userId <= 0 || avatarContainer == null || avatarGooey == null || avatarContainer.getVisibility() != View.VISIBLE
-                || org.telegram.messenger.GlassgramBadges.getHat(userId) == null || !org.telegram.messenger.GlassgramWinter.isActive()) {
+                || org.telegram.messenger.GlassgramBadges.getPerks(userId) == 0 || !org.telegram.messenger.GlassgramWinter.isActive()) {
             return 0f;
         }
         final float w = avatarContainer.getWidth() * avatarContainer.getScaleX(), h = avatarContainer.getHeight() * avatarContainer.getScaleY();
@@ -9590,6 +9642,52 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         alpha *= Math.max(0f, 1f - currentExpandAnimatorValue * 3f);
         alpha *= Math.max(0f, Math.min(1f, (size - AndroidUtilities.dp(44)) / AndroidUtilities.dp(28)));
         return alpha;
+    }
+
+    /**
+     * A winter profile, as it is shown: snow over it (not on the main tab, where it snows already)
+     * and fireworks once, as it opens.
+     */
+    private void checkWinterProfile() {
+        final boolean winter = isWinterProfile();
+        final boolean snow = winter && !hasMainTabs && org.telegram.messenger.GlassgramWinter.isAnimated() && fragmentView instanceof ViewGroup;
+        if (snow && winterProfileSnow == null) {
+            winterProfileSnow = new org.telegram.ui.Components.GlassgramSnowView(fragmentView.getContext());
+            winterProfileSnow.setSurfaces(this::collectWinterProfileSurfaces);
+            ((ViewGroup) fragmentView).addView(winterProfileSnow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        } else if (!snow && winterProfileSnow != null) {
+            winterProfileSnow.setRunning(false);
+            AndroidUtilities.removeFromParent(winterProfileSnow);
+            winterProfileSnow = null;
+        }
+        if (winterProfileSnow != null) {
+            winterProfileSnow.setRunning(!isPaused());
+        }
+        if (winter && !winterFireworksShown && !isPaused() && fragmentView instanceof FrameLayout
+                && org.telegram.messenger.LiteMode.isEnabled(org.telegram.messenger.LiteMode.FLAG_PARTICLES)) {
+            winterFireworksShown = true;
+            final org.telegram.ui.Components.FireworksOverlay fireworks = new org.telegram.ui.Components.FireworksOverlay(fragmentView.getContext());
+            ((FrameLayout) fragmentView).addView(fireworks, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            fireworks.start();
+            AndroidUtilities.runOnUIThread(() -> AndroidUtilities.removeFromParent(fireworks), 7000);
+        }
+        if (profileDecorView != null) {
+            profileDecorView.invalidate();
+        }
+    }
+
+    private final int[] winterProfileLocation = new int[2], winterProfileBarLocation = new int[2];
+
+    /** The glass the snow of a winter profile settles on: its round buttons, its pills and its header's buttons. */
+    private int collectWinterProfileSurfaces(RectF[] out, float[] radii) {
+        winterProfileSnow.getLocationInWindow(winterProfileLocation);
+        int count = getGlassgramSnowPieces(out, radii, 0, winterProfileLocation);
+        if (simpleActionBar != null && simpleActionBar.isShown() && simpleActionBar.getAlpha() > .5f && count < out.length) {
+            simpleActionBar.getLocationInWindow(winterProfileBarLocation);
+            count = simpleActionBar.getGlassgramSnowPieces(out, radii, count,
+                    winterProfileBarLocation[0] - winterProfileLocation[0], winterProfileBarLocation[1] - winterProfileLocation[1]);
+        }
+        return count;
     }
 
     /* glassGram: the profile's glass the winter's snow settles on (GlassgramWinter): the round buttons and the pills */
@@ -9779,6 +9877,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             checkCanSendStoryForPosting();
         } else if (id == NotificationCenter.updateInterfaces) {
             int mask = (Integer) args[0];
+            if (userId != 0 && fullyVisible && (mask & MessagesController.UPDATE_MASK_NAME) != 0) {
+                // the winter decorations came with the badges (GlassgramBadges)
+                checkWinterProfile();
+            }
             boolean infoChanged = (mask & MessagesController.UPDATE_MASK_AVATAR) != 0 || (mask & MessagesController.UPDATE_MASK_NAME) != 0 || (mask & MessagesController.UPDATE_MASK_STATUS) != 0 || (mask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0;
             if (userId != 0) {
                 if (infoChanged) {
@@ -10288,6 +10390,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     public void onResume() {
         super.onResume();
         if (giftsView != null) giftsView.setPaused(false);
+        if (winterProfileSnow != null) winterProfileSnow.setRunning(true);
         if (musicView != null) musicView.setAnimationsPaused(false);
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
@@ -10344,6 +10447,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         // off the screen (covered, its tab away, in the background) the gifts and the playing
         // bars stop: they drew themselves and their glass every frame for nothing
         if (giftsView != null) giftsView.setPaused(true);
+        if (winterProfileSnow != null) winterProfileSnow.setRunning(false);
         if (musicView != null) musicView.setAnimationsPaused(true);
         if (undoView != null) {
             undoView.hide(true, 0);
@@ -13354,6 +13458,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         // glassGram's team: the badge and the support reports, as the bot's admin level allows
         if ((userId != 0 || chatId != 0) && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_BADGES)) {
             otherItem.addSubItem(glassgram_badge, R.drawable.msg_premium_badge, LocaleController.getString(R.string.GlassgramApiBadgeMenu));
+        }
+        if (userId > 0 && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_BADGES)) {
+            otherItem.addSubItem(glassgram_perks, R.drawable.msg_gift_premium, LocaleController.getString(R.string.GlassgramApiPerksMenu));
         }
         if (userId != 0 && org.telegram.messenger.GlassgramApi.can(currentAccount, org.telegram.messenger.GlassgramApi.RIGHT_SUPPORT)) {
             otherItem.addSubItem(glassgram_reports, R.drawable.msg_log, LocaleController.getString(R.string.GlassgramApiReportsMenu));
@@ -16441,6 +16548,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             fragmentView.requestLayout();
         }
         createBirthdayEffect();
+        checkWinterProfile();
         // a main tab that appears without a transition (animations off, or a tab switch done in one frame)
         // never gets onTransitionAnimationEnd, so the header is left without its pull-down padding
         if (hasMainTabs && !fragmentOpened && fragmentView != null) {

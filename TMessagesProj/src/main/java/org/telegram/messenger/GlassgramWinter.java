@@ -13,7 +13,9 @@ import java.util.Locale;
  * glassGram: the winter and New Year look (branding/winter-update-2027.md): snow that falls and
  * settles on the glass, a garland in the chats' header, the gifts' bubbles as tree baubles, snow
  * behind the messages, a winter icon, and on the first open of the new year confetti and a
- * greeting. Until the winter comes the chats' header counts down to it.
+ * greeting. Until the winter comes the chats' header counts down to it. Its days are December 10
+ * to January 14, or the ones the team set in its section of the app (GlassgramRemoteConfig, GET
+ * /config "winter").
  * <p>
  * The days are the phone's own (its time zone) on Telegram's clock, so a phone's wrong clock or a
  * clock turned forward doesn't bring them early. Everything can be turned off in glassGram's
@@ -23,8 +25,9 @@ import java.util.Locale;
 public final class GlassgramWinter {
 
     /**
-     * A test build: the winter is on now, and the New Year's greeting shows on the first open of
-     * the build (and from the settings). The release sets it false: the winter comes on WINTER_DAY.
+     * A test build: the winter is on now unless the team set its days, and the New Year's greeting
+     * shows on the first open of the build (and from the settings). The release sets it false: the
+     * winter comes on its days.
      */
     public static final boolean TEST = true;
 
@@ -63,14 +66,103 @@ public final class GlassgramWinter {
         return c;
     }
 
-    /** Whether the days of the winter look are now (from December WINTER_DAY to January 14), or a test build. */
+    /** Whether the days of the winter look are now, or a test build without days set by the team. */
     public static boolean isSeasonNow() {
-        if (TEST) {
+        final long now = now();
+        final long[] days = window(now);
+        if (now >= days[0] && now < days[1]) {
             return true;
         }
-        final Calendar c = calendar(now());
-        final int month = c.get(Calendar.MONTH), day = c.get(Calendar.DAY_OF_MONTH);
-        return month == Calendar.DECEMBER && day >= WINTER_DAY || month == Calendar.JANUARY && day <= WINTER_LAST_JANUARY_DAY;
+        return TEST && !hasTeamDays(now);
+    }
+
+    // --- Its days -----------------------------------------------------------------------------
+
+    // The days the team set: local midnight of the first day and of the day after the last, ms; 0 for none
+    private static boolean teamDaysLoaded;
+    private static long teamStart, teamEnd;
+    /** The team's days hold this long after they end, so the app's own don't bring the look back in January. */
+    private static final long TEAM_DAYS_HOLD = 90 * 24 * 3600_000L;
+
+    private static long midnight(int year, int month, int day) {
+        final Calendar c = Calendar.getInstance();
+        c.clear();
+        c.set(year, month, day, 0, 0, 0);
+        return c.getTimeInMillis();
+    }
+
+    /** "2026-12-10" as local midnight of that day, ms; 0 when it isn't a date. */
+    private static long parseDay(String text) {
+        if (text == null || !text.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            return 0;
+        }
+        try {
+            return midnight(Integer.parseInt(text.substring(0, 4)), Integer.parseInt(text.substring(5, 7)) - 1, Integer.parseInt(text.substring(8, 10)));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static void loadTeamDays() {
+        if (teamDaysLoaded) {
+            return;
+        }
+        teamDaysLoaded = true;
+        final long start = parseDay(prefs().getString("team_start", null));
+        final long end = parseDay(prefs().getString("team_end", null));
+        if (start > 0 && end >= start) {
+            teamStart = start;
+            // to the end of the last day
+            final Calendar c = calendar(end);
+            c.add(Calendar.DAY_OF_MONTH, 1);
+            teamEnd = c.getTimeInMillis();
+        } else {
+            teamStart = teamEnd = 0;
+        }
+    }
+
+    private static boolean hasTeamDays(long now) {
+        loadTeamDays();
+        return teamStart > 0 && now < teamEnd + TEAM_DAYS_HOLD;
+    }
+
+    /**
+     * The days the team set in its section of the app, from GET /config ({"start": "2026-12-10",
+     * "end": "2027-01-14"}, or null for the app's own); on the main thread.
+     */
+    public static void applyTeamDays(org.json.JSONObject winter) {
+        final String start = winter != null ? winter.optString("start", "") : "";
+        final String end = winter != null ? winter.optString("end", "") : "";
+        final SharedPreferences prefs = prefs();
+        if (start.equals(prefs.getString("team_start", "")) && end.equals(prefs.getString("team_end", ""))) {
+            return;
+        }
+        prefs.edit().putString("team_start", start).putString("team_end", end).apply();
+        teamDaysLoaded = false;
+        onChanged();
+    }
+
+    /** The winter look's days around now: {its first moment, the moment after its last}, ms. */
+    private static long[] window(long now) {
+        if (hasTeamDays(now)) {
+            return new long[]{teamStart, teamEnd};
+        }
+        // its own: from December WINTER_DAY to January 14, this winter's or the coming one's
+        final Calendar c = calendar(now);
+        final int year = c.get(Calendar.YEAR);
+        final boolean january = c.get(Calendar.MONTH) == Calendar.JANUARY && c.get(Calendar.DAY_OF_MONTH) <= WINTER_LAST_JANUARY_DAY;
+        final int startYear = january ? year - 1 : year;
+        return new long[]{midnight(startYear, Calendar.DECEMBER, WINTER_DAY), midnight(startYear + 1, Calendar.JANUARY, WINTER_LAST_JANUARY_DAY + 1)};
+    }
+
+    /** The first day of the winter look, as the settings show it ("10 Dec"). */
+    public static String startText() {
+        return LocaleController.getInstance().getFormatterDayMonth().format(window(now())[0]);
+    }
+
+    /** Its last day, as the settings show it ("14 Jan"). */
+    public static String endText() {
+        return LocaleController.getInstance().getFormatterDayMonth().format(window(now())[1] - 12 * 3600_000L);
     }
 
     /** Whether the winter look shows: its days (or always, as chosen), and allowed. Cheap: kept for a second. */
@@ -97,16 +189,9 @@ public final class GlassgramWinter {
 
     // --- The countdown -------------------------------------------------------------------------
 
-    /** When the winter comes this year, ms: December WINTER_DAY, 0:00, local. */
+    /** When the winter comes, ms: its first day, 0:00, local. */
     public static long winterStart() {
-        final Calendar c = calendar(now());
-        c.set(Calendar.MONTH, Calendar.DECEMBER);
-        c.set(Calendar.DAY_OF_MONTH, WINTER_DAY);
-        c.set(Calendar.HOUR_OF_DAY, 0);
-        c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0);
-        c.set(Calendar.MILLISECOND, 0);
-        return c.getTimeInMillis();
+        return window(now())[0];
     }
 
     /** How long until the winter comes, ms, while the header counts down to it; -1 when it doesn't. */
@@ -179,18 +264,18 @@ public final class GlassgramWinter {
         prefs().edit().putBoolean("icon_offered", true).apply();
     }
 
-    /** Whether the New Year hat was offered (once a winter). */
-    public static boolean wasHatOffered() {
-        return prefs().getBoolean(hatOfferKey(), false);
+    /** Whether the winter decorations were offered (once a winter). */
+    public static boolean wasDecorOffered() {
+        return prefs().getBoolean(decorOfferKey(), false);
     }
 
-    public static void markHatOffered() {
-        prefs().edit().putBoolean(hatOfferKey(), true).apply();
+    public static void markDecorOffered() {
+        prefs().edit().putBoolean(decorOfferKey(), true).apply();
     }
 
-    private static String hatOfferKey() {
+    private static String decorOfferKey() {
         // the winter's New Year: one offer from December to January
-        return TEST ? "hat_offered_test" : "hat_offered_" + greetingYearShown();
+        return TEST ? "decor_offered_test" : "decor_offered_" + greetingYearShown();
     }
 
     /** The icon before the winter one, to give back: its alias's key, or null. */

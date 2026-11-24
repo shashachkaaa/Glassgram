@@ -74,23 +74,23 @@ public final class GlassgramWinterUi {
                 getString(R.string.GlassgramWinterIconSet), () -> setWinterIcon(true)).show();
     }
 
-    /** Once, in the winter: a bulletin that offers the New Year hat for one's avatar, unless one has it. */
-    public static void offerHat(BaseFragment fragment) {
-        GlassgramWinter.markHatOffered();
-        if (org.telegram.messenger.GlassgramBadges.getHat(fragment.getUserConfig().getClientUserId()) != null) {
+    /** Once, in the winter: a bulletin that offers the winter decorations for one's profile, unless one has one. */
+    public static void offerDecor(BaseFragment fragment) {
+        GlassgramWinter.markDecorOffered();
+        if (org.telegram.messenger.GlassgramBadges.getPerks(fragment.getUserConfig().getClientUserId()) != 0) {
             return;
         }
-        BulletinFactory.of(fragment).createSimpleBulletin(R.raw.gift, getString(R.string.GlassgramWinterHatOffer),
-                getString(R.string.GlassgramWinterHatBuy), () -> buyHat(fragment)).show();
+        BulletinFactory.of(fragment).createSimpleBulletin(R.raw.gift, getString(R.string.GlassgramWinterDecorOffer),
+                getString(R.string.GlassgramWinterDecorBuy), () -> buyDecor(fragment)).show();
     }
 
-    /** The bot that sells the hat, opened on it: it is paid there and worn on the next open of the app. */
-    public static void buyHat(BaseFragment fragment) {
+    /** The bot's shop of the winter decorations: they are paid there and shown on the next open of the app. */
+    public static void buyDecor(BaseFragment fragment) {
         if (fragment.getParentActivity() == null) {
             return;
         }
         org.telegram.messenger.browser.Browser.openUrl(fragment.getParentActivity(),
-                "https://t.me/" + org.telegram.messenger.GlassgramBadges.getShopBot() + "?start=hat");
+                "https://t.me/" + org.telegram.messenger.GlassgramBadges.getShopBot() + "?start=winter");
     }
 
     public static boolean isWinterIcon() {

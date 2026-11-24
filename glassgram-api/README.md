@@ -60,6 +60,8 @@ from your own server instead, change `GlassgramBadges.API_URL` and return the sa
   as `-` and the chat id. Glassgram shows ids in profiles (Glassgram Preferences > General > Show ID).
 - `usernames` — the same by public username, without `@`, in either form. Handy, but a peer keeps the badge only
   while it keeps the username; ids are safer.
-- `hats` — the New Year hats bought in @glassGramBot (`/hat`), by user id: `{"123456789": "santa"}`.
-  Glassgram puts the hat on that user's avatar in their profile in its winter look (December 10 to
-  January 14, or always, as each viewer chose). The bot adds and removes these itself.
+- `perks` — the winter decorations bought in @glassGramBot (`/winter`) or given by the team, by user
+  id: `{"123456789": ["garland", "winter_profile"]}`. `garland` puts a ring of blinking bulbs around
+  that user's avatar (their profile, the chats list, the chat's header); `winter_profile` makes it
+  snow in their profile, frosts its glass buttons and sets off fireworks as it opens. Glassgram shows
+  them in its winter look. The bot adds and removes these itself.

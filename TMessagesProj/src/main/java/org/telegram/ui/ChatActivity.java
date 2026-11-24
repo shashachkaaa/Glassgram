@@ -44013,6 +44013,14 @@ public class ChatActivity extends BaseFragment implements
                 // The pill's own avatar keeps loading (and updating) the picture, hidden; it is drawn
                 // here, with the community arrow and the timer that sat on it
                 avatarContainer.drawIosAvatar(canvas, receiver, getWidth());
+                // glassGram: the garland the user wears around the avatar in the winter look
+                if (currentUser != null && org.telegram.ui.Components.GlassgramAvatarGarland.isWorn(currentUser.id)) {
+                    final float size = getWidth();
+                    org.telegram.ui.Components.GlassgramAvatarGarland.draw(canvas, size / 2f, size / 2f, size / 2f * .95f, 1f);
+                    if (org.telegram.ui.Components.GlassgramAvatarGarland.isBlinking()) {
+                        postInvalidateDelayed(org.telegram.ui.Components.GlassgramAvatarGarland.FRAME_MS);
+                    }
+                }
             }
         };
         receiver.setParentView(iosHeaderAvatar);

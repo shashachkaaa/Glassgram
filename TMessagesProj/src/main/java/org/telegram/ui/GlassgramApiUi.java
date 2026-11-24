@@ -608,6 +608,210 @@ public final class GlassgramApiUi {
         });
     }
 
+    // --- Winter decorations (the bot's shop) ------------------------------------------------------
+
+    /** Asks whose, by user id, and edits their winter decorations. */
+    public static void askUserAndEditPerks(BaseFragment fragment) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor field = field(context, getString(R.string.GlassgramApiUserIdHint), true, false);
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiGivePerks))
+                .setView(wrap(context, field))
+                .setPositiveButton(getString(R.string.OK), (d, w) -> {
+                    final String id = field.getText().toString().trim();
+                    if (id.matches("\\d{1,15}")) {
+                        editPerks(fragment, Long.parseLong(id), id);
+                    }
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    /** Gives or takes a user's winter decorations (the garland, the winter profile), each by a tap. */
+    public static void editPerks(BaseFragment fragment, long userId, CharSequence name) {
+        if (fragment.getParentActivity() == null || userId <= 0) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/perks/" + userId, null, response -> {
+            progress.dismiss();
+            if (response.ok()) {
+                showPerks(fragment, userId, name, response.json.optJSONArray("available"), response.json.optJSONArray("perks"));
+            } else {
+                showError(fragment, response);
+            }
+        });
+    }
+
+    private static void showPerks(BaseFragment fragment, long userId, CharSequence name, JSONArray available, JSONArray have) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null || available == null) {
+            return;
+        }
+        final ArrayList<String> owned = new ArrayList<>();
+        for (int i = 0; have != null && i < have.length(); i++) {
+            owned.add(have.optString(i));
+        }
+        final CharSequence[] items = new CharSequence[available.length()];
+        for (int i = 0; i < available.length(); i++) {
+            final JSONObject perk = available.optJSONObject(i);
+            final String id = perk != null ? perk.optString("id") : "";
+            items[i] = (owned.contains(id) ? "✅ " : "➕ ") + (perk != null ? perk.optString("name", id) : id);
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(formatString(R.string.GlassgramApiPerksTitle, name))
+                .setItems(items, (d, which) -> {
+                    final JSONObject perk = available.optJSONObject(which);
+                    if (perk == null) {
+                        return;
+                    }
+                    final String id = perk.optString("id");
+                    final JSONArray wanted = new JSONArray();
+                    for (String own : owned) {
+                        if (!own.equals(id)) {
+                            wanted.put(own);
+                        }
+                    }
+                    if (!owned.contains(id)) {
+                        wanted.put(id);
+                    }
+                    final AlertDialog progress = progress(fragment);
+                    GlassgramApi.call(fragment.getCurrentAccount(), "PUT", "/perks/" + userId, GlassgramApi.json("perks", wanted), response -> {
+                        progress.dismiss();
+                        if (response.ok()) {
+                            showDone(fragment, getString(R.string.GlassgramApiPerksSaved));
+                            GlassgramBadges.refresh(true);
+                            showPerks(fragment, userId, name, available, response.json.optJSONArray("perks"));
+                        } else {
+                            showError(fragment, response);
+                        }
+                    });
+                })
+                .setNegativeButton(getString(R.string.Close), null)
+                .show();
+    }
+
+    // --- The winter look's days ---------------------------------------------------------------
+
+    /** The days of the winter look on every phone: the team's, or the app's own (December 10 to January 14). */
+    public static void showWinterDays(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "GET", "/config/winter", null, response -> {
+            progress.dismiss();
+            if (response.ok()) {
+                showWinterDays(fragment, response.json.optJSONObject("winter"));
+            } else {
+                showError(fragment, response);
+            }
+        });
+    }
+
+    /** "2026-12-10" as a Calendar, or null. */
+    private static java.util.Calendar dayOf(String text) {
+        if (text == null || !text.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            return null;
+        }
+        final java.util.Calendar c = java.util.Calendar.getInstance();
+        c.clear();
+        c.set(Integer.parseInt(text.substring(0, 4)), Integer.parseInt(text.substring(5, 7)) - 1, Integer.parseInt(text.substring(8, 10)));
+        return c;
+    }
+
+    private static String dayText(java.util.Calendar day) {
+        return DateFormat.getDateInstance(DateFormat.MEDIUM).format(day.getTime());
+    }
+
+    private static String dayValue(java.util.Calendar day) {
+        return String.format(java.util.Locale.US, "%04d-%02d-%02d", day.get(java.util.Calendar.YEAR), day.get(java.util.Calendar.MONTH) + 1, day.get(java.util.Calendar.DAY_OF_MONTH));
+    }
+
+    private static void showWinterDays(BaseFragment fragment, JSONObject winter) {
+        final Activity context = fragment.getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final java.util.Calendar start = winter != null ? dayOf(winter.optString("start")) : null;
+        final java.util.Calendar end = winter != null ? dayOf(winter.optString("end")) : null;
+        final boolean set = start != null && end != null;
+        final String now = set ? formatString(R.string.GlassgramApiWinterNow, dayText(start), dayText(end)) : getString(R.string.GlassgramApiWinterDefault);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.GlassgramApiWinterDays))
+                .setMessage(now + "\n\n" + getString(R.string.GlassgramApiWinterInfo))
+                .setPositiveButton(getString(R.string.GlassgramApiWinterChange), (d, w) -> {
+                    // the days to start from: the team's, or the coming winter's own
+                    final java.util.Calendar today = java.util.Calendar.getInstance();
+                    java.util.Calendar first = start;
+                    if (first == null) {
+                        first = java.util.Calendar.getInstance();
+                        first.clear();
+                        first.set(today.get(java.util.Calendar.YEAR), java.util.Calendar.DECEMBER, 10);
+                    }
+                    final java.util.Calendar firstShown = first;
+                    pickDay(context, getString(R.string.GlassgramApiWinterFirst), firstShown, picked -> {
+                        java.util.Calendar last = end;
+                        if (last == null || !last.after(picked)) {
+                            last = (java.util.Calendar) picked.clone();
+                            last.add(java.util.Calendar.DAY_OF_MONTH, 35);
+                        }
+                        pickDay(context, getString(R.string.GlassgramApiWinterLast), last, pickedLast -> {
+                            if (pickedLast.before(picked)) {
+                                BulletinFactory.of(fragment).createErrorBulletin(getString(R.string.GlassgramApiWinterBadEnd)).show();
+                                return;
+                            }
+                            saveWinterDays(fragment, picked, pickedLast);
+                        });
+                    });
+                })
+                .setNegativeButton(getString(R.string.Close), null);
+        if (set) {
+            builder.setNeutralButton(getString(R.string.GlassgramApiWinterReset), (d, w) -> {
+                final AlertDialog progress = progress(fragment);
+                GlassgramApi.call(fragment.getCurrentAccount(), "DELETE", "/config/winter", null, response -> {
+                    progress.dismiss();
+                    if (response.ok()) {
+                        showDone(fragment, getString(R.string.GlassgramApiWinterResetDone));
+                        org.telegram.messenger.GlassgramRemoteConfig.refresh(0, null);
+                    } else {
+                        showError(fragment, response);
+                    }
+                });
+            });
+        }
+        builder.show();
+    }
+
+    private static void pickDay(Activity context, CharSequence title, java.util.Calendar initial, Utilities.Callback<java.util.Calendar> onPicked) {
+        final android.app.DatePickerDialog dialog = new android.app.DatePickerDialog(context, (view, year, month, day) -> {
+            final java.util.Calendar picked = java.util.Calendar.getInstance();
+            picked.clear();
+            picked.set(year, month, day);
+            onPicked.run(picked);
+        }, initial.get(java.util.Calendar.YEAR), initial.get(java.util.Calendar.MONTH), initial.get(java.util.Calendar.DAY_OF_MONTH));
+        dialog.setTitle(title);
+        dialog.show();
+    }
+
+    private static void saveWinterDays(BaseFragment fragment, java.util.Calendar first, java.util.Calendar last) {
+        final AlertDialog progress = progress(fragment);
+        GlassgramApi.call(fragment.getCurrentAccount(), "PUT", "/config/winter",
+                GlassgramApi.json("start", dayValue(first), "end", dayValue(last)), response -> {
+                    progress.dismiss();
+                    if (response.ok()) {
+                        showDone(fragment, formatString(R.string.GlassgramApiWinterSaved, dayText(first), dayText(last)));
+                        // this phone at once; the others within their next look at the rules
+                        org.telegram.messenger.GlassgramRemoteConfig.refresh(0, null);
+                    } else {
+                        showError(fragment, response);
+                    }
+                });
+    }
+
     // --- Crashes ----------------------------------------------------------------------------------
 
     public static void showCrashes(BaseFragment fragment) {

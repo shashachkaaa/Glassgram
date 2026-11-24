@@ -7,7 +7,8 @@
 - Всё включается одним флагом `GlassgramWinter.TEST` (`TMessagesProj/src/main/java/org/telegram/messenger/GlassgramWinter.java`).
   - `TEST = true` (сейчас): снег, гирлянда, игрушки, снег в чатах работают уже сейчас; поздравление с конфетти показывается при первом заходе в тестовую сборку и по кнопке в настройках («Показать новогоднее поздравление»).
   - `TEST = false` (релиз): оформление включается **10 декабря** 0:00 по местному времени (`WINTER_DAY`) и держится до 14 января; поздравление — при первом заходе с 1 по 7 января.
-- Отсчёт в шапке чатов: «До зимы 15 д 07:12:44» под заголовком, за 30 дней до 10 декабря и до него (вместо отсчёта последнего часа до Нового года).
+- Отсчёт в шапке чатов: «До зимы 15 д 07:12:44» под заголовком, за 30 дней до первого дня зимы (вместо отсчёта последнего часа до Нового года).
+- Дни зимы по умолчанию 10 декабря – 14 января; команда меняет их в разделе команды приложения («Дни зимнего оформления»). Заданные дни действуют и в тестовой сборке (без них тестовая сборка показывает зиму всегда).
 - Настройки: glassGram → Внешний вид → «Зима и Новый год»: «Праздничное оформление» (С 10 декабря / Всегда / Выкл.), «Снег в чатах», «Зимняя иконка».
 - Выключатель для всех: правило команды на `holidayDecor` в GlassgramRemoteConfig.
 
@@ -20,7 +21,9 @@
 | Стекло под пальцем (нажато, оттянуто) сбрасывает снег и не копит его, пока не отпущено | `GlassgramSnowView.touchAt` (касания из `MainTabsActivity` и `ChatActivity`) |
 | Гирлянда и отсчёт в шапке чатов (отсчёт и под историями на месте заголовка) | `ui/Components/GlassgramGarlandView.java`, `DialogsActivity.checkWinterHeader`, `DialogStoriesCell.setGlassgramSubtitle` |
 | Игрушки на подарках-шарах | `ProfileGiftsView.drawOrnamentCap` |
-| Новогодняя шапка на аватарке в профиле, 100 ₽ в боте (`/hat`, `?start=hat`), видна всем зимой | `ui/Components/GlassgramHatView.java`, `ProfileActivity.placeHat`, `GlassgramBadges.getHat` (раздел `hats` в `glassgram-api/badges.json`), пункт в настройках и разовое предложение (`GlassgramWinterUi.offerHat`, `buyHat`) |
+| Зимние украшения профиля, по 100 ₽ в боте (`/winter`, `?start=winter`): гирлянда вокруг аватарки (профиль, список чатов, шапка чата) и зимний профиль (снег, иней на кнопках, салют при открытии) | `ui/Components/GlassgramAvatarGarland.java`, `GlassgramFrost.java`, `GlassgramProfileDecorView.java`, `ProfileActivity.placeDecor`/`checkWinterProfile`, `DialogCell`, `ChatActivity` (`iosHeaderAvatar`); раздел `perks` в `glassgram-api/badges.json`, `GlassgramBadges.hasPerk` |
+| Выдача украшений командой | бот: `/admin` → «🎄 Украшения»; приложение: раздел команды «Выдать зимние украшения» и ⋮ в профиле (`GlassgramApiUi.editPerks`, API `PUT /perks/<id>`) |
+| Дни зимнего оформления, заданные командой | приложение: раздел команды «Дни зимнего оформления» (`GlassgramApiUi.showWinterDays`, API `PUT /config/winter`); телефоны берут их из `GET /config` (`GlassgramWinter.applyTeamDays`) |
 | Снег за сообщениями в чатах и сугробы на капсулах шапки, поля ввода, закрепа и круглых кнопок (на весь экран, с шапкой) | `ChatActivity` (`winterSnow`, `collectWinterSurfaces`) |
 | Конфетти, поздравление, «Поделиться», зимняя иконка | `ui/GlassgramWinterUi.java` |
 | Зимняя иконка | `branding/gen_icon_pack.py` (`winter`, `--only winter`), alias `GlassgramWinterIcon`, `LauncherIcon.WINTER` |

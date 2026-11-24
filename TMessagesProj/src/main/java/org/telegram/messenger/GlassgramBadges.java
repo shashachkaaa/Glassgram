@@ -145,8 +145,10 @@ public final class GlassgramBadges {
 
     private static volatile HashMap<Long, Badge> byPeer = new HashMap<>();
     private static volatile HashMap<String, Badge> byUsername = new HashMap<>();
-    // glassGram: the New Year hats bought for avatars (GlassgramWinter): a user's id to the hat's kind
-    private static volatile HashMap<Long, String> hats = new HashMap<>();
+    // glassGram: the winter decorations bought in the bot or given by the team (GlassgramWinter): a
+    // user's id to their decorations (PERK_*, as bits)
+    public static final int PERK_GARLAND = 1, PERK_WINTER_PROFILE = 2;
+    private static volatile HashMap<Long, Integer> perks = new HashMap<>();
     // The bot that sells them and takes donations (a supporter badge's donate_bot)
     private static volatile String shopBot;
     public static final String DEFAULT_SHOP_BOT = "glassGramBot";
@@ -249,16 +251,24 @@ public final class GlassgramBadges {
                     }
                 }
             }
-            // "hats": {"<user id>": "santa"}, the hats bought in the bot
-            HashMap<Long, String> hatsByUser = new HashMap<>();
-            JSONObject hatsJson = root.optJSONObject("hats");
-            if (hatsJson != null) {
-                for (Iterator<String> it = hatsJson.keys(); it.hasNext(); ) {
+            // "perks": {"<user id>": ["garland", "winter_profile"]}, the winter decorations
+            HashMap<Long, Integer> perksByUser = new HashMap<>();
+            JSONObject perksJson = root.optJSONObject("perks");
+            if (perksJson != null) {
+                for (Iterator<String> it = perksJson.keys(); it.hasNext(); ) {
                     String key = it.next();
                     Long userId = parseDialogId(key);
-                    String kind = hatsJson.optString(key, "").trim();
-                    if (userId != null && userId > 0 && !kind.isEmpty()) {
-                        hatsByUser.put(userId, kind);
+                    Object value = perksJson.opt(key);
+                    int bits = 0;
+                    if (value instanceof org.json.JSONArray) {
+                        for (int i = 0; i < ((org.json.JSONArray) value).length(); i++) {
+                            bits |= perkBit(((org.json.JSONArray) value).optString(i));
+                        }
+                    } else if (value instanceof String) {
+                        bits = perkBit((String) value);
+                    }
+                    if (userId != null && userId > 0 && bits != 0) {
+                        perksByUser.put(userId, bits);
                     }
                 }
             }
@@ -271,7 +281,7 @@ public final class GlassgramBadges {
             }
             byPeer = peers;
             byUsername = usernames;
-            hats = hatsByUser;
+            perks = perksByUser;
             shopBot = bot;
             appliedJson = json;
             if (notify) {
@@ -415,12 +425,32 @@ public final class GlassgramBadges {
         org.telegram.ui.Components.Bulletin.make(fragment, layout, text.length() > 80 ? org.telegram.ui.Components.Bulletin.DURATION_PROLONG : org.telegram.ui.Components.Bulletin.DURATION_LONG).show();
     }
 
-    /** glassGram: the New Year hat a user bought for their avatar ("santa"), null for none. */
-    public static String getHat(long userId) {
-        return userId > 0 ? hats.get(userId) : null;
+    private static int perkBit(String perk) {
+        if ("garland".equals(perk)) {
+            return PERK_GARLAND;
+        }
+        if ("winter_profile".equals(perk)) {
+            return PERK_WINTER_PROFILE;
+        }
+        return 0;
     }
 
-    /** The bot that sells the hats and takes donations, without @. */
+    /** glassGram: whether a user has this winter decoration (PERK_*). */
+    public static boolean hasPerk(long userId, int perk) {
+        if (userId <= 0) {
+            return false;
+        }
+        final Integer bits = perks.get(userId);
+        return bits != null && (bits & perk) != 0;
+    }
+
+    /** All of a user's winter decorations, as bits; 0 for none. */
+    public static int getPerks(long userId) {
+        final Integer bits = userId > 0 ? perks.get(userId) : null;
+        return bits != null ? bits : 0;
+    }
+
+    /** The bot that sells the winter decorations and takes donations, without @. */
     public static String getShopBot() {
         final String bot = shopBot;
         return bot != null ? bot : DEFAULT_SHOP_BOT;

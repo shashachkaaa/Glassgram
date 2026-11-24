@@ -100,6 +100,8 @@ public final class GlassgramRemoteConfig {
             }
             loadedAt = System.currentTimeMillis();
             prefs().edit().putString("rules", rules.toString()).apply();
+            // the winter look's days, as the team set them (null: the app's own)
+            GlassgramWinter.applyTeamDays(response.json.optJSONObject("winter"));
             if (apply(rules) && onChanged != null) {
                 onChanged.run();
             }
