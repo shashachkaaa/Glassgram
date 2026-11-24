@@ -78,6 +78,8 @@ public final class GlassgramCrashReporter {
                 out.close();
             } catch (Throwable ignore) {
             }
+            // a plugin's crash turns the plugin off on the next start
+            org.telegram.messenger.plugins.PluginsController.onCrash(thread, exception);
             if (previous != null) {
                 previous.uncaughtException(thread, exception);
             }

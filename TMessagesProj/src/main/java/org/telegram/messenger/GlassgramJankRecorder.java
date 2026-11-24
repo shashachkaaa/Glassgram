@@ -96,7 +96,6 @@ public final class GlassgramJankRecorder {
 
     private void begin() {
         try {
-            org.telegram.messenger.plugins.PluginXposedHook.resetMainThreadStats();
             com.exteragram.messenger.plugins.xposed.PyMethodHook.resetMainThreadStats();
         } catch (Throwable e) {
             FileLog.e(e);
@@ -284,7 +283,6 @@ public final class GlassgramJankRecorder {
         r.append("\n\nPlugins' hooks on the main thread, the whole recording:");
         final ArrayList<String> hooks = new ArrayList<>();
         try {
-            hooks.addAll(org.telegram.messenger.plugins.PluginXposedHook.mainThreadStats());
             hooks.addAll(com.exteragram.messenger.plugins.xposed.PyMethodHook.mainThreadStats());
         } catch (Throwable e) {
             hooks.add(e.toString());

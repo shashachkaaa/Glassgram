@@ -62,6 +62,8 @@ public class UItem extends AdapterWithDiffUtils.Item {
 
     public Object object;
     public Object object2;
+    /** exteraGram's plugin engine: the plugin setting this row shows (CustomSetting), for its settings screen. */
+    public Object settingItem;
 
     public boolean withUsername = true;
 

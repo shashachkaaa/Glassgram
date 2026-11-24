@@ -45,7 +45,10 @@ configurations.all {
 }
 
 dependencies {
-    implementation "org.mvel:mvel2:2.5.2.Final"
+    implementation "org.mvel:mvel2:2.5.4.Final"
+    // exteraGram's plugin engine: its files (SDK archives, plugins) and the pip installer's HTTP
+    implementation "io.github.immat0x1:simplifiles:0.1.6"
+    implementation "com.squareup.okhttp3:okhttp:5.5.1"
     implementation project(':TMessagesProj_LiquidGlass')
     // glassGram's fonts: the default typeface is set through a hidden API (GlassgramFonts)
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
@@ -307,6 +310,9 @@ chaquopy {
         }
     }
 }
+
+// The plugins' SDK (plugins-pysdk), in the assets
+apply from: "$projectDir/gradle/glassgram-python-sdk.gradle"
 
 
 def getProps(String propName) {

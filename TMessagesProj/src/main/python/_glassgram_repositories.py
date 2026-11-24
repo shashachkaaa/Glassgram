@@ -90,15 +90,16 @@ def entries(url, refresh=False):
 
 
 def download(row_json, directory):
-    import _glassgram_engine as engine
+    # the plugin's metadata as exteraGram's engine reads it
+    from extera_utils.metadata_parser import get_metadata
     row = json.loads(row_json)
     data, _, _ = fetch(row["file"], row["size"])
     if len(data) != row["size"] or hashlib.sha256(data).hexdigest() != row["sha256"]:
         raise ValueError("Repository file size or checksum mismatch")
-    with tempfile.NamedTemporaryFile(dir=directory, delete=False) as file:
+    with tempfile.NamedTemporaryFile(dir=directory, delete=False, prefix="plugin_import_", suffix=".plugin") as file:
         file.write(data)
     try:
-        meta = engine._read_meta(file.name)
+        meta = get_metadata(file.name)
         if (meta["id"], meta["version"]) != (row["id"], row["version"]):
             raise ValueError("Repository plugin ID or version mismatch")
         return file.name

@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * A request is the plugin's when Python is on the thread that sends it: Java called into Python
  * (a hook, a callback, the plugins' queue) and the plugin's code calls back, or a thread Python made
  * calls Java with nothing of Java's under it. Which plugin, Python tells from its own frames
- * (_glassgram_engine.caller_plugin). The kinds of requests are in _glassgram_analysis.SENSITIVE too.
+ * (_glassgram_guard.caller_plugin). The kinds of requests are in _glassgram_analysis.SENSITIVE too.
  */
 public final class PluginActionGuard {
 
@@ -196,9 +196,10 @@ public final class PluginActionGuard {
         }
         String id = "";
         try {
-            final PyObject engine = PluginsController.getEngine();
-            if (engine != null) {
-                final PyObject found = engine.callAttr("caller_plugin");
+            final com.chaquo.python.Python py = com.chaquo.python.Python.isStarted() ? com.chaquo.python.Python.getInstance() : null;
+            if (py != null) {
+                final PyObject found = py.getModule("_glassgram_guard").callAttr("caller_plugin",
+                        com.exteragram.messenger.plugins.PluginsController.getInstance().getPlugins().keySet().toArray());
                 id = found != null ? found.toString() : "";
             }
         } catch (Throwable e) {
@@ -211,11 +212,7 @@ public final class PluginActionGuard {
     /** The plugins that hook the request (they may have made or changed it), by their names. */
     public static String hookingPlugins(TLObject request) {
         try {
-            final PyObject engine = PluginsController.getEngine();
-            if (engine != null) {
-                final PyObject found = engine.callAttr("hooking_plugins", PluginsController.tlName(request));
-                return found != null ? found.toString() : "";
-            }
+            return PluginsController.hookingPlugins(request);
         } catch (Throwable e) {
             FileLog.e(e);
         }

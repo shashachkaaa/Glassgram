@@ -25,6 +25,11 @@ public class BuildVars {
     public static boolean CHECK_UPDATES = true;
     public static boolean NO_SCOPED_STORAGE = Build.VERSION.SDK_INT <= 29;
     public static String BUILD_VERSION_STRING = BuildConfig.BUILD_VERSION_STRING;
+    /**
+     * exteraGram's build number for its version our base matches (13.2.2): the plugin SDK and
+     * plugins made for exteraGram check it for what the app can do (1.4.6.5 needs 66999 or later).
+     */
+    public static int BUILD_VERSION = 67600;
     /** Glassgram's own version (BUILD_VERSION_STRING is Telegram's), for the update check. */
     public static String GLASSGRAM_VERSION = BuildConfig.GLASSGRAM_VERSION;
     /** The RuStore edition: see GlassgramConfig.STORE_BUILD. */

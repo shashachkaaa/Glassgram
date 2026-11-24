@@ -1,8 +1,8 @@
 # Additional terms for the material taken from exteraGram
 
 glassGram's plugin engine is based on [exteraGram](https://github.com/exteraSquad/exteraGram): the
-code under the `com.exteragram.messenger` package and the Python plugins SDK (`plugins-pysdk`, shipped
-in `TMessagesProj/src/main/python`) come from exteraGram and are licensed under the GNU General Public
+code under the `com.exteragram` packages (`TMessagesProj/src/main/java/com/exteragram`) and the
+Python plugins SDK (`plugins-pysdk`) come from exteraGram and are licensed under the GNU General Public
 License, version 3 or any later version, with the additional terms below, which exteraGram's authors
 set for that material as section 7 of the license permits. glassGram as a whole is distributed under
 the GNU GPL v3 or later (see [LICENSE](LICENSE)).

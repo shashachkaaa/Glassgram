@@ -63,11 +63,12 @@ import java.io.OutputStream;
 public final class GlassgramPluginInstaller {
 
     public static final String EXTENSION = ".plugin";
+    private static final String IMPORT_PREFIX = "plugin_import_";
 
     private GlassgramPluginInstaller() {
     }
 
-    /** Handles a tapped document when it is a plugin, or a file type a plugin registered; true when handled. */
+    /** Handles a tapped document when it is a plugin; true when handled. */
     public static boolean openFromChat(BaseFragment fragment, MessageObject message) {
         if (message == null || message.getDocument() == null) {
             return false;
@@ -76,37 +77,33 @@ public final class GlassgramPluginInstaller {
         if (TextUtils.isEmpty(name)) {
             return false;
         }
-        File file = null;
-        if (!TextUtils.isEmpty(message.messageOwner.attachPath)) {
-            File f = new File(message.messageOwner.attachPath);
-            if (f.exists()) {
-                file = f;
-            }
-        }
-        if (file == null) {
-            File f = FileLoader.getInstance(message.currentAccount).getPathToMessage(message.messageOwner);
-            if (f != null && f.exists()) {
-                file = f;
-            }
-        }
-        if (file == null) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        if (!(lower.endsWith(EXTENSION) || lower.endsWith(".elyx") || lower.endsWith(".eaf")
+                || lower.endsWith(".elyx.zip") || lower.endsWith(".eaf.zip"))) {
             return false;
         }
-        String lower = name.toLowerCase(java.util.Locale.ROOT);
-        if (lower.endsWith(EXTENSION) || lower.endsWith(".elyx") || lower.endsWith(".eaf")
-                || lower.endsWith(".elyx.zip") || lower.endsWith(".eaf.zip")) {
-            showInstallDialog(fragment, file);
+        final String path = com.exteragram.messenger.utils.chats.ChatUtils.getInstance(message.currentAccount).getPathToMessage(message);
+        if (TextUtils.isEmpty(path)) {
+            return false;
+        }
+        if (!canInstall(fragment)) {
             return true;
         }
-        return PluginsController.openFile(2, file, name, message, fragment.getParentActivity(), fragment);
+        // as exteraGram: its engine reads the file and asks (InstallPluginBottomSheet)
+        PluginsController.whenStarted(() -> {
+            if (fragment.getParentActivity() != null && !fragment.isFinished) {
+                com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, message, path);
+            }
+        });
+        return true;
     }
 
     /** Copies a picked file to the cache and asks to install it. */
     public static void installFromUri(BaseFragment fragment, Uri uri) {
-        PluginsController.pluginsQueue.postRunnable(() -> {
+        Utilities.globalQueue.postRunnable(() -> {
             final File copy;
             try {
-                copy = File.createTempFile("plugin_import_", EXTENSION, ApplicationLoader.applicationContext.getCacheDir());
+                copy = File.createTempFile(IMPORT_PREFIX, EXTENSION, ApplicationLoader.applicationContext.getCacheDir());
             } catch (java.io.IOException e) {
                 AndroidUtilities.runOnUIThread(() -> showError(fragment, e.toString()));
                 return;
@@ -130,7 +127,19 @@ public final class GlassgramPluginInstaller {
                 AndroidUtilities.runOnUIThread(() -> showError(fragment, getString(R.string.GlassgramPluginBadFile)));
                 return;
             }
-            AndroidUtilities.runOnUIThread(() -> preview(fragment, copy, true));
+            // an archive is an .elyx plugin, which exteraGram's engine tells by its name
+            File named = copy;
+            try {
+                if (isZip(copy)) {
+                    named = new File(copy.getParentFile(), copy.getName().replace(EXTENSION, ".elyx"));
+                    if (!copy.renameTo(named)) {
+                        named = copy;
+                    }
+                }
+            } catch (java.io.IOException ignore) {
+            }
+            final File file = named;
+            AndroidUtilities.runOnUIThread(() -> preview(fragment, file, true));
         });
     }
 
@@ -139,44 +148,136 @@ public final class GlassgramPluginInstaller {
     }
 
     static void preview(BaseFragment fragment, File file, boolean ownsFile) {
-        if (!PluginsController.isSupported()) {
+        if (!canInstall(fragment)) {
             if (ownsFile) file.delete();
-            showError(fragment, getString(R.string.GlassgramPluginsUnsupported));
             return;
         }
-        if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
-            if (ownsFile) file.delete();
-            GlassgramSettingsActivity.showForcedOff(fragment, "pluginsEngine");
-            return;
-        }
-        if (!PluginsController.isStarted()) {
-            // The engine starts on the same queue, so reading the file waits for it
-            PluginsController.setEngineEnabled(true);
-        }
-        PluginsController.pluginsQueue.postRunnable(() -> {
-            File snapshot = ownsFile ? file : null;
-            String[] meta;
-            boolean trustedSource = false;
-            try {
-                if (file.length() > 10 * 1024 * 1024) throw new java.io.IOException("Plugin exceeds 10 MiB");
-                if (!ownsFile) {
-                    snapshot = File.createTempFile("plugin_preview_", EXTENSION, ApplicationLoader.applicationContext.getCacheDir());
-                    if (!AndroidUtilities.copyFile(file, snapshot)) throw new java.io.IOException("Could not read plugin");
-                }
-                meta = PluginsController.readPluginFile(snapshot);
-                trustedSource = isVouched(snapshot);
-            } catch (Throwable e) {
-                if (snapshot != null) snapshot.delete();
-                FileLog.e(e);
-                final String details = PluginsController.startError != null ? PluginsController.startError : e.getMessage() != null ? e.getMessage() : e.toString();
-                final String reason = PluginsController.startError != null ? firstLine(PluginsController.startError) : getString(R.string.GlassgramPluginBadFile);
-                AndroidUtilities.runOnUIThread(() -> showError(fragment, reason, details));
+        PluginsController.whenStarted(() -> {
+            if (fragment.getParentActivity() == null || fragment.isFinished) {
+                if (ownsFile) file.delete();
                 return;
             }
-            final boolean trusted = trustedSource;
-            final File reviewed = snapshot;
-            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, reviewed, meta, trusted));
+            com.exteragram.messenger.plugins.PluginsController.getInstance().showInstallDialog(fragment, file.getAbsolutePath(), false);
         });
+    }
+
+    private static boolean canInstall(BaseFragment fragment) {
+        if (!PluginsController.isSupported()) {
+            showError(fragment, getString(R.string.GlassgramPluginsUnsupported));
+            return false;
+        }
+        if (org.telegram.messenger.GlassgramRemoteConfig.isForced("pluginsEngine")) {
+            GlassgramSettingsActivity.showForcedOff(fragment, "pluginsEngine");
+            return false;
+        }
+        return true;
+    }
+
+    /** Whether the app made this file to install it (a copy of a picked one), so it may delete it. */
+    private static boolean isOwnCopy(File file) {
+        final File parent = file.getParentFile();
+        return parent != null && parent.equals(ApplicationLoader.applicationContext.getCacheDir())
+                && file.getName().startsWith(IMPORT_PREFIX);
+    }
+
+    /**
+     * The install sheet for a plugin exteraGram's engine read from a file (InstallPluginBottomSheet):
+     * what it is, what its code can do (_glassgram_analysis), whether the glassGram team vouches
+     * for it, and the button.
+     */
+    public static void showInstallSheet(BaseFragment fragment, com.exteragram.messenger.plugins.Plugin plugin,
+                                        com.exteragram.messenger.plugins.ui.components.InstallPluginBottomSheet.PluginInstallParams params) {
+        final File file = new File(params.getFilePath());
+        final boolean ownsFile = isOwnCopy(file);
+        PluginsController.runOnPluginsQueue(() -> {
+            String findings = "", analysis = "";
+            boolean bytecode = false;
+            try {
+                if (isZip(file)) {
+                    // an .elyx archive: its code is its .py files; compiled code can't be read
+                    final StringBuilder source = new StringBuilder();
+                    try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(file)) {
+                        final java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zip.entries();
+                        while (entries.hasMoreElements()) {
+                            final java.util.zip.ZipEntry entry = entries.nextElement();
+                            final String name = entry.getName();
+                            if (name.endsWith(".pyc") || name.endsWith(".so")) {
+                                bytecode = true;
+                            } else if (name.endsWith(".py") && entry.getSize() < 4 * 1024 * 1024) {
+                                source.append(readEntry(zip, entry)).append('\n');
+                            }
+                        }
+                    }
+                    findings = scan(source.toString());
+                } else if (file.length() < 4 * 1024 * 1024) {
+                    final String source = new String(readAll(file), java.nio.charset.StandardCharsets.UTF_8);
+                    findings = scan(source);
+                    analysis = analyze(source);
+                }
+            } catch (Throwable e) {
+                // the check failing never keeps a plugin from being installed
+                FileLog.e(e);
+            }
+            if (bytecode) {
+                findings = (findings + "\ndanger|bytecode|").trim();
+            }
+            final boolean update = com.exteragram.messenger.plugins.PluginsController.getInstance().getPlugins().containsKey(plugin.getId());
+            final boolean trusted = isVouched(file);
+            final String[] meta = {plugin.getId(), plugin.getName(), plugin.getVersion(), plugin.getAuthor(),
+                    plugin.getDescription(), plugin.getIcon(), update ? "1" : "0", findings, analysis};
+            AndroidUtilities.runOnUIThread(() -> showConfirm(fragment, file, ownsFile, plugin, meta, trusted));
+        });
+    }
+
+    private static String scan(String source) {
+        try {
+            final com.chaquo.python.PyObject found = com.chaquo.python.Python.getInstance().getModule("_glassgram_scan").callAttr("scan_source", source);
+            final StringBuilder lines = new StringBuilder();
+            for (com.chaquo.python.PyObject line : found.asList()) {
+                lines.append(line.toString()).append('\n');
+            }
+            return lines.toString().trim();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return "";
+        }
+    }
+
+    private static String analyze(String source) {
+        try {
+            final com.chaquo.python.PyObject result = com.chaquo.python.Python.getInstance().getModule("_glassgram_analysis").callAttr("analyze_source", source);
+            return result == null ? "" : result.toString();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return "";
+        }
+    }
+
+    private static byte[] readAll(File file) throws java.io.IOException {
+        final byte[] data = new byte[(int) file.length()];
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+            int read = 0;
+            while (read < data.length) {
+                final int n = in.read(data, read, data.length - read);
+                if (n < 0) {
+                    break;
+                }
+                read += n;
+            }
+        }
+        return data;
+    }
+
+    private static String readEntry(java.util.zip.ZipFile zip, java.util.zip.ZipEntry entry) throws java.io.IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            final byte[] buffer = new byte[8192];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+            }
+            return out.toString("UTF-8");
+        }
     }
 
     /** Whether the glassGram team vouches for this very file: it is in the catalog (GlassgramPluginCatalog). */
@@ -209,10 +310,10 @@ public final class GlassgramPluginInstaller {
         return false;
     }
 
-    private static void showConfirm(BaseFragment fragment, File file, String[] meta, boolean trusted) {
+    private static void showConfirm(BaseFragment fragment, File file, boolean ownsFile, com.exteragram.messenger.plugins.Plugin plugin, String[] meta, boolean trusted) {
         Activity activity = fragment.getParentActivity();
         if (activity == null || fragment.isFinished) {
-            file.delete();
+            if (ownsFile) file.delete();
             return;
         }
         final String name = meta[1];
@@ -269,8 +370,8 @@ public final class GlassgramPluginInstaller {
                 GlassgramConfig.pluginsEnableAfterInstall = enableAfter[0];
                 GlassgramConfig.putBoolean("pluginsEnableAfterInstall", enableAfter[0]);
             }
-            PluginsController.installPlugin(file, enableAfter[0], (id, error) -> {
-                file.delete();
+            install(plugin, file, enableAfter[0], (id, error) -> {
+                if (ownsFile) file.delete();
                 sheet.dismiss();
                 if (error != null) {
                     // installed, yet its code failed on loading; either way the whole error can be copied
@@ -279,7 +380,7 @@ public final class GlassgramPluginInstaller {
                 } else if (id != null) {
                     BulletinFactory.of(fragment).createSimpleBulletin(R.raw.contact_check,
                             formatString(R.string.GlassgramPluginInstalledToast, name), getString(R.string.Settings),
-                            () -> fragment.presentFragment(new GlassgramPluginSettingsActivity(id))).show();
+                            () -> com.exteragram.messenger.plugins.PluginsController.openPluginSettings(id)).show();
                 }
             });
         };
@@ -338,8 +439,34 @@ public final class GlassgramPluginInstaller {
 
         sheet.setCustomView(container);
         if (fragment.showDialog(sheet, dialog -> {
-            if (!installing[0]) file.delete();
-        }) == null) file.delete();
+            if (!installing[0] && ownsFile) file.delete();
+        }) == null && ownsFile) file.delete();
+    }
+
+    /**
+     * Installs the plugin with the engine that runs it (exteraGram's), then turns it on when asked;
+     * done gets its id (null if it isn't installed) and the error, if any, on the main thread.
+     */
+    private static void install(com.exteragram.messenger.plugins.Plugin plugin, File file, boolean enable, Utilities.Callback2<String, String> done) {
+        final String engineName = plugin.getEngine() != null ? plugin.getEngine() : com.exteragram.messenger.plugins.PluginsConstants.PYTHON;
+        final com.exteragram.messenger.plugins.PluginsController.PluginsEngine engine =
+                com.exteragram.messenger.plugins.PluginsController.getEngines().get(engineName);
+        if (engine == null) {
+            done.run(null, "No plugin engine for " + engineName);
+            return;
+        }
+        final String id = plugin.getId();
+        engine.loadPluginFromFile(file.getAbsolutePath(), plugin, error -> {
+            if (error != null) {
+                final boolean installed = com.exteragram.messenger.plugins.PluginsController.getInstance().getPlugins().containsKey(id);
+                done.run(installed ? id : null, error);
+            } else if (enable && !com.exteragram.messenger.ExteraConfig.pluginsSafeMode) {
+                com.exteragram.messenger.plugins.PluginsController.getInstance().setPluginEnabled(id, true, enableError ->
+                        AndroidUtilities.runOnUIThread(() -> done.run(id, enableError)));
+            } else {
+                done.run(id, null);
+            }
+        }, null);
     }
 
     private static View actionButton(Context context, int icon, String description, View.OnClickListener click, Theme.ResourcesProvider resourcesProvider) {
@@ -445,7 +572,7 @@ public final class GlassgramPluginInstaller {
         }
     }
 
-    static void openSource(BaseFragment fragment, File file, String name) {
+    public static void openSource(BaseFragment fragment, File file, String name) {
         Utilities.globalQueue.postRunnable(() -> {
             // files/cache/ is shared by the app's FileProvider
             File dir = new File(ApplicationLoader.applicationContext.getFilesDir(), "cache/plugin_source");
@@ -461,7 +588,7 @@ public final class GlassgramPluginInstaller {
                     throw new IllegalStateException("No directory " + dir);
                 }
                 if (isZip(file)) {
-                    PluginsController.getEngine().callAttr("write_archive_source", file.getAbsolutePath(), copy.getAbsolutePath());
+                    writeArchiveSource(file, copy);
                 } else if (!AndroidUtilities.copyFile(file, copy)) {
                     throw new IllegalStateException("Not copied " + file);
                 }
@@ -486,6 +613,22 @@ public final class GlassgramPluginInstaller {
                 }
             });
         });
+    }
+
+    /** The .py files of an .elyx archive, one after another, each under its name. */
+    private static void writeArchiveSource(File archive, File out) throws java.io.IOException {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive);
+             java.io.Writer writer = new java.io.OutputStreamWriter(new FileOutputStream(out), java.nio.charset.StandardCharsets.UTF_8)) {
+            final java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                final java.util.zip.ZipEntry entry = entries.nextElement();
+                if (!entry.isDirectory() && (entry.getName().endsWith(".py") || entry.getName().endsWith(".json") || entry.getName().endsWith(".yml"))) {
+                    writer.write("# ---- " + entry.getName() + " ----\n");
+                    writer.write(readEntry(zip, entry));
+                    writer.write("\n\n");
+                }
+            }
+        }
     }
 
     private static String sourceName(String name) {

@@ -32,12 +32,6 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// Older plugin DEX resolves the field by name and type, including inherited fields.
-class UtilitiesQueueCompat {
-    static final DispatchQueue2 sharedGlobalQueue = new DispatchQueue2("globalQueue");
-    public static volatile DispatchQueue globalQueue = sharedGlobalQueue;
-}
-
 public class Utilities extends UtilitiesQueueCompat {
     public static Pattern pattern = Pattern.compile("[\\-0-9]+");
     public static SecureRandom random = new SecureRandom();
@@ -51,6 +45,8 @@ public class Utilities extends UtilitiesQueueCompat {
     public static volatile DispatchQueue2 themeQueue = new DispatchQueue2("themeQueue");
     public static volatile DispatchQueue2 externalNetworkQueue = new DispatchQueue2("externalNetworkQueue");
     public static volatile DispatchQueue videoPlayerQueue;
+    /** Where plugins run (exteraGram's plugin engine, com.exteragram.messenger.plugins). */
+    public static volatile DispatchQueue pluginsQueue = new DispatchQueue("pluginsQueue");
 
     private final static String RANDOM_STRING_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 

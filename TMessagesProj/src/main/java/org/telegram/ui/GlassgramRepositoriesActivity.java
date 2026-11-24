@@ -248,12 +248,10 @@ public class GlassgramRepositoriesActivity extends UniversalFragment implements 
     private void read(File file) {
         TLRPC.Message message = pending;
         pending = null;
-        PluginsController.pluginsQueue.postRunnable(() -> {
+        PluginsController.runOnPluginsQueue(() -> {
             String[] meta = null;
             try {
-                com.chaquo.python.PyObject metadata = PluginsController.getEngine().callAttr("_read_meta", file.getAbsolutePath());
-                java.util.Map<com.chaquo.python.PyObject, com.chaquo.python.PyObject> values = metadata.asMap();
-                meta = new String[] {values.get(com.chaquo.python.PyObject.fromJava("id")).toString(), values.get(com.chaquo.python.PyObject.fromJava("name")).toString(), values.get(com.chaquo.python.PyObject.fromJava("version")).toString()};
+                meta = PluginsController.readMetadata(file);
             } catch (Exception ignored) {}
             final String[] info = meta;
             AndroidUtilities.runOnUIThread(() -> {

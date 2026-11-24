@@ -62,6 +62,33 @@ GlassgramPluginCatalog.
 
 0. Лицензия — сделано.
 1. Kotlin в основном модуле — сделано (сборка #518).
-2. Ядро их движка (Kotlin) и SDK 1.4.6.5 вместо нашего, с переходниками; AliuHook.
-3. Точки вызова Telegram → их `PluginsHooks`.
-4. Их экраны плагинов (или наши экраны на их контроллере).
+2. Ядро их движка (Kotlin) и SDK 1.4.6.5 вместо нашего, с переходниками; AliuHook — сделано.
+3. Точки вызова Telegram → их `PluginsHooks` — сделано через нашу прослойку.
+4. Наши экраны на их контроллере — сделано.
+
+## Как устроено теперь
+
+- `TMessagesProj/src/main/java/com/exteragram/messenger/plugins/` — их ядро (PluginsController,
+  PythonPluginsEngine, hooks, xposed, models, pip, utils). Изменённые нами файлы помечены
+  «Modified for glassGram» в шапке: PythonPluginsEngine (без обновлений SDK по воздуху, один архив
+  `sdk-universal.zip`), PluginsController (без анализатора; `hasEventHook`, `getPluginsHooking`),
+  PyMethodHook (время хуков на главном потоке для записи рывков), PluginsWatchdog (`executingPlugin`).
+- Их интерфейс `ui/*`: PluginSettingsActivity перенесён на `UniversalFragment` (без перевода
+  настроек; на главной странице плагина — шапка, переключатель, ошибка, удаление, как было у нас);
+  PluginsActivity / PluginsInfoActivity — это наши GlassgramPluginsActivity / GlassgramPluginEngineActivity;
+  InstallPluginBottomSheet показывает наше окно установки (GlassgramPluginInstaller.showInstallSheet),
+  с нашим анализом кода (`_glassgram_analysis`, `_glassgram_scan`) и проверкой по каталогу.
+- Переходники к их приложению: `ExteraConfig.kt` (поля @JvmField, файл настроек `exteraconfig`; включён ли
+  движок — наша настройка), `utils/AppUtils.java` (их), `ChatUtils.getPathToMessage`, `SettingsRegistry`,
+  `LocaleUtils`, `ExteraHttpClient`, `IntentsController` (вызывается из LaunchActivity.handleIntent),
+  `com.exteragram.hook.HookHandle` (частичных хуков нет), `BuildVars.BUILD_VERSION = 67600`,
+  `Utilities.pluginsQueue`, `UItem.settingItem`, события NotificationCenter `plugin*`.
+- `org.telegram.messenger.plugins.PluginsController` — прослойка для приложения: включение движка,
+  список плагинов (PluginInfo), меню, хуки запросов/апдейтов/отправки, перенос плагинов старого
+  движка (plugins_state.json → настройки их движка), выключение упавшего плагина (onCrash).
+- `PluginActionGuard` (подтверждение опасных запросов плагинов) остался; кто из плагинов отправил
+  запрос, ищет `_glassgram_guard.py`.
+- SDK: `plugins-pysdk/` (их, 1.4.6.5); сборка — `TMessagesProj/gradle/glassgram-python-sdk.gradle`
+  (Python 3.11). Наши изменения в SDK: ElyxCore не роняет SDK при сбое (`_sdk_version`), логи плагинов
+  идут и в наш экран логов (`log_utils`).
+- Dev-сервер SDK: `localabstract:exteragram_devserver`, как у exteraGram.

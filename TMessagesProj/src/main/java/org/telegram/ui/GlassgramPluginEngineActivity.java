@@ -26,7 +26,7 @@ import java.util.ArrayList;
 
 public class GlassgramPluginEngineActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
     private static final int ENABLE = 1, COMPACT = 2, DEVELOP = 3, LOGS = 4;
-    private static final int DOCUMENTATION = 5, REPOSITORIES = 6, CHANNEL = 7, CATALOG = 8;
+    private static final int DOCUMENTATION = 5, REPOSITORIES = 6, CHANNEL = 7, CATALOG = 8, SAFE_MODE = 9, SDK = 10;
 
     @Override
     protected boolean useSimpleActionBar() {
@@ -45,19 +45,19 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.pluginsUpdated);
         return super.onFragmentCreate();
     }
 
     @Override
     public void onFragmentDestroy() {
-        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.pluginsUpdated);
         super.onFragmentDestroy();
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.glassgramPluginsUpdated) {
+        if (id == NotificationCenter.pluginsUpdated) {
             refresh();
         }
     }
@@ -83,8 +83,9 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
         if (GlassgramConfig.pluginsEngine && PluginsController.isStarting()) {
             return getString(R.string.GlassgramPluginsStarting);
         }
-        if (GlassgramConfig.pluginsEngine && PluginsController.startError != null) {
-            return formatString(R.string.GlassgramPluginsStartFailed, PluginsController.startError);
+        final String startError = GlassgramConfig.pluginsEngine ? PluginsController.getStartError() : null;
+        if (startError != null) {
+            return formatString(R.string.GlassgramPluginsStartFailed, startError);
         }
         return null;
     }
@@ -98,13 +99,18 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
         String status = engineStatus();
         items.add(UItem.asShadow(status == null ? getString(R.string.GlassgramPluginsInfo) : status));
         if (PluginsController.isSupported()) {
+            // exteraGram's safe mode: no plugin loads until it is off
+            items.add(UItem.asButtonCheck(SAFE_MODE, getString(R.string.PluginsSafeMode), getString(R.string.PluginsSafeModeInfo))
+                .wrapText().setChecked(com.exteragram.messenger.ExteraConfig.pluginsSafeMode));
+            items.add(UItem.asButton(SDK, R.drawable.msg_info, getString(R.string.PluginsPySdk), sdkVersion()));
+            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.GlassgramPluginDeveloper)));
-            UItem developer = UItem.asCheck(DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.devServer);
+            UItem developer = UItem.asCheck(DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.isDevMode());
             developer.enabled = PluginsController.isStarted() && GlassgramConfig.pluginsEngine;
             items.add(developer);
             items.add(UItem.asButton(LOGS, R.drawable.msg_log, getString(R.string.GlassgramPluginsLogs)));
-            items.add(UItem.asShadow(PluginsController.devServer && getParentActivity() != null
-                ? "adb forward tcp:42690 localabstract:" + getParentActivity().getPackageName() + ".plugins" : null));
+            // the SDK's dev server, as exteraGram's: plugins are sent to it from a computer over adb
+            items.add(UItem.asShadow(PluginsController.isDevMode() ? "adb forward tcp:42690 localabstract:exteragram_devserver" : null));
         }
         items.add(UItem.asHeader(getString(R.string.GlassgramPluginResources)));
         items.add(UItem.asButton(DOCUMENTATION, R.drawable.msg_info, getString(R.string.GlassgramPluginDocs)));
@@ -130,6 +136,14 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
                 break;
             case DEVELOP:
                 toggleDevServer();
+                break;
+            case SAFE_MODE:
+                PluginsController.restart(!com.exteragram.messenger.ExteraConfig.pluginsSafeMode);
+                refresh();
+                break;
+            case SDK:
+                AndroidUtilities.addToClipboard(sdkVersion());
+                BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
                 break;
             case LOGS:
                 showLogs();
@@ -170,14 +184,18 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
         }
     }
 
+    private static String sdkVersion() {
+        final CharSequence version = com.exteragram.messenger.plugins.PythonPluginsEngine.Updater.getVersion();
+        return version == null ? "" : version.toString();
+    }
+
     private void toggleDevServer() {
         if (getParentActivity() == null) return;
-        boolean enable = !PluginsController.devServer;
-        Runnable change = () -> PluginsController.setDevServer(enable, error -> {
-            if (isFinished) return;
-            if (error != null) BulletinFactory.of(this).createErrorBulletin(error).show();
+        boolean enable = !PluginsController.isDevMode();
+        Runnable change = () -> {
+            PluginsController.setDevMode(enable);
             refresh();
-        });
+        };
         if (enable) {
             showDialog(new AlertDialog.Builder(getParentActivity(), getResourceProvider())
                 .setTitle(getString(R.string.GlassgramDevServer))

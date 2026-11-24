@@ -61,20 +61,20 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.pluginsUpdated);
         load(false);
         return super.onFragmentCreate();
     }
 
     @Override
     public void onFragmentDestroy() {
-        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.pluginsUpdated);
         super.onFragmentDestroy();
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.glassgramPluginsUpdated) {
+        if (id == NotificationCenter.pluginsUpdated) {
             update();
         }
     }
@@ -221,7 +221,7 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
             // the metadata is read by the engine, on the same queue it starts on
             PluginsController.setEngineEnabled(true);
         }
-        PluginsController.pluginsQueue.postRunnable(() -> {
+        PluginsController.runOnPluginsQueue(() -> {
             final File copy = new File(ApplicationLoader.applicationContext.getCacheDir(), "catalog_upload.plugin");
             byte[] bytes = null;
             String[] meta = null;
@@ -242,7 +242,7 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
                 bytes = buffer.toByteArray();
                 out.write(bytes);
                 out.close();
-                meta = PluginsController.readPluginFile(copy);
+                meta = PluginsController.readMetadata(copy);
             } catch (Throwable e) {
                 FileLog.e(e);
             }

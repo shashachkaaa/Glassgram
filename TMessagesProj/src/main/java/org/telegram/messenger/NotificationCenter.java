@@ -43,10 +43,15 @@ public class NotificationCenter {
     public static final int closeProfileActivity = totalEvents++;
     public static final int messagesDeleted = totalEvents++;
     public static final int glassgramMessagesMarkedDeleted = totalEvents++;
-    public static final int glassgramPluginsUpdated = totalEvents++;
-    public static final int glassgramPluginSettingsReload = totalEvents++;
     public static final int glassgramChatsHiddenChanged = totalEvents++;
     public static final int glassgramHolidayChanged = totalEvents++;
+    // exteraGram's plugin engine (com.exteragram.messenger.plugins)
+    public static final int pluginsUpdated = totalEvents++;
+    public static final int pluginMenuItemsUpdated = totalEvents++;
+    public static final int pluginSettingsRegistered = totalEvents++;
+    public static final int pluginSettingsUnregistered = totalEvents++;
+    public static final int pluginIsNotResponding = totalEvents++;
+    public static final int pluginsPySdkInfoChanged = totalEvents++;
     public static final int historyCleared = totalEvents++;
     public static final int messagesRead = totalEvents++;
     public static final int threadMessagesRead = totalEvents++;

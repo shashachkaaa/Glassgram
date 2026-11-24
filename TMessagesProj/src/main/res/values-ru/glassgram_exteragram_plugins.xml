@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- exteraGram's strings for its plugin engine (GPL v3 or later, ADDITIONAL_TERMS.md) -->
+<resources>
+    <string name="CheckingForUpdates">Проверка обновлений…</string>
+    <string name="EnterValue">Введите значение</string>
+    <string name="LatestVersionInstalled">Установлена последняя версия</string>
+    <string name="LoadingUpdate">Загрузка обновления…</string>
+    <string name="NoSuchSetting">Похоже, что такой настройки пока нет.</string>
+    <string name="PluginComponentUpdateFailed">Ошибка обновления. Попробуйте ещё раз.</string>
+    <string name="PluginEngineNotEnabled">Включите **Систему плагинов**, чтобы открыть настройки **%1$s**.</string>
+    <string name="PluginHasNoSettings">**%1$s** не имеет настроек.</string>
+    <string name="PluginInstallError">Не удалось установить **%1$s**.</string>
+    <string name="PluginInstallFromStranger">Ответьте в этом чате, чтобы устанавливать из него плагины.</string>
+    <string name="PluginIsNotRespondingAlert">%1$s не отвечает</string>
+    <string name="PluginNoAuthor">Неизвестный автор</string>
+    <string name="PluginNoDescription">Описание отсутствует.</string>
+    <string name="PluginNotEnabled">Включите **Систему плагинов**, чтобы установить **%1$s**.</string>
+    <string name="PluginNotFound">**%1$s** не найден.</string>
+    <string name="PluginRequiredDisabled">Установлен, но выключен</string>
+    <string name="PluginRequiredInstalled">Установлено</string>
+    <string name="PluginRequiredMissing">Не установлен</string>
+    <string name="PluginRequiredOutdated">Версия %1$s, требуется %2$s</string>
+    <string name="PluginRequiredUpdate">Обновить</string>
+    <string name="PluginRequiredVersion">Требуется версия %1$s</string>
+    <string name="PluginVersionValue">Версия %1$s</string>
+    <string name="PluginsPySdkEngineDisabled">Система плагинов выключена</string>
+    <string name="PluginsPySdkInstallFailed">SDK не установился, перезапустите приложение</string>
+    <string name="PluginsPySdkNotInstalled">SDK не установлен</string>
+    <string name="PluginsPySdkPythonFailed">Не удалось запустить Python</string>
+    <string name="PluginsPySdkStartFailed">SDK не запустился, перезапустите приложение</string>
+    <string name="PluginsPySdkStarting">Запуск…</string>
+    <string name="PluginsSafeMode">Безопасный режим</string>
+    <string name="PluginsSafeModeInfo">Система плагинов отключена из-за сбоя. Отключение безопасного режима может привести к непредсказуемым последствиям.</string>
+    <string name="ResetPluginSettings">Настройки **%1$s** были сброшены.</string>
+    <string name="ResetPluginSettingsInfo">Вы уверены, что хотите сбросить настройки **%1$s** до стандартных?</string>
+    <string name="ResetSettings">Сбросить настройки</string>
+    <string name="RestartPluginSystemToApplyUpdate">Обновление загружено, перезапустите систему плагинов для применения</string>
+    <!-- glassGram -->
+    <string name="PluginsPySdk">Python SDK</string>
+</resources>

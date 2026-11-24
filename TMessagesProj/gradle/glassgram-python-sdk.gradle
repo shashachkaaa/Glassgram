@@ -1,0 +1,71 @@
+// The plugins' Python SDK (plugins-pysdk, exteraGram's): compiled to bytecode by
+// plugins-pysdk/tools/build_sdk.py and packed into the assets of every variant, as exteraGram's
+// gradle/extera-python.gradle does (GPL v3 or later, ADDITIONAL_TERMS.md). The app unpacks it on
+// its first start (PythonPluginsEngine). One archive serves every ABI.
+
+import javax.inject.Inject
+
+abstract class PythonSdkBuildTask extends DefaultTask {
+    @Inject
+    abstract ExecOperations getExecOperations()
+
+    @Input
+    abstract ListProperty<String> getPythonCommand()
+
+    @Input
+    abstract Property<String> getPythonVersion()
+
+    @InputFile
+    @PathSensitive(PathSensitivity.NONE)
+    abstract RegularFileProperty getBuildScript()
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract ConfigurableFileCollection getSources()
+
+    @Input
+    abstract Property<String> getChannel()
+
+    @Input
+    abstract ListProperty<String> getAbis()
+
+    @OutputDirectory
+    abstract DirectoryProperty getAssetsDir()
+
+    @TaskAction
+    void build() {
+        def command = pythonCommand.get() + [
+                buildScript.get().asFile.absolutePath,
+                "--out", assetsDir.get().asFile.absolutePath,
+                "--channel", channel.get(),
+                "--python", pythonVersion.get()
+        ] + abis.get().collectMany { ["--abi", it] }
+        execOperations.exec { it.commandLine(command) }
+    }
+}
+
+// the bytecode is of the Python the app embeds (chaquopy, version 3.11), so is the build's
+def requiredPythonVersion = "3.11"
+def configuredBuildPython = System.getenv("BUILD_PYTHON")
+def buildPythonCommand = configuredBuildPython
+        ? [configuredBuildPython]
+        : (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
+            ? ["py", "-${requiredPythonVersion}"]
+            : ["python${requiredPythonVersion}"])
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def buildSdkTask = tasks.register("buildPythonSdk${variant.name.capitalize()}", PythonSdkBuildTask) {
+            pythonCommand.set(buildPythonCommand)
+            pythonVersion.set(requiredPythonVersion)
+            buildScript.set(rootProject.file("plugins-pysdk/tools/build_sdk.py"))
+            sources.from(fileTree(rootProject.file("plugins-pysdk/src")) {
+                exclude "**/__pycache__/**", "**/*.pyc", "**/.DS_Store"
+            })
+            channel.set("stable")
+            abis.set(["universal"])
+            assetsDir.set(layout.buildDirectory.dir("generated/plugins/pysdk/${variant.name}"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(buildSdkTask, { it.assetsDir })
+    }
+}

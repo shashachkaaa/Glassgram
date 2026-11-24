@@ -76,7 +76,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.pluginsUpdated);
         GlassgramPluginCatalog.load(false, error -> refresh());
         GlassgramRemoteConfig.refresh(GlassgramRemoteConfig.REFRESH_SETTINGS, this::refresh);
         return super.onFragmentCreate();
@@ -84,13 +84,13 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
 
     @Override
     public void onFragmentDestroy() {
-        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.glassgramPluginsUpdated);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.pluginsUpdated);
         super.onFragmentDestroy();
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.glassgramPluginsUpdated) {
+        if (id == NotificationCenter.pluginsUpdated) {
             refresh();
         }
     }
@@ -290,7 +290,10 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     }
 
     void openPlugin(PluginInfo plugin) {
-        presentFragment(new GlassgramPluginSettingsActivity(plugin.id));
+        final com.exteragram.messenger.plugins.Plugin extera = PluginsController.getExteraPlugin(plugin.id);
+        if (extera != null) {
+            presentFragment(new com.exteragram.messenger.plugins.ui.PluginSettingsActivity(extera));
+        }
     }
 
     void togglePlugin(PluginInfo plugin, Utilities.Callback<Boolean> display) {
@@ -321,7 +324,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     }
 
     void deletePlugin(PluginInfo plugin) {
-        GlassgramPluginSettingsActivity.confirmDelete(this, plugin, () -> {
+        com.exteragram.messenger.plugins.ui.PluginSettingsActivity.confirmDelete(this, plugin.id, plugin.name, () -> {
             if (PluginsController.getPlugin(plugin.id) == null && getContext() != null) {
                 SharedPreferences prefs = displayPreferences(getContext());
                 Set<String> pinned = new HashSet<>(prefs.getStringSet("pinned", Collections.emptySet()));

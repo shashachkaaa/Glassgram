@@ -179,8 +179,8 @@ jobs:
           CCACHE_DIR="$HOME/.ccache" ccache --zero-stats > /dev/null
           ccache --version | head -1
 
-      # Chaquopy (plugins) installs the bundled Python packages with a build Python of the
-      # same version as the app's
+      # Chaquopy (plugins) installs the bundled Python packages, and the plugins SDK
+      # (plugins-pysdk) is compiled to bytecode, with a build Python of the same version as the app's
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:

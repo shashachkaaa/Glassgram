@@ -1554,6 +1554,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @SuppressLint("Range")
     private boolean handleIntent(Intent intent, boolean isNew, boolean restore, boolean fromPassword, Browser.Progress progress, boolean rebuildFragments, boolean openedTelegram) {
+        // plugins' handlers of intents (exteraGram's SDK, IntentsManager)
+        if (intent != null && com.exteragram.messenger.utils.IntentsController.handleIntent(intent)) {
+            return true;
+        }
         if (GiftInfoBottomSheet.handleIntent(intent, progress)) {
             return true;
         }

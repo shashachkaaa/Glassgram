@@ -94,7 +94,8 @@
 
 # Glassgram plugins: Python plugins reach app classes, fields and methods by name
 -keep class org.telegram.** { *; }
-# exteraGram's classes that plugins made for it import (com.exteragram.messenger.ExteraConfig)
+# exteraGram's plugin engine and the classes plugins made for it import (ExteraConfig, AppUtils, ...),
+# reached from Python by name
 -keep class com.exteragram.** { *; }
 # The Java code plugins carry (a dex of their own, like NoForwardLimit's, built with Kotlin) links
 # to the app's Kotlin library and to androidx classes by name, as exteraGram has them
@@ -119,8 +120,7 @@
 -keep class libXray.** { *; }
 -keep class go.** { *; }
 
-# Plugin hook conditions are called through Chaquopy; MVEL loads its reflective optimizer by name.
--keep class org.telegram.messenger.plugins.PluginConditions { public *; }
+# MVEL (the conditions of plugins' menu items, ElyxCore) loads its reflective optimizer by name.
 -keep class org.mvel2.optimizers.impl.refl.ReflectiveAccessorOptimizer { public <init>(); }
 
 # MVEL's optional Java SE JSR-223 bridge references javax.script, which Android does not
