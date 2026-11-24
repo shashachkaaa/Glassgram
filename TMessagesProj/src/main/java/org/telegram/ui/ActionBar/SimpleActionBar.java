@@ -386,8 +386,27 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
     private final LiquidPressEffect[] glassPress = new LiquidPressEffect[3];
     private final RectF[] glassRect = {new RectF(), new RectF(), new RectF()};
     private final boolean[] glassShown = new boolean[3];
+    private final int[] glassDrawnAlpha = new int[3];
     private final RectF glassMovedRect = new RectF();
     private int glassPressed = GLASS_NONE;
+
+    /**
+     * glassGram: the glass pieces as last drawn (mostly shown), offset by (dx, dy), from index start
+     * with their corner radii; returns the new count. The glass the winter's snow settles on (GlassgramWinter).
+     */
+    public int getGlassgramSnowPieces(RectF[] out, float[] radii, int start, float dx, float dy) {
+        int count = start;
+        for (int s = 0; s < glassRect.length && count < out.length; s++) {
+            if (!glassShown[s] || glassRect[s].isEmpty() || glassDrawnAlpha[s] < 128) {
+                continue;
+            }
+            out[count].set(glassRect[s]);
+            out[count].offset(dx, dy);
+            radii[count] = Math.min(out[count].width(), out[count].height()) / 2f;
+            count++;
+        }
+        return count;
+    }
 
     private LiquidPressEffect glassPress(int surface) {
         if (glassPress[surface] == null) {
@@ -408,6 +427,7 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
         final RectF r = glassRect[surface];
         r.set(b.left + padding, b.top + padding, b.right - padding, b.bottom - padding);
         glassShown[surface] = true;
+        glassDrawnAlpha[surface] = glass.getAlpha();
         glass.setRadiusScale(1f);
         if (r.width() > 0 && r.height() > 0
                 && glassPress(surface).drawGlass(canvas, r.left, r.top, r.right, r.bottom, Math.min(r.width(), r.height()) / 2f, glass, glass.getAlpha())) {

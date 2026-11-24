@@ -6191,12 +6191,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             } else {
                 actionBar.getSubtitleTextView().setText(text);
             }
+            if (dialogStoriesCell != null) {
+                // the stories standing in the title's place have their own line under it
+                dialogStoriesCell.setGlassgramSubtitle(text);
+            }
             if (!isPaused()) {
                 AndroidUtilities.runOnUIThread(winterTick, 1000 - org.telegram.messenger.GlassgramWinter.now() % 1000);
             }
         } else if (winterCountdownShown) {
             winterCountdownShown = false;
             actionBar.setSubtitle(null);
+            if (dialogStoriesCell != null) {
+                dialogStoriesCell.setGlassgramSubtitle(null);
+            }
         }
     }
 

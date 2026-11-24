@@ -36,8 +36,29 @@ public class ActionBarAnimatedSubtitleOverlayContainer extends FrameLayout imple
         this.ellipsizeSpanAnimator = ellipsizeSpanAnimator;
     }
 
+    // glassGram: the line shown last, to change in place (a countdown, every second)
+    private SimpleTextViewReplaceable lastText;
+
+    /**
+     * glassGram: changes the line shown in place, its figures as wide as each other (a countdown,
+     * every second, would roll in anew each time otherwise), or brings it in as setText does.
+     */
+    public void setTextInPlace(CharSequence text) {
+        if (!TextUtils.isEmpty(text) && lastText != null && lastText.getParent() == this) {
+            if (!TextUtils.equals(lastText.getText(), text)) {
+                lastText.setText(text);
+            }
+            return;
+        }
+        setText(text, true);
+        if (lastText != null) {
+            lastText.setFontFeatureSettings("tnum");
+        }
+    }
+
     public void setText(CharSequence text, boolean animated) {
         if (TextUtils.isEmpty(text)) {
+            lastText = null;
             titleOverlayAnimator.clear(animated);
             return;
         }
@@ -62,6 +83,7 @@ public class ActionBarAnimatedSubtitleOverlayContainer extends FrameLayout imple
         }
 
         addView(overlayTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        lastText = overlayTextView;
         titleOverlayAnimator.replace(overlayTextView, animated);
     }
 

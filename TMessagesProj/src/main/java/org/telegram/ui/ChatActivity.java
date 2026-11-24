@@ -18416,6 +18416,10 @@ public class ChatActivity extends BaseFragment implements
             if (messageMetricsView != null) {
                 messageMetricsView.setIsUserActive();
             }
+            if (winterSnow != null) {
+                // the glass under the finger shakes its snow off and holds none while held
+                winterSnow.touchAt(ev.getX() - winterSnow.getX(), ev.getY() - winterSnow.getY(), ev.getActionMasked());
+            }
 
             float expandY;
             if (AndroidUtilities.isInMultiwindow || isInBubbleMode()) {
@@ -19251,6 +19255,9 @@ public class ChatActivity extends BaseFragment implements
                 || child == messagesSearchListContainer
                 || child == topicsPanel // its dim over the cutout too, the panel under the navigation bar
                 || child instanceof SimpleActionBarMenuOverlay // over the header too: the menus grow out of its buttons
+                // the winter's snow falls from the top of the screen, onto the header's glass too
+                || child instanceof org.telegram.ui.Components.GlassgramSnowView
+                || child instanceof org.telegram.ui.Components.GlassgramSnowView.DriftLayer
             );
         }
 

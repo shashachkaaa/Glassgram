@@ -9564,6 +9564,50 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    /* glassGram: the profile's glass the winter's snow settles on (GlassgramWinter): the round buttons and the pills */
+
+    private final int[] snowLocation = new int[2];
+    private final RectF snowRect = new RectF();
+    private RectF[] snowOut;
+    private float[] snowRadii;
+    private int snowCount;
+    private float snowDx, snowDy;
+    private final ProfileActionsView.DrawnButton snowButton = (circle, radius, alpha) -> {
+        if (alpha < .5f || snowCount >= snowOut.length) return;
+        snowOut[snowCount].set(circle);
+        snowOut[snowCount].offset(snowDx, snowDy);
+        snowRadii[snowCount] = radius;
+        snowCount++;
+    };
+
+    /** The round buttons and the pills as drawn, in the coordinates of a view at origin in the window, from start; the new count. */
+    public int getGlassgramSnowPieces(RectF[] out, float[] radii, int start, int[] origin) {
+        snowOut = out;
+        snowRadii = radii;
+        snowCount = start;
+        if (actionsView != null && actionsView.getVisibility() == View.VISIBLE && actionsView.getAlpha() > .5f && actionsView.isShown()) {
+            actionsView.getLocationInWindow(snowLocation);
+            snowDx = snowLocation[0] - origin[0];
+            snowDy = snowLocation[1] - origin[1];
+            actionsView.forEachDrawnButton(snowButton);
+        }
+        addSnowPill(musicView, origin);
+        addSnowPill(balanceView, origin);
+        snowOut = null;
+        snowRadii = null;
+        return snowCount;
+    }
+
+    private void addSnowPill(ProfileMusicView pill, int[] origin) {
+        if (pill == null || pill.getParent() == null || !pill.isShown() || snowCount >= snowOut.length) return;
+        if (pill.getDrawnPill(snowRect) < .5f || snowRect.isEmpty()) return;
+        pill.getLocationInWindow(snowLocation);
+        snowOut[snowCount].set(snowRect);
+        snowOut[snowCount].offset(snowLocation[0] - origin[0], snowLocation[1] - origin[1]);
+        snowRadii[snowCount] = snowRect.height() / 2f;
+        snowCount++;
+    }
+
     /* The buttons over the header that the light of the gifts' bubbles falls on */
 
     private final RectF giftLitRect = new RectF();

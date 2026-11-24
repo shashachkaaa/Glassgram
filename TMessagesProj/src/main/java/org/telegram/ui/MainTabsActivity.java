@@ -410,7 +410,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
-    /** The glass the snow settles on: the tab bar's capsule and the buttons of the header of the tab shown. */
+    /** The glass the snow settles on: the tab bar's capsule, the buttons of the header of the tab shown and a profile's own. */
     private int collectWinterSurfaces(android.graphics.RectF[] out, float[] radii) {
         int count = 0;
         winterSnow.getLocationInWindow(winterSnowLocation);
@@ -434,6 +434,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 radii[count] = Math.min(out[count].width(), out[count].height()) / 2f;
                 count++;
             }
+        }
+        // a profile's and the settings' own header (QR, the menu), and a profile's round buttons and pills
+        final org.telegram.ui.ActionBar.SimpleActionBar simple = page != null ? page.getSimpleActionBar() : null;
+        if (simple != null && simple.isShown() && simple.getAlpha() > .5f && count < out.length) {
+            simple.getLocationInWindow(winterViewLocation);
+            count = simple.getGlassgramSnowPieces(out, radii, count,
+                    winterViewLocation[0] - winterSnowLocation[0], winterViewLocation[1] - winterSnowLocation[1]);
+        }
+        if (page instanceof ProfileActivity && count < out.length) {
+            count = ((ProfileActivity) page).getGlassgramSnowPieces(out, radii, count, winterSnowLocation);
         }
         return count;
     }

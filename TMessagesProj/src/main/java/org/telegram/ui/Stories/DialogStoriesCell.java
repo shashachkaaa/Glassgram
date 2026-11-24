@@ -994,7 +994,13 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             glassgramBadgeView.setTranslationX(titleRight + (statusDrawable.getDrawable() != null ? dpf2(24.67f) : -dpf2(3)));
             glassgramBadgeView.setTranslationY(emojiStatusView.getTranslationY());
 
-            subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
+            float subtitleX = titleView.getTranslationX();
+            if (centerCollapsedRow && glassgramSubtitle != null && !hasOverlayText) {
+                // under the middle of the title, as the row stands in the middle of the bar
+                final float titleEnd = getHeaderContentRight() - getX();
+                subtitleX = Math.max(subtitleX - dp(8), (subtitleX + titleEnd - subtitleOverlayContainer.getMeasuredWidth()) / 2f);
+            }
+            subtitleOverlayContainer.setTranslationX(subtitleX);
             subtitleOverlayContainer.setTranslationY(bottomY - barOffset + dp(15 + FAKE_TOP_PADDING + 4.333f + 8));
 
             if (centerCollapsedRow) {
@@ -1464,6 +1470,17 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         }
     }
 
+    // glassGram: a line of the screen's own under the title (the winter's countdown), shown while no
+    // status (Connecting...) stands in the title's place
+    private CharSequence glassgramSubtitle;
+
+    public void setGlassgramSubtitle(CharSequence text) {
+        glassgramSubtitle = text;
+        if (!hasOverlayText) {
+            subtitleOverlayContainer.setTextInPlace(text);
+        }
+    }
+
     public void setTitleOverlayText(String titleOverlayText, int textId) {
         final CharSequence subtitleToSet;
         // The iOS-like header shows a status alone, as iOS does: the proxy is the shield's there
@@ -1472,7 +1489,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         } else {
             subtitleToSet = null;
         }
-        subtitleOverlayContainer.setText(subtitleToSet, true);
+        if (subtitleToSet == null && titleOverlayText == null && glassgramSubtitle != null) {
+            subtitleOverlayContainer.setTextInPlace(glassgramSubtitle);
+        } else {
+            subtitleOverlayContainer.setText(subtitleToSet, true);
+        }
 
         boolean hasEllipsizedText = false;
         if (titleOverlayText != null) {
@@ -2479,6 +2500,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         if (titleView != null) {
             titleView.setAlpha(titleAlpha);
             titleView.setVisibility(titleAlpha > 0 ? VISIBLE : GONE);
+        }
+        if (subtitleOverlayContainer != null) {
+            // the line under the title is there with the collapsed row only, as the title is
+            subtitleOverlayContainer.setAlpha(progress);
+            subtitleOverlayContainer.setVisibility(progress > 0 ? VISIBLE : INVISIBLE);
         }
         if (telegramLogoView != null) {
             telegramLogoView.setAlpha(logoAlpha);

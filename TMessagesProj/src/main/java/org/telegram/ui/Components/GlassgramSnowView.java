@@ -23,7 +23,8 @@ import java.util.Random;
  * small.
  * <p>
  * Light: one view, a few dozen dots and a path per drift, at most 60 frames a second, and nothing
- * while it doesn't run (setRunning) or isn't shown. It takes no touches.
+ * while it doesn't run (setRunning) or isn't shown. It takes no touches: the screen passes them on
+ * (touchAt), and the glass a finger holds sheds its snow.
  */
 public class GlassgramSnowView extends View {
 
@@ -125,26 +126,57 @@ public class GlassgramSnowView extends View {
         }
     }
 
+    // The glass a finger holds (pressed, pulled, dragged about): its snow comes off as the finger
+    // comes down, and none settles on it, where it was or where it is pulled, until it is let go
+    // and has sprung back
+    private static final long HOLD_AFTER_MS = 500;
+    private final RectF held = new RectF();
+    private boolean holding;
+    private long heldUntil;
+    private int collectedCount;
+
     /**
-     * A finger on the screen, in this view's coordinates: the glass under it (pressed, stretched,
-     * dragged) shakes its snow off, the snow flying away from the finger.
+     * Every touch of the screen, in this view's coordinates: the glass under the finger shakes its
+     * snow off, the snow flying away from the finger, and holds none while it is held.
      */
     public void touchAt(float x, float y, int action) {
-        if (action != android.view.MotionEvent.ACTION_DOWN && action != android.view.MotionEvent.ACTION_MOVE) {
-            return;
-        }
-        final float reach = AndroidUtilities.dpf2(10);
-        boolean shed = false;
-        for (Drift drift : drifts) {
-            if (drift.valid && x >= drift.rect.left - reach && x <= drift.rect.right + reach
-                    && y >= drift.rect.top - reach * 2 && y <= drift.rect.bottom + reach) {
-                shed(drift, x, y);
-                shed = true;
+        if (action == android.view.MotionEvent.ACTION_DOWN) {
+            holding = false;
+            held.setEmpty();
+            final float reach = AndroidUtilities.dpf2(10);
+            for (int i = 0; i < collectedCount; i++) {
+                final RectF r = collected[i];
+                if (x >= r.left - reach && x <= r.right + reach && y >= r.top - reach * 2 && y <= r.bottom + reach) {
+                    if (held.isEmpty()) {
+                        held.set(r);
+                    } else {
+                        held.union(r);
+                    }
+                    holding = true;
+                }
+            }
+            boolean shed = false;
+            for (Drift drift : drifts) {
+                if (drift.valid && (holding && RectF.intersects(held, drift.rect)
+                        || x >= drift.rect.left - reach && x <= drift.rect.right + reach && y >= drift.rect.top - reach * 2 && y <= drift.rect.bottom + reach)) {
+                    shed(drift, x, y);
+                    shed = true;
+                }
+            }
+            if (shed && !running) {
+                invalidate();
+            }
+        } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+            if (holding) {
+                holding = false;
+                heldUntil = SystemClock.uptimeMillis() + HOLD_AFTER_MS;
             }
         }
-        if (shed && !running) {
-            invalidate();
-        }
+    }
+
+    /** Whether the glass at r is held by a finger, or springing back from it: no snow lies on it. */
+    private boolean isHeld(RectF r, long now) {
+        return (holding || now < heldUntil) && !held.isEmpty() && RectF.intersects(held, r);
     }
 
     @Override
@@ -239,34 +271,33 @@ public class GlassgramSnowView extends View {
         }
     }
 
-    private View driftLayer;
+    private DriftLayer driftLayer;
 
     /**
-     * A layer for the snow lying on the glass, to put over the glass while this view, falling,
-     * stays behind (the messages of a chat). It lays over this view exactly and takes no touches
-     * but notes where a finger comes down: the glass there shakes its snow off.
+     * The snow lying on the glass, over the glass while the falling view stays behind it (the
+     * messages of a chat). It draws in the falling view's coordinates, wherever the two are laid
+     * out, and takes no touches: the screen passes them to touchAt.
      */
-    public View createDriftLayer(Context context) {
-        driftLayer = new View(context) {
-            @Override
-            protected void onDraw(Canvas canvas) {
-                // in the falling view's coordinates, wherever the two are laid out
-                canvas.save();
-                canvas.translate(GlassgramSnowView.this.getX() - getX(), GlassgramSnowView.this.getY() - getY());
-                drawDrifts(canvas);
-                canvas.restore();
-            }
+    public final class DriftLayer extends View {
+        private DriftLayer(Context context) {
+            super(context);
+            setWillNotDraw(false);
+            setClickable(false);
+            setFocusable(false);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
 
-            @Override
-            public boolean onTouchEvent(android.view.MotionEvent event) {
-                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
-                    touchAt(event.getX() + getX() - GlassgramSnowView.this.getX(), event.getY() + getY() - GlassgramSnowView.this.getY(), event.getActionMasked());
-                }
-                return false;
-            }
-        };
-        driftLayer.setWillNotDraw(false);
-        driftLayer.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        @Override
+        protected void onDraw(Canvas canvas) {
+            canvas.save();
+            canvas.translate(GlassgramSnowView.this.getX() - getX(), GlassgramSnowView.this.getY() - getY());
+            drawDrifts(canvas);
+            canvas.restore();
+        }
+    }
+
+    public View createDriftLayer(Context context) {
+        driftLayer = new DriftLayer(context);
         return driftLayer;
     }
 
@@ -276,9 +307,12 @@ public class GlassgramSnowView extends View {
         if (surfaces != null) {
             count = Math.min(MAX_SURFACES, surfaces.collect(collected, collectedRadii));
         }
+        collectedCount = count;
+        final long uptime = SystemClock.uptimeMillis();
         for (int i = 0; i < MAX_SURFACES; i++) {
             final Drift drift = drifts[i];
-            if (i < count && collected[i].width() > AndroidUtilities.dp(8) && collected[i].height() > AndroidUtilities.dp(8)) {
+            if (i < count && collected[i].width() > AndroidUtilities.dp(8) && collected[i].height() > AndroidUtilities.dp(8)
+                    && !isHeld(collected[i], uptime)) {
                 final RectF r = collected[i];
                 if (drift.valid && (Math.abs(drift.rect.left - r.left) > AndroidUtilities.dp(1) || Math.abs(drift.rect.top - r.top) > AndroidUtilities.dp(1)
                         || Math.abs(drift.rect.width() - r.width()) > AndroidUtilities.dp(2))) {
