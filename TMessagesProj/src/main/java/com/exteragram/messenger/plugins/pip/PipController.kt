@@ -10,6 +10,9 @@
  Licensed under the GNU GPL v. 3 or later, with the additional terms
  in ADDITIONAL_TERMS.md at the root of the repository.
 
+ Modified for glassGram, 2026: on OkHttp 4 (OkHttp 5 needs compileSdk 37), whose response body
+ may be null.
+
 */
 
 package com.exteragram.messenger.plugins.pip
@@ -438,7 +441,7 @@ object PipController {
                 throw IOException("Failed to fetch metadata for $pkg: ${response.code}")
             }
 
-            val bodyString = response.body.string()
+            val bodyString = requireNotNull(response.body).string()
             val json = gson.fromJson(bodyString, JsonObject::class.java)
                 ?: throw IOException("Invalid metadata response from PyPI for $pkg")
 
@@ -500,13 +503,13 @@ object PipController {
             executeWithRetry(dlRequest, delegate).use { dlResponse ->
                 if (!dlResponse.isSuccessful) throw IOException("Download failed: ${dlResponse.code}")
 
-                val declaredLength = dlResponse.body.contentLength()
+                val declaredLength = requireNotNull(dlResponse.body).contentLength()
                 if (declaredLength > MAX_WHEEL_BYTES) {
                     throw IOException("Wheel for $pkg is too large: $declaredLength bytes (limit $MAX_WHEEL_BYTES)")
                 }
 
                 SimpliFiles.file(wheelFile)
-                    .writeFrom(SizeLimitedInputStream(dlResponse.body.byteStream(), MAX_WHEEL_BYTES))
+                    .writeFrom(SizeLimitedInputStream(requireNotNull(dlResponse.body).byteStream(), MAX_WHEEL_BYTES))
             }
 
             if (selectedCandidate.expectedSha256 != null) {
