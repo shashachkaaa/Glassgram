@@ -362,7 +362,6 @@
     <string name="GlassgramWinterAlways">Всегда</string>
     <string name="GlassgramWinterOff">Выкл.</string>
     <string name="GlassgramWinterChatSnow">Снег в чатах</string>
-    <string name="GlassgramWinterIcon">Зимняя иконка</string>
     <string name="GlassgramWinterGreetingTest">Показать новогоднее поздравление</string>
     <string name="GlassgramWinterInfo">Снег, который ложится на стекло, гирлянда над чатами, ёлочные игрушки на подарках в профилях и снег в чатах — с %1$d декабря по 14 января; до этого шапка чатов отсчитывает время до зимы. Выключается в Lite mode и при экономии заряда.</string>
     <string name="GlassgramWinterOffByTeam">Праздничное оформление сейчас выключено командой glassGram.</string>

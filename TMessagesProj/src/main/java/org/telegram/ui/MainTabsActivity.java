@@ -363,6 +363,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         checkUnreadCount(true);
 
         showAccountChangeHint();
+        checkWinterSnow();
         if (winterSnow != null) {
             winterSnow.setRunning(true);
         }
@@ -380,6 +381,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private void checkWinterSnow() {
         final boolean want = contentView != null && org.telegram.messenger.GlassgramWinter.isAnimated();
+        if (winterSnow != null && winterSnow.getParent() != contentView) {
+            // the views were made again (the app's start, a theme): the snow goes into the new ones
+            winterSnow.setRunning(false);
+            AndroidUtilities.removeFromParent(winterSnow);
+            winterSnow = null;
+        }
         if (want && winterSnow == null) {
             winterSnow = new org.telegram.ui.Components.GlassgramSnowView(contentView.getContext());
             winterSnow.setSurfaces(this::collectWinterSurfaces);

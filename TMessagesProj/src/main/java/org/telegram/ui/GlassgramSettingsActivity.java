@@ -222,7 +222,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_JANK_RECORD = 977;
     private static final int ID_HOLIDAY_MODE = 978;
     private static final int ID_HOLIDAY_CHAT_SNOW = 979;
-    private static final int ID_HOLIDAY_ICON = 980;
     private static final int ID_HOLIDAY_GREETING = 981;
     private static final int ID_MUSIC_PLAYER = 182;
     private static final int ID_INLINE_CARD = 500;
@@ -426,7 +425,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_HOLIDAY_MODE, getString(R.string.GlassgramWinterLook), holidayModeNames()[GlassgramConfig.holidayMode]));
                 if (GlassgramConfig.holidayMode != GlassgramConfig.HOLIDAY_OFF) {
                     items.add(UItem.asCheck(ID_HOLIDAY_CHAT_SNOW, getString(R.string.GlassgramWinterChatSnow)).setChecked(GlassgramConfig.holidayChatSnow));
-                    items.add(UItem.asCheck(ID_HOLIDAY_ICON, getString(R.string.GlassgramWinterIcon)).setChecked(GlassgramWinterUi.isWinterIcon()));
                     if (org.telegram.messenger.GlassgramWinter.TEST) {
                         items.add(UItem.asButton(ID_HOLIDAY_GREETING, getString(R.string.GlassgramWinterGreetingTest)));
                     }
@@ -1150,15 +1148,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                     GlassgramConfig.putInt("holidayMode", which);
                     org.telegram.messenger.GlassgramWinter.onChanged();
                 });
-                return;
-            case ID_HOLIDAY_ICON:
-                GlassgramWinterUi.setWinterIcon(!GlassgramWinterUi.isWinterIcon());
-                if (listView != null) {
-                    // the launcher takes a moment: the switch shows the choice at once
-                    AndroidUtilities.runOnUIThread(() -> {
-                        if (listView != null) listView.adapter.update(true);
-                    }, 300);
-                }
                 return;
             case ID_HOLIDAY_GREETING:
                 finishFragment();

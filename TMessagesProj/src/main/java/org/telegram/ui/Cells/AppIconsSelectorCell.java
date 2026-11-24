@@ -159,6 +159,11 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
     private void updateIconsVisibility() {
         availableIcons.clear();
         availableIcons.addAll(Arrays.asList(LauncherIconController.LauncherIcon.values()));
+        // glassGram: the winter icon is the season's (GlassgramWinter): shown first in its days, hidden after
+        availableIcons.remove(LauncherIconController.LauncherIcon.WINTER);
+        if (org.telegram.messenger.GlassgramWinter.isActive() || LauncherIconController.isEnabled(LauncherIconController.LauncherIcon.WINTER)) {
+            availableIcons.add(Math.min(1, availableIcons.size()), LauncherIconController.LauncherIcon.WINTER);
+        }
         if (MessagesController.getInstance(currentAccount).premiumFeaturesBlocked()) {
             for (int i = 0; i < availableIcons.size(); i++) {
                 if (availableIcons.get(i).premium) {

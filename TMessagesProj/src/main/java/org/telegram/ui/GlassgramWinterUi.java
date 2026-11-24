@@ -12,7 +12,6 @@ import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.FireworksOverlay;
 import org.telegram.ui.Components.LayoutHelper;
@@ -47,7 +46,8 @@ public final class GlassgramWinterUi {
                 return;
             }
             final AlertDialog.Builder builder = new AlertDialog.Builder(fragment.getParentActivity(), fragment.getResourceProvider());
-            builder.setTopAnimation(R.raw.gift, 96, false, Theme.getColor(Theme.key_dialogTopBackground, fragment.getResourceProvider()));
+            // the winter night of the winter icon behind the gift
+            builder.setTopAnimation(R.raw.gift, 96, false, 0xFF1D3A7A);
             builder.setTitle(formatString(R.string.GlassgramNewYearTitle, year));
             builder.setMessage(getString(R.string.GlassgramNewYearText));
             builder.setPositiveButton(getString(R.string.GlassgramNewYearThanks), null);

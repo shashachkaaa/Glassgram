@@ -11407,7 +11407,6 @@
     <string name="GlassgramWinterAlways">Always</string>
     <string name="GlassgramWinterOff">Off</string>
     <string name="GlassgramWinterChatSnow">Snow in chats</string>
-    <string name="GlassgramWinterIcon">Winter icon</string>
     <string name="GlassgramWinterGreetingTest">Show the New Year greeting</string>
     <string name="GlassgramWinterInfo">Snow that settles on the glass, a garland over the chats, baubles on the gifts in profiles and snow in chats, from December %1$d to January 14; until then the chats\' header counts down to it. Turned off in Lite mode and when saving power.</string>
     <string name="GlassgramWinterOffByTeam">The holiday look is turned off by the glassGram team for now.</string>

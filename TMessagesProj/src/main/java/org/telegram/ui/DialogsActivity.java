@@ -6149,6 +6149,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         final boolean garland = org.telegram.messenger.GlassgramWinter.isActive();
+        if (winterGarland != null && winterGarland.getParent() != actionBar) {
+            // the header was made again (the app's start, a theme): the garland goes onto the new one
+            winterGarland.setRunning(false);
+            AndroidUtilities.removeFromParent(winterGarland);
+            winterGarland = null;
+        }
         if (garland && winterGarland == null) {
             winterGarland = new org.telegram.ui.Components.GlassgramGarlandView(actionBar.getContext());
             winterGarland.setTopOffset(actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);
@@ -6172,7 +6178,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         final String text = org.telegram.messenger.GlassgramWinter.countdownText();
         if (text != null) {
-            if (!winterCountdownShown || actionBar.getSubtitleTextView() == null) {
+            final SimpleTextView shown = actionBar.getSubtitleTextView();
+            // A title changing with the connection ("Connecting...") fades the subtitle out and hides it:
+            // the countdown comes back on its next second
+            if (!winterCountdownShown || shown == null || shown.getVisibility() != View.VISIBLE && !actionBar.isSearchFieldVisible()) {
                 winterCountdownShown = true;
                 actionBar.setSubtitle(text);
                 if (actionBar.getSubtitleTextView() != null) {
