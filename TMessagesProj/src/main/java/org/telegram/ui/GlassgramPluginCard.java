@@ -26,6 +26,8 @@ import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
 
+import java.util.Objects;
+
 final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
     private final int account;
     private final Theme.ResourcesProvider colors;
@@ -135,8 +137,9 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
         toggle.updateColors();
     }
 
-    private void bind(GlassgramPluginsActivity screen, PluginInfo plugin, boolean pinned) {
-        if (this.plugin == null || !this.plugin.id.equals(plugin.id) || !this.plugin.icon.equals(plugin.icon)) {
+    private void bind(GlassgramPluginsActivity screen, PluginInfo plugin, boolean pinned, boolean enabled) {
+        final boolean samePlugin = this.plugin != null && this.plugin.id.equals(plugin.id);
+        if (!samePlugin || !this.plugin.icon.equals(plugin.icon)) {
             labels.setPaddingRelative(0, 0, dp(8), 0);
             GlassgramPluginInstaller.bindPluginIcon(icon, account, plugin.icon,
                 () -> labels.setPaddingRelative(dp(12), 0, dp(8), 0));
@@ -156,7 +159,10 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
         error.setText(getString(R.string.GlassgramPluginLoadError));
         error.setVisibility(plugin.error == null ? GONE : VISIBLE);
         card.setOnClickListener(v -> screen.openPlugin(plugin));
-        toggle.setChecked(plugin.enabled, false);
+        // Do not reset LiquidToggle's animation on a rebind of the same state.
+        if (!samePlugin || toggle.isChecked() != enabled) {
+            toggle.setChecked(enabled, samePlugin);
+        }
         toggle.setContentDescription(formatString(R.string.GlassgramPluginToggleName, plugin.name));
         toggle.setOnClickListener(v -> screen.togglePlugin(plugin, enabled -> toggle.setChecked(enabled, true)));
 
@@ -180,6 +186,7 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
             item.object = plugin;
             item.object2 = screen;
             item.checked = pinned;
+            item.intValue = screen.displayedEnabled(plugin) ? 1 : 0;
             return item;
         }
 
@@ -190,7 +197,7 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
 
         @Override
         public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView list) {
-            ((GlassgramPluginCard) view).bind((GlassgramPluginsActivity) item.object2, (PluginInfo) item.object, item.checked);
+            ((GlassgramPluginCard) view).bind((GlassgramPluginsActivity) item.object2, (PluginInfo) item.object, item.checked, item.intValue != 0);
         }
 
         @Override
@@ -205,7 +212,19 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
 
         @Override
         public boolean contentsEquals(UItem a, UItem b) {
-            return a.object == b.object && a.checked == b.checked;
+            PluginInfo before = (PluginInfo) a.object;
+            PluginInfo after = (PluginInfo) b.object;
+            return a.checked == b.checked && a.intValue == b.intValue
+                && Objects.equals(before.id, after.id)
+                && Objects.equals(before.name, after.name)
+                && Objects.equals(before.version, after.version)
+                && Objects.equals(before.author, after.author)
+                && Objects.equals(before.description, after.description)
+                && Objects.equals(before.icon, after.icon)
+                && Objects.equals(before.error, after.error)
+                && Objects.equals(before.path, after.path)
+                && Objects.equals(before.engine, after.engine)
+                && before.hasSettings == after.hasSettings;
         }
     }
 }

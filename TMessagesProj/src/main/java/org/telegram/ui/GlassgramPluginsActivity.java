@@ -30,6 +30,7 @@ import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.GlassgramHeaderButton;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
@@ -39,8 +40,10 @@ import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundPro
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public class GlassgramPluginsActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
@@ -53,7 +56,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     private String query = "";
     private boolean searching;
     private GlassgramHeaderButton catalogButton;
-    private final Set<String> pendingToggles = new HashSet<>();
+    private final Map<String, Boolean> pendingToggles = new HashMap<>();
 
     static SharedPreferences displayPreferences(Context context) {
         return context.getSharedPreferences("glassgram_plugin_list", Context.MODE_PRIVATE);
@@ -91,7 +94,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.pluginsUpdated) {
-            refresh();
+            refreshPluginState();
         }
     }
 
@@ -180,6 +183,50 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
         }
     }
 
+    // Plugin state changes should preserve existing holders and their running animations,
+    // even when the search field is open.
+    private void refreshPluginState() {
+        if (listView != null && !isFinished) {
+            listView.adapter.update(true);
+            updateCatalog();
+        }
+    }
+
+    boolean displayedEnabled(PluginInfo plugin) {
+        Boolean pending = pendingToggles.get(plugin.id);
+        return pending != null ? pending : plugin.enabled;
+    }
+
+    private static final class CompactPluginItem extends UItem {
+        CompactPluginItem(PluginInfo plugin, String name, String subtitle, boolean checked) {
+            super(UniversalAdapter.VIEW_TYPE_TEXT_CHECK, false);
+            this.object = plugin;
+            this.text = name;
+            this.subtext = subtitle;
+            this.checked = checked;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof CompactPluginItem
+                && ((PluginInfo) object).id.equals(((PluginInfo) ((CompactPluginItem) other).object).id);
+        }
+
+        @Override
+        public int hashCode() {
+            return ((PluginInfo) object).id.hashCode();
+        }
+
+        @Override
+        protected boolean contentsEquals(AdapterWithDiffUtils.Item other) {
+            if (!equals(other)) return false;
+            CompactPluginItem row = (CompactPluginItem) other;
+            return checked == row.checked
+                && android.text.TextUtils.equals(text, row.text)
+                && android.text.TextUtils.equals(subtext, row.subtext);
+        }
+    }
+
     private void updateCatalog() {
         if (catalogButton == null) {
             return;
@@ -230,9 +277,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
             if (compact) {
                 String name = (pinned.contains(plugin.id) ? "📌 " : "") + plugin.name + " " + plugin.version;
                 String subtitle = plugin.error != null ? getString(R.string.GlassgramPluginLoadError) : plugin.author;
-                UItem row = UItem.asButtonCheck(0, name, subtitle).setChecked(plugin.enabled);
-                row.object = plugin;
-                items.add(row);
+                items.add(new CompactPluginItem(plugin, name, subtitle, displayedEnabled(plugin)));
             } else {
                 items.add(GlassgramPluginCard.Factory.of(this, plugin, pinned.contains(plugin.id)));
             }
@@ -299,13 +344,20 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
 
     void togglePlugin(PluginInfo plugin, Utilities.Callback<Boolean> display) {
         PluginInfo current = PluginsController.getPlugin(plugin.id);
-        if (current != null && pendingToggles.add(plugin.id)) {
-            display.run(!current.enabled);
-            PluginsController.setPluginEnabled(plugin.id, !current.enabled, () -> {
-                pendingToggles.remove(plugin.id);
-                if (listView != null && !isFinished) listView.adapter.update(false);
-            });
+        if (current == null || pendingToggles.containsKey(plugin.id)) {
+            return;
         }
+        final boolean desired = !current.enabled;
+        pendingToggles.put(plugin.id, desired);
+        display.run(desired);
+        // Record the optimistic state in the adapter as well as in the visible switch.
+        // Intermediate engine notifications must not restore the old state.
+        refreshPluginState();
+        PluginsController.setPluginEnabled(plugin.id, desired, () -> {
+            pendingToggles.remove(plugin.id);
+            // The engine's actual state is authoritative, including a failed enable.
+            refreshPluginState();
+        });
     }
 
     void sharePlugin(PluginInfo plugin) {
