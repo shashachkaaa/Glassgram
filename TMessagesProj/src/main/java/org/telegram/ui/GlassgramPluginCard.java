@@ -164,7 +164,7 @@ final class GlassgramPluginCard extends FrameLayout implements Theme.Colorable {
             toggle.setChecked(enabled, samePlugin);
         }
         toggle.setContentDescription(formatString(R.string.GlassgramPluginToggleName, plugin.name));
-        toggle.setOnClickListener(v -> screen.togglePlugin(plugin, enabled -> toggle.setChecked(enabled, true)));
+        toggle.setOnClickListener(v -> screen.togglePlugin(plugin, checked -> toggle.setChecked(checked, true)));
 
         share.setContentDescription(getString(R.string.ShareFile));
         share.setOnClickListener(v -> screen.sharePlugin(plugin));
