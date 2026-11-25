@@ -16,6 +16,10 @@ The app downloads the file every time Glassgram is opened or comes back to the s
 file and push it to `master`; users see it the next time they open the app. To serve the list
 from your own server instead, change `GlassgramBadges.API_URL` and return the same JSON there.
 
+To assign the built-in tester badge, set the user’s ID in `peers` or username in
+`usernames` to `"tester"`. The localized default description is taken from `badges.tester`;
+no custom text is needed. Clients without the tester glyph display the fallback arrow.
+
 ## Format
 
 ```json
@@ -42,7 +46,7 @@ from your own server instead, change `GlassgramBadges.API_URL` and return the sa
 
 - `badges` — the badge kinds, by any id you like.
   - `icon` — the glyph on the badge: `arrow` (the Glassgram arrow), `check`, `star`, `heart`,
-    `bolt`, `crown`, `code`, `shield`, `supporter`; or a picture in its own colors, cut to the
+    `bolt`, `crown`, `code`, `shield`, `supporter`, `tester` (laboratory flask); or a picture in its own colors, cut to the
     rosette: `peter` (Peter Griffin's face). Older versions of the app show a picture's badge
     with the arrow.
   - `text` — what tapping the badge shows, per language code; `en` is the fallback. A plain

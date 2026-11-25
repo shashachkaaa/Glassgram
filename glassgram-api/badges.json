@@ -15,6 +15,13 @@
         "ru": "Разработчик glassGram."
       }
     },
+    "tester": {
+      "icon": "tester",
+      "text": {
+        "en": "glassGram tester. Helps improve the project by testing new features and reporting bugs.",
+        "ru": "Тестировщик glassGram. Помогает развивать проект, проверяя новые функции и находя ошибки."
+      }
+    },
     "partner": {
       "icon": "star",
       "text": {

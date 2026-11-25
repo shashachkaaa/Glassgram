@@ -111,6 +111,8 @@ public final class GlassgramBadges {
                     return R.drawable.glassgram_badge_code;
                 case "shield":
                     return R.drawable.glassgram_badge_shield;
+                case "tester":
+                    return R.drawable.glassgram_badge_tester;
                 case "supporter":
                     return R.drawable.glassgram_badge_supporter;
                 // Pictures, drawn in their own colors in the rosette (see GlassgramBadgeDrawable)
