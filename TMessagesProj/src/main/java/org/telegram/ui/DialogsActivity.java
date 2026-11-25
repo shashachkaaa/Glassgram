@@ -3706,6 +3706,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         };
         fragmentSearchField.setPadding(dp(4), dp(4), dp(4), dp(4));
+        if (initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect) {
+            fragmentSearchField.showPillStack();
+        }
         fragmentSearchField.setPivotX(0);
         fragmentSearchField.setPivotY(0);
         if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {

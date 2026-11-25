@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="PillStackPills">Search bar pills</string>
+    <string name="PillStackInfiniteScrolling">Loop through pills</string>
+    <string name="CustomPillUpdatedAt">Updated at %1$s</string>
+    <string name="CustomPillUpdatedDate">Updated %1$s</string>
+</resources>

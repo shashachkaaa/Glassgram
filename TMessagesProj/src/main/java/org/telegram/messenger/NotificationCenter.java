@@ -48,6 +48,8 @@ public class NotificationCenter {
     // exteraGram's plugin engine (com.exteragram.messenger.plugins)
     public static final int pluginsUpdated = totalEvents++;
     public static final int pluginMenuItemsUpdated = totalEvents++;
+    public static final int pillStackLayoutChanged = totalEvents++;
+    public static final int pillStackSettingsChanged = totalEvents++;
     public static final int pluginSettingsRegistered = totalEvents++;
     public static final int pluginSettingsUnregistered = totalEvents++;
     public static final int pluginIsNotResponding = totalEvents++;

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="PillStackPills">Капсулы строки поиска</string>
+    <string name="PillStackInfiniteScrolling">Циклическое переключение капсул</string>
+    <string name="CustomPillUpdatedAt">Обновлено в %1$s</string>
+    <string name="CustomPillUpdatedDate">Обновлено %1$s</string>
+</resources>
