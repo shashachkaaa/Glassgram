@@ -4497,7 +4497,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     private boolean glassgramMaySchedule(long peer) {
-        return GlassgramConfig.ghostScheduleMessages && peer != 0 && !DialogObject.isEncryptedDialog(peer)
+        return GlassgramConfig.ghostScheduleMessages() && peer != 0 && !DialogObject.isEncryptedDialog(peer)
                 && peer != getUserConfig().getClientUserId();
     }
 
@@ -4514,7 +4514,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
      * again after failing: its time, passed by then, moves ahead again.
      */
     private void glassgramKeepScheduleAhead(TLObject req, boolean scheduled) {
-        if (!scheduled || !GlassgramConfig.ghostScheduleMessages) {
+        if (!scheduled || !GlassgramConfig.ghostScheduleMessages()) {
             return;
         }
         final int min = getConnectionsManager().getCurrentTime() + GLASSGRAM_SCHEDULE_MIN;
@@ -4544,7 +4544,12 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 getMessagesController().glassgramReadOnInteract(ghostPeer);
             }
             if (GlassgramConfig.ghostAutoOffline()) {
-                Utilities.stageQueue.postRunnable(() -> getMessagesController().glassgramGoOffline(), 2500);
+                Utilities.stageQueue.postRunnable(() -> {
+                    // The user may have disabled Ghost Mode or Auto Offline during the delay.
+                    if (GlassgramConfig.ghostAutoOffline()) {
+                        getMessagesController().glassgramGoOffline();
+                    }
+                }, 2500);
             }
         }
         if (sendMessageParams != null && sendMessageParams.retryMessageObject == null) {

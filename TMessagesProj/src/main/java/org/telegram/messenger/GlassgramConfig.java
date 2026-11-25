@@ -32,20 +32,20 @@ public class GlassgramConfig {
     public static final int BOOST_OFF = 0, BOOST_FAST = 1, BOOST_ULTRA = 2;
 
     // Ghost mode: the master switch and what it covers
-    public static boolean ghostMode;
-    public static boolean ghostNoReadMessages = true;
-    public static boolean ghostNoReadStories = true;
-    public static boolean ghostNoOnline = true;
-    public static boolean ghostNoTyping = true;
-    public static boolean ghostAutoOffline = true;
-    public static boolean ghostReadOnInteract = true;
+    public static volatile boolean ghostMode;
+    public static volatile boolean ghostNoReadMessages = true;
+    public static volatile boolean ghostNoReadStories = true;
+    public static volatile boolean ghostNoOnline = true;
+    public static volatile boolean ghostNoTyping = true;
+    public static volatile boolean ghostAutoOffline = true;
+    public static volatile boolean ghostReadOnInteract = true;
     /** Outgoing messages go as scheduled ones ~12 s ahead: the server sends them, so one is not seen online. */
-    public static boolean ghostScheduleMessages;
+    public static volatile boolean ghostScheduleMessages;
     /** Outgoing messages without sound: never, in ghost mode, always. */
-    public static int ghostSilentSend;
+    public static volatile int ghostSilentSend;
     public static final int SILENT_NEVER = 0, SILENT_IN_GHOST = 1, SILENT_ALWAYS = 2;
     /** Before someone's unread stories open, seen by them, ghost mode is offered. */
-    public static boolean ghostStoryAlert = true;
+    public static volatile boolean ghostStoryAlert = true;
 
     public static boolean ghostSilent() {
         return ghostSilentSend == SILENT_ALWAYS || ghostSilentSend == SILENT_IN_GHOST && ghostMode;
@@ -69,6 +69,7 @@ public class GlassgramConfig {
     public static boolean ghostNoOnline() { return ghostMode && ghostNoOnline; }
     public static boolean ghostNoTyping() { return ghostMode && ghostNoTyping; }
     public static boolean ghostAutoOffline() { return ghostMode && ghostAutoOffline; }
+    public static boolean ghostScheduleMessages() { return ghostMode && ghostScheduleMessages; }
 
     // Appearance
     public static String titleText = "";

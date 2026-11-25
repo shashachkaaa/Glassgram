@@ -1088,7 +1088,7 @@
     <string name="GlassgramPluginActionUnknown">неопознанный</string>
     <string name="GlassgramPluginActionYou">вы</string>
     <string name="GlassgramGhostSchedule">Отложенная отправка</string>
-    <string name="GlassgramGhostScheduleInfo">Исходящие сообщения уходят как запланированные примерно через 12 секунд (медиа — через 12 секунд после загрузки): их отправляет сервер Telegram, поэтому вы не появляетесь в сети. До отправки они ждут в отложенных сообщениях чата. Не включайте при плохой связи.</string>
+    <string name="GlassgramGhostScheduleInfo">Действует только при включённом режиме призрака. Исходящие сообщения уходят как запланированные примерно через 12 секунд (медиа — через 12 секунд после загрузки): их отправляет сервер Telegram, поэтому вы не появляетесь в сети. До отправки они ждут в отложенных сообщениях чата. Не включайте при плохой связи.</string>
     <string name="GlassgramGhostSilent">Отправка без звука</string>
     <string name="GlassgramGhostSilentInfo">Исходящие сообщения уходят без звука и не звенят у собеседника.</string>
     <string name="GlassgramGhostSilentNever">Никогда</string>
