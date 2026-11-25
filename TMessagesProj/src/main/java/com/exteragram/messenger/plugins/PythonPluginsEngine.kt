@@ -182,6 +182,7 @@ class PythonPluginsEngine : PluginsController.PluginsEngine {
         }
     }
 
+    @JvmField
     val pluginInstances = ConcurrentHashMap<String, PyObject>()
 
     private val settingsCache = ConcurrentHashMap<String, ConcurrentHashMap<String, Any?>>()
@@ -194,10 +195,19 @@ class PythonPluginsEngine : PluginsController.PluginsEngine {
 
     private var devServerClass: PyObject? = null
 
+    @JvmField
     var debuggerListener: PyObject? = null
 
+    @JvmField
     @Volatile
     var basePluginClass: PyObject? = null
+
+    // glassGram: keep both the SDK's field access and Java bean accessors.
+    fun getPluginInstances() = pluginInstances
+    fun getDebuggerListener() = debuggerListener
+    fun setDebuggerListener(value: PyObject?) { debuggerListener = value }
+    fun getBasePluginClass() = basePluginClass
+    fun setBasePluginClass(value: PyObject?) { basePluginClass = value }
 
     private fun getPluginsController(): PluginsController {
         return PluginsController.getInstance()

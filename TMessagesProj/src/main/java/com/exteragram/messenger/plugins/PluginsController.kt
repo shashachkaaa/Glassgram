@@ -77,8 +77,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class PluginsController private constructor() : PluginsHooks {
 
+    @JvmField
     val plugins = ConcurrentHashMap<String, Plugin>()
 
+    @JvmField
     val settings = ConcurrentHashMap<String, List<SettingItem>>()
 
     private val menuItemsById = ConcurrentHashMap<String, MenuItemRecord>()
@@ -120,15 +122,27 @@ class PluginsController private constructor() : PluginsHooks {
     private val shutdownCallbacks = ArrayList<Runnable>()
     private val lifecycleGeneration = AtomicInteger()
 
+    @JvmField
     var pluginsDir: File = File(ApplicationLoader.getFilesDirFixed(), PluginsConstants.PLUGINS)
 
+    @JvmField
     var preferences: SharedPreferences =
         ApplicationLoader.applicationContext.getSharedPreferences(
             "plugin_settings",
             Activity.MODE_PRIVATE
         )
 
+    @JvmField
     val watchdog = PluginsWatchdog(this)
+
+    // glassGram: Chaquopy uses actual JVM fields; retain the Java getter/setter ABI too.
+    fun getPlugins() = plugins
+    fun getSettings() = settings
+    fun getPluginsDir() = pluginsDir
+    fun setPluginsDir(value: File) { pluginsDir = value }
+    fun getPreferences() = preferences
+    fun setPreferences(value: SharedPreferences) { preferences = value }
+    fun getWatchdog() = watchdog
 
     private val updateNotificationRunnable = Runnable {
         NotificationCenter.getGlobalInstance()
@@ -1186,9 +1200,14 @@ class PluginsController private constructor() : PluginsHooks {
     )
 
     class PluginValidationResult(
-        var plugin: Plugin?,
-        var error: String?,
-    )
+        @JvmField var plugin: Plugin?,
+        @JvmField var error: String?,
+    ) {
+        fun getPlugin() = plugin
+        fun setPlugin(value: Plugin?) { plugin = value }
+        fun getError() = error
+        fun setError(value: String?) { error = value }
+    }
 
     interface PluginsEngine {
         fun isPlugin(file: File?, messageObject: MessageObject?): Boolean

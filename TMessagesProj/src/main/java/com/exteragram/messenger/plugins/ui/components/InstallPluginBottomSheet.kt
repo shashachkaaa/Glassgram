@@ -36,25 +36,47 @@ class InstallPluginBottomSheet(
     }
 
     class PluginInstallParams(
-        val filePath: String,
+        @JvmField val filePath: String,
         source: MessageObject?,
     ) {
         @JvmOverloads
         constructor(filePath: String, @Suppress("UNUSED_PARAMETER") trusted: Boolean = false) : this(filePath, null as MessageObject?)
 
         /** exteraGram trusts the files of its own channels; glassGram vouches by its catalog instead. */
+        @JvmField
         val trusted: Boolean = false
 
         /** The chat message the file came from, if it did. */
+        @JvmField
         val message: MessageObject? = source
 
+        @JvmField
         var iconDrawable: Drawable? = null
 
+        @JvmField
         var requiredPlugins: List<RequiredPluginInfo>? = null
+        @JvmField
         var bundledPackages: List<String>? = null
 
+        @JvmField
         var blockedTitle: String? = null
+        @JvmField
         var blockedSubtitle: String? = null
+
+        // Preserve existing Java callers while exposing the fields to ElyxCore.
+        fun getFilePath() = filePath
+        fun getTrusted() = trusted
+        fun getMessage() = message
+        fun getIconDrawable() = iconDrawable
+        fun setIconDrawable(value: Drawable?) { iconDrawable = value }
+        fun getRequiredPlugins() = requiredPlugins
+        fun setRequiredPlugins(value: List<RequiredPluginInfo>?) { requiredPlugins = value }
+        fun getBundledPackages() = bundledPackages
+        fun setBundledPackages(value: List<String>?) { bundledPackages = value }
+        fun getBlockedTitle() = blockedTitle
+        fun setBlockedTitle(value: String?) { blockedTitle = value }
+        fun getBlockedSubtitle() = blockedSubtitle
+        fun setBlockedSubtitle(value: String?) { blockedSubtitle = value }
 
         companion object {
             @JvmStatic

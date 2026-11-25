@@ -10,8 +10,8 @@
 #
 # Modified for glassGram, 2026: ElyxCore failing to start doesn't stop the SDK.
 
-__version__ = "1.4.6.5"
-version = (1, 4, 6, 5)
+__version__ = "1.4.6.6"
+version = (1, 4, 6, 6)
 version_str = __version__
 
 __beta__ = False
@@ -179,7 +179,10 @@ def setup_hooks():
         class CleanupPluginHook:
             def before_hooked_method(self, param):
                 if id := param.args[0]:
-                    param.thisObject.engines.get("python").basePluginClass._cleanup(id)
+                    engine = PluginsController.getEngines().get("python")
+                    base = engine.getBasePluginClass() if engine else None
+                    if base is not None:
+                        base.callAttrThrows("_cleanup", id)
   
         unhooks.append(XposedBridge.hookMethod(
             PluginsController.getClass().getDeclaredMethod("cleanupPlugin", String.getClass()),
