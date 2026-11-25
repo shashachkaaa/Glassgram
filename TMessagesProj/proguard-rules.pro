@@ -120,8 +120,11 @@
 -keep class libXray.** { *; }
 -keep class go.** { *; }
 
-# MVEL (the conditions of plugins' menu items, ElyxCore) loads its reflective optimizer by name.
--keep class org.mvel2.optimizers.impl.refl.ReflectiveAccessorOptimizer { public <init>(); }
+# ElyxCore imports org.mvel2.MVEL from Python (Chaquopy), so R8 cannot see the
+# entry points or the reflective expression evaluator's references. Keep the
+# Android-compatible MVEL runtime, including its dynamically loaded optimizers.
+# The optional desktop JSR-223 integration is not used on Android.
+-keep class !org.mvel2.jsr223.**,org.mvel2.** { *; }
 
 # MVEL's optional Java SE JSR-223 bridge references javax.script, which Android does not
 # provide. Plugins call MVEL.compileExpression/executeExpression directly instead.
