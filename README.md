@@ -25,7 +25,7 @@
 [![Build APK](https://github.com/shashachkaaa/Glassgram/actions/workflows/build-apk.yml/badge.svg?branch=master)](https://github.com/shashachkaaa/Glassgram/actions/workflows/build-apk.yml)
 [![Downloads](https://img.shields.io/github/downloads/shashachkaaa/Glassgram/total?style=flat-square)](https://github.com/shashachkaaa/Glassgram/releases)
 
-[Возможности](#возможности) · [Редакции](#редакции) · [Установка](#установка) · [Сборка](#сборка) · [Лицензия](#лицензия)
+[Возможности](#возможности) · [Редакции](#редакции) · [Установка](#установка) · [Сборка](#сборка) · [Лицензия](#лицензия-и-благодарности)
 
 </div>
 
