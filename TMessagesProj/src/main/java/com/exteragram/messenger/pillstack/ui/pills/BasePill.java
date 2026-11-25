@@ -189,7 +189,7 @@ public abstract class BasePill extends FrameLayout {
         String formatted = LocaleController.getInstance().getFormatterDay().format(time);
         TextView textView = new TextView(options.getContext());
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        textView.setTypeface(AndroidUtilities.regular());
+        textView.setTypeface(android.graphics.Typeface.DEFAULT);
         textView.setTextColor(Theme.getColor(Theme.key_groupcreate_sectionText, resourcesProvider));
         textView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         textView.setPadding(AndroidUtilities.dp(18), AndroidUtilities.dp(9), AndroidUtilities.dp(18), AndroidUtilities.dp(9));
