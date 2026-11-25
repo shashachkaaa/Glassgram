@@ -74,6 +74,7 @@ public class GlassgramConfig {
     public static String titleText = "";
     public static boolean hideStories;
     public static boolean headerBadge = true;
+    public static boolean hideHeaderCountdown;
     public static boolean glassHeader = true;
     /**
      * The glass chats list header laid out as on iOS: Edit on the left, the title in the middle,
@@ -361,6 +362,7 @@ public class GlassgramConfig {
         ghostStoryAlert = p.getBoolean("ghostStoryAlert", true);
         hideStories = p.getBoolean("hideStories", false);
         headerBadge = p.getBoolean("headerBadge", true);
+        hideHeaderCountdown = p.getBoolean("hideHeaderCountdown", false);
         glassHeader = p.getBoolean("glassHeader", true);
         iosChatsHeader = p.getBoolean("iosChatsHeader", true);
         glassPanels = p.getBoolean("glassPanels", true);

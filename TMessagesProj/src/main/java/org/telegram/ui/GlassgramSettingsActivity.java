@@ -221,6 +221,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     private static final int ID_FRAME_STATS = 181;
     private static final int ID_JANK_RECORD = 977;
     private static final int ID_MUSIC_PLAYER = 182;
+    private static final int ID_HIDE_HEADER_COUNTDOWN = 183;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
     private static final int ID_MENU_ITEM = 300;
@@ -394,6 +395,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asButton(ID_TITLE_TEXT, getString(R.string.GlassgramTitleText), GlassgramConfig.getTitle()));
                 items.add(UItem.asCheck(ID_HIDE_STORIES, getString(R.string.GlassgramHideStories)).setChecked(GlassgramConfig.hideStories));
                 items.add(UItem.asCheck(ID_HEADER_BADGE, getString(R.string.GlassgramHeaderBadge)).setChecked(GlassgramConfig.headerBadge));
+                items.add(UItem.asCheck(ID_HIDE_HEADER_COUNTDOWN, getString(R.string.GlassgramHideHeaderCountdown)).setChecked(GlassgramConfig.hideHeaderCountdown));
                 items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
                 if (GlassgramConfig.glassHeader) {
                     items.add(UItem.asCheck(ID_IOS_CHATS_HEADER, getString(R.string.GlassgramIosChatsHeader)).setChecked(GlassgramConfig.iosChatsHeader));
@@ -1094,6 +1096,11 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             case ID_GLASS_PANELS:
                 value = GlassgramConfig.glassPanels = !GlassgramConfig.glassPanels;
                 GlassgramConfig.putBoolean("glassPanels", value);
+                break;
+            case ID_HIDE_HEADER_COUNTDOWN:
+                value = GlassgramConfig.hideHeaderCountdown = !GlassgramConfig.hideHeaderCountdown;
+                GlassgramConfig.putBoolean("hideHeaderCountdown", value);
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.glassgramHolidayChanged);
                 break;
             case ID_HEADER_BADGE:
                 value = GlassgramConfig.headerBadge = !GlassgramConfig.headerBadge;

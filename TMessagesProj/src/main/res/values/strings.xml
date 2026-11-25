@@ -11332,6 +11332,7 @@
     <string name="GlassgramTitleTextInfo">Text shown at the top of the chat list. Leave empty for the app\'s name.</string>
     <string name="GlassgramHideStories">Hide Stories</string>
     <string name="GlassgramHeaderBadge">My Badge in the Header</string>
+    <string name="GlassgramHideHeaderCountdown">Hide Header Countdown</string>
     <string name="GlassgramGlassHeader">Glass Chats List Header</string>
     <string name="GlassgramIosChatsHeader">iOS-Style Chats Header</string>
     <string name="GlassgramHeaderEdit">Edit</string>

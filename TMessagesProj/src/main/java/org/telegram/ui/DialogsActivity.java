@@ -6179,7 +6179,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (!isWinterHeader()) {
             return;
         }
-        final String text = org.telegram.messenger.GlassgramWinter.countdownText();
+        final String text = org.telegram.messenger.GlassgramConfig.hideHeaderCountdown
+                ? null : org.telegram.messenger.GlassgramWinter.countdownText();
         if (text != null) {
             final SimpleTextView shown = actionBar.getSubtitleTextView();
             // A title changing with the connection ("Connecting...") fades the subtitle out and hides it:
