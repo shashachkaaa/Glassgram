@@ -1,6 +1,7 @@
 package org.telegram.messenger.plugins;
 
 import android.os.Build;
+import android.os.Looper;
 import android.text.TextUtils;
 
 import com.exteragram.messenger.ExteraConfig;
@@ -74,7 +75,13 @@ public final class PluginsController {
         }
 
         public void click(HashMap<String, Object> context) {
-            com.exteragram.messenger.plugins.PluginsController.runOnPluginsQueue(() -> record.executeClick(context));
+            // Match exteraGram: menu callbacks may construct Android views and dialogs.
+            // Keep background plugin lifecycle and hooks on pluginsQueue, but dispatch UI clicks on main.
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                record.executeClick(context);
+            } else {
+                AndroidUtilities.runOnUIThread(() -> record.executeClick(context));
+            }
         }
     }
 
