@@ -11392,8 +11392,8 @@
     <string name="GlassgramJankRecordInfo">While you use the app, records which frames came late and what the app was doing in them, then shows a report to copy and send to the developers.</string>
     <string name="GlassgramJankRecordStarted">Recording for 20 seconds: use the app where it stutters</string>
     <string name="GlassgramJankRecordTitle">Stutters</string>
-    <string name="GlassgramWinterCountdownDays">Winter in %1$d d %2$s</string>
-    <string name="GlassgramWinterCountdown">Winter in %1$s</string>
+    <string name="GlassgramWinterCountdownDays">Coming soon: %1$d d %2$s</string>
+    <string name="GlassgramWinterCountdown">Coming soon: %1$s</string>
     <string name="GlassgramNewYearTitle">Happy New Year %1$d!</string>
     <string name="GlassgramNewYearText">Thank you for being with glassGram this year. May the new one be bright, warm and full of good news!</string>
     <string name="GlassgramNewYearThanks">Thank you!</string>

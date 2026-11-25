@@ -347,8 +347,8 @@
     <string name="GlassgramJankRecordInfo">Пока вы пользуетесь приложением, записывает, какие кадры опоздали и чем приложение было занято в них, и показывает отчёт, который можно скопировать и отправить разработчикам.</string>
     <string name="GlassgramJankRecordStarted">Запись 20 секунд: пользуйтесь приложением там, где оно дёргается</string>
     <string name="GlassgramJankRecordTitle">Рывки</string>
-    <string name="GlassgramWinterCountdownDays">До зимы %1$d д %2$s</string>
-    <string name="GlassgramWinterCountdown">До зимы %1$s</string>
+    <string name="GlassgramWinterCountdownDays">Скоро: %1$d д %2$s</string>
+    <string name="GlassgramWinterCountdown">Скоро: %1$s</string>
     <string name="GlassgramNewYearTitle">С Новым %1$d годом!</string>
     <string name="GlassgramNewYearText">Спасибо, что были с glassGram в этом году. Пусть новый будет ярким, тёплым и полным хороших новостей!</string>
     <string name="GlassgramNewYearThanks">Спасибо!</string>
