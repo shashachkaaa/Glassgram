@@ -1959,6 +1959,18 @@ public class ItemOptions {
         dontDismiss = true;
     }
 
+    // glassGram: compatibility with exteraGram pill context menus.
+    private boolean dismissOnMoveOutside;
+
+    public ItemOptions setDismissOnMoveOutside(boolean value) {
+        dismissOnMoveOutside = value;
+        return this;
+    }
+
+    public boolean isDismissOnMoveOutside() {
+        return dismissOnMoveOutside;
+    }
+
     private View.OnTouchListener hoverReleaseListener;
     private View hoveredItem;
     private final int[] hoverLoc = new int[2];
@@ -2026,6 +2038,13 @@ public class ItemOptions {
             hoveredItem = null;
             target.setPressed(false);
             target.performClick();
+        } else if (dismissOnMoveOutside && scrimView != null) {
+            int[] location = new int[2];
+            scrimView.getLocationOnScreen(location);
+            if (rawX < location[0] || rawX >= location[0] + scrimView.getWidth()
+                    || rawY < location[1] || rawY >= location[1] + scrimView.getHeight()) {
+                dismiss();
+            }
         }
     }
 

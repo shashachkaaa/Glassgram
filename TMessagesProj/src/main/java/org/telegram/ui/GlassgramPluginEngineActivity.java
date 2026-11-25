@@ -26,6 +26,7 @@ import java.util.ArrayList;
 
 public class GlassgramPluginEngineActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
     private static final int ENABLE = 1, COMPACT = 2, DEVELOP = 3, LOGS = 4;
+    private static final int PILL_STACK = 10001;
     private static final int DOCUMENTATION = 5, REPOSITORIES = 6, CHANNEL = 7, CATALOG = 8, SAFE_MODE = 9, SDK = 10;
 
     @Override
@@ -103,6 +104,7 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
             items.add(UItem.asButtonCheck(SAFE_MODE, getString(R.string.PluginsSafeMode), getString(R.string.PluginsSafeModeInfo))
                 .wrapText().setChecked(com.exteragram.messenger.ExteraConfig.pluginsSafeMode));
             items.add(UItem.asButton(SDK, R.drawable.msg_info, getString(R.string.PluginsPySdk), sdkVersion()));
+            items.add(UItem.asButton(PILL_STACK, R.drawable.msg_settings, getString(R.string.PillStackPills)));
             items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.GlassgramPluginDeveloper)));
             UItem developer = UItem.asCheck(DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.isDevMode());
@@ -144,6 +146,9 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
             case SDK:
                 AndroidUtilities.addToClipboard(sdkVersion());
                 BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
+                break;
+            case PILL_STACK:
+                presentFragment(new com.exteragram.messenger.pillstack.ui.PillStackPreferencesActivity());
                 break;
             case LOGS:
                 showLogs();
