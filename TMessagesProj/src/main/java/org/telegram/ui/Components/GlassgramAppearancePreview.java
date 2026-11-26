@@ -61,17 +61,35 @@ public final class GlassgramAppearancePreview extends View implements Theme.Colo
         }
 
         @Override public boolean isClickable() { return false; }
+
+        // Calling this static method initializes Factory and registers it before lookup.
+        private static UItem createItem(int kind, int flags, CharSequence title, CharSequence subtitle, Object data) {
+            UItem item = UItem.ofFactory(Factory.class);
+            item.id = 7000 + kind;
+            item.intValue = kind;
+            item.longValue = flags;
+            item.text = title;
+            item.subtext = subtitle;
+            item.object = data;
+            return item;
+        }
+
+        @Override
+        public boolean equals(UItem a, UItem b) {
+            return a.id == b.id;
+        }
+
+        @Override
+        public boolean contentsEquals(UItem a, UItem b) {
+            return a.intValue == b.intValue && a.longValue == b.longValue
+                    && TextUtils.equals(a.text, b.text)
+                    && TextUtils.equals(a.subtext, b.subtext)
+                    && java.util.Objects.equals(a.object, b.object);
+        }
     }
 
     public static UItem of(int kind, int flags, CharSequence title, CharSequence subtitle, Object data) {
-        UItem item = UItem.ofFactory(Factory.class);
-        item.id = 7000 + kind;
-        item.intValue = kind;
-        item.longValue = flags;
-        item.text = title;
-        item.subtext = subtitle;
-        item.object = data;
-        return item;
+        return Factory.createItem(kind, flags, title, subtitle, data);
     }
 
     private void bind(UItem item) {
