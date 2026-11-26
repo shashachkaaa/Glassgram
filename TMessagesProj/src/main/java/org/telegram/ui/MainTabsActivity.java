@@ -655,7 +655,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             args.putBoolean("needFinishFragment", false);
             presentFragment(new CallLogActivity(args));
         });
-        o.setBlur(true);
         o.translate(0, -dp(4));
         o.setGravity(Gravity.LEFT);
         final ShapeDrawable bg = Theme.createRoundRectDrawable(dp(28), getThemedColor(Theme.key_windowBackgroundWhite));
@@ -684,7 +683,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.callTabsVisibleToggled);
             });
         }
-        o.setBlur(true);
         o.translate(0, -dp(4));
         final ShapeDrawable bg = Theme.createRoundRectDrawable(dp(28), getThemedColor(Theme.key_windowBackgroundWhite));
         bg.getPaint().setShadowLayer(dp(6), 0, dp(1), Theme.multAlpha(0xFF000000, 0.15f));
@@ -743,7 +741,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             });
             o.addView(folderItem, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         }
-//        o.setBlur(true);
         o.translate(-dp(8), -dp(4));
         o.setMaxHeight(dp(400));
         final ShapeDrawable bg = Theme.createRoundRectDrawable(dp(28), getThemedColor(Theme.key_windowBackgroundWhite));
@@ -762,6 +759,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 : messagesController.getAllDialogs();
         for (int i = 0; i < dialogs.size(); i++) {
             final TLRPC.Dialog dialog = dialogs.get(i);
+            if (!(messagesController.getDialogUnreadCount(dialog) > 0 || dialog.unread_mark)
+                    || messagesController.isDialogMuted(dialog.id, 0)) {
+                continue;
+            }
             if (!folder.isDefault()) {
                 long dialogId = dialog.id;
                 if (DialogObject.isEncryptedDialog(dialogId)) {
@@ -774,10 +775,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                     continue;
                 }
             }
-            if ((messagesController.getDialogUnreadCount(dialog) > 0 || dialog.unread_mark)
-                    && !messagesController.isDialogMuted(dialog.id, 0)) {
-                return true;
-            }
+            return true;
         }
         return false;
     }
@@ -901,7 +899,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             }
         }
 
-        o.setBlur(true);
         o.translate(0, -dp(4));
         final ShapeDrawable bg = Theme.createRoundRectDrawable(dp(28), getThemedColor(Theme.key_windowBackgroundWhite));
         bg.getPaint().setShadowLayer(dp(6), 0, dp(1), Theme.multAlpha(0xFF000000, 0.15f));

@@ -17874,7 +17874,7 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 chatAdapter.updateRowsSafe();
-                int position = chatAdapter.messagesStartRow + chatAdapter.getMessages().indexOf(object);
+                int position = chatAdapter.messagesStartRow + index;
 
                 updateVisibleRows();
                 boolean found = false;
@@ -40176,12 +40176,6 @@ public class ChatActivity extends BaseFragment implements
             updatePinnedMessageView(true);
             updateVisibleRows();
 
-            ValueAnimator valueAnimator = ValueAnimator.ofFloat(searchAnimationProgress, 0f);
-            valueAnimator.addUpdateListener(valueAnimator1 -> setSearchAnimationProgress((float) valueAnimator1.getAnimatedValue()));
-            valueAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-            valueAnimator.setDuration(320);
-            valueAnimator.start();
-
             animatorSearchResultAsListVisibility.setValue(false, true);
             updateSearchListEmptyView();
 
@@ -40221,26 +40215,12 @@ public class ChatActivity extends BaseFragment implements
                 hideSendButtonHints();
             }
 
-            ValueAnimator valueAnimator = ValueAnimator.ofFloat(searchAnimationProgress, 1f);
-            valueAnimator.addUpdateListener(valueAnimator1 -> setSearchAnimationProgress((float) valueAnimator1.getAnimatedValue()));
-            valueAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-            valueAnimator.setDuration(320);
-            valueAnimator.start();
             if (actionBarSearchTags != null) {
                 actionBarSearchTags.show(!isInsideContainer && actionBarSearchTags.hasFilters() && searchingHashtag == null);
             }
 
             if (searchingHashtag != null && hashtagSearchTabs != null && hashtagSearchTabs.tabs.getCurrentPosition() != defaultSearchPage) {
                 hashtagSearchTabs.tabs.scrollToTab(defaultSearchPage, defaultSearchPage);
-            }
-        }
-
-        private float searchAnimationProgress;
-
-         public void setSearchAnimationProgress(float progress) {
-            searchAnimationProgress = progress;
-            if (fragmentView != null) {
-                fragmentView.invalidate();
             }
         }
 
@@ -40261,11 +40241,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (searchingHashtag == null) {
                     searchingHashtag = searchingQuery;
-                    ValueAnimator valueAnimator = ValueAnimator.ofFloat(searchAnimationProgress, 1f);
-                    valueAnimator.addUpdateListener(valueAnimator1 -> setSearchAnimationProgress((float) valueAnimator1.getAnimatedValue()));
-                    valueAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-                    valueAnimator.setDuration(320);
-                    valueAnimator.start();
                     if (actionBarSearchTags != null) {
                         actionBarSearchTags.show(!isInsideContainer && actionBarSearchTags.hasFilters() && searchingHashtag == null);
                     }

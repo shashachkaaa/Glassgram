@@ -4178,50 +4178,36 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     boolean[] shareEmpty = new boolean[1];
                     shareEmpty[0] = true;
 
-                    ArrayList<TLRPC.Dialog> dialogs = new ArrayList<>(defaultTab ? getMessagesController().getDialogs(folderId) : getMessagesController().getAllDialogs());
-                    MessagesController.DialogFilter filter = null;
-                    if (dialogFilter != null) {
-                        filter = getMessagesController().getDialogFilters().get(tabView.getId());
-                        if (filter != null) {
-                            for (int i = 0; i < dialogs.size(); i++) {
-                                if (!filter.includesDialog(getAccountInstance(), dialogs.get(i).id)) {
-                                    dialogs.remove(i);
-                                    i--;
-                                }
-                            }
-                            hasShare = filter.isChatlist() || filter.neverShow.isEmpty() && (filter.flags & ~(MessagesController.DIALOG_FILTER_FLAG_CHATLIST | MessagesController.DIALOG_FILTER_FLAG_CHATLIST_ADMIN)) == 0;
-                            if (hasShare) {
-                                for (int i = 0; i < filter.alwaysShow.size(); ++i) {
-                                    long did = filter.alwaysShow.get(i);
-                                    if (did < 0) {
-                                        TLRPC.Chat chat = getMessagesController().getChat(-did);
-                                        if (chat != null && FilterCreateActivity.canAddToFolder(chat)) {
-                                            shareEmpty[0] = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
+                    final MessagesController controller = getMessagesController();
+                    final AccountInstance account = getAccountInstance();
+                    final ArrayList<TLRPC.Dialog> source = defaultTab ? controller.getDialogs(folderId) : controller.getAllDialogs();
+                    final ArrayList<TLRPC.Dialog> dialogs = new ArrayList<>();
+                    for (int i = 0; i < source.size(); i++) {
+                        final TLRPC.Dialog dialog = source.get(i);
+                        if (!defaultTab && !dialogFilter.includesDialog(account, dialog.id)) {
+                            continue;
                         }
-
-                        if (!dialogs.isEmpty()) {
-                            boolean allAreMuted = true;
-                            for (int i = 0; i < dialogs.size(); ++i) {
-                                TLRPC.Dialog dialog = dialogs.get(i);
-                                if (!getMessagesController().isDialogMuted(dialog.id, 0)) {
-                                    allAreMuted = false;
-                                    break;
-                                }
-                            }
-                            muteAll = !allAreMuted;
+                        dialogs.add(dialog);
+                        hasUnread |= dialog.unread_mark || dialog.unread_count > 0;
+                        if (!defaultTab && !muteAll) {
+                            muteAll = !controller.isDialogMuted(dialog.id, 0);
                         }
                     }
                     final boolean finalMuteAll = muteAll;
 
-                    final MessagesController.DialogFilter finalFilter = filter;
-                    for (int i = 0; i < dialogs.size(); i++) {
-                        if (dialogs.get(i).unread_mark || dialogs.get(i).unread_count > 0) {
-                            hasUnread = true;
+                    if (dialogFilter != null) {
+                        hasShare = dialogFilter.isChatlist() || dialogFilter.neverShow.isEmpty()
+                                && (dialogFilter.flags & ~(MessagesController.DIALOG_FILTER_FLAG_CHATLIST | MessagesController.DIALOG_FILTER_FLAG_CHATLIST_ADMIN)) == 0;
+                        if (hasShare) {
+                            for (long did : dialogFilter.alwaysShow) {
+                                if (did < 0) {
+                                    TLRPC.Chat chat = controller.getChat(-did);
+                                    if (chat != null && FilterCreateActivity.canAddToFolder(chat)) {
+                                        shareEmpty[0] = false;
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -4278,11 +4264,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             .addIf(hasUnread, R.drawable.msg_markread, LocaleController.getString(R.string.MarkAllAsRead), () -> {
                                 markDialogsAsRead(dialogs);
                             })
-                            .addIf(hasShare, R.drawable.msg_share, FilterCreateActivity.withNew(filter != null && filter.isMyChatlist() ? -1 : 0, LocaleController.getString(R.string.LinkActionShare), true), () -> {
+                            .addIf(hasShare, R.drawable.msg_share, FilterCreateActivity.withNew(dialogFilter != null && dialogFilter.isMyChatlist() ? -1 : 0, LocaleController.getString(R.string.LinkActionShare), true), () -> {
                                 if (shareEmpty[0]) {
-                                    presentFragment(new FilterChatlistActivity(finalFilter, null));
+                                    presentFragment(new FilterChatlistActivity(dialogFilter, null));
                                 } else {
-                                    FilterCreateActivity.FilterInvitesBottomSheet.show(DialogsActivity.this, finalFilter, null);
+                                    FilterCreateActivity.FilterInvitesBottomSheet.show(DialogsActivity.this, dialogFilter, null);
                                 }
                             })
                             .addIf(!defaultTab, R.drawable.msg_delete, LocaleController.getString(R.string.FilterDeleteItem), true, () -> {
@@ -4982,20 +4968,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     // the iOS-like header's own glass buttons show the list moved under them
                     glassgramInvalidateHeaderGlass();
                     viewPage.dialogsItemAnimator.onListScroll(-dy);
-                    int firstVisiblePosition = -1;
-                    int lastVisiblePosition = -1;
-                    for (int i = 0; i < recyclerView.getChildCount(); i++) {
-                        int position = recyclerView.getChildAdapterPosition(recyclerView.getChildAt(i));
-                        if (position >= 0) {
-                            if (lastVisiblePosition == -1 || position > lastVisiblePosition) {
-                                lastVisiblePosition = position;
-                            }
-                            if (firstVisiblePosition == -1 || position < firstVisiblePosition) {
-                                firstVisiblePosition = position;
-                            }
-                        }
-                    }
-                    checkListLoad(viewPage);
+                    final int firstVisiblePosition = viewPage.layoutManager.findFirstVisibleItemPosition();
+                    final int lastVisiblePosition = viewPage.layoutManager.findLastVisibleItemPosition();
+                    checkListLoad(viewPage, firstVisiblePosition, lastVisiblePosition);
                     invalidateScrollY = true;
                     if (fragmentView != null) {
                         fragmentView.invalidate();
@@ -5041,28 +5016,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                         }
                                     }
                                 }
-                            }
-                        }
-                        float currentTranslation = scrollYOffset;
-                        float newTranslation = currentTranslation - dy;
-                        boolean applyScrollY = true;
-                        applyScrollY = false;
-                        invalidateScrollY = true;
-                        if (fragmentView != null) {
-                            fragmentView.invalidate();
-                        }
-                        if (applyScrollY) {
-                            int maxScrollYOffset = getMaxScrollYOffset();
-                            if (!(filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE && animatorFilterTabsVisible.getValue())) {
-                                maxScrollYOffset = dp(SEARCH_FIELD_HEIGHT);
-                            }
-                            if (newTranslation < -maxScrollYOffset) {
-                                newTranslation = -maxScrollYOffset;
-                            } else if (newTranslation > 0) {
-                                newTranslation = 0;
-                            }
-                            if (newTranslation != currentTranslation) {
-                                setScrollY(newTranslation);
                             }
                         }
                     }

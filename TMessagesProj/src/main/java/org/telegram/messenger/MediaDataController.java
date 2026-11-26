@@ -3748,49 +3748,32 @@ public class MediaDataController extends BaseController {
     }
 
     private void updateSearchResults() {
-        ArrayList<MessageObject> previousSearchResultMessages = new ArrayList<>(searchResultMessages);
+        HashMap<Integer, MessageObject> previous = new HashMap<>(searchResultMessages.size());
+        for (MessageObject message : searchResultMessages) {
+            previous.put(message.getId(), message);
+        }
         searchResultMessages.clear();
         HashSet<Integer> messageIds = new HashSet<>();
-        for (int i = 0; i < searchServerResultMessages.size(); ++i) {
-            MessageObject m = searchServerResultMessages.get(i);
-            if ((!m.hasValidGroupId() || m.isPrimaryGroupMessage) && !messageIds.contains(m.getId())) {
-                MessageObject prev = null;
-                for (int j = 0; j < previousSearchResultMessages.size(); ++j) {
-                    if (previousSearchResultMessages.get(j).getId() == m.getId()) {
-                        prev = previousSearchResultMessages.get(j);
-                        break;
-                    }
-                }
-                if (prev != null) {
-                    m.copyStableParams(prev);
-                    m.mediaExists = prev.mediaExists;
-                    m.attachPathExists = prev.attachPathExists;
-                }
-                m.isSavedFiltered = true;
-                searchResultMessages.add(m);
-                messageIds.add(m.getId());
+        for (MessageObject message : searchServerResultMessages) {
+            if ((!message.hasValidGroupId() || message.isPrimaryGroupMessage) && messageIds.add(message.getId())) {
+                addSearchResult(message, previous.get(message.getId()));
             }
         }
-        for (int i = 0; i < searchLocalResultMessages.size(); ++i) {
-            MessageObject m = searchLocalResultMessages.get(i);
-            if (!messageIds.contains(m.getId())) {
-                MessageObject prev = null;
-                for (int j = 0; j < previousSearchResultMessages.size(); ++j) {
-                    if (previousSearchResultMessages.get(j).getId() == m.getId()) {
-                        prev = previousSearchResultMessages.get(j);
-                        break;
-                    }
-                }
-                if (prev != null) {
-                    m.copyStableParams(prev);
-                    m.mediaExists = prev.mediaExists;
-                    m.attachPathExists = prev.attachPathExists;
-                }
-                m.isSavedFiltered = true;
-                searchResultMessages.add(m);
-                messageIds.add(m.getId());
+        for (MessageObject message : searchLocalResultMessages) {
+            if (messageIds.add(message.getId())) {
+                addSearchResult(message, previous.get(message.getId()));
             }
         }
+    }
+
+    private void addSearchResult(MessageObject message, MessageObject previous) {
+        if (previous != null) {
+            message.copyStableParams(previous);
+            message.mediaExists = previous.mediaExists;
+            message.attachPathExists = previous.attachPathExists;
+        }
+        message.isSavedFiltered = true;
+        searchResultMessages.add(message);
     }
 
     public int getMask() {
@@ -3939,6 +3922,7 @@ public class MediaDataController extends BaseController {
             searchServerResultMessagesMap[1].clear();
             getNotificationCenter().postNotificationName(NotificationCenter.chatSearchResultsLoading, guid);
         }
+        final int currentReqId = ++lastReqId;
         final boolean isHashtag = query != null && (query.trim().startsWith("#") || query.trim().startsWith("$"));
         if (messagesSearchEndReached[0] && !messagesSearchEndReached[1] && mergeDialogId != 0) {
             queryWithDialog = mergeDialogId;
@@ -3976,7 +3960,7 @@ public class MediaDataController extends BaseController {
                 }
                 req.filter = new TLRPC.TL_inputMessagesFilterEmpty();
                 mergeReqId = getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-                    if (lastMergeDialogId == mergeDialogId) {
+                    if (currentReqId == lastReqId && lastMergeDialogId == mergeDialogId) {
                         mergeReqId = 0;
                         if (response != null) {
                             TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
@@ -4021,7 +4005,6 @@ public class MediaDataController extends BaseController {
         }
         loadingSearchLocal = false;
         loadedPredirectedSearchLocal = false;
-        int currentReqId = ++lastReqId;
         final boolean isSaved = dialogId == getUserConfig().getClientUserId();
         if (isSaved && reaction != null && firstQuery) {
             lastReturnedNum = 0;
@@ -4066,8 +4049,15 @@ public class MediaDataController extends BaseController {
         reqId = getConnectionsManager().sendRequest(req, (response, error) -> {
             ArrayList<MessageObject> messageObjects = new ArrayList<>();
 
-            if (error == null) {
+            if (response instanceof TLRPC.messages_Messages) {
                 TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                for (int i = res.messages.size() - 1; i >= 0; i--) {
+                    TLRPC.Message message = res.messages.get(i);
+                    if (message instanceof TLRPC.TL_messageEmpty
+                            || message.action instanceof TLRPC.TL_messageActionHistoryClear) {
+                        res.messages.remove(i);
+                    }
+                }
                 int N = Math.min(res.messages.size(), req.limit - 1);
                 for (int a = 0; a < N; a++) {
                     TLRPC.Message message = res.messages.get(a);
@@ -4085,26 +4075,21 @@ public class MediaDataController extends BaseController {
                     if (!jumpToMessage) {
                         loadingMoreSearchMessages = false;
                     }
-                    if (response != null) {
+                    if (response instanceof TLRPC.messages_Messages) {
                         TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
-                        for (int a = 0; a < res.messages.size(); a++) {
-                            TLRPC.Message message = res.messages.get(a);
-                            if (message instanceof TLRPC.TL_messageEmpty || message.action instanceof TLRPC.TL_messageActionHistoryClear) {
-                                res.messages.remove(a);
-                                a--;
-                            }
-                        }
                         getMessagesStorage().putUsersAndChats(res.users, res.chats, true, true);
                         getMessagesController().putUsers(res.users, false);
                         getMessagesController().putChats(res.chats, false);
                         Runnable done = () -> {
+                            if (currentReqId != lastReqId) {
+                                return;
+                            }
                             if (req.offset_id == 0 && queryWithDialogFinal == dialogId) {
                                 lastReturnedNum = 0;
                                 searchServerResultMessages.clear();
                                 searchServerResultMessagesMap[0].clear();
                                 searchServerResultMessagesMap[1].clear();
                                 messagesSearchCount[0] = 0;
-                                getNotificationCenter().postNotificationName(NotificationCenter.chatSearchResultsLoading, guid);
                             }
                             boolean added = false;
                             int N = Math.min(res.messages.size(), req.limit - 1);
