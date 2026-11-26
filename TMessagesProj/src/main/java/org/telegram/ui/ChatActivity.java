@@ -10266,7 +10266,10 @@ public class ChatActivity extends BaseFragment implements
 
     /** With the sidebar's button in the action bar, the attach button stays in the input (and over it) instead of the action bar's menu. */
     private boolean isAttachInSideButtons() {
-        return chatMode == MODE_SCHEDULED || isComments || isSidebarAttach();
+        // Saved Messages can keep its sidebar without moving the attachment button out
+        // of the split Liquid Glass composer. The sidebar's header/menu behavior is independent.
+        return chatMode == MODE_SCHEDULED || isComments
+                || isSidebarAttach() && !(isSavedMessagesSidebar() && GlassgramConfig.splitInput);
     }
 
     private boolean isSidebarAttach() {
