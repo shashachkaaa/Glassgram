@@ -42,6 +42,8 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.GlassgramConfig;
+import org.telegram.messenger.GlassgramUpdates;
+import org.telegram.ui.Components.GlassgramUpdateButton;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.Emoji;
@@ -187,6 +189,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private boolean dropCallsFragmentAfterPageScroll;
 
     private UpdateLayoutWrapper updateLayoutWrapper;
+    private GlassgramUpdateButton glassgramUpdateButton;
     private FrameLayout tabsViewWrapper;
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
@@ -210,7 +213,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         Bulletin.Delegate delegate = new Bulletin.Delegate() {
             @Override
             public int getBottomOffset(int tag) {
-                return navigationBarHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN);
+                return navigationBarHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) + GlassgramUpdates.getBarInset();
             }
         };
 
@@ -367,6 +370,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     @Override
     public void onResume() {
         super.onResume();
+        refreshGlassgramUpdateBar();
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
@@ -584,11 +588,32 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsViewWrapper.setOnClickListener(v -> {});
         tabsViewWrapper.addView(tabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
         tabsViewWrapper.setClipToPadding(false);
+        tabsViewWrapper.setClipChildren(false);
         contentView.addView(tabsViewWrapper, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
 
         if (useLiquidTabs()) {
             createLiquidTabs(context);
             tabsViewWrapper.addView(liquidTabs, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+        }
+
+        // glassGram's stable release updater: a separate Kyant capsule above the tabs.
+        glassgramUpdateButton = null;
+        if (!GlassgramConfig.STORE_BUILD) {
+            final BlurredBackgroundDrawableViewFactory updateGlassFactory = new BlurredBackgroundDrawableViewFactory(
+                    iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor,
+                    iBlur3SourceTabFrosted != null ? iBlur3SourceTabFrosted : iBlur3SourceColor,
+                    iBlur3SourceColor);
+            updateGlassFactory.setSourceRootView(viewPositionWatcher, contentView);
+            updateGlassFactory.setLiquidGlassEffectAllowed(true);
+            glassgramUpdateButton = new GlassgramUpdateButton(context, updateGlassFactory,
+                    BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
+            updateGlassgramButtonColors();
+            glassgramUpdateButton.setOnClickListener(v -> GlassgramUpdates.onBarClick(getParentActivity()));
+            tabsViewWrapper.addView(glassgramUpdateButton, LayoutHelper.createFrame(
+                    LayoutHelper.MATCH_PARENT, GlassgramUpdates.BAR_HEIGHT_DP,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL,
+                    DialogsActivity.MAIN_TABS_MARGIN, 0, DialogsActivity.MAIN_TABS_MARGIN,
+                    DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS));
         }
 
         updateLayoutWrapper = new UpdateLayoutWrapper(context);
@@ -599,6 +624,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             updateLayout.updateAppUpdateViews(currentAccount, false);
         }
 
+        refreshGlassgramUpdateBar();
         updateLayout();
         checkUnreadCount(false);
         checkWinterSnow();
@@ -1143,7 +1169,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         ViewGroup.MarginLayoutParams lp;
         {
-            final int height = navigationBarHeight + updateLayoutHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS);
+            final int height = navigationBarHeight + updateLayoutHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + GlassgramUpdates.getBarInset();
             lp = (ViewGroup.MarginLayoutParams) fadeView.getLayoutParams();
             if (lp.height != height) {
                 lp.height = height;
@@ -1177,6 +1203,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.glassgramUpdateChanged) {
+            refreshGlassgramUpdateBar();
+            return;
+        }
         if (id == NotificationCenter.glassgramHolidayChanged) {
             checkWinterSnow();
             return;
@@ -1253,6 +1283,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             .add(NotificationCenter.contactsPermissionBadgeCheck)
             .addGlobal(NotificationCenter.appUpdateAvailable)
             .addGlobal(NotificationCenter.appUpdateLoading)
+            .addGlobal(NotificationCenter.glassgramUpdateChanged)
             .addGlobal(NotificationCenter.needSetDayNightTheme)
             .addGlobal(NotificationCenter.glassgramHolidayChanged);
 
@@ -1300,6 +1331,26 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         fadeView.setVisibility(alpha > 0 ? View.VISIBLE : View.GONE);
     }
 
+    private void refreshGlassgramUpdateBar() {
+        if (glassgramUpdateButton == null) {
+            return;
+        }
+        if (glassgramUpdateButton.refresh()) {
+            androidx.core.view.ViewCompat.requestApplyInsets(contentView);
+            contentView.requestLayout();
+        }
+        if (updateLayoutWrapper != null) {
+            checkUi_tabsPosition();
+        }
+    }
+
+    private void updateGlassgramButtonColors() {
+        if (glassgramUpdateButton != null) {
+            glassgramUpdateButton.setColors(getThemedColor(Theme.key_featuredStickers_addButton),
+                    getThemedColor(Theme.key_featuredStickers_buttonText));
+        }
+    }
+
     private void checkUi_tabsPosition() {
         final boolean isUpdateLayoutVisible = updateLayoutWrapper.isUpdateLayoutVisible();
         final int updateLayoutHeight = isUpdateLayoutVisible ? dp(UpdateLayoutWrapper.HEIGHT) : 0;
@@ -1314,6 +1365,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsView.setEnabled(factor > 1);
         tabsView.setAlpha(factor);
         tabsView.setVisibility(factor > 0 ? View.VISIBLE : View.GONE);
+        if (glassgramUpdateButton != null) {
+            glassgramUpdateButton.setAlpha(factor);
+            glassgramUpdateButton.setEnabled(factor > 0.95f);
+            glassgramUpdateButton.setImportantForAccessibility(factor > 0.95f
+                    ? View.IMPORTANT_FOR_ACCESSIBILITY_YES : View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        }
     }
 
     private void checkUi_callTabVisible(boolean callTabsVisible, boolean animated) {
@@ -1570,7 +1627,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         final int updateLayoutHeight = updateLayoutWrapper != null && updateLayoutWrapper.isUpdateLayoutVisible() ? dp(UpdateLayoutWrapper.HEIGHT) : 0;
         final int bottom = contentView.getHeight() - navigationBarHeight - updateLayoutHeight - dp(DialogsActivity.MAIN_TABS_MARGIN);
-        final int top = bottom - dp(DialogsActivity.MAIN_TABS_HEIGHT);
+        final int top = bottom - dp(DialogsActivity.MAIN_TABS_HEIGHT) - GlassgramUpdates.getBarInset();
         final boolean fadeVisible = fadeView != null && fadeView.isShown() && fadeView.getHeight() > 0;
         final float blurTop = fadeVisible ? Math.min(top - dp(1), fadeView.getY()) : top - dp(1);
         final float blurBottom = fadeVisible
@@ -1626,6 +1683,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void blur3_updateColors() {
+        updateGlassgramButtonColors();
         blur3_updateFadeColors();
         blur3_updateLiquidTabsColors();
         if (tabsViewBackground != null) {
@@ -1666,5 +1724,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         super.addThemeColorKeys(keys);
         keys.add(Theme.key_dialogBackground);
         keys.add(Theme.key_windowBackgroundWhite);
+        keys.add(Theme.key_featuredStickers_addButton);
+        keys.add(Theme.key_featuredStickers_buttonText);
     }
 }

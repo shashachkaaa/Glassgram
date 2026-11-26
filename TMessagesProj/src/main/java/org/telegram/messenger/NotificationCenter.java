@@ -45,6 +45,7 @@ public class NotificationCenter {
     public static final int glassgramMessagesMarkedDeleted = totalEvents++;
     public static final int glassgramChatsHiddenChanged = totalEvents++;
     public static final int glassgramHolidayChanged = totalEvents++;
+    public static final int glassgramUpdateChanged = totalEvents++;
     // exteraGram's plugin engine (com.exteragram.messenger.plugins)
     public static final int pluginsUpdated = totalEvents++;
     public static final int pluginMenuItemsUpdated = totalEvents++;

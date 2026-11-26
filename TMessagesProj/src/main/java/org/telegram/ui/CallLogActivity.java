@@ -703,8 +703,8 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 			hasMainTabs = arguments.getBoolean("hasMainTabs", false);
 		}
 
-		additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
-		additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+		additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
+		additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
 
 		return true;
 	}
@@ -1403,6 +1403,9 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 	@Override
 	public void onInsets(int left, int top, int right, int bottom) {
 		navigationBarHeight = bottom;
+		final int extra = hasMainTabs ? org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
+		additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + extra : 0;
+		additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) + extra : 0;
 
 		checkUi_listViewPadding();
 		checkUi_floatingButton();

@@ -13,7 +13,6 @@ import androidx.core.content.FileProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.AlertsCreator;
 
 import java.io.ByteArrayOutputStream;
@@ -28,28 +27,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Glassgram updates: every time the app is opened (like the badges) it asks GitHub for the
- * latest release of this repository. A release newer than this build that has an APK is offered
- * in a dialog with "Download" and "Remind me later"; the APK is downloaded by the app itself and
- * handed to the system installer.
- * <p>
- * Only real releases count: GitHub's "latest release" skips drafts and pre-releases, so the
- * "latest" pre-release that every master build publishes is never offered. This build's version
- * is GLASSGRAM_VERSION_NAME (gradle.properties; release builds take it from their tag).
- * "Remind me later" puts the release off until the next launch of the app.
+ * Stable release updater for glassGram. All UI state lives on the main thread and is shared by
+ * the bottom capsule across accounts and fragment recreation. The APK worker keeps partial
+ * downloads on disk and resumes them with HTTP Range; installation is always user initiated.
  */
 public final class GlassgramUpdates {
-
     private static final String API_URL = "https://api.github.com/repos/shashachkaaa/Glassgram/releases/latest";
-    /** Without the API (it allows 60 requests an hour, shared with the badges): the page redirects to the latest release's tag. */
     private static final String LATEST_PAGE_URL = "https://github.com/shashachkaaa/Glassgram/releases/latest";
-    /** The APK of a release, as the build workflow names it. */
     private static final String DOWNLOAD_URL = "https://github.com/shashachkaaa/Glassgram/releases/download/%1$s/glassgram-v%2$s.apk";
-
-    /** Opens closer than this share one check. */
     private static final long CHECK_INTERVAL = 10 * 60 * 1000L;
     private static final int MAX_NOTES_LENGTH = 1500;
     private static final String DIR = "cache/glassgram-update";
+    private static final String PREFS = "glassgram_update";
+    private static final Pattern CONTENT_RANGE = Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)");
+
+    public static final int HIDDEN = 0, AVAILABLE = 1, DOWNLOADING = 2, PAUSING = 3,
+            PAUSED = 4, READY = 5, FAILED = 6;
+    public static final int BAR_HEIGHT_DP = 44;
 
     static final class Release {
         String tag;
@@ -60,30 +54,121 @@ public final class GlassgramUpdates {
     }
 
     private static Release available;
+    private static Release activeRelease;
+    private static Release pendingLatest;
+    private static boolean hasPendingLatest;
     private static long lastCheck;
-    private static boolean checking;
-    /** The release already offered in this run of the app: offered once, "later" means the next launch. */
-    private static String offeredTag;
-    private static volatile boolean downloading;
-    private static volatile boolean cancelDownload;
+    private static boolean checking, restored;
+    private static int state = HIDDEN;
+    private static long downloadedBytes;
+    private static long totalBytes = -1;
+    private static volatile boolean pauseRequested;
 
     private GlassgramUpdates() {
     }
 
-    /** This build's Glassgram version, like "1.1.0". */
     public static String getCurrentVersion() {
         return BuildVars.GLASSGRAM_VERSION;
     }
 
-    /** Checks for a new release when the app is opened and offers it in this activity. */
+    private static android.content.SharedPreferences prefs() {
+        return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+
+    private static boolean validTag(String tag) {
+        return tag != null && tag.matches("[vV]?[0-9]+\\.[0-9]+\\.[0-9]+");
+    }
+
+    private static boolean usable(Release release) {
+        return release != null && validTag(release.tag) && versionOf(release.tag).equals(release.version)
+                && release.apkUrl != null && release.apkUrl.startsWith("https://github.com/shashachkaaa/Glassgram/releases/download/")
+                && compareVersions(release.version, getCurrentVersion()) > 0;
+    }
+
+    private static void restore() {
+        if (restored || GlassgramConfig.STORE_BUILD || ApplicationLoader.applicationContext == null) {
+            return;
+        }
+        restored = true;
+        final android.content.SharedPreferences p = prefs();
+        final Release release = new Release();
+        release.tag = p.getString("tag", null);
+        release.version = p.getString("version", null);
+        release.apkUrl = p.getString("url", null);
+        release.apkSize = p.getLong("size", -1);
+        if (usable(release)) {
+            available = release;
+            readDiskState();
+        } else {
+            p.edit().clear().apply();
+            deleteDownloads(null, null);
+        }
+    }
+
+    public static boolean hasUpdate() {
+        restore();
+        return !GlassgramConfig.STORE_BUILD && available != null;
+    }
+
+    /** The additional bottom space above the tabs, in pixels, shared with their pages. */
+    public static int getBarInset() {
+        return hasUpdate() ? AndroidUtilities.dp(BAR_HEIGHT_DP) : 0;
+    }
+
+    public static int getState() {
+        return hasUpdate() ? state : HIDDEN;
+    }
+
+    public static long getTotalBytes() {
+        return totalBytes;
+    }
+
+    public static long getDownloadedBytes() {
+        return downloadedBytes;
+    }
+
+    public static int getProgress() {
+        return totalBytes > 0 ? (int) Math.max(0, Math.min(100, downloadedBytes * 100.0 / totalBytes)) : -1;
+    }
+
+    private static void notifyChanged() {
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.glassgramUpdateChanged);
+    }
+
+    private static void persist() {
+        if (available == null) {
+            prefs().edit().clear().apply();
+        } else {
+            prefs().edit().putString("tag", available.tag).putString("version", available.version)
+                    .putString("url", available.apkUrl).putLong("size", totalBytes > 0 ? totalBytes : available.apkSize).apply();
+        }
+    }
+
+    private static void readDiskState() {
+        if (available == null) {
+            state = HIDDEN;
+            downloadedBytes = 0;
+            totalBytes = -1;
+            return;
+        }
+        totalBytes = available.apkSize;
+        final File file = apkFile(available);
+        if (file.isFile() && file.length() > 0 && (totalBytes <= 0 || file.length() == totalBytes)) {
+            downloadedBytes = totalBytes = file.length();
+            state = READY;
+        } else {
+            downloadedBytes = partFile(available).length();
+            state = downloadedBytes > 0 ? PAUSED : AVAILABLE;
+        }
+    }
+
+    /** Re-check stable releases on app open. A cached offer remains visible without a connection. */
     public static void checkOnOpen(Activity activity) {
-        // The RuStore edition is updated by the store only
         if (activity == null || GlassgramConfig.STORE_BUILD) {
             return;
         }
-        if (available != null) {
-            AndroidUtilities.runOnUIThread(() -> offer(activity));
-        }
+        restore();
+        notifyChanged();
         final long now = System.currentTimeMillis();
         if (checking || now - lastCheck < CHECK_INTERVAL) {
             return;
@@ -94,49 +179,69 @@ public final class GlassgramUpdates {
             final Release release = fetchLatest();
             AndroidUtilities.runOnUIThread(() -> {
                 checking = false;
-                if (release == null) {
-                    return;
-                }
-                if (compareVersions(release.version, getCurrentVersion()) > 0) {
-                    available = release;
-                    // The activity may have been recreated (a rotation) while GitHub answered
-                    final Activity launch = org.telegram.ui.LaunchActivity.instance;
-                    offer(activity.isFinishing() && launch != null ? launch : activity);
-                } else {
-                    available = null;
-                    // Installed already: the downloaded APK is not needed any more
-                    Utilities.globalQueue.postRunnable(() -> deleteDownloads(null));
+                if (release != null && validTag(release.tag)) {
+                    applyLatest(usable(release) ? release : null);
                 }
             });
         });
     }
 
-    private static void offer(Activity activity) {
-        final Release release = available;
-        if (release == null || downloading || TextUtils.equals(offeredTag, release.tag)
-                || activity.isFinishing() || SharedConfig.isWaitingForPasscodeEnter) {
+    private static void applyLatest(Release release) {
+        if (activeRelease != null) {
+            // Do not delete or replace an APK while the worker is still writing it.
+            if (release == null || !TextUtils.equals(activeRelease.tag, release.tag)) {
+                pendingLatest = release;
+                hasPendingLatest = true;
+                pauseRequested = true;
+                state = PAUSING;
+                notifyChanged();
+            }
             return;
         }
-        offeredTag = release.tag;
-        try {
-            final StringBuilder message = new StringBuilder(LocaleController.formatString(R.string.GlassgramUpdateText, release.version, getCurrentVersion()));
-            if (!TextUtils.isEmpty(release.notes)) {
-                message.append("\n\n").append(release.notes);
+        if (release != null && available != null && TextUtils.equals(available.tag, release.tag)
+                && TextUtils.equals(available.apkUrl, release.apkUrl)) {
+            if (release.apkSize > 0 && totalBytes > 0 && release.apkSize != totalBytes) {
+                apkFile(available).delete();
+                partFile(available).delete();
+            } else if (release.apkSize <= 0 && totalBytes > 0) {
+                release.apkSize = totalBytes;
             }
-            AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-            builder.setTitle(LocaleController.getString(R.string.GlassgramUpdateTitle));
-            builder.setMessage(message.toString());
-            builder.setPositiveButton(LocaleController.getString(R.string.GlassgramUpdateDownload), (dialog, which) -> download(activity, release));
-            builder.setNegativeButton(LocaleController.getString(R.string.GlassgramUpdateLater), null);
-            builder.show();
-        } catch (Throwable e) {
-            FileLog.e(e);
         }
+        available = release;
+        if (release == null) {
+            deleteDownloads(null, null);
+        } else {
+            deleteDownloads(apkFile(release), partFile(release));
+        }
+        readDiskState();
+        persist();
+        notifyChanged();
     }
 
-
-
-    /* Download and install */
+    public static void onBarClick(Activity activity) {
+        if (activity == null || !hasUpdate() || activity.isFinishing() || SharedConfig.isWaitingForPasscodeEnter) {
+            return;
+        }
+        if (state == DOWNLOADING) {
+            pauseRequested = true;
+            state = PAUSING;
+            notifyChanged();
+            return;
+        }
+        if (state == PAUSING || activeRelease != null) {
+            return;
+        }
+        final Release release = available;
+        final File file = apkFile(release);
+        if (state == READY && file.isFile()) {
+            if (isOurApk(file)) {
+                install(activity, file);
+                return;
+            }
+            file.delete();
+        }
+        startDownload(release);
+    }
 
     private static File downloadsDir() {
         return new File(ApplicationLoader.applicationContext.getFilesDir(), DIR);
@@ -146,125 +251,200 @@ public final class GlassgramUpdates {
         return new File(downloadsDir(), "glassgram-v" + release.version + ".apk");
     }
 
-    /** Removes downloaded APKs except keep (all of them for null). */
-    private static void deleteDownloads(File keep) {
+    private static File partFile(Release release) {
+        return new File(apkFile(release).getPath() + ".part");
+    }
+
+    private static void deleteDownloads(File keep, File keepPart) {
         final File[] files = downloadsDir().listFiles();
         if (files == null) {
             return;
         }
         for (File f : files) {
-            if (keep == null || !f.equals(keep)) {
+            if (!f.equals(keep) && !f.equals(keepPart)) {
                 f.delete();
             }
         }
     }
 
-    private static void download(Activity activity, Release release) {
+    private static void startDownload(Release release) {
         final File file = apkFile(release);
-        if (file.exists() && (release.apkSize <= 0 || file.length() == release.apkSize)) {
-            // Downloaded before, e.g. when installing from the app was not allowed yet
-            install(activity, file);
-            return;
-        }
-        if (downloading) {
-            return;
-        }
-        downloading = true;
-        cancelDownload = false;
-
-        final AlertDialog progress = new AlertDialog(activity, AlertDialog.ALERT_TYPE_LOADING);
-        progress.setTitle(LocaleController.getString(R.string.GlassgramUpdateTitle));
-        progress.setMessage(LocaleController.formatString(R.string.GlassgramUpdateDownloading, release.version));
-        progress.setCanceledOnTouchOutside(false);
-        progress.setCancelable(false);
-        progress.setNegativeButton(LocaleController.getString(R.string.Cancel), (dialog, which) -> cancelDownload = true);
-        try {
-            progress.show();
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
-
+        final File part = partFile(release);
+        final long expected = totalBytes > 0 ? totalBytes : release.apkSize;
+        activeRelease = release;
+        pauseRequested = false;
+        downloadedBytes = part.length();
+        totalBytes = expected;
+        state = DOWNLOADING;
+        notifyChanged();
         new Thread(() -> {
-            final boolean ok = downloadTo(release, file, percent -> AndroidUtilities.runOnUIThread(() -> progress.setProgress(percent)));
+            final boolean ok = downloadTo(release, file, part, expected);
             AndroidUtilities.runOnUIThread(() -> {
-                downloading = false;
-                try {
-                    progress.dismiss();
-                } catch (Throwable ignore) {
+                final boolean paused = pauseRequested;
+                activeRelease = null;
+                pauseRequested = false;
+                if (hasPendingLatest) {
+                    final Release next = pendingLatest;
+                    pendingLatest = null;
+                    hasPendingLatest = false;
+                    applyLatest(next);
+                    return;
                 }
                 if (ok) {
-                    install(activity, file);
-                } else if (!cancelDownload) {
-                    Toast.makeText(ApplicationLoader.applicationContext, LocaleController.getString(R.string.GlassgramUpdateFailed), Toast.LENGTH_LONG).show();
+                    downloadedBytes = totalBytes = file.length();
+                    state = READY;
+                } else {
+                    downloadedBytes = part.length();
+                    state = paused ? PAUSED : FAILED;
                 }
+                persist();
+                notifyChanged();
             });
         }, "GlassgramUpdateDownload").start();
     }
 
-    private interface ProgressListener {
-        void onProgress(int percent);
+    private static void publishProgress(Release release, long done, long total) {
+        AndroidUtilities.runOnUIThread(() -> {
+            if (activeRelease != release) {
+                return;
+            }
+            final boolean sizeChanged = total > 0 && total != totalBytes;
+            downloadedBytes = done;
+            totalBytes = total;
+            if (sizeChanged) {
+                persist();
+            }
+            notifyChanged();
+        });
     }
 
-    private static boolean downloadTo(Release release, File file, ProgressListener listener) {
-        final File dir = file.getParentFile();
-        if (dir != null && !dir.exists() && !dir.mkdirs()) {
+    private static boolean finishDownload(File file, File part, long expected) {
+        if (pauseRequested || !part.isFile() || part.length() <= 0
+                || expected > 0 && part.length() != expected) {
             return false;
         }
-        deleteDownloads(null);
-        final File part = new File(file.getPath() + ".part");
-        HttpURLConnection connection = null;
-        try {
-            // GitHub sends release assets from another host; redirects between https hosts are followed
-            connection = (HttpURLConnection) new URL(release.apkUrl).openConnection();
-            connection.setConnectTimeout(20000);
-            connection.setReadTimeout(30000);
-            connection.setRequestProperty("User-Agent", "Glassgram/" + getCurrentVersion());
-            if (connection.getResponseCode() != 200) {
+        if (file.exists() && !file.delete() || !part.renameTo(file)) {
+            return false;
+        }
+        if (!isOurApk(file)) {
+            file.delete();
+            return false;
+        }
+        return true;
+    }
+
+    /** Resume only a valid byte range; when a server ignores Range, restart safely from byte zero. */
+    private static boolean downloadTo(Release release, File file, File part, long expected) {
+        final File dir = file.getParentFile();
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) {
+            return false;
+        }
+        deleteDownloads(file, part);
+        if (expected > 0 && part.length() > expected) {
+            part.delete();
+        }
+        if (expected > 0 && part.length() == expected) {
+            if (finishDownload(file, part, expected)) {
+                return true;
+            }
+            if (pauseRequested) {
                 return false;
             }
-            final long total = connection.getContentLength() > 0 ? connection.getContentLength() : release.apkSize;
-            long done = 0;
-            int lastPercent = -1;
-            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
-                final byte[] buffer = new byte[64 * 1024];
-                int read;
-                while ((read = in.read(buffer)) > 0) {
-                    if (cancelDownload) {
+        }
+        for (int attempt = 0; attempt < 2 && !pauseRequested; attempt++) {
+            HttpURLConnection connection = null;
+            try {
+                long offset = part.length();
+                connection = (HttpURLConnection) new URL(release.apkUrl).openConnection();
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(15000);
+                connection.setUseCaches(false);
+                connection.setRequestProperty("User-Agent", "Glassgram/" + getCurrentVersion());
+                connection.setRequestProperty("Accept-Encoding", "identity");
+                if (offset > 0) {
+                    connection.setRequestProperty("Range", "bytes=" + offset + "-");
+                }
+                final int response = connection.getResponseCode();
+                if (pauseRequested) {
+                    return false;
+                }
+                final long length = connection.getContentLength();
+                long total;
+                if (response == HttpURLConnection.HTTP_PARTIAL) {
+                    final String header = connection.getHeaderField("Content-Range");
+                    final Matcher range = CONTENT_RANGE.matcher(header != null ? header : "");
+                    if (!range.matches() || Long.parseLong(range.group(1)) != offset
+                            || Long.parseLong(range.group(2)) != Long.parseLong(range.group(3)) - 1
+                            || expected > 0 && Long.parseLong(range.group(3)) != expected
+                            || length > 0 && length != Long.parseLong(range.group(2)) - offset + 1) {
+                        part.delete();
+                        continue;
+                    }
+                    total = Long.parseLong(range.group(3));
+                } else if (response == HttpURLConnection.HTTP_OK) {
+                    // An origin without Range returns the whole file; never append it to a part.
+                    offset = 0;
+                    total = length > 0 ? length : expected;
+                    if (expected > 0 && total > 0 && total != expected) {
                         return false;
                     }
-                    out.write(buffer, 0, read);
-                    done += read;
-                    if (total > 0) {
-                        final int percent = (int) Math.min(100, done * 100 / total);
-                        if (percent != lastPercent) {
+                } else if (response == 416 && offset > 0) {
+                    part.delete();
+                    continue;
+                } else {
+                    return false;
+                }
+                long done = offset;
+                int lastPercent = -2;
+                long lastReport = 0;
+                try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(part, offset > 0)) {
+                    publishProgress(release, done, total);
+                    final byte[] buffer = new byte[64 * 1024];
+                    while (!pauseRequested) {
+                        final int read = in.read(buffer);
+                        if (read == -1) {
+                            break;
+                        }
+                        if (pauseRequested) {
+                            break;
+                        }
+                        out.write(buffer, 0, read);
+                        done += read;
+                        if (total > 0 && done > total) {
+                            break;
+                        }
+                        final int percent = total > 0 ? (int) (done * 100.0 / total) : -1;
+                        final long now = android.os.SystemClock.elapsedRealtime();
+                        if (percent != lastPercent || now - lastReport >= 1000) {
                             lastPercent = percent;
-                            listener.onProgress(percent);
+                            lastReport = now;
+                            publishProgress(release, done, total);
                         }
                     }
                 }
-            }
-            if (total > 0 && done != total || !part.renameTo(file)) {
+                if (pauseRequested) {
+                    return false;
+                }
+                if (total > 0 && done > total) {
+                    part.delete();
+                    return false;
+                }
+                return finishDownload(file, part, total);
+            } catch (Exception e) {
+                if (!pauseRequested) {
+                    FileLog.e(e);
+                }
                 return false;
-            }
-            if (!isOurApk(file)) {
-                file.delete();
-                return false;
-            }
-            return true;
-        } catch (Exception e) {
-            FileLog.e(e);
-            return false;
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-            if (part.exists()) {
-                part.delete();
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
         }
+        return false;
     }
 
-    /** Whether the file is an APK of this app, not a broken download or some other package. */
+    /** Validate the package before handing it to Android's installer, which checks its signature. */
     private static boolean isOurApk(File file) {
         try {
             final Context context = ApplicationLoader.applicationContext;
@@ -277,13 +457,10 @@ public final class GlassgramUpdates {
     }
 
     private static void install(Activity activity, File file) {
-        // The activity that asked may be gone by the time the download ends
         final Activity launch = org.telegram.ui.LaunchActivity.instance;
         final Activity a = activity.isFinishing() && launch != null ? launch : activity;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !a.getPackageManager().canRequestPackageInstalls()) {
-                // After allowing it the user taps "Download" again, and the APK downloaded now installs
-                offeredTag = null;
                 AlertsCreator.createApkRestrictedDialog(a, null).show();
                 return;
             }
@@ -299,8 +476,6 @@ public final class GlassgramUpdates {
             Toast.makeText(ApplicationLoader.applicationContext, LocaleController.getString(R.string.GlassgramUpdateFailed), Toast.LENGTH_LONG).show();
         }
     }
-
-
 
     /* The latest release */
 

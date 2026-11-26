@@ -11344,6 +11344,12 @@
     <string name="GlassgramUpdateText">glassGram %1$s is out. You have %2$s.</string>
     <string name="GlassgramUpdateDownload">Download</string>
     <string name="GlassgramUpdateLater">Remind me later</string>
+    <string name="GlassgramUpdateBarAvailable">Update glassGram</string>
+    <string name="GlassgramUpdateBarDownloading">Downloading… %1$s</string>
+    <string name="GlassgramUpdateBarPausing">Pausing… %1$s</string>
+    <string name="GlassgramUpdateBarPaused">Paused · %1$s</string>
+    <string name="GlassgramUpdateBarInstall">Install update</string>
+    <string name="GlassgramUpdateBarRetry">Download failed · Retry</string>
     <string name="GlassgramUpdateDownloading">Downloading glassGram %1$s…</string>
     <string name="GlassgramUpdateFailed">Could not download the update. Try again later.</string>
     <string name="GlassgramDonateTitle">Support Development</string>

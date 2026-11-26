@@ -217,8 +217,8 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         getContactsController().checkInviteText();
         getContactsController().reloadContactsStatusesMaybe(false);
 
-        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
-        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
+        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
 
         return true;
     }
@@ -1339,6 +1339,7 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
     private WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
         final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
         navigationBarHeight = systemInsets.bottom;
+        updateGlassgramBarInsets();
         statusBarInset = systemInsets.top;
 
         checkUi_listViewPadding();
@@ -1351,10 +1352,17 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
     @Override
     public void onInsets(int left, int top, int right, int bottom) {
         navigationBarHeight = bottom;
+        updateGlassgramBarInsets();
         statusBarInset = top;
         checkUi_listViewPadding();
         checkUi_floatingButtonPosition();
         checkUi_emptyView();
+    }
+
+    private void updateGlassgramBarInsets() {
+        final int extra = hasMainTabs ? org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
+        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + extra : 0;
+        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) + extra : 0;
     }
 
     private void checkUi_emptyView() {

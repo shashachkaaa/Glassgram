@@ -218,7 +218,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             hasMainTabs = arguments.getBoolean("hasMainTabs", false);
         }
 
-        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
+        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
         return super.onFragmentCreate();
     }
 
@@ -1087,6 +1087,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     private WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
         final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
         navigationBarHeight = systemInsets.bottom;
+        additionNavigationBarHeight = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) + org.telegram.messenger.GlassgramUpdates.getBarInset() : 0;
         updateActionBarFadeHeight(systemInsets.top);
         BaseFragmentSimpleGlass.setListViewParams(listView, systemInsets.top, systemInsets.bottom, dp(12), additionNavigationBarHeight);
         return WindowInsetsCompat.CONSUMED;

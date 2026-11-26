@@ -299,6 +299,12 @@
     <string name="GlassgramUpdateText">Вышел glassGram %1$s. У вас %2$s.</string>
     <string name="GlassgramUpdateDownload">Скачать</string>
     <string name="GlassgramUpdateLater">Напомнить позже</string>
+    <string name="GlassgramUpdateBarAvailable">Обновить glassGram</string>
+    <string name="GlassgramUpdateBarDownloading">Скачивание… %1$s</string>
+    <string name="GlassgramUpdateBarPausing">Приостановка… %1$s</string>
+    <string name="GlassgramUpdateBarPaused">На паузе · %1$s</string>
+    <string name="GlassgramUpdateBarInstall">Установить обновление</string>
+    <string name="GlassgramUpdateBarRetry">Ошибка загрузки · Повторить</string>
     <string name="GlassgramUpdateDownloading">Скачивание glassGram %1$s…</string>
     <string name="GlassgramUpdateFailed">Не удалось скачать обновление. Попробуйте позже.</string>
     <string name="GlassgramDonateTitle">Поддержать разработку</string>
