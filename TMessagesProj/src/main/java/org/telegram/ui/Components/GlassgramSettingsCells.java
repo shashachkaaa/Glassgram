@@ -49,6 +49,7 @@ public final class GlassgramSettingsCells {
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
             textView.setTypeface(AndroidUtilities.bold());
             textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            textView.setTag(resourcesProvider);
             textView.setSingleLine(true);
             textView.setEllipsize(TextUtils.TruncateAt.END);
             textView.setPadding(dp(24), dp(20), dp(24), dp(10));
@@ -59,14 +60,15 @@ public final class GlassgramSettingsCells {
         @Override
         public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
             TextView title = (TextView) view;
+            Theme.ResourcesProvider resourcesProvider = (Theme.ResourcesProvider) title.getTag();
             title.setText(item.text);
             if (item.intValue == 1) {
                 title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
                 title.setPadding(dp(28), dp(18), dp(28), dp(8));
             } else {
                 title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
                 title.setPadding(dp(24), dp(20), dp(24), dp(10));
             }
         }
@@ -107,10 +109,8 @@ public final class GlassgramSettingsCells {
         }
 
         public void draw(Canvas canvas, RectF rect, Float top, Float bottom, Float alpha) {
-            int base = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
-            int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
-            boolean dark = ColorUtils.calculateLuminance(base) < 0.35;
-            int surface = ColorUtils.blendARGB(base, text, dark ? 0.075f : 0.018f);
+            int surface = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            int divider = Theme.getColor(Theme.key_divider, resourcesProvider);
             bounds.set(rect);
             path.rewind();
             radii[0] = radii[1] = radii[2] = radii[3] = top;
@@ -126,7 +126,7 @@ public final class GlassgramSettingsCells {
                 path.addRoundRect(bounds, radii, Path.Direction.CW);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(stroke);
-                paint.setColor(Theme.multAlpha(text, alpha * (dark ? 0.12f : 0.08f)));
+                paint.setColor(Theme.multAlpha(divider, alpha));
                 canvas.drawPath(path, paint);
                 paint.setStyle(Paint.Style.FILL);
             }
@@ -210,7 +210,7 @@ public final class GlassgramSettingsCells {
                 @Override
                 protected void onDraw(Canvas canvas) {
                     super.onDraw(canvas);
-                    line.setColor(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider), 0.75f));
+                    line.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
                     line.setStrokeWidth(AndroidUtilities.dpf2(1.7f));
                     line.setStrokeCap(Paint.Cap.ROUND);
                     float x = getWidth() / 2f, y = getHeight() / 2f;
@@ -229,10 +229,10 @@ public final class GlassgramSettingsCells {
             int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
             GradientDrawable tile = new GradientDrawable();
             tile.setCornerRadius(dp(10));
-            tile.setColor(Theme.multAlpha(accent, 0.13f));
+            tile.setColor(Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
             icon.setBackground(tile);
             icon.setImageResource(item.iconResId);
-            icon.setColorFilter(accent);
+            icon.setColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider));
             title.setText(item.text);
             title.setTextColor(text);
             value.setText(item.textValue);
@@ -249,7 +249,7 @@ public final class GlassgramSettingsCells {
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             if (divider) {
-                paint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.09f));
+                paint.setColor(Theme.getColor(Theme.key_divider, resourcesProvider));
                 float start = LocaleController.isRTL ? dp(12) : dp(58);
                 float end = getWidth() - (LocaleController.isRTL ? dp(58) : dp(12));
                 if (end > start) canvas.drawRect(start, getHeight() - 1, end, getHeight(), paint);

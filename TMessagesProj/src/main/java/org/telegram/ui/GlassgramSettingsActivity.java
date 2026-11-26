@@ -1755,14 +1755,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(21));
             }
         });
-        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteValueText, getResourceProvider());
-        final int foreground = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider());
+        final int surface = Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider());
+        final int divider = Theme.getColor(Theme.key_divider, getResourceProvider());
         FrameLayout iconFrame = new FrameLayout(context);
-        GradientDrawable iconPlate = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR, new int[]{
-                Theme.multAlpha(accent, 0.18f), Theme.multAlpha(foreground, 0.04f)});
+        GradientDrawable iconPlate = new GradientDrawable();
+        iconPlate.setColor(surface);
         iconPlate.setCornerRadius(dp(29));
-        iconPlate.setStroke(dp(1), Theme.multAlpha(accent, 0.20f));
+        iconPlate.setStroke(dp(1), divider);
         iconFrame.setBackground(iconPlate);
         iconFrame.addView(icon, LayoutHelper.createFrame(76, 76, Gravity.CENTER));
         layout.addView(iconFrame, LayoutHelper.createLinear(92, 92, Gravity.CENTER_HORIZONTAL));
@@ -1771,7 +1770,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         name.setText(getString(R.string.AppName));
         name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 27);
         name.setTypeface(AndroidUtilities.bold());
-        name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
         name.setGravity(Gravity.CENTER);
         layout.addView(name, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0));
 
@@ -1782,9 +1781,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         version.setGravity(Gravity.CENTER);
         version.setPadding(dp(12), dp(4), dp(12), dp(4));
         GradientDrawable versionPill = new GradientDrawable();
-        versionPill.setColor(Theme.multAlpha(foreground, 0.07f));
+        versionPill.setColor(surface);
         versionPill.setCornerRadius(dp(14));
-        versionPill.setStroke(dp(1), Theme.multAlpha(foreground, 0.08f));
+        versionPill.setStroke(dp(1), divider);
         version.setBackground(versionPill);
         layout.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 7, 0, 0));
 
@@ -1793,7 +1792,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         TextView basedOn = new TextView(context);
         basedOn.setText(getString(R.string.GlassgramBasedOnExteraGram));
         basedOn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        basedOn.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText));
+        basedOn.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText, getResourceProvider()));
         basedOn.setGravity(Gravity.CENTER);
         basedOn.setPadding(dp(8), dp(6), dp(8), dp(6));
         basedOn.setOnClickListener(v -> org.telegram.messenger.browser.Browser.openUrl(v.getContext(), "https://github.com/exteraSquad/exteraGram"));
