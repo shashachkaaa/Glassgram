@@ -405,6 +405,8 @@ public final class GlassgramSpyStorage {
     private static final Object DELETED_LOCK = new Object();
     private static volatile Set<String> deletedIds;
     private static final HashSet<String> pendingDeletion = new HashSet<>();
+    // A normal deletion initiated on this client must win over a racing server update.
+    private static final HashSet<String> localDiscard = new HashSet<>();
 
     private static File deletedFile() {
         return new File(file().getParentFile(), DELETED_FILE_NAME);
@@ -500,6 +502,27 @@ public final class GlassgramSpyStorage {
         }
     }
 
+    static void setLocalDiscard(int account, long channelId, ArrayList<Integer> ids, boolean discard) {
+        synchronized (DELETED_LOCK) {
+            for (Integer id : ids) {
+                if (id == null || id <= 0) continue;
+                String key = deletedKey(account, channelId, id);
+                if (discard) {
+                    localDiscard.add(key);
+                    pendingDeletion.remove(key);
+                } else {
+                    localDiscard.remove(key);
+                }
+            }
+        }
+    }
+
+    private static boolean isLocalDiscard(int account, long channelId, int messageId) {
+        synchronized (DELETED_LOCK) {
+            return localDiscard.contains(deletedKey(account, channelId, messageId));
+        }
+    }
+
     private static boolean isPendingDeletion(int account, long channelId, int messageId) {
         synchronized (DELETED_LOCK) {
             return pendingDeletion.contains(deletedKey(account, channelId, messageId));
@@ -531,9 +554,13 @@ public final class GlassgramSpyStorage {
                 while (cursor.next()) {
                     int id = cursor.intValue(0);
                     long dialogId = cursor.longValue(1);
+                    if (isLocalDiscard(account, -dialogKey, id)) {
+                        continue;
+                    }
                     boolean explicit = isMarkedDeleted(account, -dialogKey, id) || isPendingDeletion(account, -dialogKey, id);
-                    if (!explicit && (cursor.intValue(2) != 0
-                            || !GlassgramConfig.spySaveInBotDialogs && isBotDialogOnStorageQueue(account, storage, dialogId))) {
+                    // The out flag identifies the author, not the person who deleted the message.
+                    if (!explicit && !GlassgramConfig.spySaveInBotDialogs
+                            && isBotDialogOnStorageQueue(account, storage, dialogId)) {
                         continue;
                     }
                     NativeByteBuffer data = cursor.byteBufferValue(3);
@@ -542,9 +569,15 @@ public final class GlassgramSpyStorage {
                     }
                     try {
                         TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
-                        if (message != null) {
-                            message.dialog_id = dialogId;
-                            messages.add(message);
+                        if (message != null && !message.noforwards
+                                && !MessageObject.isEphemeral(message) && !MessageObject.isSecretMedia(message)
+                                && !DialogObject.isEncryptedDialog(dialogId)
+                                && !GlassgramSpyMedia.isProtected(account, dialogId)) {
+                            TLRPC.MessageMedia media = MessageObject.getMedia(message);
+                            if (media == null || media.ttl_seconds == 0) {
+                                message.dialog_id = dialogId;
+                                messages.add(message);
+                            }
                         }
                     } finally {
                         data.reuse();
@@ -566,6 +599,7 @@ public final class GlassgramSpyStorage {
                 return retained;
             }
             for (TLRPC.Message message : messages) {
+                if (isLocalDiscard(account, -dialogKey, message.id)) continue;
                 retained.add(message.id);
                 if (!isMarkedDeleted(account, -dialogKey, message.id)) {
                     saveMessage(account, message);

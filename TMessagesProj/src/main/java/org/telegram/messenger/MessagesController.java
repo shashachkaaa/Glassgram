@@ -9391,6 +9391,11 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (welcomeMessages) {
                 getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, false, ChatActivity.MODE_WELCOME_MESSAGES, topicId);
             } else {
+                final ArrayList<Integer> localDiscardIds = !cacheOnly && GlassgramConfig.spySaveDeletedMessages
+                        ? new ArrayList<>(messages) : null;
+                if (localDiscardIds != null) {
+                    GlassgramSpyStorage.setLocalDiscard(currentAccount, channelId, localDiscardIds, true);
+                }
                 if (channelId == 0) {
                     for (int a = 0; a < messages.size(); a++) {
                         Integer id = messages.get(a);
@@ -9404,6 +9409,11 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, forAll, 0, topicId);
                 getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, messages, null);
+                if (localDiscardIds != null) {
+                    final long discardChannel = channelId;
+                    getMessagesStorage().getStorageQueue().postRunnable(() ->
+                            GlassgramSpyStorage.setLocalDiscard(currentAccount, discardChannel, localDiscardIds, false));
+                }
             }
             getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, messages, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
         } else {
@@ -21240,7 +21250,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> ids = deletedMessages.valueAt(a);
                 java.util.HashSet<Integer> retained = GlassgramSpyStorage.retainDeletedMessages(currentAccount, key, ids);
-                if (!retained.isEmpty()) GlassgramLocalDialogs.beforeBatch(currentAccount, key, ids);
+                if (!retained.isEmpty()) GlassgramLocalDialogs.beforeBatch(currentAccount, key, new ArrayList<>(retained));
                 ArrayList<Integer> keep = new ArrayList<>();
                 ArrayList<Integer> drop = new ArrayList<>();
                 for (int b = 0; b < ids.size(); b++) {

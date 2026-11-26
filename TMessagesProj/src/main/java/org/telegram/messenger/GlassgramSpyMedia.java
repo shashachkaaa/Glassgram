@@ -76,7 +76,7 @@ public final class GlassgramSpyMedia {
         }
         for (TLRPC.Message message : messages) {
             TLRPC.MessageMedia media = MessageObject.getMedia(message);
-            if (!message.out && (media instanceof TLRPC.TL_messageMediaPhoto || media instanceof TLRPC.TL_messageMediaDocument)) {
+            if (media instanceof TLRPC.TL_messageMediaPhoto || media instanceof TLRPC.TL_messageMediaDocument) {
                 capture(account, message);
             }
         }
