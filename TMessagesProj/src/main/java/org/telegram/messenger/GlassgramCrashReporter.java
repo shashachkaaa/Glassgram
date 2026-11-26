@@ -330,10 +330,7 @@ public final class GlassgramCrashReporter {
         }
     }
 
-    /**
-     * The trace the system kept: an ANR's is text; a native crash's is a tombstone in protobuf, of
-     * which the readable runs (the signal, the libraries and functions of the backtrace) are kept.
-     */
+    /** ANR traces are text. Native traces contain a debuggerd tombstone protobuf. */
     @android.annotation.TargetApi(Build.VERSION_CODES.R)
     private static String readTrace(android.app.ApplicationExitInfo exit, boolean binary) {
         try (java.io.InputStream in = exit.getTraceInputStream()) {
@@ -342,29 +339,19 @@ public final class GlassgramCrashReporter {
             }
             final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             final byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) > 0 && bytes.size() < 4 * 1024 * 1024) {
+            int remaining = 4 * 1024 * 1024;
+            while (remaining > 0) {
+                int read = in.read(buffer, 0, Math.min(buffer.length, remaining));
+                if (read <= 0) break;
                 bytes.write(buffer, 0, read);
+                remaining -= read;
             }
             final byte[] data = bytes.toByteArray();
-            if (!binary) {
-                final String text = new String(data, StandardCharsets.UTF_8);
-                return text.length() > TRACE_LIMIT ? text.substring(0, TRACE_LIMIT) : text;
-            }
-            final StringBuilder text = new StringBuilder();
-            int start = -1;
-            for (int i = 0; i <= data.length && text.length() < TRACE_LIMIT; i++) {
-                final boolean printable = i < data.length && data[i] >= 0x20 && data[i] < 0x7f;
-                if (printable) {
-                    if (start < 0) start = i;
-                } else if (start >= 0) {
-                    if (i - start >= 5) {
-                        text.append(new String(data, start, i - start, StandardCharsets.US_ASCII)).append('\n');
-                    }
-                    start = -1;
-                }
-            }
-            return text.toString();
+            if (data.length == 0) return null;
+            final String text = binary
+                    ? GlassgramNativeCrashTrace.format(data)
+                    : new String(data, StandardCharsets.UTF_8);
+            return text.length() > TRACE_LIMIT ? text.substring(0, TRACE_LIMIT) : text;
         } catch (Throwable e) {
             return null;
         }
