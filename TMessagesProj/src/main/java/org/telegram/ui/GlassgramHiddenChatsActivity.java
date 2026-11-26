@@ -10,7 +10,7 @@ import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
 
 import java.util.ArrayList;
 
@@ -18,7 +18,7 @@ import java.util.ArrayList;
  * The account's hidden chats (GlassgramChatLock), opened with the chat PIN: tapped, a chat
  * opens; held, it goes back to the chat lists.
  */
-public class GlassgramHiddenChatsActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+public class GlassgramHiddenChatsActivity extends GlassgramPreferencesFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private final ArrayList<Long> dialogs = new ArrayList<>();
 

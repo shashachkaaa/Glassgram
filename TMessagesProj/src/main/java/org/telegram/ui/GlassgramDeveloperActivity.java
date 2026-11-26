@@ -16,7 +16,8 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
+import org.telegram.ui.Components.GlassgramSettingsCells;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -27,7 +28,7 @@ import java.util.Locale;
  * as far as the bot's admin level allows, the phones' statistics, crashes, badges, support reports
  * and admins.
  */
-public class GlassgramDeveloperActivity extends UniversalFragment {
+public class GlassgramDeveloperActivity extends GlassgramPreferencesFragment {
 
     private static final int ID_SIGN_IN = 1;
     private static final int ID_SIGN_OUT = 2;
@@ -135,7 +136,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
             items.add(UItem.asShadow(formatString(R.string.GlassgramApiTeamInfo, "@" + GlassgramApi.BOT_USERNAME)));
             return;
         }
-        items.add(UItem.asHeader(getString(R.string.GlassgramApiAccount)));
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramApiAccount)));
         items.add(UItem.asButton(ID_ACCOUNT, R.drawable.msg_openprofile,
                 session.isStaff() ? session.levelName : getString(R.string.GlassgramApiNoLevel), String.valueOf(session.userId)));
         items.add(UItem.asButton(ID_SIGN_OUT, R.drawable.msg_leave, getString(R.string.GlassgramApiSignOut)).red());
@@ -143,7 +144,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
 
         final boolean stats = session.can(GlassgramApi.RIGHT_STATS);
         if (stats) {
-            items.add(UItem.asHeader(getString(R.string.GlassgramApiStats)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramApiStats)));
             if (summary == null) {
                 final CharSequence text = getString(loading ? R.string.Loading : R.string.GlassgramApiRetry);
                 final CharSequence value = loading ? null : loadError;
@@ -174,7 +175,7 @@ public class GlassgramDeveloperActivity extends UniversalFragment {
         final boolean proxies = session.can(GlassgramApi.RIGHT_PROXIES);
         final boolean tunnel = session.can(GlassgramApi.RIGHT_TUNNEL);
         if (stats || badges || support || admins || rules || catalog || proxies || tunnel) {
-            items.add(UItem.asHeader(getString(R.string.GlassgramApiTools)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramApiTools)));
             if (stats) {
                 items.add(UItem.asButton(ID_FIND_MODEL, R.drawable.msg_search, getString(R.string.GlassgramApiFindModel)));
                 items.add(UItem.asButton(ID_CRASHES, R.drawable.msg_report, getString(R.string.GlassgramApiCrashes)));

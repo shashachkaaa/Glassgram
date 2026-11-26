@@ -23,7 +23,8 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
+import org.telegram.ui.Components.GlassgramSettingsCells;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -36,7 +37,7 @@ import java.util.List;
  * glassGram Preferences > Plugins > Catalog: the plugins glassGram's team vouches for, installed in
  * one tap, with the new versions of installed ones first. The team adds and removes them here.
  */
-public class GlassgramPluginCatalogActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+public class GlassgramPluginCatalogActivity extends GlassgramPreferencesFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private static final int ID_RETRY = 1;
     private static final int ID_ADD = 2;
@@ -106,14 +107,14 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
         shown.clear();
         final ArrayList<GlassgramPluginCatalog.Entry> entries = GlassgramPluginCatalog.entries();
         if (entries == null) {
-            items.add(UItem.asHeader(getString(R.string.GlassgramCatalog)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramCatalog)));
             final UItem row = UItem.asButton(ID_RETRY, getString(loading ? R.string.Loading : R.string.GlassgramApiRetry), loading ? null : error);
             items.add(loading ? row.locked() : row);
             items.add(UItem.asShadow(getString(R.string.GlassgramCatalogInfo)));
         } else {
             final List<GlassgramPluginCatalog.Entry> updates = GlassgramPluginCatalog.updates();
             if (!updates.isEmpty()) {
-                items.add(UItem.asHeader(getString(R.string.GlassgramCatalogUpdates)));
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramCatalogUpdates)));
                 for (GlassgramPluginCatalog.Entry entry : updates) {
                     final PluginInfo installed = PluginsController.getPlugin(entry.id);
                     items.add(UItem.asButton(ID_ENTRY + shown.size(), R.drawable.msg_download, entry.name,
@@ -122,7 +123,7 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
                 }
                 items.add(UItem.asShadow(null));
             }
-            items.add(UItem.asHeader(getString(R.string.GlassgramCatalog)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramCatalog)));
             for (GlassgramPluginCatalog.Entry entry : entries) {
                 final PluginInfo installed = PluginsController.isStarted() ? PluginsController.getPlugin(entry.id) : null;
                 final CharSequence state;
@@ -140,7 +141,7 @@ public class GlassgramPluginCatalogActivity extends UniversalFragment implements
             items.add(UItem.asShadow(getString(entries.isEmpty() ? R.string.GlassgramCatalogEmpty : R.string.GlassgramCatalogInfo)));
         }
         if (GlassgramApi.can(currentAccount, GlassgramApi.RIGHT_PLUGINS)) {
-            items.add(UItem.asHeader(getString(R.string.GlassgramApiTools)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramApiTools)));
             items.add(UItem.asButton(ID_ADD, R.drawable.msg_add, getString(R.string.GlassgramCatalogAdd)));
             items.add(UItem.asShadow(getString(R.string.GlassgramCatalogAddInfo)));
         }

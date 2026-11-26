@@ -24,7 +24,6 @@ import org.telegram.messenger.plugins.PluginsController;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.NotificationsCheckCell;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.GlassgramHeaderButton;
@@ -34,7 +33,8 @@ import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
+import org.telegram.ui.Components.GlassgramSettingsCells;
 import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 
 import java.io.File;
@@ -46,7 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class GlassgramPluginsActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+public class GlassgramPluginsActivity extends GlassgramPreferencesFragment implements NotificationCenter.NotificationCenterDelegate {
     private static final int ID_ENGINE = 1;
     private static final int ID_ENGINE_OPTIONS = 2;
     private static final int ID_INSTALL = 3;
@@ -63,18 +63,8 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
     }
 
     @Override
-    protected boolean useSimpleActionBar() {
-        return true;
-    }
-
-    @Override
-    protected RecyclerListView getListViewForSimpleGlass() {
-        return listView;
-    }
-
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
+    protected boolean usePreferencesCards() {
+        return false;
     }
 
     @Override
@@ -103,10 +93,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
         searching = false;
         query = "";
         catalogButton = null;
-        setHasOwnBackground(true);
         View root = super.createView(context);
-        ThemeBind.backgroundColor(contentView, Theme.key_windowBackgroundGray);
-        listView.adapter.setApplyBackground(false);
 
         simpleActionBar.createMenu().addItem(0, R.drawable.outline_header_search)
             .setIsSearchField(true)
@@ -271,7 +258,7 @@ public class GlassgramPluginsActivity extends UniversalFragment implements Notif
         visible.sort((a, b) -> Boolean.compare(pinned.contains(b.id), pinned.contains(a.id)));
 
         if (!searching && !visible.isEmpty()) {
-            items.add(UItem.asHeader(getString(R.string.GlassgramPluginsInstalled)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPluginsInstalled)));
         }
         for (PluginInfo plugin : visible) {
             if (compact) {

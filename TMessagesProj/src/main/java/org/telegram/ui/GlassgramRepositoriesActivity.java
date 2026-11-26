@@ -20,7 +20,7 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
 
 import java.io.File;
 import java.util.ArrayDeque;
@@ -31,7 +31,7 @@ import java.util.Set;
 
 import static org.telegram.messenger.LocaleController.getString;
 
-public class GlassgramRepositoriesActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+public class GlassgramRepositoriesActivity extends GlassgramPreferencesFragment implements NotificationCenter.NotificationCenterDelegate {
     private static final org.telegram.messenger.DispatchQueue queue =
         new org.telegram.messenger.DispatchQueue("pluginRepositories");
     private final String source;

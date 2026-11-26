@@ -63,12 +63,13 @@ import org.telegram.ui.Components.ItemOptions
 import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.UItem
 import org.telegram.ui.Components.UniversalAdapter
-import org.telegram.ui.Components.UniversalFragment
+import org.telegram.ui.Components.GlassgramPreferencesFragment
+import org.telegram.ui.Components.GlassgramSettingsCells
 import org.telegram.ui.GlassgramPluginInstaller
 import java.util.Objects
 import org.telegram.messenger.plugins.PluginsController as GlassgramPlugins
 
-class PluginSettingsActivity : UniversalFragment, NotificationCenter.NotificationCenterDelegate {
+class PluginSettingsActivity : GlassgramPreferencesFragment, NotificationCenter.NotificationCenterDelegate {
 
     private lateinit var plugin: Plugin
     private var customTitle: String? = null
@@ -202,7 +203,7 @@ class PluginSettingsActivity : UniversalFragment, NotificationCenter.Notificatio
         val contentView = super.createView(context)
 
         if (createSubFragmentCallback == null) {
-            resetItem = actionBar.createMenu().addItem(0, R.drawable.msg_reset).apply {
+            resetItem = simpleActionBar.createMenu().addItem(0, R.drawable.msg_reset).apply {
                 contentDescription = getString(R.string.Reset)
                 AndroidUtilities.updateViewVisibilityAnimated(
                     this,
@@ -280,7 +281,7 @@ class PluginSettingsActivity : UniversalFragment, NotificationCenter.Notificatio
             items.add(UItem.asShadow(null))
             val error = plugin.getError()
             if (error != null) {
-                items.add(UItem.asHeader(getString(R.string.GlassgramPluginLoadError)))
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPluginLoadError)))
                 items.add(UItem.asButton(ID_ERROR, R.drawable.msg_info, errorLine(error)).red())
                 items.add(UItem.asShadow(getString(R.string.GlassgramPluginLoadErrorInfo)))
             }
@@ -327,7 +328,7 @@ class PluginSettingsActivity : UniversalFragment, NotificationCenter.Notificatio
         return try {
             when (settingDef) {
                 is HeaderSetting -> settingDef.text?.let { text ->
-                    UItem.asHeader(text).apply { settingItem = settingDef }
+                    GlassgramSettingsCells.Header.main(text).apply { settingItem = settingDef }
                 }
 
                 is SwitchSetting -> {

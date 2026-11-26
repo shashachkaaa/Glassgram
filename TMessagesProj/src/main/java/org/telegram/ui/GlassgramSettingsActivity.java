@@ -44,7 +44,6 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.TextCell;
@@ -58,17 +57,16 @@ import org.telegram.ui.Components.GlassgramAppearancePreview;
 import org.telegram.ui.Components.GlassgramWallpaperLayout;
 import org.telegram.ui.Components.IconBackgroundColors;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
 
 import java.util.ArrayList;
 
 /**
  * Settings → Glassgram: the fork's own options, in General, Appearance and Chats pages.
  */
-public class GlassgramSettingsActivity extends UniversalFragment {
+public class GlassgramSettingsActivity extends GlassgramPreferencesFragment {
 
     public static final int PAGE_MAIN = 0;
     public static final int PAGE_GENERAL = 1;
@@ -342,61 +340,9 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         }
     }
 
-    private boolean hasGlassSettingsHeader() {
-        return page == PAGE_MAIN || page == PAGE_APPEARANCE || page == PAGE_CHATS
-                || page == PAGE_CUSTOMIZATION || page == PAGE_GHOST || page == PAGE_SPY;
-    }
-
-    @Override
-    protected boolean useSimpleActionBar() {
-        return hasGlassSettingsHeader();
-    }
-
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return hasGlassSettingsHeader();
-    }
-
-    @Override
-    protected RecyclerListView getListViewForSimpleGlass() {
-        return hasGlassSettingsHeader() ? listView : null;
-    }
-
-    @Override
-    protected boolean useFadeDrawableForActionBar() {
-        return !hasGlassSettingsHeader();
-    }
-
-    @Override
-    protected void onViewCreated(View view) {
-        super.onViewCreated(view);
-        if (hasGlassSettingsHeader() && simpleActionBar != null && listView != null) {
-            // The glass setup installs the bitmap section decoration by default. Keep the
-            // existing rounded card renderer and let the glass capture that decoration too.
-            listView.setLegacySections(true);
-            simpleActionBar.setBackground(getBaseSimpleGlass().createActionBarBlurDrawable(simpleActionBar));
-        }
-    }
-
     @Override
     public View createView(Context context) {
-        if (hasGlassSettingsHeader()) {
-            setHasOwnBackground(true);
-        }
         final View view = super.createView(context);
-        if (hasGlassSettingsHeader()) {
-            // Simple headers overlay the list; keep the actual screen background tied to the theme.
-            ThemeBind.backgroundColor(contentView, Theme.key_windowBackgroundGray, getResourceProvider());
-        }
-        // exteraGram's layout: rounded cards on the gray background, titles above them
-        listView.adapter.setApplyBackground(false);
-        if (hasGlassSettingsHeader()) {
-            listView.setSections(dp(16), dp(21), false);
-            final GlassgramSettingsCells.CardRenderer cards = new GlassgramSettingsCells.CardRenderer(getResourceProvider());
-            listView.setSectionBackgroundRenderer(cards::draw);
-        } else {
-            listView.setSections(true);
-        }
         if (page == PAGE_TABS) {
             // a tab is dragged to its place
             listView.listenReorder(this::onTabsReordered);
@@ -410,7 +356,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     }
 
     private static UItem header(CharSequence text) {
-        return GlassgramSettingsCells.Header.of(text);
+        return GlassgramSettingsCells.Header.main(text);
     }
 
     @Override

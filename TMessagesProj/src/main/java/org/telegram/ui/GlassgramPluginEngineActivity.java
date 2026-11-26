@@ -20,29 +20,15 @@ import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
-import org.telegram.ui.Components.UniversalFragment;
+import org.telegram.ui.Components.GlassgramPreferencesFragment;
+import org.telegram.ui.Components.GlassgramSettingsCells;
 
 import java.util.ArrayList;
 
-public class GlassgramPluginEngineActivity extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+public class GlassgramPluginEngineActivity extends GlassgramPreferencesFragment implements NotificationCenter.NotificationCenterDelegate {
     private static final int ENABLE = 1, COMPACT = 2, DEVELOP = 3, LOGS = 4;
     private static final int PILL_STACK = 10001;
     private static final int DOCUMENTATION = 5, REPOSITORIES = 6, CHANNEL = 7, CATALOG = 8, SAFE_MODE = 9, SDK = 10;
-
-    @Override
-    protected boolean useSimpleActionBar() {
-        return true;
-    }
-
-    @Override
-    protected RecyclerListView getListViewForSimpleGlass() {
-        return listView;
-    }
-
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
-    }
 
     @Override
     public boolean onFragmentCreate() {
@@ -61,15 +47,6 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
         if (id == NotificationCenter.pluginsUpdated) {
             refresh();
         }
-    }
-
-    @Override
-    public View createView(Context context) {
-        setHasOwnBackground(true);
-        View root = super.createView(context);
-        listView.setSections();
-        listView.setSectionsDrawBackground(true);
-        return root;
     }
 
     @Override
@@ -93,7 +70,7 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
 
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        items.add(UItem.asHeader(getString(R.string.Settings)));
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.Settings)));
         items.add(UItem.asCheck(ENABLE, getString(R.string.GlassgramPluginsEnable)).setChecked(GlassgramConfig.pluginsEngine));
         items.add(UItem.asCheck(COMPACT, getString(R.string.GlassgramPluginCompact)).setChecked(
             getContext() != null && GlassgramPluginsActivity.displayPreferences(getContext()).getBoolean(GlassgramPluginsActivity.COMPACT, false)));
@@ -106,7 +83,7 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
             items.add(UItem.asButton(SDK, R.drawable.msg_info, getString(R.string.PluginsPySdk), sdkVersion()));
             items.add(UItem.asButton(PILL_STACK, R.drawable.msg_settings, getString(R.string.PillStackPills)));
             items.add(UItem.asShadow(null));
-            items.add(UItem.asHeader(getString(R.string.GlassgramPluginDeveloper)));
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPluginDeveloper)));
             UItem developer = UItem.asCheck(DEVELOP, getString(R.string.GlassgramDevServer)).setChecked(PluginsController.isDevMode());
             developer.enabled = PluginsController.isStarted() && GlassgramConfig.pluginsEngine;
             items.add(developer);
@@ -114,7 +91,7 @@ public class GlassgramPluginEngineActivity extends UniversalFragment implements 
             // the SDK's dev server, as exteraGram's: plugins are sent to it from a computer over adb
             items.add(UItem.asShadow(PluginsController.isDevMode() ? "adb forward tcp:42690 localabstract:exteragram_devserver" : null));
         }
-        items.add(UItem.asHeader(getString(R.string.GlassgramPluginResources)));
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPluginResources)));
         items.add(UItem.asButton(DOCUMENTATION, R.drawable.msg_info, getString(R.string.GlassgramPluginDocs)));
         if (PluginsController.isSupported()) {
             items.add(UItem.asButton(CATALOG, R.drawable.msg_download, getString(R.string.GlassgramCatalog)));
