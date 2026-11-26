@@ -44,6 +44,7 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.TextCell;
@@ -54,6 +55,7 @@ import org.telegram.ui.Components.GlassgramInlineCells;
 import org.telegram.ui.Components.GlassgramSettingsCells;
 import org.telegram.ui.Components.GlassgramWallpaperLayout;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -338,8 +340,47 @@ public class GlassgramSettingsActivity extends UniversalFragment {
     }
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return page == PAGE_MAIN;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return page == PAGE_MAIN;
+    }
+
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return page == PAGE_MAIN ? listView : null;
+    }
+
+    @Override
+    protected boolean useFadeDrawableForActionBar() {
+        // Preferences uses only the progressive content blur, never a colored header veil.
+        return page != PAGE_MAIN;
+    }
+
+    @Override
+    protected void onViewCreated(View view) {
+        super.onViewCreated(view);
+        if (page == PAGE_MAIN && simpleActionBar != null && listView != null) {
+            // The glass setup installs the bitmap section decoration by default. Keep the
+            // existing rounded card renderer and let the glass capture that decoration too.
+            listView.setLegacySections(true);
+            simpleActionBar.setBackground(getBaseSimpleGlass().createActionBarBlurDrawable(simpleActionBar));
+        }
+    }
+
+    @Override
     public View createView(Context context) {
+        if (page == PAGE_MAIN) {
+            setHasOwnBackground(true);
+        }
         final View view = super.createView(context);
+        if (page == PAGE_MAIN) {
+            // Simple headers overlay the list; keep the actual screen background tied to the theme.
+            ThemeBind.backgroundColor(contentView, Theme.key_windowBackgroundGray, getResourceProvider());
+        }
         // exteraGram's layout: rounded cards on the gray background, titles above them
         listView.adapter.setApplyBackground(false);
         if (page == PAGE_MAIN) {
