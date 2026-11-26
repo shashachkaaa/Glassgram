@@ -27,7 +27,7 @@ import java.util.List;
 
 /** Lightweight, theme-aware schematic previews. Never reads chats, accounts or wallpapers. */
 public final class GlassgramAppearancePreview extends View implements Theme.Colorable {
-    public static final int HEADER = 1, TABS = 2, COMPOSER = 3, FONT = 4;
+    public static final int HEADER = 1, TABS = 2, COMPOSER = 3, FONT = 4, MESSAGE = 5;
     private final Theme.ResourcesProvider resourcesProvider;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint text = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -100,7 +100,7 @@ public final class GlassgramAppearancePreview extends View implements Theme.Colo
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int height = kind == HEADER ? 158 : kind == COMPOSER ? 134 : kind == FONT ? 102 : 96;
+        int height = kind == HEADER ? 158 : kind == COMPOSER ? 134 : kind == FONT ? 102 : kind == MESSAGE ? 108 : 96;
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), dp(height));
     }
 
@@ -170,6 +170,7 @@ public final class GlassgramAppearancePreview extends View implements Theme.Colo
             case HEADER: drawHeader(c,l,t,r,b); break;
             case TABS: drawTabs(c,l,t,r,b); break;
             case COMPOSER: drawComposer(c,l,t,r,b); break;
+            case MESSAGE: drawMessage(c,l,t,r,b); break;
             case FONT:
                 label(c, title, (l+r)/2f, t+dp(24), r-l-dp(22), 21, foreground, font, true);
                 label(c, subtitle, (l+r)/2f, t+dp(52), r-l-dp(22), 13, secondary, null, true);
@@ -253,6 +254,30 @@ public final class GlassgramAppearancePreview extends View implements Theme.Colo
             icon(c,drawable,x,t+dp(25),20,selected?accent:foreground);
             label(c,LocaleController.getString(name),x,b-dp(21),width-dp(6),10,selected?accent:secondary,null,true);
         }
+    }
+
+    private void drawMessage(Canvas c,float l,float t,float r,float b) {
+        float left = l + dp(14), top = t + dp(14), right = r - dp(14), bottom = b - dp(14);
+        int bubble = Theme.getColor(Theme.key_chat_inBubble, resourcesProvider);
+        round(c,left,top,right,bottom,dp(14),bubble);
+        if (!flag(1)) {
+            android.graphics.Path tail = new android.graphics.Path();
+            tail.moveTo(left + dp(7), bottom - dp(15));
+            tail.lineTo(left - dp(5), bottom);
+            tail.lineTo(left + dp(12), bottom);
+            tail.close();
+            fill.setColor(bubble);
+            c.drawPath(tail, fill);
+        }
+        int messageText = Theme.getColor(Theme.key_chat_messageTextIn, resourcesProvider);
+        int timeText = Theme.getColor(Theme.key_chat_inTimeText, resourcesProvider);
+        label(c,title,left+dp(12),top+dp(18),right-left-dp(24),14,messageText,null,false);
+        if (flag(2)) {
+            icon(c,R.drawable.msg_edit,right-dp(48),bottom-dp(12),13,timeText);
+        } else {
+            label(c,subtitle,right-dp(105),bottom-dp(12),dp(60),10,timeText,null,false);
+        }
+        label(c,"12:30",right-dp(24),bottom-dp(12),dp(40),10,timeText,null,true);
     }
 
     private void drawComposer(Canvas c,float l,float t,float r,float b) {

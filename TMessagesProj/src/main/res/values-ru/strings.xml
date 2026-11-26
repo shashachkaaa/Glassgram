@@ -279,6 +279,12 @@
     <string name="GlassgramAppearanceSampleMessage">Сообщение</string>
     <string name="GlassgramAppearanceFontSample">Съешь ещё этих мягких булок</string>
     <string name="GlassgramAppearanceDiagnostics">Производительность</string>
+    <string name="GlassgramStage2Sending">Отправка</string>
+    <string name="GlassgramStage2Stories">Истории</string>
+    <string name="GlassgramStage2Activity">Активность</string>
+    <string name="GlassgramStage2Attachments">Вложения</string>
+    <string name="GlassgramChatPreviewMessage">Пример сообщения</string>
+    <string name="GlassgramChatPreviewEdited">изменено</string>
     <string name="GlassgramAppearance">Оформление</string>
     <string name="GlassgramChats">Чаты</string>
     <string name="GlassgramDisableNumberRounding">Без округления чисел</string>
