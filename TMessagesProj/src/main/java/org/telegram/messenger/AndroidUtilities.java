@@ -4294,6 +4294,17 @@ public class AndroidUtilities {
         return key_hash;
     }
 
+    private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
+
+    private static boolean hasApkExtension(String name) {
+        return name != null && name.toLowerCase(Locale.ROOT).endsWith(".apk");
+    }
+
+    private static boolean isApkDocument(File file, String name, String mimeType) {
+        return APK_MIME_TYPE.equalsIgnoreCase(mimeType) || hasApkExtension(name)
+                || (file != null && hasApkExtension(file.getName()));
+    }
+
     public static void openDocument(MessageObject message, Activity activity, BaseFragment parentFragment) {
         if (message == null) {
             return;
@@ -4343,9 +4354,12 @@ public class AndroidUtilities {
                             }
                         }
                     }
-                    if (GlassgramConfig.STORE_BUILD && "application/vnd.android.package-archive".equals(realMimeType)) {
-                        // glassGram: the RuStore edition cannot install it, see openForView
-                        openForView(f, fileName, realMimeType, activity, null, false);
+                    if (isApkDocument(f, message.getDocumentName(), document.mime_type)
+                            || APK_MIME_TYPE.equalsIgnoreCase(realMimeType)) {
+                        // Route APKs through the same installer and permission checks on every edition.
+                        String apkName = message.getDocumentName();
+                        openForView(f, hasApkExtension(apkName) ? apkName : fileName, APK_MIME_TYPE,
+                                activity, parentFragment != null ? parentFragment.getResourceProvider() : null, false);
                         return;
                     }
                     if (Build.VERSION.SDK_INT >= 24) {
@@ -4409,7 +4423,13 @@ public class AndroidUtilities {
                     }
                 }
             }
-            if (realMimeType != null && realMimeType.equals("application/vnd.android.package-archive")) {
+            // OEM MIME maps may return octet-stream (or null) for APKs. The extension and
+            // the explicit package MIME take precedence over that generic result.
+            if (isApkDocument(f, fileName, mimeType)) {
+                realMimeType = APK_MIME_TYPE;
+            }
+            final boolean apk = APK_MIME_TYPE.equalsIgnoreCase(realMimeType);
+            if (apk) {
                 if (restrict) return true;
                 if (GlassgramConfig.STORE_BUILD) {
                     // glassGram: the RuStore edition cannot install packages (no REQUEST_INSTALL_PACKAGES,
@@ -4436,6 +4456,21 @@ public class AndroidUtilities {
                 intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
             } else {
                 intent.setDataAndType(Uri.fromFile(f), realMimeType != null ? realMimeType : "text/plain");
+            }
+            if (apk) {
+                // Never retry an installer request as text/plain. Android validates the package
+                // and owns the installation confirmation and any security restrictions.
+                try {
+                    activity.startActivityForResult(intent, 500);
+                } catch (android.content.ActivityNotFoundException e) {
+                    FileLog.e(e);
+                    new AlertDialog.Builder(activity, resourcesProvider)
+                            .setMessage(LocaleController.formatString("NoHandleAppInstalled",
+                                    R.string.NoHandleAppInstalled, APK_MIME_TYPE))
+                            .setPositiveButton(getString(R.string.OK), null)
+                            .show();
+                }
+                return true;
             }
             if (realMimeType != null) {
                 try {
@@ -4465,13 +4500,17 @@ public class AndroidUtilities {
             f = FileLoader.getInstance(message.currentAccount).getPathToMessage(message.messageOwner);
         }
         String mimeType = message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT ? message.getMimeType() : null;
-        return openForView(f, message.getFileName(), mimeType, activity, resourcesProvider, restrict);
+        String originalName = message.getDocumentName();
+        String fileName = hasApkExtension(originalName) ? originalName : message.getFileName();
+        return openForView(f, fileName, mimeType, activity, resourcesProvider, restrict);
     }
 
     public static boolean openForView(TLRPC.Document document, boolean forceCache, Activity activity) {
         String fileName = FileLoader.getAttachFileName(document);
         File f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(document, true);
-        return openForView(f, fileName, document.mime_type, activity, null, false);
+        String originalName = FileLoader.getDocumentFileName(document);
+        return openForView(f, hasApkExtension(originalName) ? originalName : fileName,
+                document.mime_type, activity, null, false);
     }
 
     public static SpannableStringBuilder formatSpannableSimple(CharSequence format, CharSequence... cs) {
