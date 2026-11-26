@@ -12541,4 +12541,11 @@
     <string name="GlassgramMusicClassicInfo">Open music in Telegram\'s own player instead of this one.</string>
     <string name="GlassgramProfileShowPlaylist">Show Playlist</string>
     <string name="GlassgramBasedOnExteraGram">Plugin engine based on exteraGram · github.com/exteraSquad/exteraGram</string>
+    <string name="GlassgramLocalDialogLabel">Local copy</string>
+    <string name="GlassgramLocalDialogInfo">History saved on this device. You cannot send messages or restore access to the original chat here.</string>
+    <string name="GlassgramLocalDialogRemove">Remove local copy</string>
+    <string name="GlassgramLocalDialogRemoveInfo">Remove the saved history of this chat from this device? The original Telegram chat will not be changed.</string>
+    <string name="GlassgramLocalDialogOpenFile">Open</string>
+    <string name="GlassgramLocalDialogEarlier">Show earlier messages</string>
+    <string name="GlassgramLocalDialogUnavailable">This file was not saved or has been removed from local storage.</string>
 </resources>

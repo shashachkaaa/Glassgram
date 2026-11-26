@@ -69,20 +69,28 @@ public final class GlassgramSpyMedia {
 
     // A newly received photo can lose its file reference immediately after deletion or replacement.
     // Fetch the chat and viewer sizes while the message can still refresh that reference.
-    static void prefetchPhotos(int account, ArrayList<TLRPC.Message> messages) {
+    static void prefetchAttachments(int account, ArrayList<TLRPC.Message> messages) {
         if (!GlassgramConfig.spySaveAttachments
                 || !(GlassgramConfig.spySaveDeletedMessages || GlassgramConfig.spySaveEditsHistory)) {
             return;
         }
         for (TLRPC.Message message : messages) {
             TLRPC.MessageMedia media = MessageObject.getMedia(message);
-            if (!message.out && media instanceof TLRPC.TL_messageMediaPhoto) {
+            if (!message.out && (media instanceof TLRPC.TL_messageMediaPhoto || media instanceof TLRPC.TL_messageMediaDocument)) {
                 capture(account, message);
             }
         }
     }
 
     static void capture(int account, TLRPC.Message message) {
+        capture(account, message, true);
+    }
+
+    static void captureLocal(int account, TLRPC.Message message) {
+        capture(account, message, false);
+    }
+
+    private static void capture(int account, TLRPC.Message message, boolean allowDownload) {
         if (GlassgramConfig.STORE_BUILD || !GlassgramConfig.spySaveAttachments || message == null
                 || message.id <= 0 || message.noforwards || MessageObject.isEphemeral(message)
                 || MessageObject.isSecretMedia(message)) {
@@ -115,27 +123,27 @@ public final class GlassgramSpyMedia {
                 }
                 TLRPC.PhotoSize chat = FileLoader.getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize(), false, null, true);
                 TLRPC.PhotoSize viewer = FileLoader.getClosestPhotoSizeWithSize(sizes, AndroidUtilities.getPhotoSize(true), false, null, true);
-                preservePhoto(parent, selfId, media.photo, chat);
+                preservePhoto(parent, selfId, media.photo, chat, allowDownload);
                 if (viewer != chat) {
-                    preservePhoto(parent, selfId, media.photo, viewer);
+                    preservePhoto(parent, selfId, media.photo, viewer, allowDownload);
                 }
             } else if (media instanceof TLRPC.TL_messageMediaDocument && media.document instanceof TLRPC.TL_document
                     && media.document.key == null && !parent.isAnyKindOfSticker()) {
-                preserve(parent, selfId, media.document, null, media.document.size);
+                preserve(parent, selfId, media.document, null, media.document.size, allowDownload);
             }
         });
     }
 
-    private static void preservePhoto(MessageObject parent, long selfId, TLRPC.Photo photo, TLRPC.PhotoSize size) {
+    private static void preservePhoto(MessageObject parent, long selfId, TLRPC.Photo photo, TLRPC.PhotoSize size, boolean allowDownload) {
         if (size != null) {
             ImageLocation location = ImageLocation.getForPhoto(size, photo);
             if (location != null && !location.isEncrypted()) {
-                preserve(parent, selfId, size, location, size.size);
+                preserve(parent, selfId, size, location, size.size, allowDownload);
             }
         }
     }
 
-    private static boolean isProtected(int account, long dialogId) {
+    static boolean isProtected(int account, long dialogId) {
         MessagesController controller = MessagesController.getInstance(account);
         if (dialogId > 0) {
             TLRPC.UserFull user = controller.getUserFull(dialogId);
@@ -151,7 +159,7 @@ public final class GlassgramSpyMedia {
         return chat != null && chat.noforwards;
     }
 
-    private static void preserve(MessageObject parent, long selfId, TLObject attachment, ImageLocation photo, long bytes) {
+    private static void preserve(MessageObject parent, long selfId, TLObject attachment, ImageLocation photo, long bytes, boolean allowDownload) {
         String name = FileLoader.getAttachFileName(attachment);
         File target = path(selfId, name);
         if (target == null || bytes <= 0 || bytes > limit() || target.isFile()
@@ -167,9 +175,12 @@ public final class GlassgramSpyMedia {
             copy(source, target, bytes);
             return;
         }
+        if (!allowDownload && !loader.isLoadingFile(name)) {
+            return;
+        }
         Archive.pending.put(target, bytes);
         // An existing download can deliver the same bytes without lowering its priority.
-        if (!loader.isLoadingFile(name)) {
+        if (allowDownload && !loader.isLoadingFile(name)) {
             if (photo != null) {
                 loader.loadFile(photo, parent, "jpg", FileLoader.PRIORITY_LOW, 1);
             } else {

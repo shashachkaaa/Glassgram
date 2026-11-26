@@ -581,7 +581,7 @@ public final class GlassgramSpyStorage {
         return retained;
     }
 
-    private static boolean isBotDialogOnStorageQueue(int account, MessagesStorage storage, long dialogId) {
+    static boolean isBotDialogOnStorageQueue(int account, MessagesStorage storage, long dialogId) {
         if (dialogId <= 0) {
             return false;
         }
@@ -630,7 +630,7 @@ public final class GlassgramSpyStorage {
 
     public static long size() {
         File f = file();
-        return f.length() + deletedFile().length() + GlassgramSpyMedia.size();
+        return f.length() + deletedFile().length() + GlassgramSpyMedia.size() + GlassgramLocalDialogs.size();
     }
 
     public static void clear(Runnable done) {
@@ -657,6 +657,7 @@ public final class GlassgramSpyStorage {
                 }
             }
         }
+        GlassgramLocalDialogs.clear();
         GlassgramSpyMedia.clear(done);
     }
 

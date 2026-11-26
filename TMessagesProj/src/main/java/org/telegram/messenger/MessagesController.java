@@ -19966,7 +19966,7 @@ public class MessagesController extends BaseController implements NotificationCe
         }
 
         if (messagesArr != null) {
-            GlassgramSpyMedia.prefetchPhotos(currentAccount, messagesArr);
+            GlassgramSpyMedia.prefetchAttachments(currentAccount, messagesArr);
             getStatsController().incrementReceivedItemsCount(ApplicationLoader.getCurrentNetworkType(), StatsController.TYPE_MESSAGES, messagesArr.size());
             getMessagesStorage().putMessages(messagesArr, true, true, false, getDownloadController().getAutodownloadMask(), 0, 0);
         }
@@ -20469,6 +20469,7 @@ public class MessagesController extends BaseController implements NotificationCe
                             if (dialog == null && chat instanceof TLRPC.TL_channel && !chat.left) {
                                 Utilities.stageQueue.postRunnable(() -> getChannelDifference(update.channel_id, 1, 0, null));
                             } else if (ChatObject.isNotInChat(chat) && dialog != null && (promoDialog == null || promoDialog.id != dialog.id)) {
+                                GlassgramLocalDialogs.beforeRemoval(currentAccount, dialog.id, 0);
                                 deleteDialog(dialog.id, 0);
                             }
                             if (chat instanceof TLRPC.TL_channelForbidden || chat.kicked) {
@@ -20508,6 +20509,7 @@ public class MessagesController extends BaseController implements NotificationCe
                             }
                             TLRPC.Dialog dialog = dialogs_dict.get(-chat.id);
                             if (dialog != null) {
+                                GlassgramLocalDialogs.beforeRemoval(currentAccount, dialog.id, 0);
                                 deleteDialog(dialog.id, 0);
                             }
                         }
@@ -21238,6 +21240,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> ids = deletedMessages.valueAt(a);
                 java.util.HashSet<Integer> retained = GlassgramSpyStorage.retainDeletedMessages(currentAccount, key, ids);
+                if (!retained.isEmpty()) GlassgramLocalDialogs.beforeBatch(currentAccount, key, ids);
                 ArrayList<Integer> keep = new ArrayList<>();
                 ArrayList<Integer> drop = new ArrayList<>();
                 for (int b = 0; b < ids.size(); b++) {
@@ -21514,6 +21517,7 @@ public class MessagesController extends BaseController implements NotificationCe
             for (int a = 0, size = clearHistoryMessages.size(); a < size; a++) {
                 long key = clearHistoryMessages.keyAt(a);
                 int id = clearHistoryMessages.valueAt(a);
+                GlassgramLocalDialogs.beforeRemoval(currentAccount, key, id);
                 getMessagesStorage().getStorageQueue().postRunnable(() -> {
                     ArrayList<Long> dialogIds = getMessagesStorage().markMessagesAsDeleted(key, id, false, true);
                     getMessagesStorage().updateDialogsWithDeletedMessages(key, -key, new ArrayList<>(), dialogIds);

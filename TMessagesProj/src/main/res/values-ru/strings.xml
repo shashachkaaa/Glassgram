@@ -1133,4 +1133,11 @@
     <string name="GlassgramMusicClassicInfo">Открывать музыку в плеере Telegram вместо этого.</string>
     <string name="GlassgramProfileShowPlaylist">Показать плейлист</string>
     <string name="GlassgramBasedOnExteraGram">Движок плагинов основан на exteraGram · github.com/exteraSquad/exteraGram</string>
+    <string name="GlassgramLocalDialogLabel">Локальная копия</string>
+    <string name="GlassgramLocalDialogInfo">Сохранённая на устройстве история. Здесь нельзя отправлять сообщения или восстановить доступ к исходному чату.</string>
+    <string name="GlassgramLocalDialogRemove">Удалить локальную копию</string>
+    <string name="GlassgramLocalDialogRemoveInfo">Удалить сохранённую историю этого чата с устройства? Исходный чат в Telegram не изменится.</string>
+    <string name="GlassgramLocalDialogOpenFile">Открыть</string>
+    <string name="GlassgramLocalDialogEarlier">Показать более ранние сообщения</string>
+    <string name="GlassgramLocalDialogUnavailable">Файл не был сохранён или уже удалён из локального хранилища.</string>
 </resources>

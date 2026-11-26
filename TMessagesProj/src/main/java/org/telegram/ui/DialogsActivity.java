@@ -4832,6 +4832,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             viewPage.listView.setVerticalScrollbarPosition(LocaleController.isRTL ? RecyclerListView.SCROLLBAR_POSITION_LEFT : RecyclerListView.SCROLLBAR_POSITION_RIGHT);
             viewPage.addView(viewPage.listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             viewPage.listView.setOnItemClickListener((view, position, x, y) -> {
+                if (viewPage.dialogsAdapter.getItem(position) instanceof org.telegram.messenger.GlassgramLocalDialogs.Entry) {
+                    if (!clickSelectsDialog() && !glassgramEditing && !actionBar.isActionModeShowed()) {
+                        presentFragment(new GlassgramLocalDialogActivity(currentAccount,
+                                (org.telegram.messenger.GlassgramLocalDialogs.Entry) viewPage.dialogsAdapter.getItem(position)));
+                    }
+                    return;
+                }
                 if (view instanceof GraySectionCell)
                     return;
                 if (view instanceof DialogCell && ((DialogCell) view).isBlocked()) {
@@ -4900,6 +4907,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             viewPage.listView.setOnItemLongClickListener(new RecyclerListView.OnItemLongClickListenerExtended() {
                 @Override
                 public boolean onItemClick(View view, int position, float x, float y) {
+                    if (viewPage.dialogsAdapter.getItem(position) instanceof org.telegram.messenger.GlassgramLocalDialogs.Entry) return false;
                     if (view instanceof DialogCell && ((DialogCell) view).isBlocked()) {
                         showPremiumBlockedToast(view, ((DialogCell) view).getDialogId());
                         return true;

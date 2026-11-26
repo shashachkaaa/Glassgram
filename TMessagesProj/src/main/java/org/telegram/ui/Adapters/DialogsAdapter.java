@@ -40,6 +40,7 @@ import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.GlassgramChatLock;
+import org.telegram.messenger.GlassgramLocalDialogs;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -112,7 +113,8 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             VIEW_TYPE_GRAY_SECTION = 20,
             VIEW_TYPE_FORWARD_TO_STORIES_CELL = 21,
             VIEW_TYPE_HEADER_3 = 22,
-            VIEW_TYPE_DIALOG_COMMUNITY = 23;
+            VIEW_TYPE_DIALOG_COMMUNITY = 23,
+            VIEW_TYPE_LOCAL_DIALOG = 24;
 
     private Context mContext;
     private ArchiveHintCell archiveHintCell;
@@ -282,6 +284,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
     private class ItemInternal extends AdapterWithDiffUtils.Item {
 
+        GlassgramLocalDialogs.Entry localDialog;
         TLRPC.Dialog dialog;
         TLRPC.RecentMeUrl recentMeUrl;
         TLRPC.TL_contact contact;
@@ -302,6 +305,18 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
         private TLRPC.Chat chat;
         private TLRPC.User user;
         private long dialogId;
+
+        public ItemInternal(GlassgramLocalDialogs.Entry entry) {
+            super(VIEW_TYPE_LOCAL_DIALOG, false);
+            this.localDialog = entry;
+            String key = "glassgram-local:" + entry.self + ":" + entry.did;
+            Integer id = dialogsHeaderStableIds.get(key);
+            if (id == null) {
+                id = stableIdPointer++;
+                dialogsHeaderStableIds.put(key,id);
+            }
+            stableId = id;
+        }
 
         public ItemInternal(int viewType, String string) {
             super(viewType, false);
@@ -421,6 +436,11 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             if (viewType != itemInternal.viewType) {
                 return false;
             }
+            if (viewType == VIEW_TYPE_LOCAL_DIALOG) {
+                return localDialog != null && itemInternal.localDialog != null
+                        && localDialog.self == itemInternal.localDialog.self
+                        && localDialog.did == itemInternal.localDialog.did;
+            }
             if (viewType == VIEW_TYPE_DIALOG) {
                 return dialog != null && itemInternal.dialog != null && dialog.id == itemInternal.dialog.id
                         && isFolder == itemInternal.isFolder &&
@@ -458,7 +478,9 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
         final ItemInternal item = itemInternals.get(i);
 
-        if (item.title != null) {
+        if (item.localDialog != null) {
+            return item.localDialog;
+        } else if (item.title != null) {
             return item.title;
         } else if (item.chat != null) {
             return item.chat;
@@ -580,7 +602,13 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
             @Override
             public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-                return oldItems.get(oldItemPosition).viewType == newItems.get(newItemPosition).viewType;
+                ItemInternal oldItem = oldItems.get(oldItemPosition), newItem = newItems.get(newItemPosition);
+                if (oldItem.viewType == VIEW_TYPE_LOCAL_DIALOG && newItem.viewType == VIEW_TYPE_LOCAL_DIALOG) {
+                    return oldItem.compare(newItem) && oldItem.localDialog.count == newItem.localDialog.count
+                            && oldItem.localDialog.date == newItem.localDialog.date
+                            && Objects.equals(oldItem.localDialog.title, newItem.localDialog.title);
+                }
+                return oldItem.viewType == newItem.viewType;
             }
         };
         if (itemInternals.size() < 50 || !ALLOW_UPDATE_IN_BACKGROUND) {
@@ -887,6 +915,9 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                 };
                 break;
             }
+            case VIEW_TYPE_LOCAL_DIALOG:
+                view = new TextCell(mContext);
+                break;
             case VIEW_TYPE_TEXT:
             default: {
                 view = new TextCell(mContext);
@@ -1184,6 +1215,14 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                 textView.setCompoundDrawablePadding(AndroidUtilities.dp(4));
                 textView.setCompoundDrawablesWithIntrinsicBounds(null, null, parentFragment != null && parentFragment.storiesEnabled ? null : arrowDrawable, null);
                 textView.getLayoutParams().width = LayoutHelper.WRAP_CONTENT;
+                break;
+            }
+            case VIEW_TYPE_LOCAL_DIALOG: {
+                GlassgramLocalDialogs.Entry entry = itemInternals.get(i).localDialog;
+                TextCell cell = (TextCell) holder.itemView;
+                cell.setColors(Theme.key_windowBackgroundWhiteBlackText, Theme.key_windowBackgroundWhiteGrayText);
+                cell.setTextAndValueAndIcon(entry.title, getString(R.string.GlassgramLocalDialogLabel),
+                        R.drawable.msg_archive, true);
                 break;
             }
             case VIEW_TYPE_TEXT: {
@@ -1867,6 +1906,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             }
         }
 
+        appendLocalDialogs();
         if (!messagesController.hiddenUndoChats.isEmpty()) {
             for (int i = 0; i < itemInternals.size(); ++i) {
                 ItemInternal item = itemInternals.get(i);
@@ -1878,7 +1918,24 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
         }
     }
 
+    private void appendLocalDialogs() {
+        if (isOnlySelect || folderId != 0 || dialogsType != DialogsActivity.DIALOGS_TYPE_DEFAULT
+                || collapsedView || isTransitionSupport || requestPeerType != null) return;
+        ArrayList<GlassgramLocalDialogs.Entry> archive = GlassgramLocalDialogs.getEntries(currentAccount);
+        archive.removeIf(entry -> GlassgramChatLock.isLocked(currentAccount, entry.did)
+                || GlassgramChatLock.isHidden(currentAccount, entry.did));
+        if (archive.isEmpty()) return;
+        // Preserve Telegram's own row positions: insert only at the end of the normal list.
+        itemInternals.removeIf(item -> item.viewType == VIEW_TYPE_EMPTY);
+        int end = itemInternals.size();
+        if (end > 0 && itemInternals.get(end - 1).viewType == VIEW_TYPE_LAST_EMPTY) end--;
+        for (GlassgramLocalDialogs.Entry entry : archive) itemInternals.add(end++, new ItemInternal(entry));
+        if (end == itemInternals.size()) itemInternals.add(new ItemInternal(VIEW_TYPE_LAST_EMPTY));
+        isEmpty = false;
+    }
+
     public int getItemHeight(int position) {
+        if (itemInternals.get(position).viewType == VIEW_TYPE_LOCAL_DIALOG) return AndroidUtilities.dp(50) + 1;
         if (itemInternals.get(position).viewType == VIEW_TYPE_DIALOG) {
             if (itemInternals.get(position).isForumCell && !collapsedView) {
                 return AndroidUtilities.dp(SharedConfig.useThreeLinesLayout ? 86 : 91) + 1;
