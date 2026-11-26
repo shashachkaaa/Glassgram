@@ -273,6 +273,12 @@
     <string name="GlassgramPreferencesInfo">Собственные настройки glassGram. Действуют только на этом устройстве.</string>
     <string name="GlassgramCategories">Категории</string>
     <string name="GlassgramGeneral">Основные</string>
+    <string name="GlassgramAppearanceNavigation">Навигация</string>
+    <string name="GlassgramAppearanceGlass">Liquid Glass</string>
+    <string name="GlassgramAppearanceGlassInfo">Превью показывает компоновку поля ввода и стеклянных меню. Реальные эффекты зависят от устройства и настроек энергосбережения.</string>
+    <string name="GlassgramAppearanceSampleMessage">Сообщение</string>
+    <string name="GlassgramAppearanceFontSample">Съешь ещё этих мягких булок</string>
+    <string name="GlassgramAppearanceDiagnostics">Производительность</string>
     <string name="GlassgramAppearance">Оформление</string>
     <string name="GlassgramChats">Чаты</string>
     <string name="GlassgramDisableNumberRounding">Без округления чисел</string>

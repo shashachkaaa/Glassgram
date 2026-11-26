@@ -49,10 +49,12 @@ import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Cells.RadioColorCell;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.GlassgramInlineCells;
 import org.telegram.ui.Components.GlassgramSettingsCells;
+import org.telegram.ui.Components.GlassgramAppearancePreview;
 import org.telegram.ui.Components.GlassgramWallpaperLayout;
 import org.telegram.ui.Components.IconBackgroundColors;
 import org.telegram.ui.Components.LayoutHelper;
@@ -335,36 +337,39 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             GlassgramSpyMedia.refreshSize(this::refreshSpySettings);
         }
         // back from the team's screen, maybe signed out there; back from Inline Results with other features
-        if ((page == PAGE_MAIN || page == PAGE_CHATS) && listView != null) {
+        if ((page == PAGE_MAIN || page == PAGE_CHATS || page == PAGE_APPEARANCE) && listView != null) {
             listView.adapter.update(true);
         }
     }
 
+    private boolean hasGlassSettingsHeader() {
+        return page == PAGE_MAIN || page == PAGE_APPEARANCE;
+    }
+
     @Override
     protected boolean useSimpleActionBar() {
-        return page == PAGE_MAIN;
+        return hasGlassSettingsHeader();
     }
 
     @Override
     public boolean isSupportEdgeToEdge() {
-        return page == PAGE_MAIN;
+        return hasGlassSettingsHeader();
     }
 
     @Override
     protected RecyclerListView getListViewForSimpleGlass() {
-        return page == PAGE_MAIN ? listView : null;
+        return hasGlassSettingsHeader() ? listView : null;
     }
 
     @Override
     protected boolean useFadeDrawableForActionBar() {
-        // Preferences uses only the progressive content blur, never a colored header veil.
-        return page != PAGE_MAIN;
+        return !hasGlassSettingsHeader();
     }
 
     @Override
     protected void onViewCreated(View view) {
         super.onViewCreated(view);
-        if (page == PAGE_MAIN && simpleActionBar != null && listView != null) {
+        if (hasGlassSettingsHeader() && simpleActionBar != null && listView != null) {
             // The glass setup installs the bitmap section decoration by default. Keep the
             // existing rounded card renderer and let the glass capture that decoration too.
             listView.setLegacySections(true);
@@ -374,17 +379,17 @@ public class GlassgramSettingsActivity extends UniversalFragment {
 
     @Override
     public View createView(Context context) {
-        if (page == PAGE_MAIN) {
+        if (hasGlassSettingsHeader()) {
             setHasOwnBackground(true);
         }
         final View view = super.createView(context);
-        if (page == PAGE_MAIN) {
+        if (hasGlassSettingsHeader()) {
             // Simple headers overlay the list; keep the actual screen background tied to the theme.
             ThemeBind.backgroundColor(contentView, Theme.key_windowBackgroundGray, getResourceProvider());
         }
         // exteraGram's layout: rounded cards on the gray background, titles above them
         listView.adapter.setApplyBackground(false);
-        if (page == PAGE_MAIN) {
+        if (hasGlassSettingsHeader()) {
             listView.setSections(dp(16), dp(21), false);
             final GlassgramSettingsCells.CardRenderer cards = new GlassgramSettingsCells.CardRenderer(getResourceProvider());
             listView.setSectionBackgroundRenderer(cards::draw);
@@ -440,34 +445,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(getString(R.string.GlassgramProfileInfo)));
                 break;
             case PAGE_APPEARANCE:
-                items.add(header(getString(R.string.GlassgramChatList)));
-                items.add(UItem.asButton(ID_TITLE_TEXT, getString(R.string.GlassgramTitleText), GlassgramConfig.getTitle()));
-                items.add(UItem.asCheck(ID_HIDE_STORIES, getString(R.string.GlassgramHideStories)).setChecked(GlassgramConfig.hideStories));
-                items.add(UItem.asCheck(ID_HEADER_BADGE, getString(R.string.GlassgramHeaderBadge)).setChecked(GlassgramConfig.headerBadge));
-                items.add(UItem.asCheck(ID_HIDE_HEADER_COUNTDOWN, getString(R.string.GlassgramHideHeaderCountdown)).setChecked(GlassgramConfig.hideHeaderCountdown));
-                items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
-                if (GlassgramConfig.glassHeader) {
-                    items.add(UItem.asCheck(ID_IOS_CHATS_HEADER, getString(R.string.GlassgramIosChatsHeader)).setChecked(GlassgramConfig.iosChatsHeader));
-                }
-                items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
-                items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
-                items.add(UItem.asCheck(ID_GLASS_PANELS, getString(R.string.GlassgramGlassPanels)).setChecked(GlassgramConfig.glassPanels));
-                items.add(UItem.asButton(ID_TABS, getString(R.string.GlassgramTabs), tabsSummary()));
-                items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
-                items.add(header(getString(R.string.GlassgramFontHeader)));
-                items.add(UItem.asButton(ID_FONT, getString(R.string.GlassgramFont), fontName(GlassgramConfig.font)));
-                items.add(UItem.asShadow(getString(R.string.GlassgramFontInfo)));
-                items.add(UItem.asCheck(ID_MUSIC_PLAYER, getString(R.string.GlassgramMusicPlayerSetting)).setChecked(GlassgramConfig.musicPlayer));
-                items.add(UItem.asShadow(getString(R.string.GlassgramMusicPlayerSettingInfo)));
-                items.add(header(getString(R.string.GlassgramAnimations)));
-                items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
-                items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    items.add(UItem.asCheck(ID_FRAME_STATS, getString(R.string.GlassgramFrameStats)).setChecked(GlassgramConfig.frameStats));
-                    items.add(UItem.asShadow(getString(R.string.GlassgramFrameStatsInfo)));
-                    items.add(UItem.asButton(ID_JANK_RECORD, R.drawable.msg_stats, getString(R.string.GlassgramJankRecord)));
-                    items.add(UItem.asShadow(getString(R.string.GlassgramJankRecordInfo)));
-                }
+                fillAppearance(items);
                 break;
             case PAGE_CHATS: {
                 // Sticker size with a chat preview, as one card
@@ -729,6 +707,74 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_RESTORE, R.drawable.msg_archive, IconBackgroundColors.BLUE_DEEP, getString(R.string.GlassgramBackupRestore)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
+        }
+    }
+
+    private void fillAppearance(ArrayList<UItem> items) {
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramChatList)));
+        int headerFlags = (GlassgramConfig.glassHeader ? 1 : 0)
+                | (GlassgramConfig.iosChatsHeader ? 2 : 0)
+                | (GlassgramConfig.hideStories ? 4 : 0)
+                | (GlassgramConfig.headerBadge ? 8 : 0)
+                | (GlassgramConfig.hideHeaderCountdown ? 16 : 0)
+                | (GlassgramConfig.hideFloatingButton ? 32 : 0);
+        items.add(GlassgramAppearancePreview.of(GlassgramAppearancePreview.HEADER, headerFlags,
+                GlassgramConfig.getTitle(), getString(R.string.GlassgramChatList), null));
+        items.add(UItem.asButton(ID_TITLE_TEXT, getString(R.string.GlassgramTitleText), GlassgramConfig.getTitle()));
+        items.add(UItem.asCheck(ID_HIDE_STORIES, getString(R.string.GlassgramHideStories)).setChecked(GlassgramConfig.hideStories));
+        items.add(UItem.asCheck(ID_HEADER_BADGE, getString(R.string.GlassgramHeaderBadge)).setChecked(GlassgramConfig.headerBadge));
+        items.add(UItem.asCheck(ID_HIDE_HEADER_COUNTDOWN, getString(R.string.GlassgramHideHeaderCountdown)).setChecked(GlassgramConfig.hideHeaderCountdown));
+        items.add(UItem.asCheck(ID_HIDE_FAB, getString(R.string.GlassgramHideFloatingButton)).setChecked(GlassgramConfig.hideFloatingButton));
+        items.add(UItem.asShadow(getString(R.string.GlassgramChatListInfo)));
+
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramAppearanceNavigation)));
+        int[] tabs = GlassgramConfig.mainTabs();
+        if (tabs == null) {
+            tabs = new int[]{GlassgramConfig.TAB_CHATS, GlassgramConfig.TAB_CONTACTS,
+                    getUserConfig().showCallsTab ? GlassgramConfig.TAB_CALLS : GlassgramConfig.TAB_SETTINGS,
+                    GlassgramConfig.TAB_PROFILE};
+        }
+        ArrayList<Integer> tabKinds = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+        for (int tab : tabs) {
+            tabKinds.add(tab);
+            names.add(tabName(tab));
+        }
+        items.add(GlassgramAppearancePreview.of(GlassgramAppearancePreview.TABS, 0,
+                TextUtils.join(" · ", names), getString(R.string.GlassgramTabs), tabKinds));
+        items.add(UItem.asButton(ID_TABS, getString(R.string.GlassgramTabs), tabsSummary()));
+        items.add(UItem.asShadow(getString(R.string.GlassgramTabsInfo)));
+
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramAppearanceGlass)));
+        items.add(GlassgramAppearancePreview.of(GlassgramAppearancePreview.COMPOSER,
+                (GlassgramConfig.splitInput ? 1 : 0) | (GlassgramConfig.glassPanels ? 2 : 0),
+                getString(R.string.GlassgramAppearanceSampleMessage), getString(R.string.GlassgramSplitInput), null));
+        items.add(UItem.asCheck(ID_GLASS_HEADER, getString(R.string.GlassgramGlassHeader)).setChecked(GlassgramConfig.glassHeader));
+        if (GlassgramConfig.glassHeader) {
+            items.add(UItem.asCheck(ID_IOS_CHATS_HEADER, getString(R.string.GlassgramIosChatsHeader)).setChecked(GlassgramConfig.iosChatsHeader));
+        }
+        items.add(UItem.asCheck(ID_SPLIT_INPUT, getString(R.string.GlassgramSplitInput)).setChecked(GlassgramConfig.splitInput));
+        items.add(UItem.asCheck(ID_GLASS_PANELS, getString(R.string.GlassgramGlassPanels)).setChecked(GlassgramConfig.glassPanels));
+        items.add(UItem.asShadow(getString(R.string.GlassgramAppearanceGlassInfo)));
+
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramFontHeader)));
+        items.add(GlassgramAppearancePreview.of(GlassgramAppearancePreview.FONT, 0,
+                getString(R.string.GlassgramAppearanceFontSample), fontName(GlassgramConfig.font), GlassgramConfig.font));
+        items.add(UItem.asButton(ID_FONT, getString(R.string.GlassgramFont), fontName(GlassgramConfig.font)));
+        items.add(UItem.asShadow(getString(R.string.GlassgramFontInfo)));
+
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramMusicPlayerSetting)));
+        items.add(UItem.asCheck(ID_MUSIC_PLAYER, getString(R.string.GlassgramMusicPlayerSetting)).setChecked(GlassgramConfig.musicPlayer));
+        items.add(UItem.asShadow(getString(R.string.GlassgramMusicPlayerSettingInfo)));
+        items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramAnimations)));
+        items.add(UItem.asCheck(ID_IOS_TRANSITIONS, getString(R.string.GlassgramIosTransitions)).setChecked(GlassgramConfig.iosTransitions));
+        items.add(UItem.asShadow(getString(R.string.GlassgramIosTransitionsInfo)));
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramAppearanceDiagnostics)));
+            items.add(UItem.asCheck(ID_FRAME_STATS, getString(R.string.GlassgramFrameStats)).setChecked(GlassgramConfig.frameStats));
+            items.add(UItem.asShadow(getString(R.string.GlassgramFrameStatsInfo)));
+            items.add(UItem.asButton(ID_JANK_RECORD, R.drawable.msg_stats, getString(R.string.GlassgramJankRecord)));
+            items.add(UItem.asShadow(getString(R.string.GlassgramJankRecordInfo)));
         }
     }
 
@@ -1372,7 +1418,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         if (view instanceof CheckBoxCell) {
             ((CheckBoxCell) view).setChecked(value, true);
         }
-        if (page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH
+        if (page == PAGE_APPEARANCE || page == PAGE_GHOST || item.id == ID_CUSTOM_TRASH
                 || item.id == ID_HIDE_REACTIONS_CHANNELS || item.id == ID_HIDE_REACTIONS_GROUPS || item.id == ID_HIDE_REACTIONS_PRIVATE
                 || item.id == ID_AUTO_PAUSE_VIDEO || item.id == ID_AUTO_PAUSE_VOICE || item.id == ID_AUTO_PAUSE_ROUND
                 || item.id == ID_ROUND_STABILIZATION) {
@@ -2064,18 +2110,50 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             if (typeface != null) {
                 text.setSpan(new org.telegram.ui.Components.TypefaceSpan(typeface), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
-            if (ids[i].equals(GlassgramConfig.font)) {
-                text.insert(0, "✓ ");
-            }
             items[i] = text;
         }
         items[ids.length] = getString(R.string.GlassgramFontImport);
         if (hasCustom) {
             items[ids.length + 1] = getString(R.string.GlassgramFontDelete);
         }
-        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context, getResourceProvider());
         builder.setTitle(getString(R.string.GlassgramFont));
-        builder.setItems(items, (dialog, which) -> {
+        final LinearLayout choices = new LinearLayout(context);
+        choices.setOrientation(LinearLayout.VERTICAL);
+        builder.setView(choices);
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        final AlertDialog picker = builder.create();
+        for (int i = 0; i < items.length; i++) {
+            final int index = i;
+            if (i < ids.length) {
+                RadioColorCell row = new RadioColorCell(context, getResourceProvider());
+                row.setTextAndValue(items[i], ids[i].equals(GlassgramConfig.font));
+                row.setBackground(Theme.getSelectorDrawable(false));
+                row.setOnClickListener(v -> {
+                    picker.dismiss();
+                    chooseFont(ids[index]);
+                });
+                choices.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            } else {
+                TextView row = new TextView(context);
+                row.setText(items[i]);
+                row.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+                row.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+                row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                row.setPadding(dp(24), dp(12), dp(24), dp(12));
+                row.setMinHeight(dp(48));
+                row.setBackground(Theme.getSelectorDrawable(false));
+                row.setOnClickListener(v -> {
+                    picker.dismiss();
+                    handleFontPickerAction(ids, index);
+                });
+                choices.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            }
+        }
+        showDialog(picker);
+    }
+
+    private void handleFontPickerAction(String[] ids, int which) {
             if (which == ids.length) {
                 try {
                     startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*")
@@ -2088,9 +2166,6 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             } else {
                 chooseFont(ids[which]);
             }
-        });
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        builder.show();
     }
 
     private void chooseFont(String id) {

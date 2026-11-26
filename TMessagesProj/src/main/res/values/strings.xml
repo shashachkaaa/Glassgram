@@ -11318,6 +11318,12 @@
     <string name="GlassgramPreferencesInfo">glassGram\'s own options. They apply on this device only.</string>
     <string name="GlassgramCategories">Categories</string>
     <string name="GlassgramGeneral">General</string>
+    <string name="GlassgramAppearanceNavigation">Navigation</string>
+    <string name="GlassgramAppearanceGlass">Liquid Glass</string>
+    <string name="GlassgramAppearanceGlassInfo">The preview shows the layout of the message field and glass menus. Actual glass effects depend on the device and power saving settings.</string>
+    <string name="GlassgramAppearanceSampleMessage">Message</string>
+    <string name="GlassgramAppearanceFontSample">The quick brown fox</string>
+    <string name="GlassgramAppearanceDiagnostics">Performance</string>
     <string name="GlassgramAppearance">Appearance</string>
     <string name="GlassgramChats">Chats</string>
     <string name="GlassgramDisableNumberRounding">Disable Number Rounding</string>
