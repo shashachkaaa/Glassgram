@@ -3545,6 +3545,14 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         setSections(isSectionView, isViewTypeSection, padding, roundRadius, this::drawBackgroundRect, topPadding);
     }
 
+    /** Optional per-list surface renderer; other sectioned screens keep their standard drawing. */
+    public void setSectionBackgroundRenderer(Utilities.Callback5<Canvas, RectF, Float, Float, Float> renderer) {
+        this.drawSectionBackground = renderer != null ? renderer : this::drawBackgroundRect;
+        installSectionsDecoration();
+        invalidateItemDecorations();
+        invalidate();
+    }
+
     private void setSections(
             Utilities.CallbackReturn<View, Boolean> isSectionView,
             Utilities.CallbackReturn<Integer, Boolean> isViewTypeSection,

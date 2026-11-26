@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Paint;
+import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -341,7 +342,13 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         final View view = super.createView(context);
         // exteraGram's layout: rounded cards on the gray background, titles above them
         listView.adapter.setApplyBackground(false);
-        listView.setSections(true);
+        if (page == PAGE_MAIN) {
+            listView.setSections(dp(16), dp(21), false);
+            final GlassgramSettingsCells.CardRenderer cards = new GlassgramSettingsCells.CardRenderer(getResourceProvider());
+            listView.setSectionBackgroundRenderer(cards::draw);
+        } else {
+            listView.setSections(true);
+        }
         if (page == PAGE_TABS) {
             // a tab is dragged to its place
             listView.listenReorder(this::onTabsReordered);
@@ -643,41 +650,41 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 break;
             default:
                 items.add(UItem.asCustomShadow(getAboutHeader()));
-                items.add(header(getString(R.string.GlassgramCategories)));
-                items.add(UItem.asButton(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
-                items.add(UItem.asButton(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
-                items.add(UItem.asButton(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramCategories)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
                 // The RuStore edition has no ghost mode and no spy, nor their look of deleted messages
                 if (!GlassgramConfig.STORE_BUILD) {
-                    items.add(UItem.asButton(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
                 }
-                items.add(UItem.asButton(ID_PLUGINS, R.drawable.msg_bots, getString(R.string.GlassgramPlugins)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_PLUGINS, R.drawable.msg_bots, getString(R.string.GlassgramPlugins)));
                 if (GlassgramConfig.STORE_BUILD) {
                     // no "Spy & Ghost" section: the filters join the categories
-                    items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
-                    items.add(UItem.asButton(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
                 } else {
-                    items.add(header(getString(R.string.GlassgramPrivacySection)));
-                    items.add(UItem.asButton(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
-                    items.add(UItem.asButton(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
-                    items.add(UItem.asButton(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
-                    items.add(UItem.asButton(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
+                    items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPrivacySection)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
                 }
-                items.add(header(getString(R.string.GlassgramLinks)));
-                items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
-                items.add(UItem.asButton(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
-                items.add(header(getString(R.string.GlassgramDeveloperSection)));
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramLinks)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramDeveloperSection)));
                 items.add(buttonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
-                items.add(UItem.asButton(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
                 // the team's screen, with its sign-in, only for those on the team
                 if (GlassgramApi.isTeam(currentAccount)) {
                     final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
-                    items.add(UItem.asButton(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam),
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam),
                             session != null && session.isStaff() ? session.levelName : null));
                 }
-                items.add(header(getString(R.string.GlassgramBackup)));
-                items.add(UItem.asButton(ID_BACKUP_EXPORT, R.drawable.msg_shareout, getString(R.string.GlassgramBackupExport)));
-                items.add(UItem.asButton(ID_BACKUP_RESTORE, R.drawable.msg_archive, getString(R.string.GlassgramBackupRestore)));
+                items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramBackup)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_EXPORT, R.drawable.msg_shareout, getString(R.string.GlassgramBackupExport)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_RESTORE, R.drawable.msg_archive, getString(R.string.GlassgramBackupRestore)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }
@@ -789,7 +796,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
                 org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://t.me/glassgramdev");
                 return;
             case ID_SOURCE_CODE:
-                org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://github.com/shashachkaaa/Telegram");
+                org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), "https://github.com/shashachkaaa/Glassgram");
                 return;
             case ID_SPY_EXPORT:
                 startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").putExtra(Intent.EXTRA_TITLE, "glassgram_spy.jsonl"), REQUEST_SPY_EXPORT);
@@ -1732,7 +1739,7 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setGravity(Gravity.CENTER_HORIZONTAL);
-        layout.setPadding(0, dp(8), 0, dp(20));
+        layout.setPadding(dp(20), dp(6), dp(20), dp(10));
 
         ImageView icon = new ImageView(context);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -1745,35 +1752,50 @@ public class GlassgramSettingsActivity extends UniversalFragment {
         icon.setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(26));
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(21));
             }
         });
-        layout.addView(icon, LayoutHelper.createLinear(96, 96, Gravity.CENTER_HORIZONTAL));
+        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteValueText, getResourceProvider());
+        final int foreground = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider());
+        FrameLayout iconFrame = new FrameLayout(context);
+        GradientDrawable iconPlate = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, new int[]{
+                Theme.multAlpha(accent, 0.18f), Theme.multAlpha(foreground, 0.04f)});
+        iconPlate.setCornerRadius(dp(29));
+        iconPlate.setStroke(dp(1), Theme.multAlpha(accent, 0.20f));
+        iconFrame.setBackground(iconPlate);
+        iconFrame.addView(icon, LayoutHelper.createFrame(76, 76, Gravity.CENTER));
+        layout.addView(iconFrame, LayoutHelper.createLinear(92, 92, Gravity.CENTER_HORIZONTAL));
 
         TextView name = new TextView(context);
         name.setText(getString(R.string.AppName));
-        name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 27);
         name.setTypeface(AndroidUtilities.bold());
         name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         name.setGravity(Gravity.CENTER);
-        layout.addView(name, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0));
+        layout.addView(name, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0));
 
         TextView version = new TextView(context);
         version.setText(getVersionText(context));
-        version.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
-        version.setTypeface(AndroidUtilities.bold());
-        version.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        version.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        version.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
         version.setGravity(Gravity.CENTER);
-        layout.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
+        version.setPadding(dp(12), dp(4), dp(12), dp(4));
+        GradientDrawable versionPill = new GradientDrawable();
+        versionPill.setColor(Theme.multAlpha(foreground, 0.07f));
+        versionPill.setCornerRadius(dp(14));
+        versionPill.setStroke(dp(1), Theme.multAlpha(foreground, 0.08f));
+        version.setBackground(versionPill);
+        layout.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 7, 0, 0));
 
         // the notice exteraGram's terms ask for where the app shows its name and version: its plugin
         // engine and SDK come from exteraGram (ADDITIONAL_TERMS.md)
         TextView basedOn = new TextView(context);
         basedOn.setText(getString(R.string.GlassgramBasedOnExteraGram));
-        basedOn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        basedOn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
         basedOn.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText));
         basedOn.setGravity(Gravity.CENTER);
-        basedOn.setPadding(dp(16), dp(4), dp(16), dp(4));
+        basedOn.setPadding(dp(8), dp(6), dp(8), dp(6));
         basedOn.setOnClickListener(v -> org.telegram.messenger.browser.Browser.openUrl(v.getContext(), "https://github.com/exteraSquad/exteraGram"));
         layout.addView(basedOn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
 

@@ -14,6 +14,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -22,6 +23,7 @@ import androidx.core.graphics.ColorUtils;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -56,7 +58,17 @@ public final class GlassgramSettingsCells {
 
         @Override
         public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
-            ((TextView) view).setText(item.text);
+            TextView title = (TextView) view;
+            title.setText(item.text);
+            if (item.intValue == 1) {
+                title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+                title.setPadding(dp(28), dp(18), dp(28), dp(8));
+            } else {
+                title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+                title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+                title.setPadding(dp(24), dp(20), dp(24), dp(10));
+            }
         }
 
         @Override
@@ -73,6 +85,175 @@ public final class GlassgramSettingsCells {
             final UItem item = UItem.ofFactory(Header.class);
             item.text = text;
             return item;
+        }
+
+        public static UItem main(CharSequence text) {
+            UItem item = of(text);
+            item.intValue = 1;
+            return item;
+        }
+    }
+
+    /** A theme-adaptive card surface. Used only for the main Glassgram preferences list. */
+    public static final class CardRenderer {
+        private final Theme.ResourcesProvider resourcesProvider;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF bounds = new RectF();
+        private final Path path = new Path();
+        private final float[] radii = new float[8];
+
+        public CardRenderer(Theme.ResourcesProvider resourcesProvider) {
+            this.resourcesProvider = resourcesProvider;
+        }
+
+        public void draw(Canvas canvas, RectF rect, Float top, Float bottom, Float alpha) {
+            int base = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+            boolean dark = ColorUtils.calculateLuminance(base) < 0.35;
+            int surface = ColorUtils.blendARGB(base, text, dark ? 0.075f : 0.018f);
+            bounds.set(rect);
+            path.rewind();
+            radii[0] = radii[1] = radii[2] = radii[3] = top;
+            radii[4] = radii[5] = radii[6] = radii[7] = bottom;
+            path.addRoundRect(bounds, radii, Path.Direction.CW);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Theme.multAlpha(surface, alpha));
+            canvas.drawPath(path, paint);
+            if (bounds.width() > 2 && bounds.height() > 2) {
+                float stroke = Math.max(1f, AndroidUtilities.dpf2(0.65f));
+                bounds.inset(stroke / 2, stroke / 2);
+                path.rewind();
+                path.addRoundRect(bounds, radii, Path.Direction.CW);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(stroke);
+                paint.setColor(Theme.multAlpha(text, alpha * (dark ? 0.12f : 0.08f)));
+                canvas.drawPath(path, paint);
+                paint.setStyle(Paint.Style.FILL);
+            }
+        }
+    }
+
+    /** Navigation cells with an accent icon tile, optional value and a direction-aware chevron. */
+    public static final class Navigation extends UItem.UItemFactory<NavigationRow> {
+        static { setup(new Navigation()); }
+
+        @Override
+        public NavigationRow createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            return new NavigationRow(context, resourcesProvider);
+        }
+
+        @Override
+        public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
+            ((NavigationRow) view).bind(item, divider);
+        }
+
+        public static UItem of(int id, int icon, CharSequence text) {
+            return of(id, icon, text, null);
+        }
+
+        public static UItem of(int id, int icon, CharSequence text, CharSequence value) {
+            UItem item = UItem.ofFactory(Navigation.class);
+            item.id = id;
+            item.iconResId = icon;
+            item.text = text;
+            item.textValue = value;
+            return item;
+        }
+    }
+
+    public static final class NavigationRow extends LinearLayout {
+        private final Theme.ResourcesProvider resourcesProvider;
+        private final ImageView icon;
+        private final TextView title;
+        private final TextView value;
+        private final View arrow;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean divider;
+
+        NavigationRow(Context context, Theme.ResourcesProvider resourcesProvider) {
+            super(context);
+            this.resourcesProvider = resourcesProvider;
+            setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
+            setOrientation(HORIZONTAL);
+            setGravity(Gravity.CENTER_VERTICAL);
+            setPadding(dp(12), dp(9), dp(12), dp(9));
+            setMinimumHeight(dp(58));
+            setWillNotDraw(false);
+            setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
+
+            icon = new ImageView(context);
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            icon.setPadding(dp(6), dp(6), dp(6), dp(6));
+            addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+            title = new TextView(context);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+            title.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            title.setMaxLines(2);
+            title.setEllipsize(TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LayoutHelper.WRAP_CONTENT, 1f);
+            titleParams.setMarginStart(dp(12));
+            addView(title, titleParams);
+
+            value = new TextView(context);
+            value.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            value.setSingleLine(true);
+            value.setEllipsize(TextUtils.TruncateAt.END);
+            value.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            value.setMaxWidth(dp(124));
+            LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
+            valueParams.setMarginStart(dp(8));
+            addView(value, valueParams);
+
+            arrow = new View(context) {
+                private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+                @Override
+                protected void onDraw(Canvas canvas) {
+                    super.onDraw(canvas);
+                    line.setColor(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider), 0.75f));
+                    line.setStrokeWidth(AndroidUtilities.dpf2(1.7f));
+                    line.setStrokeCap(Paint.Cap.ROUND);
+                    float x = getWidth() / 2f, y = getHeight() / 2f;
+                    float sign = LocaleController.isRTL ? -1f : 1f;
+                    canvas.drawLine(x - sign * dp(2), y - dp(4), x + sign * dp(2), y, line);
+                    canvas.drawLine(x + sign * dp(2), y, x - sign * dp(2), y + dp(4), line);
+                }
+            };
+            LinearLayout.LayoutParams arrowParams = new LinearLayout.LayoutParams(dp(14), dp(24));
+            arrowParams.setMarginStart(dp(6));
+            addView(arrow, arrowParams);
+        }
+
+        void bind(UItem item, boolean divider) {
+            int accent = Theme.getColor(Theme.key_windowBackgroundWhiteValueText, resourcesProvider);
+            int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
+            GradientDrawable tile = new GradientDrawable();
+            tile.setCornerRadius(dp(10));
+            tile.setColor(Theme.multAlpha(accent, 0.13f));
+            icon.setBackground(tile);
+            icon.setImageResource(item.iconResId);
+            icon.setColorFilter(accent);
+            title.setText(item.text);
+            title.setTextColor(text);
+            value.setText(item.textValue);
+            value.setTextColor(accent);
+            value.setVisibility(TextUtils.isEmpty(item.textValue) ? GONE : VISIBLE);
+            this.divider = divider;
+            setEnabled(item.enabled);
+            setAlpha(item.enabled ? 1f : 0.5f);
+            arrow.invalidate();
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (divider) {
+                paint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.09f));
+                float start = LocaleController.isRTL ? dp(12) : dp(58);
+                float end = getWidth() - (LocaleController.isRTL ? dp(58) : dp(12));
+                if (end > start) canvas.drawRect(start, getHeight() - 1, end, getHeight(), paint);
+            }
         }
     }
 
