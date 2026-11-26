@@ -4,6 +4,7 @@ import static org.telegram.messenger.LocaleController.getString;
 
 import android.view.View;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramChatLock;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -24,8 +25,37 @@ public class GlassgramHiddenChatsActivity extends GlassgramPreferencesFragment i
 
     @Override
     public boolean onFragmentCreate() {
+        if (!GlassgramChatLock.isHiddenOpen()) {
+            return false;
+        }
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.glassgramChatsHiddenChanged);
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (!GlassgramChatLock.isHiddenOpen() && listView != null) {
+            listView.setVisibility(View.INVISIBLE);
+        }
+        closeIfLocked();
+    }
+
+    @Override
+    public void onBecomeFullyVisible() {
+        super.onBecomeFullyVisible();
+        closeIfLocked();
+    }
+
+    private void closeIfLocked() {
+        if (!GlassgramChatLock.isHiddenOpen()) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (!GlassgramChatLock.isHiddenOpen() && getParentLayout() != null
+                        && getParentLayout().getLastFragment() == this) {
+                    finishFragment(false);
+                }
+            });
+        }
     }
 
     @Override
@@ -49,6 +79,9 @@ public class GlassgramHiddenChatsActivity extends GlassgramPreferencesFragment i
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         dialogs.clear();
+        if (!GlassgramChatLock.isHiddenOpen()) {
+            return;
+        }
         dialogs.addAll(GlassgramChatLock.hiddenDialogs(currentAccount));
         if (dialogs.isEmpty()) {
             items.add(UItem.asShadow(getString(R.string.GlassgramHiddenChatsEmpty)));
@@ -63,6 +96,9 @@ public class GlassgramHiddenChatsActivity extends GlassgramPreferencesFragment i
     }
 
     private long dialogOf(UItem item) {
+        if (!GlassgramChatLock.isHiddenOpen()) {
+            return 0;
+        }
         final int index = item.id - 1;
         return index >= 0 && index < dialogs.size() ? dialogs.get(index) : 0;
     }
@@ -87,7 +123,11 @@ public class GlassgramHiddenChatsActivity extends GlassgramPreferencesFragment i
         new AlertDialog.Builder(getParentActivity())
                 .setTitle(getString(R.string.GlassgramShowChat))
                 .setMessage(getString(R.string.GlassgramShowChatInfo))
-                .setPositiveButton(getString(R.string.GlassgramShowChatButton), (d, w) -> GlassgramChatLock.setHidden(currentAccount, dialogId, false))
+                .setPositiveButton(getString(R.string.GlassgramShowChatButton), (d, w) -> {
+                    if (GlassgramChatLock.isHiddenOpen()) {
+                        GlassgramChatLock.setHidden(currentAccount, dialogId, false);
+                    }
+                })
                 .setNegativeButton(getString(R.string.Cancel), null)
                 .show();
         return true;

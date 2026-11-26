@@ -43,6 +43,7 @@ public class NotificationCenter {
     public static final int closeProfileActivity = totalEvents++;
     public static final int messagesDeleted = totalEvents++;
     public static final int glassgramMessagesMarkedDeleted = totalEvents++;
+    public static final int glassgramDeletedIndexReady = totalEvents++;
     public static final int glassgramChatsHiddenChanged = totalEvents++;
     public static final int glassgramHolidayChanged = totalEvents++;
     public static final int glassgramUpdateChanged = totalEvents++;

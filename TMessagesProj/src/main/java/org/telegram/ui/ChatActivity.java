@@ -2943,6 +2943,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
             .add(NotificationCenter.glassgramMessagesMarkedDeleted)
+            .add(NotificationCenter.glassgramDeletedIndexReady)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -23412,6 +23413,8 @@ public class ChatActivity extends BaseFragment implements
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
             }
+        } else if (id == NotificationCenter.glassgramDeletedIndexReady) {
+            updateVisibleRows(GlassgramSpyStorage::isMarkedDeleted);
         } else if (id == NotificationCenter.glassgramMessagesMarkedDeleted) {
             if (chatMode == MODE_SCHEDULED) {
                 return;

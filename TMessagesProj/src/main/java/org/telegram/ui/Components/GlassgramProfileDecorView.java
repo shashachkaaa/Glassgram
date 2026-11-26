@@ -6,6 +6,8 @@ import android.graphics.RectF;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
+import java.util.ArrayList;
+
 /**
  * glassGram: a profile's winter decorations (GlassgramBadges.PERK_*), over its header in the winter
  * look: the garland around the avatar (GlassgramAvatarGarland) and, for a winter profile, the frost
@@ -32,38 +34,61 @@ public class GlassgramProfileDecorView extends View {
         void forEachGlass(Glass glass);
     }
 
+    private static final class GlassPiece {
+        final RectF rect = new RectF();
+        float radius;
+        float alpha;
+    }
+
     private final Source source;
     private final float[] avatar = new float[3];
+    private final ArrayList<GlassPiece> glassPieces = new ArrayList<>();
+    private int glassCount;
+    private float decorationAlpha;
+    private boolean garland;
+    private boolean geometryReady;
+    private float geometrySum;
     private float drawnSum = Float.NaN;
-    private float sum;
-    private final Glass summing = (rect, radius, alpha) -> sum += rect.left * 3 + rect.top * 5 + rect.right * 7 + rect.bottom * 11 + alpha * 13;
+
+    private final Glass captureGlass = (rect, radius, alpha) -> {
+        if (glassCount == glassPieces.size()) {
+            glassPieces.add(new GlassPiece());
+        }
+        GlassPiece piece = glassPieces.get(glassCount++);
+        piece.rect.set(rect);
+        piece.radius = radius;
+        piece.alpha = alpha;
+        geometrySum += rect.left * 3 + rect.top * 5 + rect.right * 7 + rect.bottom * 11
+                + alpha * 13 + radius * 17;
+    };
+
     private final ViewTreeObserver.OnPreDrawListener preDraw = () -> {
-        if (Math.abs(checksum() - drawnSum) > .3f) {
+        captureGeometry();
+        if (Float.isNaN(drawnSum) || Math.abs(geometrySum - drawnSum) > .3f) {
             invalidate();
         }
         return true;
     };
-    private Canvas drawing;
-    private float drawingAlpha;
-    private int glassIndex;
-    private final Glass frosting = (rect, radius, alpha) -> {
-        final int seed = glassIndex++;
+
+    private void drawFrost(Canvas canvas, GlassPiece piece, int seed) {
+        final RectF rect = piece.rect;
         final float w = rect.width(), h = rect.height();
         if (w <= 0f || h <= 0f) {
             return;
         }
+        final float alpha = decorationAlpha * piece.alpha;
         if (Math.max(w, h) / Math.min(w, h) < 1.3f) {
-            // a round button, stretched as it is pulled: its frost stretched with it
+            // Stretch the frost with a round button as it is pulled.
             final float d = (w + h) / 2f;
-            drawing.save();
-            drawing.translate(rect.centerX(), rect.centerY());
-            drawing.scale(w / d, h / d);
-            GlassgramFrost.drawCircle(drawing, 0f, 0f, d / 2f, drawingAlpha * alpha, seed);
-            drawing.restore();
+            canvas.save();
+            canvas.translate(rect.centerX(), rect.centerY());
+            canvas.scale(w / d, h / d);
+            GlassgramFrost.drawCircle(canvas, 0f, 0f, d / 2f, alpha, seed);
+            canvas.restore();
         } else {
-            GlassgramFrost.drawPill(drawing, rect, Math.min(radius, h / 2f), drawingAlpha * alpha, seed);
+            GlassgramFrost.drawPill(canvas, rect, Math.min(piece.radius, h / 2f), alpha, seed);
         }
-    };
+    }
 
     public GlassgramProfileDecorView(Context context, Source source) {
         super(context);
@@ -83,38 +108,40 @@ public class GlassgramProfileDecorView extends View {
     @Override
     protected void onDetachedFromWindow() {
         getViewTreeObserver().removeOnPreDrawListener(preDraw);
+        geometryReady = false;
         super.onDetachedFromWindow();
     }
 
-    /** Where everything is, as one number: when it changes, the decorations are drawn again. */
-    private float checksum() {
-        final float alpha = source.place(avatar);
-        sum = alpha * 1000f;
-        if (alpha > 0f) {
-            sum += avatar[0] * 3 + avatar[1] * 5 + avatar[2] * 7;
+    private void captureGeometry() {
+        decorationAlpha = Math.max(0f, Math.min(1f, source.place(avatar)));
+        boolean visible = decorationAlpha > .01f;
+        garland = visible && source.garland();
+        glassCount = 0;
+        geometrySum = decorationAlpha * 1000f;
+        if (visible) {
+            geometrySum += avatar[0] * 3 + avatar[1] * 5 + avatar[2] * 7;
+            if (garland) {
+                geometrySum += 19;
+            }
             if (source.frost()) {
-                source.forEachGlass(summing);
+                source.forEachGlass(captureGlass);
             }
         }
-        return sum;
+        geometryReady = true;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
-        drawnSum = checksum();
-        final float alpha = Math.max(0f, Math.min(1f, source.place(avatar)));
-        if (alpha <= .01f) {
-            return;
+        if (!geometryReady) {
+            captureGeometry();
         }
-        if (source.frost()) {
-            drawing = canvas;
-            drawingAlpha = alpha;
-            glassIndex = 0;
-            source.forEachGlass(frosting);
-            drawing = null;
+        geometryReady = false;
+        drawnSum = geometrySum;
+        for (int i = 0; i < glassCount; i++) {
+            drawFrost(canvas, glassPieces.get(i), i);
         }
-        if (source.garland()) {
-            GlassgramAvatarGarland.draw(canvas, avatar[0], avatar[1], avatar[2], alpha);
+        if (garland) {
+            GlassgramAvatarGarland.draw(canvas, avatar[0], avatar[1], avatar[2], decorationAlpha);
             if (GlassgramAvatarGarland.isBlinking()) {
                 postInvalidateDelayed(GlassgramAvatarGarland.FRAME_MS);
             }

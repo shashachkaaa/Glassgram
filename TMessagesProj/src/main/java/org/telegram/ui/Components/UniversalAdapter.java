@@ -57,6 +57,7 @@ import org.telegram.ui.Stories.recorder.HintView2;
 import org.telegram.ui.Stories.recorder.StoryPrivacyBottomSheet;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import me.vkryl.core.BitwiseUtils;
 
@@ -319,6 +320,23 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
             } else {
                 notifyDataSetChanged();
             }
+        }
+    }
+
+    /** Replaces trailing items in a list without white or reorder sections. */
+    public void replaceTail(int position, List<UItem> replacement) {
+        final int removed = items.size() - position;
+        final boolean hadDivider = hasDivider(position - 1);
+        items.subList(position, items.size()).clear();
+        items.addAll(replacement);
+        if (removed > 0) {
+            notifyItemRangeRemoved(position, removed);
+        }
+        if (!replacement.isEmpty()) {
+            notifyItemRangeInserted(position, replacement.size());
+        }
+        if (hadDivider != hasDivider(position - 1)) {
+            notifyItemChanged(position - 1, 3);
         }
     }
 

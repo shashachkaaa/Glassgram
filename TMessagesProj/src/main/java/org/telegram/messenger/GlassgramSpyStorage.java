@@ -442,6 +442,13 @@ public final class GlassgramSpyStorage {
             }
         }
         deletedIds = set;
+        if (!set.isEmpty()) {
+            AndroidUtilities.runOnUIThread(() -> {
+                for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                    NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.glassgramDeletedIndexReady);
+                }
+            });
+        }
         return set;
     }
 
@@ -634,7 +641,8 @@ public final class GlassgramSpyStorage {
         if (message.messageOwner.peer_id != null && message.messageOwner.peer_id.channel_id != 0) {
             channelId = message.messageOwner.peer_id.channel_id;
         }
-        return isMarkedDeleted(message.currentAccount, channelId, message.getId());
+        Set<String> ids = deletedIds;
+        return ids != null && ids.contains(deletedKey(message.currentAccount, channelId, message.getId()));
     }
 
     static boolean isBotDialog(int account, long dialogId) {

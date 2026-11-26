@@ -67,7 +67,6 @@ import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.EdgeToEdgeSupportMode;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeBind;
-import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
@@ -1493,15 +1492,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private final int[] liquidTabsLocation = new int[2];
     private int liquidTabsLastX = Integer.MIN_VALUE, liquidTabsLastY = Integer.MIN_VALUE;
-
-    @Override
-    public ArrayList<ThemeDescription> getThemeDescriptions() {
-        ArrayList<ThemeDescription> themeDescriptions = super.getThemeDescriptions();
-
-        ThemeDescription.ThemeDescriptionDelegate cellDelegate = this::blur3_updateColors;
-
-        return themeDescriptions;
-    }
 
     /* * */
 

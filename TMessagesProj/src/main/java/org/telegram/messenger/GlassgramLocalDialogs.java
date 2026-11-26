@@ -5,6 +5,8 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.database.sqlite.SQLiteStatement;
+import android.util.LongSparseArray;
 
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.tgnet.NativeByteBuffer;
@@ -166,9 +168,16 @@ public final class GlassgramLocalDialogs {
             if (epoch != generation || !enabled()) return;
             SQLiteCursor cursor = null;
             SQLiteDatabase local = null;
+            SQLiteStatement insert = null;
             try {
                 local = db();
                 local.beginTransaction();
+                insert = local.compileStatement("INSERT OR REPLACE INTO messages "
+                        + "(self,did,mid,date,sender,body,attachment,filename,mime) VALUES (?,?,?,?,?,?,?,?,?)");
+                insert.bindLong(1, self);
+                insert.bindLong(2, did);
+                LongSparseArray<String> senderNames = new LongSparseArray<>();
+                String fromYou = LocaleController.getString(R.string.FromYou);
                 cursor = storage.getDatabase().queryFinalized("SELECT data FROM messages_v2 WHERE uid = " + did
                         + " AND mid > 0" + (maxId > 0 ? " AND mid <= " + maxId : ""));
                 while (cursor.next()) {
@@ -183,27 +192,42 @@ public final class GlassgramLocalDialogs {
                     m.dialog_id = did;
                     TLRPC.MessageMedia media = MessageObject.getMedia(m);
                     if (media != null && media.ttl_seconds != 0) continue;
-                    ContentValues row = new ContentValues();
-                    row.put("self",self); row.put("did",did); row.put("mid",m.id); row.put("date",m.date);
-                    row.put("sender",m.out ? LocaleController.getString(R.string.FromYou) :
-                            m.from_id != null ? title(account,MessageObject.getPeerId(m.from_id)) : title(account,did));
-                    row.put("body",m.message == null ? "" : m.message);
+                    String sender = fromYou;
+                    if (!m.out) {
+                        long peer = m.from_id != null ? MessageObject.getPeerId(m.from_id) : did;
+                        sender = senderNames.get(peer);
+                        if (sender == null) {
+                            sender = title(account, peer);
+                            senderNames.put(peer, sender);
+                        }
+                    }
+                    String attachment = null;
+                    String filename = null;
+                    String mime = null;
                     if (GlassgramConfig.spySaveAttachments && media != null) {
                         if (media.document instanceof TLRPC.TL_document && media.document.key == null) {
-                            row.put("attachment",FileLoader.getAttachFileName(media.document));
-                            row.put("filename",FileLoader.getDocumentFileName(media.document));
-                            row.put("mime",media.document.mime_type);
+                            attachment = FileLoader.getAttachFileName(media.document);
+                            filename = FileLoader.getDocumentFileName(media.document);
+                            mime = media.document.mime_type;
                         } else if (media.photo != null) {
                             TLRPC.PhotoSize size = FileLoader.getClosestPhotoSizeWithSize(media.photo.sizes,AndroidUtilities.getPhotoSize(true),false,null,true);
                             if (size != null) {
-                                row.put("attachment",FileLoader.getAttachFileName(size));
-                                row.put("filename","photo.jpg"); row.put("mime","image/jpeg");
+                                attachment = FileLoader.getAttachFileName(size);
+                                filename = "photo.jpg";
+                                mime = "image/jpeg";
                             }
                         }
                         // Only copy existing bytes when access to a conversation has been removed.
                         GlassgramSpyMedia.captureLocal(account,m);
                     }
-                    local.insertWithOnConflict("messages",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+                    insert.bindLong(3, m.id);
+                    insert.bindLong(4, m.date);
+                    bindText(insert, 5, sender);
+                    insert.bindString(6, m.message == null ? "" : m.message);
+                    bindText(insert, 7, attachment);
+                    bindText(insert, 8, filename);
+                    bindText(insert, 9, mime);
+                    insert.executeInsert();
                     wrote = true;
                 }
                 cursor.dispose(); cursor = null;
@@ -221,6 +245,7 @@ public final class GlassgramLocalDialogs {
             } catch (Exception e) { wrote = false; FileLog.e(e); }
             finally {
                 if (cursor != null) cursor.dispose();
+                if (insert != null) insert.close();
                 if (local != null && local.inTransaction()) local.endTransaction();
             }
             if (wrote) {
@@ -228,6 +253,14 @@ public final class GlassgramLocalDialogs {
             }
         }
         if (wrote) changed(account,self);
+    }
+
+    private static void bindText(SQLiteStatement statement, int position, String value) {
+        if (value == null) {
+            statement.bindNull(position);
+        } else {
+            statement.bindString(position, value);
+        }
     }
 
     public static ArrayList<Row> read(int account, Entry entry, int before) {

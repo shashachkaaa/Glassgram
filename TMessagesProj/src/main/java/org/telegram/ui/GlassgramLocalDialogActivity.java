@@ -1,8 +1,6 @@
 package org.telegram.ui;
 
-import android.content.Context;
 import android.view.View;
-import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.GlassgramLocalDialogs;
@@ -14,7 +12,6 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.AlertDialog;
-import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -60,14 +57,32 @@ public final class GlassgramLocalDialogActivity extends UniversalFragment {
         final int before = rows.isEmpty() ? Integer.MAX_VALUE : rows.get(rows.size()-1).mid;
         Utilities.globalQueue.postRunnable(() -> {
             ArrayList<GlassgramLocalDialogs.Row> page = GlassgramLocalDialogs.read(currentAccount,entry,before);
-            AndroidUtilities.runOnUIThread(() -> {
-                if (isFinished || !allowed()) return;
-                loading = false;
-                rows.addAll(page);
-                more = page.size() == 100;
-                if (listView != null) listView.adapter.update(false);
-            });
+            AndroidUtilities.runOnUIThread(() -> applyPage(page));
         });
+    }
+
+    private void applyPage(ArrayList<GlassgramLocalDialogs.Row> page) {
+        if (isFinished || !allowed()) return;
+        if (listView != null && listView.isComputingLayout()) {
+            AndroidUtilities.runOnUIThread(() -> applyPage(page));
+            return;
+        }
+
+        int firstRow = rows.size();
+        rows.addAll(page);
+        loading = false;
+        more = page.size() == 100;
+        if (listView != null) {
+            UniversalAdapter adapter = listView.adapter;
+            int position = adapter.getItemCount();
+            UItem last = adapter.getItem(position - 1);
+            if (last != null && last.id == LOAD) {
+                position--;
+            }
+            ArrayList<UItem> newItems = new ArrayList<>();
+            addRows(newItems, firstRow);
+            adapter.replaceTail(position, newItems);
+        }
     }
 
     @Override protected CharSequence getTitle() { return entry.title; }
@@ -76,8 +91,12 @@ public final class GlassgramLocalDialogActivity extends UniversalFragment {
         if (!allowed()) return;
         items.add(UItem.asShadow(LocaleController.getString(R.string.GlassgramLocalDialogInfo)));
         items.add(UItem.asButton(DELETE, R.drawable.msg_delete, LocaleController.getString(R.string.GlassgramLocalDialogRemove)).red());
+        addRows(items, 0);
+    }
+
+    private void addRows(ArrayList<UItem> items, int firstRow) {
         DateFormat date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT);
-        for (int i = 0; i < rows.size(); i++) {
+        for (int i = firstRow; i < rows.size(); i++) {
             GlassgramLocalDialogs.Row row = rows.get(i);
             items.add(UItem.asHeader((row.sender == null ? "" : row.sender + " · ") + date.format(new Date(row.date * 1000L))));
             if (row.body != null && !row.body.isEmpty()) items.add(UItem.asShadow(row.body));
