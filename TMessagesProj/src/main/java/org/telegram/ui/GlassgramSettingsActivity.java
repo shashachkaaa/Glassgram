@@ -54,6 +54,7 @@ import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.GlassgramInlineCells;
 import org.telegram.ui.Components.GlassgramSettingsCells;
 import org.telegram.ui.Components.GlassgramWallpaperLayout;
+import org.telegram.ui.Components.IconBackgroundColors;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
@@ -692,40 +693,40 @@ public class GlassgramSettingsActivity extends UniversalFragment {
             default:
                 items.add(UItem.asCustomShadow(getAboutHeader()));
                 items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramCategories)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_GENERAL, R.drawable.msg_settings, getString(R.string.GlassgramGeneral)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_APPEARANCE, R.drawable.msg_palette, getString(R.string.GlassgramAppearance)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_CHATS, R.drawable.msg_discussion, getString(R.string.GlassgramChats)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_GENERAL, R.drawable.msg_settings, IconBackgroundColors.BLUE_DEEP, getString(R.string.GlassgramGeneral)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_APPEARANCE, R.drawable.msg_palette, IconBackgroundColors.PURPLE, getString(R.string.GlassgramAppearance)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_CHATS, R.drawable.settings_chat, IconBackgroundColors.ORANGE, getString(R.string.GlassgramChats)));
                 // The RuStore edition has no ghost mode and no spy, nor their look of deleted messages
                 if (!GlassgramConfig.STORE_BUILD) {
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_CUSTOMIZATION, R.drawable.msg_colors, getString(R.string.GlassgramCustomization)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CUSTOMIZATION, R.drawable.msg_colors, IconBackgroundColors.CYAN, getString(R.string.GlassgramCustomization)));
                 }
-                items.add(GlassgramSettingsCells.Navigation.of(ID_PLUGINS, R.drawable.msg_bots, getString(R.string.GlassgramPlugins)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_PLUGINS, R.drawable.msg_bots, IconBackgroundColors.GREEN, getString(R.string.GlassgramPlugins)));
                 if (GlassgramConfig.STORE_BUILD) {
                     // no "Spy & Ghost" section: the filters join the categories
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, IconBackgroundColors.RED, getString(R.string.GlassgramMessageFilters)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.settings_privacy, IconBackgroundColors.GREEN, getString(R.string.GlassgramChatLockSettings)));
                 } else {
                     items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramPrivacySection)));
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_GHOST, R.drawable.msg_stories_stealth, getString(R.string.GlassgramGhostMode)));
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_SPY, R.drawable.msg_stories_views, getString(R.string.GlassgramSpy)));
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, getString(R.string.GlassgramMessageFilters)));
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.msg_secret, getString(R.string.GlassgramChatLockSettings)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_GHOST, R.drawable.msg_stories_stealth, IconBackgroundColors.GRAY, getString(R.string.GlassgramGhostMode)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_SPY, R.drawable.msg_stories_views, IconBackgroundColors.PURPLE, getString(R.string.GlassgramSpy)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_FILTERS, R.drawable.msg_block, IconBackgroundColors.RED, getString(R.string.GlassgramMessageFilters)));
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_CHAT_LOCK, R.drawable.settings_privacy, IconBackgroundColors.GREEN, getString(R.string.GlassgramChatLockSettings)));
                 }
                 items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramLinks)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_CHANNEL, R.drawable.msg_channel, getString(R.string.GlassgramChannel), "@glassgramdev"));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_SOURCE_CODE, R.drawable.msg_link, getString(R.string.GlassgramSourceCode), "GitHub"));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_CHANNEL, R.drawable.settings_channel, IconBackgroundColors.BLUE, getString(R.string.GlassgramChannel), "@glassgramdev"));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_SOURCE_CODE, R.drawable.msg_link, IconBackgroundColors.GRAY, getString(R.string.GlassgramSourceCode), "GitHub"));
                 items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramDeveloperSection)));
                 items.add(buttonCheck(ID_SEND_STATS, getString(R.string.GlassgramSendStats), getString(R.string.GlassgramSendStatsInfo)).setChecked(GlassgramConfig.sendStats));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_SEND_REPORT, R.drawable.msg_send, getString(R.string.GlassgramSendReport)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_SEND_REPORT, R.drawable.msg_send, IconBackgroundColors.BLUE_LIGHT, getString(R.string.GlassgramSendReport)));
                 // the team's screen, with its sign-in, only for those on the team
                 if (GlassgramApi.isTeam(currentAccount)) {
                     final GlassgramApi.Session session = GlassgramApi.getSession(currentAccount);
-                    items.add(GlassgramSettingsCells.Navigation.of(ID_TEAM, R.drawable.msg_admins, getString(R.string.GlassgramApiTeam),
+                    items.add(GlassgramSettingsCells.Navigation.of(ID_TEAM, R.drawable.msg_admins, IconBackgroundColors.ORANGE_DEEP, getString(R.string.GlassgramApiTeam),
                             session != null && session.isStaff() ? session.levelName : null));
                 }
                 items.add(GlassgramSettingsCells.Header.main(getString(R.string.GlassgramBackup)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_EXPORT, R.drawable.msg_shareout, getString(R.string.GlassgramBackupExport)));
-                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_RESTORE, R.drawable.msg_archive, getString(R.string.GlassgramBackupRestore)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_EXPORT, R.drawable.msg_shareout, IconBackgroundColors.CYAN, getString(R.string.GlassgramBackupExport)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_BACKUP_RESTORE, R.drawable.msg_archive, IconBackgroundColors.BLUE_DEEP, getString(R.string.GlassgramBackupRestore)));
                 items.add(UItem.asShadow(getString(R.string.GlassgramPreferencesInfo)));
                 break;
         }

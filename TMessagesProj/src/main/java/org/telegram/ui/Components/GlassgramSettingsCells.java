@@ -4,6 +4,8 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -27,6 +29,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.SettingsActivity;
 
 import java.util.Arrays;
 
@@ -147,14 +150,15 @@ public final class GlassgramSettingsCells {
             ((NavigationRow) view).bind(item, divider);
         }
 
-        public static UItem of(int id, int icon, CharSequence text) {
-            return of(id, icon, text, null);
+        public static UItem of(int id, int icon, IconBackgroundColors colors, CharSequence text) {
+            return of(id, icon, colors, text, null);
         }
 
-        public static UItem of(int id, int icon, CharSequence text, CharSequence value) {
+        public static UItem of(int id, int icon, IconBackgroundColors colors, CharSequence text, CharSequence value) {
             UItem item = UItem.ofFactory(Navigation.class);
             item.id = id;
             item.iconResId = icon;
+            item.object = colors;
             item.text = text;
             item.textValue = value;
             return item;
@@ -164,6 +168,7 @@ public final class GlassgramSettingsCells {
     public static final class NavigationRow extends LinearLayout {
         private final Theme.ResourcesProvider resourcesProvider;
         private final ImageView icon;
+        private final SettingsActivity.SettingCell.Background iconBackground;
         private final TextView title;
         private final TextView value;
         private final View arrow;
@@ -182,9 +187,11 @@ public final class GlassgramSettingsCells {
             setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
 
             icon = new ImageView(context);
-            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            icon.setPadding(dp(6), dp(6), dp(6), dp(6));
-            addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            icon.setPadding(dp(2), dp(2), dp(2), dp(2));
+            iconBackground = new SettingsActivity.SettingCell.Background();
+            icon.setBackground(iconBackground);
+            addView(icon, new LinearLayout.LayoutParams(dp(28), dp(28)));
 
             title = new TextView(context);
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
@@ -227,12 +234,13 @@ public final class GlassgramSettingsCells {
         void bind(UItem item, boolean divider) {
             int accent = Theme.getColor(Theme.key_windowBackgroundWhiteValueText, resourcesProvider);
             int text = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
-            GradientDrawable tile = new GradientDrawable();
-            tile.setCornerRadius(dp(10));
-            tile.setColor(Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
-            icon.setBackground(tile);
+            IconBackgroundColors colors = item.object instanceof IconBackgroundColors
+                    ? (IconBackgroundColors) item.object : IconBackgroundColors.GRAY;
+            iconBackground.setColor(colors.top, colors.bottom);
+            iconBackground.setDrawBorder(resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
             icon.setImageResource(item.iconResId);
-            icon.setColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider));
+            icon.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+            icon.invalidate();
             title.setText(item.text);
             title.setTextColor(text);
             value.setText(item.textValue);
@@ -250,8 +258,8 @@ public final class GlassgramSettingsCells {
             super.onDraw(canvas);
             if (divider) {
                 paint.setColor(Theme.getColor(Theme.key_divider, resourcesProvider));
-                float start = LocaleController.isRTL ? dp(12) : dp(58);
-                float end = getWidth() - (LocaleController.isRTL ? dp(58) : dp(12));
+                float start = LocaleController.isRTL ? dp(12) : dp(52);
+                float end = getWidth() - (LocaleController.isRTL ? dp(52) : dp(12));
                 if (end > start) canvas.drawRect(start, getHeight() - 1, end, getHeight(), paint);
             }
         }
