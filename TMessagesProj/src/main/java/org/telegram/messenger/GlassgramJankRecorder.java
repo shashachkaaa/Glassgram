@@ -279,7 +279,9 @@ public final class GlassgramJankRecorder {
     private String report(List<String> hooks) {
         final StringBuilder r = new StringBuilder();
         final double seconds = (System.nanoTime() - startNanos) / 1e9;
-        r.append("glassGram ").append(BuildVars.BUILD_VERSION_STRING).append(" · ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+        r.append("glassGram ").append(BuildVars.GLASSGRAM_VERSION)
+                .append(" (Telegram ").append(BuildVars.BUILD_VERSION_STRING).append(") · ")
+                .append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                 .append(" · Android ").append(Build.VERSION.RELEASE)
                 .append(String.format(Locale.US, "\n%.0f s, display %.0f Hz: %d frames, %d late (%d vsyncs missed)",
                         seconds, displayHz, frames, lateFrames, missedVsyncs))

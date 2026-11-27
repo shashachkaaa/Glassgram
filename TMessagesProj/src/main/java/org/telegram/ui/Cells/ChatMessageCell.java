@@ -5998,6 +5998,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private NotificationCenter.ObserversGroup observersGroup;
+    private boolean avatarSetDuringBind;
 
     @Override
     protected void onAttachedToWindow() {
@@ -6037,6 +6038,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         for (PollButton btn : pollButtons) {
             btn.attach();
         }
+        avatarSetDuringBind = false;
         if (messageObjectToSet != null) {
             messageObjectToSet.animateComments = false;
             setMessageContent(messageObjectToSet, groupedMessagesToSet, bottomNearToSet, topNearToSet, firstInChatToSet, lastInChatListToSet);
@@ -6086,7 +6088,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             sideImage.onAttachedToWindow();
         }
         checkImageReceiversAttachState();
-        if (currentMessageObject != null) {
+        if (!avatarSetDuringBind && currentMessageObject != null) {
             setAvatar(currentMessageObject);
         }
         if (documentAttachType == DOCUMENT_ATTACH_TYPE_VIDEO && autoPlayingMedia) {
@@ -16088,6 +16090,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
         updateCurrentUserAndChat();
         setAvatar(messageObject);
+        avatarSetDuringBind = true;
 
         measureTime(messageObject);
 

@@ -3546,7 +3546,7 @@ public class ImageLoader {
             if (key == null) {
                 continue;
             }
-            String url = object.getKey(parentObject, mediaLocation != null ? mediaLocation : imageLocation, true);
+            String url = object.getUrlKey(parentObject, mediaLocation != null ? mediaLocation : imageLocation, key);
             if (object.path != null) {
                 url = url + "." + getHttpUrlExtension(object.path, "jpg");
             } else if (object.photoSize instanceof TLRPC.TL_photoStrippedSize || object.photoSize instanceof TLRPC.TL_photoPathSize) {
@@ -3612,7 +3612,7 @@ public class ImageLoader {
                 strippedLoc = mediaLocation != null ? mediaLocation : originalImageLocation;
             }
             thumbKey = thumbLocation.getKey(parentObject, strippedLoc, false);
-            thumbUrl = thumbLocation.getKey(parentObject, strippedLoc, true);
+            thumbUrl = thumbLocation.getUrlKey(parentObject, strippedLoc, thumbKey);
             if (thumbLocation.path != null) {
                 thumbUrl = thumbUrl + "." + getHttpUrlExtension(thumbLocation.path, "jpg");
             } else if (thumbLocation.photoSize instanceof TLRPC.TL_photoStrippedSize || thumbLocation.photoSize instanceof TLRPC.TL_photoPathSize) {

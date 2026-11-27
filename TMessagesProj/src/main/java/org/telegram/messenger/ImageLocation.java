@@ -484,6 +484,11 @@ public class ImageLocation {
         return null;
     }
 
+    /** The cache key already has the URL key's value except for theme documents. */
+    String getUrlKey(Object parentObject, Object fullObject, String cacheKey) {
+        return document instanceof DocumentObject.ThemeDocument ? getKey(parentObject, fullObject, true) : cacheKey;
+    }
+
     public boolean isEncrypted() {
         return key != null;
     }
