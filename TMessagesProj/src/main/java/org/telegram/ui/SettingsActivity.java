@@ -541,7 +541,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         subtitleView.setText(sb);
 
-        versionView.setText(getVersionName());
+        versionView.setText("glassgram (" + BuildVars.GLASSGRAM_VERSION + ")");
     }
 
 
