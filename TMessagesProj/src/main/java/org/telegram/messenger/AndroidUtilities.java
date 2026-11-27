@@ -6180,20 +6180,31 @@ public class AndroidUtilities {
     }
 
     public static void makeGlobalBlurBitmap(Utilities.Callback<Bitmap> onBitmapDone, float downscale, int amount, View forView, List<View> exclude) {
-        if (onBitmapDone == null) {
-            return;
-        }
+        if (onBitmapDone == null) return;
 
-        List<View> views = allGlobalViews();
-
-        if (views == null) {
-            onBitmapDone.run(null);
-            return;
-        }
+        final boolean wasCapturing = makingGlobalBlurBitmap;
         makingGlobalBlurBitmap = true;
+        try {
+            Bitmap bitmap = captureGlobalBlurBitmap(downscale, forView, exclude);
+            if (bitmap != null) {
+                Utilities.stackBlurBitmap(bitmap, Math.max(amount, Math.max(bitmap.getWidth(), bitmap.getHeight()) / 180));
+            }
+            onBitmapDone.run(bitmap);
+        } catch (Exception e) {
+            FileLog.e(e);
+            onBitmapDone.run(null);
+        } finally {
+            makingGlobalBlurBitmap = wasCapturing;
+        }
+    }
 
-        final List<View> finalViews = views;
-        //Utilities.themeQueue.postRunnable(() -> {
+    /** Draws window contents into a bitmap on the UI thread before any filtering. */
+    public static Bitmap captureGlobalBlurBitmap(float downscale, View forView, List<View> exclude) {
+        final List<View> views = allGlobalViews();
+        if (views == null) return null;
+
+        final boolean wasCapturing = makingGlobalBlurBitmap;
+        makingGlobalBlurBitmap = true;
         try {
             int w;
             int h;
@@ -6213,8 +6224,8 @@ public class AndroidUtilities {
             }
             canvas.scale(1.0f / downscale, 1.0f / downscale);
             canvas.drawColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-            for (int i = 0; i < finalViews.size(); ++i) {
-                View view = finalViews.get(i);
+            for (int i = 0; i < views.size(); ++i) {
+                View view = views.get(i);
                 if (view instanceof PipRoundVideoView.PipFrameLayout || (exclude != null && exclude.contains(view))) {
                     continue;
                 }
@@ -6237,19 +6248,10 @@ public class AndroidUtilities {
                 }
                 canvas.restore();
             }
-            Utilities.stackBlurBitmap(bitmap, Math.max(amount, Math.max(w, h) / 180));
-//            AndroidUtilities.runOnUIThread(() -> {
-                onBitmapDone.run(bitmap);
-//            });
-        } catch (Exception e) {
-            FileLog.e(e);
-//            AndroidUtilities.runOnUIThread(() -> {
-                onBitmapDone.run(null);
-//            });
+            return bitmap;
         } finally {
-            makingGlobalBlurBitmap = false;
+            makingGlobalBlurBitmap = wasCapturing;
         }
-        //   });
     }
 
     // rounds percents to be exact 100% in sum

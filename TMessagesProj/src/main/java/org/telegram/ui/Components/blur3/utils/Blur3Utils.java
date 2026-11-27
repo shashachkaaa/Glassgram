@@ -17,6 +17,8 @@ import org.telegram.ui.Components.blur3.capture.IBlur3Capture;
 import org.telegram.utils.glass.source.GlassSourceBitmap;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 
+import java.util.ArrayList;
+
 public class Blur3Utils {
     private Blur3Utils() {
 
@@ -42,7 +44,8 @@ public class Blur3Utils {
         return true;
     }
 
-    private static final RectF captureTmpRectF = new RectF();
+    private static final ArrayList<RectF> captureRects = new ArrayList<>();
+    private static int captureDepth;
     private static final RectF captureTmpChildPos = new RectF();
 
     public static void captureRelativeParent(IBlur3Capture capture, Canvas canvas, RectF position, View view, ViewGroup parent) {
@@ -56,25 +59,24 @@ public class Blur3Utils {
         if (ViewPositionWatcher.computeRectInParent(view, parent, captureTmpChildPos)) {
             final float oX = captureTmpChildPos.left;
             final float oY = captureTmpChildPos.top;
-            captureTmpRectF.set(position);
-            captureTmpRectF.offset(-oX, -oY);
-
-            final boolean needSaveTranslation = oX != 0 || oY != 0;
-            final boolean needSaveAlpha = alpha != 255;
-
-            if (needSaveTranslation) {
-                canvas.save();
-                canvas.translate(oX, oY);
-            }
-            if (needSaveAlpha) {
-                canvas.saveLayerAlpha(captureTmpRectF, alpha);
-            }
-            capture.capture(canvas, captureTmpRectF);
-            if (needSaveAlpha) {
-                canvas.restore();
-            }
-            if (needSaveTranslation) {
-                canvas.restore();
+            // Search can capture an embedded chat, which makes a nested capture of its own list.
+            if (captureDepth == captureRects.size()) captureRects.add(new RectF());
+            final RectF local = captureRects.get(captureDepth++);
+            final int saveCount = canvas.getSaveCount();
+            try {
+                local.set(position);
+                local.offset(-oX, -oY);
+                if (oX != 0 || oY != 0) {
+                    canvas.save();
+                    canvas.translate(oX, oY);
+                }
+                if (alpha != 255) {
+                    canvas.saveLayerAlpha(local, alpha);
+                }
+                capture.capture(canvas, local);
+            } finally {
+                canvas.restoreToCount(saveCount);
+                captureDepth--;
             }
         }
     }

@@ -48,6 +48,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.RichMessageLayout;
@@ -375,33 +376,72 @@ public class ScrimOptions extends Dialog {
             return;
         }
         AndroidUtilities.makeGlobalBlurBitmap(bitmap -> {
-            if (cutToContainer.getWidth() > 0 && cutToContainer.getHeight() > 0) {
-                int[] pos = new int[2];
-                cutToContainer.getLocationOnScreen(pos);
-                final int x = Utilities.clamp((int) ((float) pos[0] / AndroidUtilities.displaySize.x * bitmap.getWidth()), bitmap.getWidth(), 0);
-                final int y = Utilities.clamp((int) ((float) pos[1] / (AndroidUtilities.displaySize.y + AndroidUtilities.statusBarHeight + AndroidUtilities.navigationBarHeight) * bitmap.getHeight()), bitmap.getHeight(), 0);
-                final int w = Utilities.clamp((int) ((float) (cutToContainer.getWidth()) / AndroidUtilities.displaySize.x * bitmap.getWidth()), bitmap.getWidth() - x, 0);
-                final int h = Utilities.clamp((int) ((float) (cutToContainer.getHeight()) / (AndroidUtilities.displaySize.y + AndroidUtilities.statusBarHeight + AndroidUtilities.navigationBarHeight) * bitmap.getHeight()), bitmap.getHeight() - y, 0);
-                if ((x != 0 || y != 0 || w != bitmap.getWidth() || h != bitmap.getHeight()) && w > 0 && h > 0) {
-                    bitmap = Bitmap.createBitmap(bitmap, x, y, w, h);
-                }
+            if (bitmap == null) {
+                bitmaps.run(null, null);
+                return;
             }
-
-            final ColorMatrix colorMatrixBg = new ColorMatrix();
-            AndroidUtilities.adjustSaturationColorMatrix(colorMatrixBg, Theme.isCurrentThemeDark() ? .04f : +.25f);
-            AndroidUtilities.adjustBrightnessColorMatrix(colorMatrixBg, Theme.isCurrentThemeDark() ? -.04f : -.07f);
-            final Bitmap bitmapBg = AndroidUtilities.applyColorMatrix(bitmap, colorMatrixBg);
-            bitmapBg.setHasAlpha(false);
-
-            final ColorMatrix colorMatrixOptions = new ColorMatrix();
-            colorMatrixOptions.setSaturation(Theme.isCurrentThemeDark() ? 2 : 3);
-            AndroidUtilities.adjustBrightnessColorMatrix(colorMatrixOptions, Theme.isCurrentThemeDark() ? -.2f : -.07f);
-            final Bitmap bitmapOptions = AndroidUtilities.applyColorMatrix(bitmap, colorMatrixOptions);
-            bitmapOptions.setHasAlpha(false);
-
-            bitmap.recycle();
-            bitmaps.run(bitmapBg, bitmapOptions);
+            filterBlurBitmaps(bitmap, getBlurCrop(cutToContainer, bitmap), Theme.isCurrentThemeDark(), bitmaps);
         }, 15);
+    }
+
+    static void makeGlobalBlurBitmapsAsync(View container, Utilities.Callback2<Bitmap, Bitmap> done) {
+        final Bitmap snapshot;
+        try {
+            snapshot = AndroidUtilities.captureGlobalBlurBitmap(15f, null, null);
+        } catch (RuntimeException e) {
+            FileLog.e(e);
+            return;
+        }
+        if (snapshot == null) return;
+        final Rect crop = getBlurCrop(container, snapshot);
+        final boolean dark = Theme.isCurrentThemeDark();
+        if (!Utilities.themeQueue.postRunnable(() -> {
+            try {
+                Utilities.stackBlurBitmap(snapshot, Math.max(15, Math.max(snapshot.getWidth(), snapshot.getHeight()) / 180));
+                filterBlurBitmaps(snapshot, crop, dark, (background, menu) ->
+                        AndroidUtilities.runOnUIThread(() -> done.run(background, menu)));
+            } catch (RuntimeException e) {
+                FileLog.e(e);
+            } finally {
+                if (!snapshot.isRecycled()) snapshot.recycle();
+            }
+        })) {
+            snapshot.recycle();
+        }
+    }
+
+    private static Rect getBlurCrop(View container, Bitmap bitmap) {
+        if (container == null || container.getWidth() <= 0 || container.getHeight() <= 0) return null;
+        int[] pos = new int[2];
+        container.getLocationOnScreen(pos);
+        final int screenHeight = AndroidUtilities.displaySize.y + AndroidUtilities.statusBarHeight + AndroidUtilities.navigationBarHeight;
+        final int x = Utilities.clamp((int) ((float) pos[0] / AndroidUtilities.displaySize.x * bitmap.getWidth()), bitmap.getWidth(), 0);
+        final int y = Utilities.clamp((int) ((float) pos[1] / screenHeight * bitmap.getHeight()), bitmap.getHeight(), 0);
+        final int w = Utilities.clamp((int) ((float) container.getWidth() / AndroidUtilities.displaySize.x * bitmap.getWidth()), bitmap.getWidth() - x, 0);
+        final int h = Utilities.clamp((int) ((float) container.getHeight() / screenHeight * bitmap.getHeight()), bitmap.getHeight() - y, 0);
+        if (w <= 0 || h <= 0 || x == 0 && y == 0 && w == bitmap.getWidth() && h == bitmap.getHeight()) return null;
+        return new Rect(x, y, x + w, y + h);
+    }
+
+    private static void filterBlurBitmaps(Bitmap bitmap, Rect crop, boolean dark, Utilities.Callback2<Bitmap, Bitmap> done) {
+        final Bitmap input = crop == null ? bitmap : Bitmap.createBitmap(bitmap, crop.left, crop.top, crop.width(), crop.height());
+        try {
+            final ColorMatrix colorMatrixBg = new ColorMatrix();
+            AndroidUtilities.adjustSaturationColorMatrix(colorMatrixBg, dark ? .04f : .25f);
+            AndroidUtilities.adjustBrightnessColorMatrix(colorMatrixBg, dark ? -.04f : -.07f);
+            final Bitmap background = AndroidUtilities.applyColorMatrix(input, colorMatrixBg);
+            background.setHasAlpha(false);
+
+            final ColorMatrix colorMatrixMenu = new ColorMatrix();
+            colorMatrixMenu.setSaturation(dark ? 2 : 3);
+            AndroidUtilities.adjustBrightnessColorMatrix(colorMatrixMenu, dark ? -.2f : -.07f);
+            final Bitmap menu = AndroidUtilities.applyColorMatrix(input, colorMatrixMenu);
+            menu.setHasAlpha(false);
+            done.run(background, menu);
+        } finally {
+            if (input != bitmap) input.recycle();
+            bitmap.recycle();
+        }
     }
 
     private void checkBitmapMatrix() {

@@ -4476,14 +4476,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         final PointF tmpPoint = new PointF();
         iBlur3Capture = (canvas, position) -> {
-            final int searchViewAlpha = searchViewPager != null ? (int) (searchViewPager.getAlpha() * 255) : 0;
+            final int searchViewAlpha = searchViewPager != null && searchViewPager.getVisibility() == View.VISIBLE
+                    ? (int) (searchViewPager.getAlpha() * 255) : 0;
+            final float rightSlidingProgress = getRightSlidingProgress();
 
             for (ViewPage viewPage : viewPages) {
-                if (viewPage != null && viewPage.getVisibility() == View.VISIBLE && viewPage.getAlpha() > 0f) {
-                    float rp = getRightSlidingProgress();
-                    if (viewPage.animationSupportListView != null && rp > 0) {
+                if (searchViewAlpha < 255 && viewPage != null && viewPage.getVisibility() == View.VISIBLE
+                        && viewPage.getAlpha() > 0f && viewPage.getX() < position.right
+                        && viewPage.getX() + viewPage.getWidth() > position.left) {
+                    if (viewPage.animationSupportListView != null && rightSlidingProgress > 0) {
                         if (!ViewPositionWatcher.computeCoordinatesInParent(viewPage.listView, contentView, tmpPoint)) {
-                            return;
+                            continue;
                         }
 
                         canvas.save();
@@ -4496,7 +4499,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
             }
-            if (searchViewPager != null && searchViewPager.getVisibility() == View.VISIBLE && searchViewPager.getAlpha() > 0f) {
+            if (searchViewAlpha > 0) {
                 Blur3Utils.captureRelativeParent(searchViewPager, canvas, position, searchViewPager, contentView, searchViewAlpha);
             }
         };

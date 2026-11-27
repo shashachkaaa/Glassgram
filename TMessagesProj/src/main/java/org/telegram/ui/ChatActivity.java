@@ -13641,6 +13641,9 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
+        if (show && messagesSearchAdapter != null) {
+            messagesSearchAdapter.notifyDataSetChanged();
+        }
         animatorSearchResultAsListVisibility.setValue(show, true);
 
         if (!show && chatMode == MODE_SEARCH) {
@@ -18324,8 +18327,7 @@ public class ChatActivity extends BaseFragment implements
 
         public void drawList(Canvas blurCanvas, RectF position) {
             tmpRectF2.set(position);
-            tmpRectF2.intersect(0, 0, getWidth(), getHeight());
-            if (tmpRectF2.isEmpty()) {
+            if (!tmpRectF2.intersect(0, 0, getWidth(), getHeight())) {
                 return;
             }
 
@@ -24881,7 +24883,8 @@ public class ChatActivity extends BaseFragment implements
                 if (searchItem != null) {
                     searchItem.setShowSearchProgress(false);
                 }
-                if (messagesSearchAdapter != null) {
+                if (messagesSearchAdapter != null && (isMessagesSearchListVisible()
+                        || animatorSearchResultAsListVisibility.getFloatValue() > 0f)) {
                     messagesSearchAdapter.notifyDataSetChanged();
                 }
                 if (chatAdapter.isFiltered) {
@@ -24897,7 +24900,8 @@ public class ChatActivity extends BaseFragment implements
                     searchItem.setShowSearchProgress(!TextUtils.isEmpty(searchingQuery) || searchingReaction != null);
                 }
                 onSearchLoadingUpdate(true);
-                if (messagesSearchAdapter != null) {
+                if (messagesSearchAdapter != null && (isMessagesSearchListVisible()
+                        || animatorSearchResultAsListVisibility.getFloatValue() > 0f)) {
                     messagesSearchAdapter.notifyDataSetChanged();
                 }
             }

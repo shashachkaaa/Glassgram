@@ -157,6 +157,7 @@ public class ItemOptions {
 
     private boolean blur;
     private boolean blurForMenu;
+    private boolean processBlurInBackground;
     private boolean longPressSelectionEnabled = true;
 
     public ItemOptions setLongPressSelectionEnabled(boolean enabled) {
@@ -174,6 +175,11 @@ public class ItemOptions {
         this.blur = b;
         this.blurForMenu = b;
         return this;
+    }
+
+    public ItemOptions setBlurAsync() {
+        processBlurInBackground = true;
+        return setBlur(true);
     }
 
     public Context getContext() {
@@ -1410,11 +1416,13 @@ public class ItemOptions {
 
         if (dimAlpha > 0 || blur || blurForMenu) {
             DimView dimViewLocal = dimView = new DimView(context);
-            preDrawListener = () -> {
-                dimViewLocal.invalidate();
-                return true;
-            };
-            container.getViewTreeObserver().addOnPreDrawListener(preDrawListener);
+            if (!processBlurInBackground) {
+                preDrawListener = () -> {
+                    dimViewLocal.invalidate();
+                    return true;
+                };
+                container.getViewTreeObserver().addOnPreDrawListener(preDrawListener);
+            }
             container.addView(dimView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             dimView.setProgress(0);
             if (hideScrimUnder) {
@@ -1911,7 +1919,10 @@ public class ItemOptions {
                 dimViewFinal.invalidate();
 
                 AndroidUtilities.removeFromParent(dimViewFinal);
-                container.getViewTreeObserver().removeOnPreDrawListener(preDrawListener);
+                if (preDrawListener != null) {
+                    container.getViewTreeObserver().removeOnPreDrawListener(preDrawListener);
+                    preDrawListener = null;
+                }
                 if (hideScrimUnder) {
                     scrimView.setVisibility(View.VISIBLE);
                     if (scrimView instanceof GiftSheet.GiftCell) {
@@ -2154,19 +2165,48 @@ public class ItemOptions {
 
             if (blur || blurForMenu) {
                 blurPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-                scrimView.setAlpha(0.0f);
-                ScrimOptions.makeGlobalBlurBitmaps(pointContainer, (bitmapBg, bitmapOptions) -> {
-                    scrimView.setAlpha(1.0f);
-                    if (blur) blurBitmap = bitmapBg;
-                    if (scrimBlur3SourceBitmap != null) {
-                        scrimBlur3SourceBitmap.setBitmap(bitmapOptions);
-                        Blur3Utils.checkBitmapSourceMatrixScale(scrimBlur3SourceBitmap, DimView.this);
-                        if (layout != null) {
-                            layout.invalidate();
-                        }
+                final float scrimAlpha = scrimView == null ? 1f : scrimView.getAlpha();
+                if (scrimView != null) scrimView.setAlpha(0f);
+                try {
+                    if (processBlurInBackground) {
+                        ScrimOptions.makeGlobalBlurBitmapsAsync(pointContainer, (background, menu) -> {
+                            if (dimView != this || getParent() == null) {
+                                background.recycle();
+                                menu.recycle();
+                                return;
+                            }
+                            setBlurBitmaps(background, menu);
+                        });
+                    } else {
+                        ScrimOptions.makeGlobalBlurBitmaps(pointContainer, this::setBlurBitmaps);
                     }
-                });
+                } finally {
+                    if (scrimView != null) scrimView.setAlpha(scrimAlpha);
+                }
             }
+        }
+
+        private void setBlurBitmaps(Bitmap background, Bitmap menu) {
+            if (background == null || menu == null) return;
+            if (blur) {
+                blurBitmap = background;
+            } else {
+                background.recycle();
+            }
+            if (scrimBlur3SourceBitmap != null) {
+                scrimBlur3SourceBitmap.setBitmap(menu);
+                Blur3Utils.checkBitmapSourceMatrixScale(scrimBlur3SourceBitmap, this);
+                if (layout != null) {
+                    Drawable backgroundDrawable = layout.getBackground();
+                    if (backgroundDrawable instanceof BlurredBackgroundDrawable) {
+                        ((BlurredBackgroundDrawable) backgroundDrawable).invalidateDisplayList();
+                    }
+                    layout.invalidate();
+                }
+            } else {
+                menu.recycle();
+            }
+            invalidate();
         }
 
         @Override
