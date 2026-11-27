@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="GlassgramNoFileViewer">Нет приложения, которое может открыть этот файл из чата. Сохраните его в «Загрузки» и откройте через файловый менеджер.</string>
+</resources>
