@@ -41,7 +41,7 @@ class PyMethodHook : XC_MethodHook, AutoCloseable {
     @Volatile
     private var closed = false
 
-    // glassGram: time on the main thread since resetMainThreadStats
+    // glassGram: time on the main thread during a diagnostic recording
     private var mainCalls = 0L
     private var mainNanos = 0L
     private var mainMaxNanos = 0L
@@ -162,7 +162,7 @@ class PyMethodHook : XC_MethodHook, AutoCloseable {
     }
 
     private inline fun timed(param: MethodHookParam, call: () -> Unit) {
-        if (Looper.myLooper() !== Looper.getMainLooper()) {
+        if (!recordingMainThreadStats || Looper.myLooper() !== Looper.getMainLooper()) {
             call()
             return
         }
@@ -225,13 +225,16 @@ class PyMethodHook : XC_MethodHook, AutoCloseable {
     }
 
     companion object {
+        @Volatile
+        private var recordingMainThreadStats = false
+
         private val liveHooks: MutableSet<PyMethodHook> = Collections.newSetFromMap(WeakHashMap())
 
         private fun hooks(): List<PyMethodHook> = synchronized(liveHooks) { ArrayList(liveHooks) }
 
-        /** glassGram: starts counting the main thread's time in hooks again. */
+        /** Starts a diagnostic recording of main-thread hooks. */
         @JvmStatic
-        fun resetMainThreadStats() {
+        fun startMainThreadStats() {
             for (hook in hooks()) {
                 synchronized(hook) {
                     hook.mainCalls = 0
@@ -239,11 +242,13 @@ class PyMethodHook : XC_MethodHook, AutoCloseable {
                     hook.mainMaxNanos = 0
                 }
             }
+            recordingMainThreadStats = true
         }
 
-        /** glassGram: what the plugins' hooks held the main thread for since the count started, longest first. */
+        /** Stops recording and returns the collected hook timings, longest first. */
         @JvmStatic
-        fun mainThreadStats(): List<String> {
+        fun finishMainThreadStats(): List<String> {
+            recordingMainThreadStats = false
             val rows = ArrayList<Pair<Long, String>>()
             for (hook in hooks()) {
                 synchronized(hook) {

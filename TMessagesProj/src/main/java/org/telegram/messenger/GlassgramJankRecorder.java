@@ -96,7 +96,7 @@ public final class GlassgramJankRecorder {
 
     private void begin() {
         try {
-            com.exteragram.messenger.plugins.xposed.PyMethodHook.resetMainThreadStats();
+            com.exteragram.messenger.plugins.xposed.PyMethodHook.startMainThreadStats();
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -261,15 +261,22 @@ public final class GlassgramJankRecorder {
         if (sampler != null) {
             sampler.interrupt();
         }
+        List<String> hookStats;
+        try {
+            hookStats = com.exteragram.messenger.plugins.xposed.PyMethodHook.finishMainThreadStats();
+        } catch (Throwable e) {
+            hookStats = Collections.singletonList(e.toString());
+        }
+        final List<String> collectedHooks = hookStats;
         // the last frames' metrics come a moment later
         new Handler(metricsThread.getLooper()).postDelayed(() -> {
-            final String report = report();
+            final String report = report(collectedHooks);
             metricsThread.quitSafely();
             AndroidUtilities.runOnUIThread(() -> done.run(report));
         }, 300);
     }
 
-    private String report() {
+    private String report(List<String> hooks) {
         final StringBuilder r = new StringBuilder();
         final double seconds = (System.nanoTime() - startNanos) / 1e9;
         r.append("glassGram ").append(BuildVars.BUILD_VERSION_STRING).append(" · ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
@@ -281,12 +288,6 @@ public final class GlassgramJankRecorder {
         r.append(String.format(Locale.US, "\nAll frames, ms (average / 90%% / max): main %s · render %s · GPU %s",
                 spread(uiTimes, frames), spread(rtTimes, frames), spread(gpuTimes, frames)));
         r.append("\n\nPlugins' hooks on the main thread, the whole recording:");
-        final ArrayList<String> hooks = new ArrayList<>();
-        try {
-            hooks.addAll(com.exteragram.messenger.plugins.xposed.PyMethodHook.mainThreadStats());
-        } catch (Throwable e) {
-            hooks.add(e.toString());
-        }
         if (hooks.isEmpty()) {
             r.append("\n  none");
         }

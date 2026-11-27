@@ -152,7 +152,7 @@ public class ImageLoader {
     private String ignoreRemoval = null;
 
     private volatile long lastCacheOutTime = 0;
-    private int lastImageNum = 0;
+    private int lastImageNum = 1;
 
     private File telegramPath = null;
 
@@ -2850,38 +2850,30 @@ public class ImageLoader {
         }
         WebInstantView.cancelLoadPhoto(imageReceiver);
         ArrayList<Runnable> runnables = imageReceiver.getLoadingOperations();
-        if (!runnables.isEmpty()) {
-            for (int i = 0; i < runnables.size(); i++) {
-                imageLoadQueue.cancelRunnable(runnables.get(i));
-            }
-            runnables.clear();
+        for (int i = 0; i < runnables.size(); i++) {
+            Runnable operation = runnables.get(i);
+            if (operation != null) imageLoadQueue.cancelRunnable(operation);
         }
-        imageReceiver.addLoadingImageRunnable(null);
+        runnables.clear();
+
+        // Tags are assigned before a load is posted. Zero means no load was ever registered.
+        final int thumbTag = imageReceiver.getTag(ImageReceiver.TYPE_THUMB);
+        final int imageTag = cancelAll ? imageReceiver.getTag(ImageReceiver.TYPE_IMAGE) : 0;
+        final int mediaTag = cancelAll ? imageReceiver.getTag(ImageReceiver.TYPE_MEDIA) : 0;
+        if (thumbTag == 0 && imageTag == 0 && mediaTag == 0) return;
         imageLoadQueue.postRunnable(() -> {
-            for (int a = 0; a < 3; a++) {
-                int type;
-                if (a > 0 && !cancelAll) {
-                    return;
-                }
-                if (a == 0) {
-                    type = ImageReceiver.TYPE_THUMB;
-                } else if (a == 1) {
-                    type = ImageReceiver.TYPE_IMAGE;
-                } else {
-                    type = ImageReceiver.TYPE_MEDIA;
-                }
-                int TAG = imageReceiver.getTag(type);
-                if (TAG != 0) {
-                    if (a == 0) {
-                        removeFromWaitingForThumb(TAG, imageReceiver);
-                    }
-                    CacheImage ei = imageLoadingByTag.get(TAG);
-                    if (ei != null) {
-                        ei.removeImageReceiver(imageReceiver);
-                    }
-                }
+            if (thumbTag != 0) {
+                removeFromWaitingForThumb(thumbTag, imageReceiver);
+                cancelTaggedLoad(thumbTag, imageReceiver);
             }
+            if (imageTag != 0) cancelTaggedLoad(imageTag, imageReceiver);
+            if (mediaTag != 0) cancelTaggedLoad(mediaTag, imageReceiver);
         });
+    }
+
+    private void cancelTaggedLoad(int tag, ImageReceiver receiver) {
+        CacheImage image = imageLoadingByTag.get(tag);
+        if (image != null) image.removeImageReceiver(receiver);
     }
 
     public BitmapDrawable getImageFromMemory(TLObject fileLocation, String httpUrl, String filter) {
@@ -2992,7 +2984,7 @@ public class ImageLoader {
             imageReceiver.setTag(TAG = lastImageNum, type);
             lastImageNum++;
             if (lastImageNum == Integer.MAX_VALUE) {
-                lastImageNum = 0;
+                lastImageNum = 1;
             }
         }
 

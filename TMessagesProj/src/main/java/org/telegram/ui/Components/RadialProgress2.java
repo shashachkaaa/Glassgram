@@ -150,8 +150,11 @@ public class RadialProgress2 {
     }
 
     public void setImageOverlay(TLRPC.PhotoSize image, TLRPC.Document document, Object parentObject) {
-        final String filter = String.format(Locale.US, "%d_%d", circleRadius * 2, circleRadius * 2);
-        overlayImageView.setImage(ImageLocation.getForDocument(image, document), String.format(Locale.US, "%d_%d", circleRadius * 2, circleRadius * 2), null, null, parentObject, 1);
+        final ImageLocation location = ImageLocation.getForDocument(image, document);
+        if (location == null && !overlayImageView.hasImageToClear()) return;
+        final int diameter = circleRadius * 2;
+        overlayImageView.setImage(location, location == null ? null : diameter + "_" + diameter,
+                null, null, parentObject, 1);
     }
 
     public void setImageOverlay(TLRPC.PhotoSize image, TLRPC.PhotoSize thumb, TLRPC.Document document, Object parentObject) {

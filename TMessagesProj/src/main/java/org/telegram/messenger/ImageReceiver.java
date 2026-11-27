@@ -2341,6 +2341,12 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
         return currentImageDrawable != null || currentMediaDrawable != null || currentThumbDrawable != null || staticThumbDrawable != null || currentImageKey != null || currentMediaKey != null;
     }
 
+    public boolean hasImageToClear() {
+        return hasImageSet() || currentImageLocation != null || currentThumbLocation != null
+                || currentMediaLocation != null || currentThumbKey != null || crossfadeImage != null
+                || (setImageBackup != null && setImageBackup.isSet());
+    }
+
     public boolean hasMediaSet() {
         return currentMediaDrawable != null;
     }
