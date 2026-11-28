@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="GlassgramTesterDuck">Утка-тестер</string>
+    <string name="GlassgramTesterDuckDescription">Коллекционный подарок glassGram за помощь в тестировании приложения.</string>
+</resources>

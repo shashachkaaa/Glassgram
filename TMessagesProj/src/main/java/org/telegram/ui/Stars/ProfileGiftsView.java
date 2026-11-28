@@ -22,6 +22,7 @@ import android.graphics.RecordingCanvas;
 import android.graphics.RectF;
 import android.graphics.RenderNode;
 import android.graphics.Shader;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.SystemClock;
 import android.view.MotionEvent;
@@ -36,14 +37,18 @@ import androidx.annotation.RequiresApi;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.GlassgramBadges;
 import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stars;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedFloat;
@@ -60,6 +65,8 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     private static final float BUBBLE_DIAMETER = 44f;
     /** The gift inside its bubble, dp: some two fifths of it across, as on iOS. */
     private static final int ARTWORK_SIZE = 21;
+    private static final long TESTER_DUCK_ID = -1;
+    private Drawable testerDuckArtwork;
 
     private final int currentAccount;
     private final long dialogId;
@@ -213,9 +220,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         rearGlass.watch(true);
 
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starUserGiftsLoaded);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.updateInterfaces);
 
         for (Gift gift : gifts) {
-            gift.emojiDrawable.addView(this);
+            if (gift.emojiDrawable != null) gift.emojiDrawable.addView(this);
             if (gift.patternDrawable != null) gift.patternDrawable.addView(this);
         }
 
@@ -231,19 +239,22 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         orbitHeld = orbitCandidate = false;
 
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.starUserGiftsLoaded);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateInterfaces);
 
         for (Gift gift : gifts) {
-            gift.emojiDrawable.removeView(this);
+            if (gift.emojiDrawable != null) gift.emojiDrawable.removeView(this);
             if (gift.patternDrawable != null) gift.patternDrawable.removeView(this);
         }
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.starUserGiftsLoaded) {
-            if ((long) args[0] == dialogId) {
-                update();
-            }
+        if (id == NotificationCenter.starUserGiftsLoaded && (long) args[0] == dialogId) {
+            update();
+        } else if (id == NotificationCenter.updateInterfaces
+                && ((Integer) args[0] & MessagesController.UPDATE_MASK_NAME) != 0
+                && giftIds.contains(TESTER_DUCK_ID) != hasTesterDuck()) {
+            update();
         }
     }
 
@@ -291,6 +302,20 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             patternDocumentId = status.pattern_document_id;
             lightColor = lightColorOf(color);
             slug = status.slug;
+            initParticles();
+        }
+
+        private Gift() {
+            id = TESTER_DUCK_ID;
+            document = null;
+            documentId = 0;
+            color = 0xFF56D9D6;
+            edgeColor = 0xFF579BE4;
+            patternColor = Color.WHITE;
+            patternDocument = null;
+            patternDocumentId = 0;
+            lightColor = lightColorOf(color);
+            slug = null;
             initParticles();
         }
 
@@ -563,14 +588,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 if (advanceParticles) particles.process();
                 particles.draw(canvas, color, alpha);
             }
-            if (emojiDrawable != null) {
+            final Drawable artwork = id == TESTER_DUCK_ID ? testerDuckArtwork : emojiDrawable;
+            if (artwork != null) {
                 // the gift floats in its bubble, it is not pinned to its middle
                 final double time = SystemClock.uptimeMillis() * .001 + (id % 89);
-                final int sz = dp(ARTWORK_SIZE);
+                final int sz = dp(id == TESTER_DUCK_ID ? 27 : ARTWORK_SIZE);
                 canvas.translate(dpf2(1.1f) * (float) Math.sin(time * 1.3), dpf2(1.3f) * (float) Math.cos(time * 1.05));
-                emojiDrawable.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
-                emojiDrawable.setAlpha((int) (0xFF * alpha));
-                emojiDrawable.draw(canvas);
+                artwork.setBounds(-sz / 2, -sz / 2, sz / 2, sz / 2);
+                artwork.setAlpha((int) (0xFF * alpha));
+                artwork.draw(canvas);
             }
         }
     }
@@ -767,40 +793,49 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     public final HashSet<Long> giftIds = new HashSet<>();
     public int maxCount;
 
-    public void update() {
-        if (!MessagesController.getInstance(currentAccount).enableGiftsInProfile) {
-            return;
-        }
+    private boolean hasTesterDuck() {
+        return GlassgramBadges.hasPerk(dialogId, GlassgramBadges.PERK_TESTER_DUCK);
+    }
 
-        maxCount = MessagesController.getInstance(currentAccount).stargiftsPinnedToTopLimit;
+    public void update() {
+        final MessagesController controller = MessagesController.getInstance(currentAccount);
+        final boolean showTelegramGifts = controller.enableGiftsInProfile;
+        final boolean showTesterDuck = hasTesterDuck();
+        maxCount = (showTelegramGifts ? controller.stargiftsPinnedToTopLimit : 0) + (showTesterDuck ? 1 : 0);
         oldGifts.clear();
         oldGifts.addAll(gifts);
         gifts.clear();
         giftIds.clear();
 
-        final TLRPC.EmojiStatus emojiStatus;
-        if (dialogId >= 0) {
-            final TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(dialogId);
-            emojiStatus = user == null ? null : user.emoji_status;
-        } else {
-            final TLRPC.User chat = MessagesController.getInstance(currentAccount).getUser(-dialogId);
-            emojiStatus = chat == null ? null : chat.emoji_status;
-        }
-        if (emojiStatus instanceof TLRPC.TL_emojiStatusCollectible) {
-            giftIds.add(((TLRPC.TL_emojiStatusCollectible) emojiStatus).collectible_id);
-        }
-        list = StarsController.getInstance(currentAccount).getProfileGiftsList(dialogId);
-        if (list != null) {
-            for (int i = 0; i < list.gifts.size(); i++) {
-                final TL_stars.SavedStarGift savedGift = list.gifts.get(i);
-                if (!savedGift.unsaved && savedGift.pinned_to_top && savedGift.gift instanceof TL_stars.TL_starGiftUnique) {
-                    final Gift gift = new Gift((TL_stars.TL_starGiftUnique) savedGift.gift);
-                    if (!giftIds.contains(gift.id)) {
-                        gifts.add(gift);
-                        giftIds.add(gift.id);
+        if (showTelegramGifts) {
+            final TLRPC.EmojiStatus emojiStatus;
+            if (dialogId >= 0) {
+                final TLRPC.User user = controller.getUser(dialogId);
+                emojiStatus = user == null ? null : user.emoji_status;
+            } else {
+                final TLRPC.User chat = controller.getUser(-dialogId);
+                emojiStatus = chat == null ? null : chat.emoji_status;
+            }
+            if (emojiStatus instanceof TLRPC.TL_emojiStatusCollectible) {
+                giftIds.add(((TLRPC.TL_emojiStatusCollectible) emojiStatus).collectible_id);
+            }
+            list = StarsController.getInstance(currentAccount).getProfileGiftsList(dialogId);
+            if (list != null) {
+                for (int i = 0; i < list.gifts.size(); i++) {
+                    final TL_stars.SavedStarGift savedGift = list.gifts.get(i);
+                    if (!savedGift.unsaved && savedGift.pinned_to_top && savedGift.gift instanceof TL_stars.TL_starGiftUnique) {
+                        final Gift gift = new Gift((TL_stars.TL_starGiftUnique) savedGift.gift);
+                        if (!giftIds.contains(gift.id)) {
+                            gifts.add(gift);
+                            giftIds.add(gift.id);
+                        }
                     }
                 }
             }
+        }
+        if (showTesterDuck) {
+            gifts.add(new Gift());
+            giftIds.add(TESTER_DUCK_ID);
         }
 
         boolean changed = false;
@@ -829,7 +864,11 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 g.gradient = new RadialGradient(0, 0, dp(22.5f), new int[]{g.color, Theme.multAlpha(g.color, 0.0f)}, new float[]{0, 1}, Shader.TileMode.CLAMP);
                 g.gradientPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 g.gradientPaint.setShader(g.gradient);
-                if (g.document != null) {
+                if (g.id == TESTER_DUCK_ID) {
+                    if (testerDuckArtwork == null) {
+                        testerDuckArtwork = getContext().getDrawable(R.drawable.glassgram_tester_duck).mutate();
+                    }
+                } else if (g.document != null) {
                     g.emojiDrawable = AnimatedEmojiDrawable.make(currentAccount, AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES, g.document);
                 } else {
                     g.emojiDrawable = AnimatedEmojiDrawable.make(currentAccount, AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES, g.documentId);
@@ -842,7 +881,7 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 g.animatedFloat = new AnimatedFloat(this, 0, 320, null);
                 g.animatedFloat.force(0.0f);
                 if (isAttachedToWindow()) {
-                    g.emojiDrawable.addView(this);
+                    if (g.emojiDrawable != null) g.emojiDrawable.addView(this);
                     if (g.patternDrawable != null) g.patternDrawable.addView(this);
                 }
             }
@@ -863,8 +902,10 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
                 }
             }
             if (newGift == null) {
-                g.emojiDrawable.removeView(this);
-                g.emojiDrawable = null;
+                if (g.emojiDrawable != null) {
+                    g.emojiDrawable.removeView(this);
+                    g.emojiDrawable = null;
+                }
                 if (g.patternDrawable != null) {
                     g.patternDrawable.removeView(this);
                     g.patternDrawable = null;
@@ -2003,6 +2044,14 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
     }
 
     public void onGiftClick(Gift gift) {
+        if (gift.id == TESTER_DUCK_ID) {
+            new AlertDialog.Builder(getContext())
+                    .setTitle(LocaleController.getString(R.string.GlassgramTesterDuck))
+                    .setMessage(LocaleController.getString(R.string.GlassgramTesterDuckDescription))
+                    .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                    .show();
+            return;
+        }
         Browser.openUrl(getContext(), "https://t.me/nft/" + gift.slug);
     }
 }

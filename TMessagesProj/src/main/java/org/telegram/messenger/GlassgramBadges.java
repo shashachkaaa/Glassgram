@@ -149,7 +149,7 @@ public final class GlassgramBadges {
     private static volatile HashMap<String, Badge> byUsername = new HashMap<>();
     // glassGram: the winter decorations bought in the bot or given by the team (GlassgramWinter): a
     // user's id to their decorations (PERK_*, as bits)
-    public static final int PERK_GARLAND = 1, PERK_WINTER_PROFILE = 2;
+    public static final int PERK_GARLAND = 1, PERK_WINTER_PROFILE = 2, PERK_TESTER_DUCK = 4;
     private static volatile HashMap<Long, Integer> perks = new HashMap<>();
     // The bot that sells them and takes donations (a supporter badge's donate_bot)
     private static volatile String shopBot;
@@ -434,10 +434,13 @@ public final class GlassgramBadges {
         if ("winter_profile".equals(perk)) {
             return PERK_WINTER_PROFILE;
         }
+        if ("tester_duck".equals(perk)) {
+            return PERK_TESTER_DUCK;
+        }
         return 0;
     }
 
-    /** glassGram: whether a user has this winter decoration (PERK_*). */
+    /** Whether a user has this profile decoration (PERK_*). */
     public static boolean hasPerk(long userId, int perk) {
         if (userId <= 0) {
             return false;
