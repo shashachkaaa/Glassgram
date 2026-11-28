@@ -226,6 +226,7 @@ public class GlassgramSettingsActivity extends GlassgramPreferencesFragment {
     private static final int ID_JANK_RECORD = 977;
     private static final int ID_MUSIC_PLAYER = 182;
     private static final int ID_HIDE_HEADER_COUNTDOWN = 183;
+    private static final int ID_CONVERSATION_STATS = 184;
     private static final int ID_INLINE_CARD = 500;
     private static final int ID_INLINE_EXAMPLES = 510;
     private static final int ID_MENU_ITEM = 300;
@@ -631,6 +632,7 @@ public class GlassgramSettingsActivity extends GlassgramPreferencesFragment {
                 items.add(GlassgramSettingsCells.Navigation.of(ID_GENERAL, R.drawable.msg_settings, IconBackgroundColors.BLUE_DEEP, getString(R.string.GlassgramGeneral)));
                 items.add(GlassgramSettingsCells.Navigation.of(ID_APPEARANCE, R.drawable.msg_palette, IconBackgroundColors.PURPLE, getString(R.string.GlassgramAppearance)));
                 items.add(GlassgramSettingsCells.Navigation.of(ID_CHATS, R.drawable.settings_chat, IconBackgroundColors.ORANGE, getString(R.string.GlassgramChats)));
+                items.add(GlassgramSettingsCells.Navigation.of(ID_CONVERSATION_STATS, R.drawable.mini_stats, IconBackgroundColors.CYAN, getString(R.string.GlassgramConversationStats)));
                 // The RuStore edition has no ghost mode and no spy, nor their look of deleted messages
                 if (!GlassgramConfig.STORE_BUILD) {
                     items.add(GlassgramSettingsCells.Navigation.of(ID_CUSTOMIZATION, R.drawable.msg_colors, IconBackgroundColors.CYAN, getString(R.string.GlassgramCustomization)));
@@ -793,6 +795,9 @@ public class GlassgramSettingsActivity extends GlassgramPreferencesFragment {
                 return;
             case ID_CUSTOMIZATION:
                 presentFragment(new GlassgramSettingsActivity(PAGE_CUSTOMIZATION));
+                return;
+            case ID_CONVERSATION_STATS:
+                presentFragment(new GlassgramConversationStatsActivity(getCurrentAccount()));
                 return;
             case ID_FILTERS:
                 presentFragment(new GlassgramSettingsActivity(PAGE_FILTERS));

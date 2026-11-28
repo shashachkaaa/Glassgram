@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="GlassgramConversationStats">Conversation stats</string>
+    <string name="GlassgramConversationPeriod">%d days</string>
+    <string name="GlassgramConversationLoading">Reading chat history on this device…</string>
+    <string name="GlassgramConversationError">Couldn’t load conversation stats. Reopen this screen to try again.</string>
+    <string name="GlassgramConversationEmpty">There are no cached messages from personal chats for this period.</string>
+    <string name="GlassgramConversationCoverage">From personal chat history cached on this device. Oldest message counted: %s. The history may be incomplete.</string>
+    <string name="GlassgramConversationLimit">Showing a partial summary: the scan reached 60,000 cached entries.</string>
+    <string name="GlassgramConversationMessages">Messages</string>
+    <string name="GlassgramConversationReplies">Reply pace</string>
+    <string name="GlassgramConversationStarts">Who starts conversations</string>
+    <string name="GlassgramConversationUnanswered">Questions without a quick reply</string>
+    <string name="GlassgramConversationActivity">Most active hour</string>
+    <string name="GlassgramConversationSummary">Your period in chats</string>
+    <string name="GlassgramConversationCounts">Sent: %1$d\nReceived: %2$d\nPersonal chats: %3$d</string>
+    <string name="GlassgramConversationReplyTimes">You reply: %1$s\nOthers reply: %2$s\nMedian time between turns within the same conversation.</string>
+    <string name="GlassgramConversationStartsCount">You started: %1$d\nOthers started: %2$d\nWe count a fresh start after a pause of at least 8 hours.</string>
+    <string name="GlassgramConversationUnansweredCount">Your questions: %1$d\nTheir questions: %2$d\nCounts messages with a question mark that had no message from the other side for 24 hours.</string>
+    <string name="GlassgramConversationNoOutgoing">No sent messages in this period.</string>
+    <string name="GlassgramConversationPeak">You sent the most messages from %1$s to %2$s.</string>
+    <string name="GlassgramConversationSummaryYou">After long pauses, you usually write first.</string>
+    <string name="GlassgramConversationSummaryOthers">After long pauses, others usually write to you first.</string>
+    <string name="GlassgramConversationSummaryEqual">After long pauses, you and others write first equally often.</string>
+    <string name="GlassgramConversationSummaryNoStarts">There isn’t enough history to tell who starts conversations after a long pause.</string>
+    <string name="GlassgramConversationNotEnough">too few replies</string>
+    <string name="GlassgramConversationUnderMinute">less than a minute</string>
+    <string name="GlassgramConversationMinutes">%d min</string>
+</resources>
