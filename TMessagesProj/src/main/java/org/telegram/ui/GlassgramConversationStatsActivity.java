@@ -16,6 +16,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
@@ -63,7 +64,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
         screen.setBackgroundColor(COLORS[page]);
         fragmentView = screen;
         ViewCompat.setOnApplyWindowInsetsListener(screen, (view, insets) -> {
-            var bars = AndroidUtilities.getDefaultWindowInsets(insets, false);
+            Insets bars = AndroidUtilities.getDefaultWindowInsets(insets, false);
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return insets;
         });
