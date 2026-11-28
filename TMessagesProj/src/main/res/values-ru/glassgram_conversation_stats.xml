@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="GlassgramConversationStats">Статистика общения</string>
-    <string name="GlassgramConversationPeriod">%d дн.</string>
     <string name="GlassgramConversationLoading">Считаем по истории чатов на этом устройстве…</string>
     <string name="GlassgramConversationError">Не удалось загрузить статистику. Откройте экран заново, чтобы повторить.</string>
-    <string name="GlassgramConversationEmpty">За этот период на устройстве нет сохранённых сообщений из личных чатов.</string>
-    <string name="GlassgramConversationCoverage">По истории личных чатов на этом устройстве. Самое раннее учтённое сообщение: %s. История может быть неполной.</string>
-    <string name="GlassgramConversationLimit">Показана часть истории: достигнут лимит в 60 000 записей.</string>
+    <string name="GlassgramConversationEmpty">На устройстве нет сохранённых сообщений из личных чатов.</string>
+    <string name="GlassgramConversationCoverage">Вся доступная история личных чатов на этом устройстве. Самое раннее учтённое сообщение: %s. История может быть неполной.</string>
     <string name="GlassgramConversationMessages">Сообщения</string>
     <string name="GlassgramConversationReplies">Темп ответов</string>
     <string name="GlassgramConversationStarts">Кто начинает разговор</string>
@@ -17,7 +15,7 @@
     <string name="GlassgramConversationReplyTimes">Твой ответ: %1$s\nОтвет собеседников: %2$s\nМедиана времени между репликами внутри одного разговора.</string>
     <string name="GlassgramConversationStartsCount">Ты начал: %1$d\nСобеседники начали: %2$d\nНовое начало считается после паузы от 8 часов.</string>
     <string name="GlassgramConversationUnansweredCount">Твои вопросы: %1$d\nВопросы собеседников: %2$d\nСчитаем сообщения со знаком вопроса, после которых собеседник не писал в течение суток.</string>
-    <string name="GlassgramConversationNoOutgoing">За этот период нет отправленных сообщений.</string>
+    <string name="GlassgramConversationNoOutgoing">В доступной истории нет отправленных сообщений.</string>
     <string name="GlassgramConversationPeak">Больше всего сообщений ты отправил с %1$s до %2$s.</string>
     <string name="GlassgramConversationSummaryYou">После долгих пауз ты чаще пишешь первым.</string>
     <string name="GlassgramConversationSummaryOthers">После долгих пауз собеседники чаще пишут тебе первыми.</string>
@@ -26,4 +24,5 @@
     <string name="GlassgramConversationNotEnough">мало ответов</string>
     <string name="GlassgramConversationUnderMinute">меньше минуты</string>
     <string name="GlassgramConversationMinutes">%d мин</string>
+    <string name="GlassgramConversationPage">Страница %1$d из %2$d. %3$s</string>
 </resources>
