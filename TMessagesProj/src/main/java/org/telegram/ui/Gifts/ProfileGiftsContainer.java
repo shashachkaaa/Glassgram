@@ -53,6 +53,9 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.GlassgramBadges;
+import org.telegram.messenger.GlassgramProfileGift;
+import org.telegram.ui.GlassgramApiUi;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BirthdayController;
 import org.telegram.messenger.ChatObject;
@@ -113,6 +116,8 @@ import org.telegram.ui.Stars.StarGiftSheet;
 import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -588,7 +593,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             parent.updatedReordering(parent.isReordering());
             for (int i = 0; i < listView.getChildCount(); ++i) {
                 final View child = listView.getChildAt(i);
-                if (child instanceof GiftSheet.GiftCell) {
+                if (child instanceof GiftSheet.GiftCell && ((GiftSheet.GiftCell) child).getSavedGift() != null) {
                     ((GiftSheet.GiftCell) child).setReordering(reordering, true);
                 }
             }
@@ -660,12 +665,21 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             return reordering;
         }
 
+        private List<GlassgramProfileGift> glassgramGifts = Collections.emptyList();
+
+        private List<GlassgramProfileGift> getGlassgramGifts() {
+            return list != null && list == parent.list && !isCollection && !list.hasFilters()
+                    ? GlassgramBadges.getProfileGifts(parent.dialogId) : Collections.emptyList();
+        }
+
         public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
             if (list == null)
                 return;
-            if (list.hasFilters() && list.gifts.size() <= 0 && list.endReached && !list.loading)
+            glassgramGifts = getGlassgramGifts();
+            if (list.hasFilters() && list.gifts.isEmpty() && list.endReached && !list.loading)
                 return;
-            final int spanCount = Math.max(1, list == null || list.totalCount == 0 ? 3 : Math.min(3, list.totalCount));
+            final int totalCount = list.totalCount + glassgramGifts.size();
+            final int spanCount = Math.max(1, totalCount == 0 ? 3 : Math.min(3, totalCount));
             if (list != null) {
                 int spanCountLeft = 3;
                 for (TL_stars.SavedStarGift userGift : list.gifts) {
@@ -677,6 +691,10 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                     if (spanCountLeft == 0) {
                         spanCountLeft = 3;
                     }
+                }
+                for (GlassgramProfileGift gift : glassgramGifts) {
+                    items.add(GiftSheet.GiftCell.Factory.asGlassgramGift(gift, gift.getOriginal(currentAccount)));
+                    spanCountLeft = spanCountLeft == 1 ? 3 : spanCountLeft - 1;
                 }
                 if (list.loading || !list.endReached) {
                     for (int i = 0; i < (spanCountLeft <= 0 ? 3 : spanCountLeft); ++i) {
@@ -717,6 +735,12 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
 
         public void onItemClick(UItem item, View view, int position, float x, float y) {
             if (list == null) return;
+            if (item.object instanceof GlassgramProfileGift) {
+                if (!reordering) {
+                    GlassgramApiUi.showProfileGift(parent.fragment, parent.dialogId, (GlassgramProfileGift) item.object);
+                }
+                return;
+            }
             if (item.object instanceof TL_stars.SavedStarGift) {
                 final TL_stars.SavedStarGift userGift = (TL_stars.SavedStarGift) item.object;
                 if (reordering) {
@@ -1700,7 +1724,14 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             if ((Long) args[0] != dialogId) return;
             fillTabs(true);
             updateTabsShown(true);
+        } else if (id == NotificationCenter.glassgramProfileGiftLoaded) {
+            Page page = getCurrentPage();
+            if (page != null && !page.glassgramGifts.isEmpty()) page.update(false);
         } else if (id == NotificationCenter.updateInterfaces) {
+            Page page = getCurrentPage();
+            if (page != null && !page.glassgramGifts.equals(page.getGlassgramGifts())) {
+                page.update(false);
+            }
             updateGiftAction();
             buttonContainerHeightDp = 60; //canSwitchNotify() ? 50 : 10 + 48 + 10;
             setVisibleHeight(visibleHeight);
@@ -1721,6 +1752,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starUserGiftsLoaded);
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starUserGiftCollectionsLoaded);
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.updateInterfaces);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.glassgramProfileGiftLoaded);
         final Page currentPage = getCurrentPage();
         if (currentPage != null) {
             currentPage.update(false);
@@ -1748,6 +1780,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.starUserGiftsLoaded);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.starUserGiftCollectionsLoaded);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateInterfaces);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.glassgramProfileGiftLoaded);
         if (list != null) {
             list.shown = false;
         }
@@ -1766,14 +1799,15 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
 
     public int getGiftsCount() {
         final Page page = getCurrentPage();
+        final int glassgramCount = page == null || page.list == list ? GlassgramBadges.getProfileGifts(dialogId).size() : 0;
         if (page == null || page.list == list) {
-            if (list != null && list.totalCount > 0) return list.totalCount;
+            if (list != null && list.totalCount > 0) return list.totalCount + glassgramCount;
         } else {
             if (page.list != null && page.list.totalCount > 0) return page.list.totalCount;
         }
         if (dialogId >= 0) {
             final TLRPC.UserFull userFull = MessagesController.getInstance(currentAccount).getUserFull(dialogId);
-            return userFull != null ? userFull.stargifts_count : 0;
+            return (userFull != null ? userFull.stargifts_count : 0) + glassgramCount;
         } else {
             final TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
             return chatFull != null ? chatFull.stargifts_count : 0;

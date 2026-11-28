@@ -21,6 +21,9 @@ import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.telegram.messenger.GlassgramProfileGift;
+import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
@@ -40,6 +43,8 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.tgnet.tl.TL_stars;
+import org.telegram.ui.Gifts.GiftSheet;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
@@ -692,6 +697,46 @@ public final class GlassgramApiUi {
                 })
                 .setNegativeButton(getString(R.string.Close), null)
                 .show();
+    }
+
+    public static void showProfileGift(BaseFragment fragment, long ownerId, GlassgramProfileGift gift) {
+        if (fragment == null || fragment.getParentActivity() == null) return;
+        int account = fragment.getCurrentAccount();
+        TL_stars.TL_starGiftUnique original = gift.getOriginal(account);
+        Activity context = fragment.getParentActivity();
+        FrameLayout preview = new FrameLayout(context);
+        GiftSheet.GiftCell card = new GiftSheet.GiftCell(context, account, fragment.getResourceProvider());
+        card.bindGlassgramGift(gift, original);
+        preview.addView(card, LayoutHelper.createFrame(132, 132, Gravity.CENTER));
+        AlertDialog.Builder dialog = new AlertDialog.Builder(context)
+                .setView(preview, 150)
+                .setTitle(gift.getTitle(original))
+                .setMessage(getString(gift.isDuck() ? R.string.GlassgramTesterDuckDescription : R.string.GlassgramProfileGiftDescription))
+                .setNegativeButton(getString(R.string.Close), null);
+        if (!gift.slug.isEmpty()) {
+            dialog.setPositiveButton(getString(R.string.GlassgramProfileGiftOriginal),
+                    (d, which) -> Browser.openUrl(fragment.getParentActivity(), "https://t.me/nft/" + gift.slug));
+        }
+        if (ownerId == UserConfig.getInstance(account).getClientUserId()) {
+            dialog.setNeutralButton(getString(gift.pinned ? R.string.GlassgramProfileGiftUnpin : R.string.GlassgramProfileGiftPin),
+                    (d, which) -> pinProfileGift(fragment, gift));
+        }
+        dialog.show();
+    }
+
+    private static void pinProfileGift(BaseFragment fragment, GlassgramProfileGift gift) {
+        int account = fragment.getCurrentAccount();
+        if (GlassgramApi.getSession(account) == null) {
+            signIn(fragment, () -> pinProfileGift(fragment, gift));
+            return;
+        }
+        GlassgramApi.call(account, "PUT", "/profile-gifts/pin", GlassgramApi.json("id", gift.id, "pinned", !gift.pinned), response -> {
+            if (response.ok()) {
+                GlassgramBadges.refresh(true);
+            } else {
+                showError(fragment, response);
+            }
+        });
     }
 
     // --- The winter look's days ---------------------------------------------------------------

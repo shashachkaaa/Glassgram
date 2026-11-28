@@ -2,4 +2,8 @@
 <resources>
     <string name="GlassgramTesterDuck">Tester Duck</string>
     <string name="GlassgramTesterDuckDescription">A collectible glassGram gift awarded for helping test the app.</string>
+    <string name="GlassgramProfileGiftDescription">A collectible gift issued by glassGram. The original Telegram gift is available separately.</string>
+    <string name="GlassgramProfileGiftOriginal">Original in Telegram</string>
+    <string name="GlassgramProfileGiftPin">Pin</string>
+    <string name="GlassgramProfileGiftUnpin">Unpin</string>
 </resources>

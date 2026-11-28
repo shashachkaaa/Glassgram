@@ -26,9 +26,13 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Glassgram badges: custom marks next to the names of channels, chats, users and bots that the
@@ -151,6 +155,17 @@ public final class GlassgramBadges {
     // user's id to their decorations (PERK_*, as bits)
     public static final int PERK_GARLAND = 1, PERK_WINTER_PROFILE = 2, PERK_TESTER_DUCK = 4;
     private static volatile HashMap<Long, Integer> perks = new HashMap<>();
+    private static volatile HashMap<Long, List<GlassgramProfileGift>> profileGifts = new HashMap<>();
+
+    public static List<GlassgramProfileGift> getProfileGifts(long userId) {
+        List<GlassgramProfileGift> gifts = profileGifts.get(userId);
+        return gifts == null ? Collections.emptyList() : gifts;
+    }
+
+    public static boolean hasProfileGifts(long userId) {
+        return profileGifts.containsKey(userId);
+    }
+
     // The bot that sells them and takes donations (a supporter badge's donate_bot)
     private static volatile String shopBot;
     public static final String DEFAULT_SHOP_BOT = "glassGramBot";
@@ -274,6 +289,28 @@ public final class GlassgramBadges {
                     }
                 }
             }
+            HashMap<Long, List<GlassgramProfileGift>> giftsByUser = new HashMap<>();
+            JSONObject giftJson = root.optJSONObject("profile_gifts");
+            if (giftJson != null) {
+                for (Iterator<String> it = giftJson.keys(); it.hasNext();) {
+                    String key = it.next();
+                    Long userId = parseDialogId(key);
+                    List<GlassgramProfileGift> gifts = GlassgramProfileGift.parse(giftJson.optJSONArray(key));
+                    if (userId != null && userId > 0 && !gifts.isEmpty()) giftsByUser.put(userId, gifts);
+                }
+            }
+            for (Map.Entry<Long, Integer> entry : perksByUser.entrySet()) {
+                if ((entry.getValue() & PERK_TESTER_DUCK) == 0) continue;
+                long userId = entry.getKey();
+                List<GlassgramProfileGift> gifts = giftsByUser.get(userId);
+                if (gifts == null) {
+                    giftsByUser.put(userId, Collections.singletonList(GlassgramProfileGift.LEGACY_DUCK));
+                } else if (gifts.stream().noneMatch(GlassgramProfileGift::isDuck)) {
+                    ArrayList<GlassgramProfileGift> merged = new ArrayList<>(gifts);
+                    merged.add(GlassgramProfileGift.LEGACY_DUCK);
+                    giftsByUser.put(userId, Collections.unmodifiableList(merged));
+                }
+            }
             String bot = null;
             for (Badge badge : badges.values()) {
                 if (badge.donateBot != null) {
@@ -284,6 +321,7 @@ public final class GlassgramBadges {
             byPeer = peers;
             byUsername = usernames;
             perks = perksByUser;
+            profileGifts = giftsByUser;
             shopBot = bot;
             appliedJson = json;
             if (notify) {

@@ -11,6 +11,7 @@ import static org.telegram.ui.Stars.StarsController.findAttribute;
 import static org.telegram.ui.Stars.StarsIntroActivity.StarsTransactionView.getPlatformDrawable;
 import static org.telegram.ui.bots.AffiliateProgramFragment.percents;
 
+import org.telegram.messenger.GlassgramProfileGift;
 import org.telegram.messenger.FileLog;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -2208,6 +2209,23 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(total, 0)), true);
         }
 
+        public void bindGlassgramGift(GlassgramProfileGift gift, TL_stars.TL_starGiftUnique original) {
+            TL_stars.SavedStarGift preview = new TL_stars.SavedStarGift();
+            preview.gift = gift.appearance(original);
+            preview.name_hidden = true;
+            preview.pinned_to_top = gift.pinned;
+            setStarsGift(preview, true, false);
+            // The preview must never enter Telegram's reorder or ownership flows.
+            userGift = null;
+            lastUserGift = null;
+            if (gift.isDuck()) imageView.setImageResource(R.drawable.glassgram_tester_duck);
+            ribbon.setVisibility(VISIBLE);
+            setRibbonColorKey(Theme.key_gift_ribbon);
+            ribbon.setBackdrop(findAttribute(preview.gift.attributes, TL_stars.starGiftAttributeBackdrop.class));
+            ribbon.setText("glassGram", true);
+            setContentDescription(gift.getTitle(original) + ", glassGram");
+        }
+
         public static class Factory extends UItem.UItemFactory<GiftCell> {
             static { setup(new Factory()); }
 
@@ -2220,7 +2238,10 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
                 final GiftCell cell = (GiftCell) view;
                 boolean animated = false;
-                if (item.object instanceof GiftPremiumBottomSheet.GiftTier) {
+                cell.setContentDescription(null);
+                if (item.object instanceof GlassgramProfileGift) {
+                    cell.bindGlassgramGift((GlassgramProfileGift) item.object, (TL_stars.TL_starGiftUnique) item.object2);
+                } else if (item.object instanceof GiftPremiumBottomSheet.GiftTier) {
                     animated = cell.setPremiumGift((GiftPremiumBottomSheet.GiftTier) item.object);
                 } else if (item.object instanceof TL_stars.StarGift) {
                     TL_stars.StarGift gift = (TL_stars.StarGift) item.object;
@@ -2240,6 +2261,21 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             @Override
             public void attachedView(RecyclerListView listView, View view, UItem item) {
                 ((GiftCell) view).setReordering(item.reordering, false);
+            }
+
+            public static UItem asGlassgramGift(GlassgramProfileGift gift, TL_stars.TL_starGiftUnique original) {
+                UItem item = UItem.ofFactory(Factory.class).setSpanCount(1);
+                item.object = gift;
+                item.object2 = original;
+                return item;
+            }
+
+            @Override
+            public boolean contentsEquals(UItem a, UItem b) {
+                if (a.object instanceof GlassgramProfileGift || b.object instanceof GlassgramProfileGift) {
+                    return java.util.Objects.equals(a.object, b.object) && a.object2 == b.object2;
+                }
+                return super.contentsEquals(a, b);
             }
 
             public static UItem asPremiumGift(GiftPremiumBottomSheet.GiftTier tier) {
@@ -2278,6 +2314,10 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
 
             @Override
             public boolean equals(UItem a, UItem b) {
+                if (a.object instanceof GlassgramProfileGift || b.object instanceof GlassgramProfileGift) {
+                    return a.object instanceof GlassgramProfileGift && b.object instanceof GlassgramProfileGift
+                            && ((GlassgramProfileGift) a.object).id.equals(((GlassgramProfileGift) b.object).id);
+                }
                 if (a.accent != b.accent) return false;
                 if (a.object != null || b.object != null) {
                     if (a.object instanceof GiftPremiumBottomSheet.GiftTier) {

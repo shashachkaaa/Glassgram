@@ -2,4 +2,8 @@
 <resources>
     <string name="GlassgramTesterDuck">Утка-тестер</string>
     <string name="GlassgramTesterDuckDescription">Коллекционный подарок glassGram за помощь в тестировании приложения.</string>
+    <string name="GlassgramProfileGiftDescription">Коллекционный подарок от glassGram. Оригинальный подарок можно посмотреть в Telegram.</string>
+    <string name="GlassgramProfileGiftOriginal">Оригинал в Telegram</string>
+    <string name="GlassgramProfileGiftPin">Закрепить</string>
+    <string name="GlassgramProfileGiftUnpin">Открепить</string>
 </resources>

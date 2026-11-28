@@ -5722,7 +5722,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             avatarImage.setHasStories(needInsetForStories());
         }
         avatarContainer2.addView(storyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        org.telegram.messenger.GlassgramBadges.refresh(false);
         giftsView = new ProfileGiftsView(context, currentAccount, getDialogId(), avatarContainer, topView);
+        giftsView.setProfileGiftClickListener(gift -> GlassgramApiUi.showProfileGift(this, getDialogId(), gift));
         giftsView.setLitShapes(this::collectGiftLitShapes);
         giftsView.setPageBehind(listView);
         avatarContainer2.addView(giftsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -9891,6 +9893,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (userId != 0 && fullyVisible && (mask & MessagesController.UPDATE_MASK_NAME) != 0) {
                 // the winter decorations came with the badges (GlassgramBadges)
                 checkWinterProfile();
+                if (sharedMediaLayout != null) sharedMediaLayout.updateTabs(true);
             }
             boolean infoChanged = (mask & MessagesController.UPDATE_MASK_AVATAR) != 0 || (mask & MessagesController.UPDATE_MASK_NAME) != 0 || (mask & MessagesController.UPDATE_MASK_STATUS) != 0 || (mask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0;
             if (userId != 0) {
