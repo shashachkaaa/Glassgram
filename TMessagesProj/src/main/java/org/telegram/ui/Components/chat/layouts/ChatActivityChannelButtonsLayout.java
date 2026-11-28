@@ -464,7 +464,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         containerDrawable.setRadiusScale(1f);
         final float accent = totalVisibilityFactor * animatorCenterAccentBackground.getFloatValue();
         final float radius = Math.min(glass.width(), glass.height()) / 2f;
-        final boolean liquid = containerPress.drawGlass(canvas, glass.left, glass.top, glass.right, glass.bottom,
+        final boolean liquid = containerPress.drawGlassWithSurfaceOverlay(canvas, glass.left, glass.top, glass.right, glass.bottom,
                 radius, containerDrawable, containerDrawable.getAlpha(), 0, Theme.multAlpha(accentColor, .75f * accent));
         final boolean pressed = containerPress.isActive();
         if (!liquid) {

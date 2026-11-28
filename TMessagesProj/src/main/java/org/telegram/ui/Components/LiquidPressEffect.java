@@ -214,11 +214,11 @@ public class LiquidPressEffect {
 
     /** Like the one above, the glass tinted with a color (a filled button, as the chats list's new message one); 0 for none. */
     public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius, BlurredBackgroundDrawable glass, int alpha, int tint) {
-        return drawGlass(canvas, left, top, right, bottom, radius, glass, alpha, tint, 0);
+        return drawGlassWithSurfaceOverlay(canvas, left, top, right, bottom, radius, glass, alpha, tint, 0);
     }
 
-    public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius,
-                             BlurredBackgroundDrawable glass, int alpha, int tint, int surfaceOverlay) {
+    public boolean drawGlassWithSurfaceOverlay(Canvas canvas, float left, float top, float right, float bottom, float radius,
+                                               BlurredBackgroundDrawable glass, int alpha, int tint, int surfaceOverlay) {
         if (!isButton() || glass == null) {
             return false;
         }
