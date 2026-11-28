@@ -1718,7 +1718,7 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
             if (blurBitmapMatrix == null) {
                 blurBitmapMatrix = new Matrix();
             }
-            blurBitmapMatrix.postScale(scale, scale);
+            blurBitmapMatrix.setScale(scale, scale);
             blurBitmapShader.setLocalMatrix(blurBitmapMatrix);
             invalidate();
         }
@@ -1726,10 +1726,10 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
         @Override
         protected void onDetachedFromWindow() {
             super.onDetachedFromWindow();
-            if (blurBitmap != null) {
-                blurBitmap.recycle();
-            }
+            // Release our references and leave the last recorded frame intact.
             backgroundBlurPaint.setShader(null);
+            blurBitmapShader = null;
+            blurBitmap = null;
         }
 
         @Override

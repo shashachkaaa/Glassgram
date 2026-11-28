@@ -787,12 +787,20 @@ public class CaptionContainerView extends FrameLayout {
         }
 
         if (show && SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_AVERAGE && !LiteMode.isPowerSaverApplied()) {
-            if (blurBitmap == null) {
-                blurBitmap = Bitmap.createBitmap((int) (rootView.getWidth() / 12f), (int) (rootView.getHeight() / 12f), Bitmap.Config.ARGB_8888);
+            final int width = (int) (rootView.getWidth() / 12f);
+            final int height = (int) (rootView.getHeight() / 12f);
+            if (width <= 0 || height <= 0) {
+                return;
             }
+            // Capture into a fresh bitmap while the previous one may still be on RenderThread.
+            final Bitmap snapshot = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             ignoreDraw = true;
-            drawBlurBitmap(blurBitmap, 12);
-            ignoreDraw = false;
+            try {
+                drawBlurBitmap(snapshot, 12);
+            } finally {
+                ignoreDraw = false;
+            }
+            blurBitmap = snapshot;
             if (blurBitmap != null && !blurBitmap.isRecycled()) {
                 blurBitmapShader = new BitmapShader(blurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
                 if (blurBitmapMatrix == null) {
@@ -1397,10 +1405,6 @@ public class CaptionContainerView extends FrameLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         if (customBlur()) {
-            if (hintTextBitmap != null) {
-                hintTextBitmap.recycle();
-                hintTextBitmap = null;
-            }
             hintTextPaint.setColor(0xff000000);
             hintTextPaint.setTextSize(dp(16));
             final String text = LocaleController.getString(R.string.AddCaption);
@@ -1415,15 +1419,10 @@ public class CaptionContainerView extends FrameLayout {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if (blurBitmap != null) {
-            blurBitmap.recycle();
-        }
+        blurBitmap = null;
         blurBitmapShader = null;
         blurPaint = null;
-        if (hintTextBitmap != null) {
-            hintTextBitmap.recycle();
-            hintTextBitmap = null;
-        }
+        hintTextBitmap = null;
     }
 
     public static class PeriodDrawable extends Drawable {

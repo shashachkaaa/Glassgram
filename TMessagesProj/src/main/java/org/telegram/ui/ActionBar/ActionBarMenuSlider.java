@@ -294,6 +294,9 @@ public class ActionBarMenuSlider extends FrameLayout implements Theme.Colorable 
         preparingBlur = true;
         AndroidUtilities.makeGlobalBlurBitmap(bitmap -> {
             preparingBlur = false;
+            if (bitmap == null) {
+                return;
+            }
             blurBitmapShader = new BitmapShader(blurBitmap = bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             if (blurBitmapMatrix == null) {
                 blurBitmapMatrix = new Matrix();
@@ -332,10 +335,8 @@ public class ActionBarMenuSlider extends FrameLayout implements Theme.Colorable 
 
         blurPaint.setShader(null);
         blurBitmapShader = null;
-        if (blurBitmap != null) {
-            blurBitmap.recycle();
-            blurBitmap = null;
-        }
+        // The previous shader can still be in a recorded frame.
+        blurBitmap = null;
     }
 
     @Override

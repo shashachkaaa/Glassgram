@@ -11559,9 +11559,9 @@ public class ChatActivity extends BaseFragment implements
             public void onAnimationEnd(Animator animation) {
                 if (!enable) {
                     if (scrimBlurBitmap != null) {
+                        // A recorded frame can still hold the shader after the menu closes.
                         scrimBlurBitmapShader = null;
                         scrimBlurBitmapPaint = null;
-                        scrimBlurBitmap.recycle();
                         scrimBlurBitmap = null;
                     }
                     if (cell != null) {

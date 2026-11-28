@@ -1801,12 +1801,10 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         }
         AndroidUtilities.cancelRunOnUIThread(showRunnable);
 
-        if (blurShader != null && blurBitmap != null) {
-            blurBitmap.recycle();
-            blurShader = null;
-            blurPaint = null;
-            blurBitmap = null;
-        }
+        // RenderThread can still be using the dialog's last recorded frame.
+        blurShader = null;
+        blurPaint = null;
+        blurBitmap = null;
     }
 
     @Override
