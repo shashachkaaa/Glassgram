@@ -16,8 +16,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
@@ -29,6 +27,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RLottieImageView;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 public class GlassgramConversationStatsActivity extends BaseFragment {
@@ -43,6 +42,8 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     private static final int SECONDARY_TEXT = 0xff344750;
 
     private final CharSequence[] values = new CharSequence[TITLES.length];
+    private final RLottieImageView[] ducks = new RLottieImageView[TITLES.length];
+    private RLottieImageView playingDuck;
     private final View[] indicators = new View[TITLES.length];
     private FrameLayout screen;
     private ViewPager pager;
@@ -60,14 +61,11 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     public View createView(Context context) {
         setHasOwnBackground(true);
         actionBar.setAddToContainer(false);
+        stopDuck();
+        Arrays.fill(ducks, null);
         screen = new FrameLayout(context);
         screen.setBackgroundColor(COLORS[page]);
         fragmentView = screen;
-        ViewCompat.setOnApplyWindowInsetsListener(screen, (view, insets) -> {
-            Insets bars = AndroidUtilities.getDefaultWindowInsets(insets, false);
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return insets;
-        });
 
         pager = new ViewPager(context);
         screen.addView(pager, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -123,6 +121,25 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     }
 
     @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        if (screen != null) {
+            screen.setPadding(left, top, right, bottom);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateDuck();
+    }
+
+    @Override
+    public void onPause() {
+        stopDuck();
+        super.onPause();
+    }
+
+    @Override
     public boolean isSupportEdgeToEdge() {
         return true;
     }
@@ -144,6 +161,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
 
     @Override
     public void onFragmentDestroy() {
+        stopDuck();
         if (request != null) {
             request.cancel();
         }
@@ -195,11 +213,18 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
             public Object instantiateItem(@NonNull ViewGroup container, int position) {
                 View slide = createSlide(container.getContext(), position);
                 container.addView(slide);
+                if (position == page) {
+                    updateDuck();
+                }
                 return slide;
             }
 
             @Override
             public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
+                if (ducks[position] == playingDuck) {
+                    stopDuck();
+                }
+                ducks[position] = null;
                 container.removeView((View) object);
             }
         });
@@ -208,6 +233,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     }
 
     private void updatePage() {
+        updateDuck();
         screen.setBackgroundColor(COLORS[page]);
         for (int i = 0; i < indicators.length; i++) {
             GradientDrawable dot = new GradientDrawable();
@@ -215,6 +241,25 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
             dot.setColor(i == page ? TEXT : 0x50344750);
             indicators[i].setBackground(dot);
             ((View) indicators[i].getParent()).setSelected(i == page);
+        }
+    }
+
+    private void updateDuck() {
+        RLottieImageView selected = isPaused() ? null : ducks[page];
+        if (selected == playingDuck) {
+            return;
+        }
+        stopDuck();
+        playingDuck = selected;
+        if (playingDuck != null) {
+            playingDuck.playAnimation();
+        }
+    }
+
+    private void stopDuck() {
+        if (playingDuck != null) {
+            playingDuck.stopAnimation();
+            playingDuck = null;
         }
     }
 
@@ -233,8 +278,10 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
 
         RLottieImageView duck = new RLottieImageView(context);
         duck.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        duck.setAutoRepeat(true);
         duck.setAnimation(index % 2 == 0 ? R.raw.utyan_empty : R.raw.utyan_empty2, 156, 156);
         duck.setProgress(.3f + .08f * index);
+        ducks[index] = duck;
         column.addView(duck, LayoutHelper.createLinear(156, 156));
 
         TextView title = label(context, 28, TEXT);
