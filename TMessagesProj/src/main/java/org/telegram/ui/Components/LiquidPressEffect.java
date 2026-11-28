@@ -214,6 +214,11 @@ public class LiquidPressEffect {
 
     /** Like the one above, the glass tinted with a color (a filled button, as the chats list's new message one); 0 for none. */
     public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius, BlurredBackgroundDrawable glass, int alpha, int tint) {
+        return drawGlass(canvas, left, top, right, bottom, radius, glass, alpha, tint, 0);
+    }
+
+    public boolean drawGlass(Canvas canvas, float left, float top, float right, float bottom, float radius,
+                             BlurredBackgroundDrawable glass, int alpha, int tint, int surfaceOverlay) {
         if (!isButton() || glass == null) {
             return false;
         }
@@ -232,7 +237,11 @@ public class LiquidPressEffect {
         if (glass.shouldHaveDisplayList() && !glass.hasDisplayList()) {
             glass.updateDisplayList();
         }
-        return drawButton(canvas, left, top, right, bottom, radius, surfaceOf(glass.getBackgroundColor()), tint, alpha);
+        int surface = surfaceOf(glass.getBackgroundColor());
+        if (surfaceOverlay != 0) {
+            surface = androidx.core.graphics.ColorUtils.compositeColors(surfaceOverlay, surface);
+        }
+        return drawButton(canvas, left, top, right, bottom, radius, surface, tint, alpha);
     }
 
     /**

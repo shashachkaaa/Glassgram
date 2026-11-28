@@ -39,6 +39,7 @@ import org.telegram.ui.Components.LoadingDrawable;
 import org.telegram.ui.Components.LiquidButtonBackground;
 import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.ScaleStateListAnimator;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 
 public class ButtonWithCounterView extends FrameLayout implements Loadable, Theme.Colorable {
 
@@ -217,6 +218,9 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
             text.setTextColor(Theme.getColor(key, resourcesProvider));
         }
         if (filled) {
+            if (glassBackdrop != null) {
+                glassBackdrop.updateColors();
+            }
             // LiquidButton has no ripple: the press is the swell and the light spot.
             rippleView.setBackground(null);
             if (getBackground() instanceof LiquidButtonBackground) {
@@ -530,6 +534,16 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
     }
 
     private final LiquidPressEffect liquidPress;
+    private BlurredBackgroundDrawable glassBackdrop;
+
+    public void setGlassBackdrop(BlurredBackgroundDrawable backdrop) {
+        glassBackdrop = backdrop;
+        invalidate();
+    }
+
+    public void onHostedPress(int action, float x, float y) {
+        liquidPress.onTouch(action, x, y);
+    }
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
@@ -546,8 +560,16 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
             // catalog's "Tinted Liquid Button"; its text follows the press
             if (getBackground() instanceof LiquidButtonBackground) {
                 final LiquidButtonBackground background = (LiquidButtonBackground) getBackground();
-                final boolean liquid = liquidPress.drawGlass(canvas, 0, 0, getWidth(), getHeight(), Math.min(getWidth(), getHeight()) / 2f,
-                    null, 0, background.getColor(), 255);
+                final int width = getWidth(), height = getHeight();
+                final float radius = Math.min(width, height) / 2f;
+                final boolean liquid;
+                if (glassBackdrop != null) {
+                    final int padding = dp(6);
+                    glassBackdrop.setBounds(-padding, -padding, width + padding, height + padding);
+                    liquid = liquidPress.drawGlass(canvas, 0, 0, width, height, radius, glassBackdrop, 255, background.getColor());
+                } else {
+                    liquid = liquidPress.drawGlass(canvas, 0, 0, width, height, radius, null, 0, background.getColor(), 255);
+                }
                 background.setSkipDraw(liquid);
             }
             canvas.save();

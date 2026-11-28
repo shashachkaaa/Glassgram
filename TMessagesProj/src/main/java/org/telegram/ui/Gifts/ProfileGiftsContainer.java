@@ -1350,7 +1350,6 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         drawable.setPadding(dp(8));
         drawable.setRadius(dp(22));
         button2.setBackground(drawable);
-        ScaleStateListAnimator.apply(button2, .02f, 1.2f);
 
         buttonContainer = new FrameLayout(context);
         // buttonContainer.setVisibility(INVISIBLE);
@@ -1421,6 +1420,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         addGiftsText = sb2;
 
         button = new ButtonWithCounterView(context, resourcesProvider);
+        button2.setGlassButton(button, buttonGlassFactory, resourcesProvider);
         button.setUseWrapContent(true);
         button.setPadding(dp(16), 0, dp(16), 0);
         button.setRoundRadius(dp(19));

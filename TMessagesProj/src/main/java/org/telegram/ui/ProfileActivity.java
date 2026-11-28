@@ -283,7 +283,6 @@ import org.telegram.ui.Components.RLottieImageView;
 import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
 import org.telegram.ui.Components.RecyclerListView;
-import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.ScamDrawable;
 import org.telegram.ui.Components.ShareAlert;
 import org.telegram.ui.Components.SharedMediaLayout;
@@ -3565,7 +3564,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
                 bottomButtonContainer[a] = new FrameLayout(context);
 
-                    bottomButton[a] = new ButtonWithCounterView(context, resourcesProvider);
+                bottomButton[a] = new ButtonWithCounterView(context, resourcesProvider);
                 bottomButton[a].setRoundRadius(dp(19));
                 bottomButton[a].setUseWrapContent(true);
                 bottomButton[a].setPadding(dp(16), 0, dp(16), 0);
@@ -3710,7 +3709,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     }
                 });
-                ScaleStateListAnimator.apply(button2, .02f, 1.2f);
+                button2.setGlassButton(bottomButton[a], getBaseSimpleGlass().factory, resourcesProvider);
                 bottomButton[a].setStateListAnimator(null);
                 button2.addView(bottomButton[a], LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
                 bottomButtonContainer[a].addView(button2, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 60, Gravity.CENTER_HORIZONTAL));
@@ -17947,12 +17946,39 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     /* * */
 
     public static class Button2 extends FrameLayout {
+        private ButtonWithCounterView glassButton;
+        private boolean glassButtonPressed;
+
         public Button2(@NonNull Context context) {
             super(context);
             setPadding(dp(8 + 3), dp(8 + 3), dp(8 + 3), dp(8 + 3));
         }
-    }
 
+        public void setGlassButton(ButtonWithCounterView button, BlurredBackgroundDrawableViewFactory factory,
+                                   Theme.ResourcesProvider resourcesProvider) {
+            glassButton = button;
+            button.setGlassBackdrop(factory.create(button,
+                    new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite))
+                    .setPadding(dp(6)));
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            final boolean handled = super.dispatchTouchEvent(event);
+            final int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                glassButtonPressed = handled && isEnabled() && isClickable() && glassButton != null
+                        && glassButton.isEnabled() && glassButton.getVisibility() == View.VISIBLE;
+            }
+            if (glassButtonPressed) {
+                glassButton.onHostedPress(action, event.getX() - glassButton.getX(), event.getY() - glassButton.getY());
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    glassButtonPressed = false;
+                }
+            }
+            return handled;
+        }
+    }
 
 
     /* Blur */

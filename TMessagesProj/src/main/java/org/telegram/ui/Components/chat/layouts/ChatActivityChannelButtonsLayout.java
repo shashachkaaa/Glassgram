@@ -10,6 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 
@@ -22,6 +23,7 @@ import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.LiquidPressEffect;
 import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
@@ -47,6 +49,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     private final OnButtonFullyVisibleListener[] onButtonFullyVisible = new OnButtonFullyVisibleListener[BUTTONS_COUNT];
     private OnButtonsTotalWidthChanged onButtonsTotalWidthChanged;
     private final FrameLayout container;
+    private BlurredBackgroundDrawable containerDrawable;
 
     private final HashSet<View> wrapContentButtons = new HashSet<>();
 
@@ -79,6 +82,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         this.blurredBackgroundDrawableViewFactory = blurredBackgroundDrawableViewFactory;
         this.colorProvider = colorProvider;
         this.resourcesProvider = resourcesProvider;
+        setupDrawableForContainer();
 
         container = new FrameLayout(context);
         container.setClipToOutline(true);
@@ -89,6 +93,8 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     /** also called on every theme update (Theme.Colorable) */
     @Override
     public void updateColors() {
+        containerDrawable.updateColors();
+        setAccentColor(Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider));
         for (ButtonHolder holder : buttonHolders) {
             if (holder != null && holder.button != null) {
                 holder.button.updateColors();
@@ -153,12 +159,12 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         buttonHolders[buttonId].visibilityAnimator.setValue(show, animated);
     }
 
-    private BlurredBackgroundDrawable containerDrawable;
     public void setupDrawableForContainer() {
-        containerDrawable = blurredBackgroundDrawableViewFactory.create(this)
-            .setColorProvider(colorProvider)
-            .setRadius(dp(22))
-            .setPadding(dp(6));
+        if (containerDrawable == null) {
+            containerDrawable = blurredBackgroundDrawableViewFactory.create(this, colorProvider)
+                    .setRadius(dp(22))
+                    .setPadding(dp(6));
+        }
     }
 
     public boolean isButtonVisible(final int buttonId) {
@@ -414,7 +420,7 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     }
 
     // The middle pill (Unmute, Join...) is Liquid Glass too: it stretches with its content
-    private final org.telegram.ui.Components.LiquidPressEffect containerPress = new org.telegram.ui.Components.LiquidPressEffect(this);
+    private final LiquidPressEffect containerPress = new LiquidPressEffect(this);
     {
         containerPress.setUnclipParents(2);
     }
@@ -423,16 +429,16 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     private boolean containerPressed;
 
     @Override
-    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+    public boolean dispatchTouchEvent(MotionEvent ev) {
         final boolean handled = super.dispatchTouchEvent(ev);
         final int action = ev.getActionMasked();
-        if (action == android.view.MotionEvent.ACTION_DOWN) {
-            containerPressed = handled && containerDrawable != null && !containerGlassRect.isEmpty()
+        if (action == MotionEvent.ACTION_DOWN) {
+            containerPressed = handled && !containerGlassRect.isEmpty()
                 && containerGlassRect.contains(ev.getX(), ev.getY());
         }
         if (containerPressed) {
             containerPress.onTouch(action, ev.getX() - containerGlassRect.left, ev.getY() - containerGlassRect.top);
-            if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 containerPressed = false;
             }
         }
@@ -441,79 +447,67 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
 
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
-        if (child == container && containerDrawable != null) {
-            tmpRect.set(
-                totalWidthLeft + dp(1), 0,
-                getMeasuredWidth() - dp(1) - totalWidthRight,
-                getMeasuredHeight());
+        if (child != container) {
+            return super.drawChild(canvas, child, drawingTime);
+        }
+        tmpRect.set(totalWidthLeft + dp(1), 0,
+                getMeasuredWidth() - dp(1) - totalWidthRight, getMeasuredHeight());
+        final int padding = dp(6);
+        final RectF glass = containerGlassRect;
+        glass.set(tmpRect.left + padding, tmpRect.top + padding, tmpRect.right - padding, tmpRect.bottom - padding);
+        if (glass.isEmpty()) {
+            return super.drawChild(canvas, child, drawingTime);
+        }
 
-            tmpRect.round(AndroidUtilities.rectTmp2);
-            containerDrawable.setBounds(AndroidUtilities.rectTmp2);
-            final int p = dp(6);
-            containerGlassRect.set(tmpRect.left + p, tmpRect.top + p, tmpRect.right - p, tmpRect.bottom - p);
-            // glassGram: the pill is the library's LiquidButton, and its content follows its press
-            final RectF g = containerGlassRect;
-            containerDrawable.setRadiusScale(1f);
-            if (containerPress.drawGlass(canvas, g.left, g.top, g.right, g.bottom, Math.min(g.width(), g.height()) / 2f, containerDrawable, containerDrawable.getAlpha())) {
-                canvas.save();
-                canvas.translate(g.left, g.top);
-                containerPress.transform(canvas, g.width(), g.height());
-                canvas.translate(-g.left, -g.top);
-                final boolean result = super.drawChild(canvas, child, drawingTime);
-                canvas.restore();
-                return result;
+        tmpRect.round(AndroidUtilities.rectTmp2);
+        containerDrawable.setBounds(AndroidUtilities.rectTmp2);
+        containerDrawable.setRadiusScale(1f);
+        final float accent = totalVisibilityFactor * animatorCenterAccentBackground.getFloatValue();
+        final float radius = Math.min(glass.width(), glass.height()) / 2f;
+        final boolean liquid = containerPress.drawGlass(canvas, glass.left, glass.top, glass.right, glass.bottom,
+                radius, containerDrawable, containerDrawable.getAlpha(), 0, Theme.multAlpha(accentColor, .75f * accent));
+        final boolean pressed = containerPress.isActive();
+        if (!liquid) {
+            if (pressed) {
+                containerPress.mapRect(glass.left, glass.top, glass.right, glass.bottom, containerMovedRect);
+                containerDrawable.setRadiusScale(LiquidPressEffect.radiusScale(glass.width(), glass.height(), containerMovedRect));
+                containerDrawable.setBounds(Math.round(containerMovedRect.left) - padding, Math.round(containerMovedRect.top) - padding,
+                        Math.round(containerMovedRect.right) + padding, Math.round(containerMovedRect.bottom) + padding);
             }
-            if (containerPress.isActive()) {
-                final RectF r = containerGlassRect;
-                // The glass goes where the press moved it and blurs what is there now
-                containerPress.mapRect(r.left, r.top, r.right, r.bottom, containerMovedRect);
-                // Its corners grow with it, or the pill turns square as it stretches
-                containerDrawable.setRadiusScale(org.telegram.ui.Components.LiquidPressEffect.radiusScale(r.width(), r.height(), containerMovedRect));
-                containerDrawable.setBounds(Math.round(containerMovedRect.left) - p, Math.round(containerMovedRect.top) - p,
-                    Math.round(containerMovedRect.right) + p, Math.round(containerMovedRect.bottom) + p);
-                // Not put back until the next frame: the glass is a RenderNode drawn later
-                containerDrawable.draw(canvas);
-                canvas.save();
-                canvas.translate(r.left, r.top);
-                containerPress.transform(canvas, r.width(), r.height());
-                canvas.translate(-r.left, -r.top);
-                final boolean result = super.drawChild(canvas, child, drawingTime);
-                canvas.restore();
-                canvas.save();
-                canvas.translate(containerMovedRect.left, containerMovedRect.top);
-                containerPress.drawGlow(canvas, containerMovedRect.width(), containerMovedRect.height(), Math.min(containerMovedRect.width(), containerMovedRect.height()) / 2f);
-                canvas.restore();
-                return result;
-            }
-            containerDrawable.setRadiusScale(1f);
             containerDrawable.draw(canvas);
         }
 
-        return super.drawChild(canvas, child, drawingTime);
-    }
-
-    @Override
-    protected void dispatchDraw(@NonNull Canvas canvas) {
-        final int accentAlpha = (int) (255 * totalVisibilityFactor * animatorCenterAccentBackground.getFloatValue());
-        if (accentAlpha > 0) {
-            tmpRect.set(
-                totalWidthLeft + dp(10),
-                dp(9),
-                getMeasuredWidth() - dp(10) - totalWidthRight,
-                getMeasuredHeight() - dp(9)
-            );
-            backgroundAccentPaint.setColor(accentColor);
-            backgroundAccentPaint.setAlpha(accentAlpha);
-            canvas.drawRoundRect(tmpRect, dp(19), dp(19), backgroundAccentPaint);
+        final int layer = canvas.save();
+        if (pressed) {
+            canvas.translate(glass.left, glass.top);
+            containerPress.transform(canvas, glass.width(), glass.height());
+            canvas.translate(-glass.left, -glass.top);
         }
-
-        super.dispatchDraw(canvas);
+        if (!liquid && accent > 0f) {
+            int inset = dp(3);
+            backgroundAccentPaint.setColor(Theme.multAlpha(accentColor, accent));
+            canvas.drawRoundRect(glass.left + inset, glass.top + inset, glass.right - inset, glass.bottom - inset,
+                    dp(19), dp(19), backgroundAccentPaint);
+        }
+        final boolean result = super.drawChild(canvas, child, drawingTime);
+        canvas.restoreToCount(layer);
+        if (!liquid && pressed) {
+            final RectF moved = containerMovedRect;
+            final int glowLayer = canvas.save();
+            canvas.translate(moved.left, moved.top);
+            containerPress.drawGlow(canvas, moved.width(), moved.height(), Math.min(moved.width(), moved.height()) / 2f);
+            canvas.restoreToCount(glowLayer);
+        }
+        return result;
     }
 
-    private int accentColor = 0;
+    private int accentColor;
 
     public void setAccentColor(int accentColor) {
-        this.accentColor = accentColor;
+        if (this.accentColor != accentColor) {
+            this.accentColor = accentColor;
+            invalidate();
+        }
     }
 
     private static class ButtonHolder {
