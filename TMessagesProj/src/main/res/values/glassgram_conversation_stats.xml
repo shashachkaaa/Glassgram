@@ -31,4 +31,7 @@
     <string name="GlassgramConversationReplyNote">Median reply time within a conversation.</string>
     <string name="GlassgramConversationStartNote">A new conversation starts after at least 8 hours of silence.</string>
     <string name="GlassgramConversationQuestionNote">Messages with a question mark that went 24 hours without a reply.</string>
+    <string name="GlassgramConversationShare">Share</string>
+    <string name="GlassgramConversationSharePreparing">Preparing images…</string>
+    <string name="GlassgramConversationShareError">Could not prepare the images. Please try again.</string>
 </resources>

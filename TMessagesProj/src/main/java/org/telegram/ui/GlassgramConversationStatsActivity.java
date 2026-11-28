@@ -4,11 +4,16 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
 
+import android.app.Activity;
+import android.content.ClipData;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,21 +25,32 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.FileProvider;
 import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.GlassgramConversationStats;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.Utilities;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RLottieImageView;
+import org.telegram.ui.Components.RLottieNative;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.UUID;
 
 public class GlassgramConversationStatsActivity extends BaseFragment {
     private static final int[] TITLES = {
@@ -66,6 +82,8 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     private ProgressBar loading;
     private String coverage;
     private int page;
+    private ImageView shareButton;
+    private ShareExport shareExport;
     private GlassgramConversationStats.Request request;
 
     public GlassgramConversationStatsActivity(int account) {
@@ -77,6 +95,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
         setHasOwnBackground(true);
         actionBar.setAddToContainer(false);
         stopDuck();
+        shareExport = null;
         Arrays.fill(ducks, null);
         screen = new FrameLayout(context);
         screen.setBackgroundColor(COLORS[page]);
@@ -127,6 +146,16 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
         ViewCompat.setAccessibilityHeading(heading, true);
         screen.addView(heading, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56,
                 Gravity.TOP, 56, 0, 56, 0));
+
+        shareButton = new ImageView(context);
+        shareButton.setImageResource(R.drawable.msg_shareout);
+        shareButton.setColorFilter(TEXT);
+        shareButton.setScaleType(ImageView.ScaleType.CENTER);
+        shareButton.setBackground(rounded(0x66ffffff, 24));
+        shareButton.setContentDescription(getString(R.string.GlassgramConversationShare));
+        shareButton.setVisibility(View.GONE);
+        shareButton.setOnClickListener(v -> shareStats());
+        screen.addView(shareButton, LayoutHelper.createFrame(48, 48, Gravity.TOP | Gravity.END, 12, 4, 12, 0));
 
         pageIndicators = new LinearLayout(context);
         pageIndicators.setGravity(Gravity.CENTER);
@@ -194,6 +223,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         stopDuck();
+        shareExport = null;
         if (request != null) {
             request.cancel();
         }
@@ -251,6 +281,7 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
                 container.removeView((View) object);
             }
         });
+        shareButton.setVisibility(View.VISIBLE);
         pager.setCurrentItem(page, false);
         updatePage();
     }
@@ -287,16 +318,25 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
     private View createSlide(Context context, int index) {
         ScrollView slide = new ScrollView(context);
         slide.setFillViewport(true);
-        slide.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[] {COLORS[index], androidx.core.graphics.ColorUtils.blendARGB(COLORS[index], 0xffffffff, .72f)}));
+        slide.setBackground(slideBackground(index));
         slide.setPadding(dp(22), dp(65), dp(22), dp(58));
         slide.setVerticalScrollBarEnabled(false);
 
+        slide.addView(createSlideContent(context, index, null),
+                new ScrollView.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        return slide;
+    }
+
+    private static GradientDrawable slideBackground(int index) {
+        return new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[] {COLORS[index], androidx.core.graphics.ColorUtils.blendARGB(COLORS[index], 0xffffffff, .72f)});
+    }
+
+    private LinearLayout createSlideContent(Context context, int index, Bitmap duckFrame) {
         LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(Gravity.CENTER);
         column.setPadding(0, dp(10), 0, dp(12));
-        slide.addView(column, new ScrollView.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         FrameLayout illustration = new FrameLayout(context);
         illustration.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
@@ -304,12 +344,20 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
         ((GradientDrawable) illustration.getBackground()).setCornerRadius(dp(90));
         column.addView(illustration, LayoutHelper.createLinear(170, 152));
 
-        RLottieImageView duck = new RLottieImageView(context);
-        duck.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        duck.setAutoRepeat(true);
-        duck.setAnimation(ANIMATIONS[index], 148, 148);
-        ducks[index] = duck;
-        illustration.addView(duck, LayoutHelper.createFrame(148, 148, Gravity.CENTER));
+        ImageView illustrationImage;
+        if (duckFrame != null) {
+            illustrationImage = new ImageView(context);
+            illustrationImage.setImageBitmap(duckFrame);
+            illustrationImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        } else {
+            RLottieImageView duck = new RLottieImageView(context);
+            duck.setAutoRepeat(true);
+            duck.setAnimation(ANIMATIONS[index], 148, 148);
+            ducks[index] = duck;
+            illustrationImage = duck;
+        }
+        illustrationImage.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        illustration.addView(illustrationImage, LayoutHelper.createFrame(148, 148, Gravity.CENTER));
 
         TextView title = label(context, 28, TEXT);
         title.setTypeface(AndroidUtilities.bold());
@@ -366,7 +414,212 @@ public class GlassgramConversationStatsActivity extends BaseFragment {
                 }
                 break;
         }
-        return slide;
+        return column;
+    }
+
+    private void shareStats() {
+        Activity activity = getParentActivity();
+        if (stats == null || activity == null || shareExport != null) {
+            return;
+        }
+        ShareExport job = new ShareExport(new File(activity.getCacheDir(), "conversation-stats"));
+        shareExport = job;
+        shareButton.setEnabled(false);
+        shareButton.setAlpha(.45f);
+        shareButton.setContentDescription(getString(R.string.GlassgramConversationSharePreparing));
+        job.renderNext();
+    }
+
+    private Bitmap renderShareCard(Context context, int index, Bitmap duckFrame) {
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(dp(22), dp(28), dp(22), dp(24));
+        card.setMinimumHeight(dp(470));
+        card.setBackground(slideBackground(index));
+        card.addView(createSlideContent(context, index, duckFrame),
+                LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        LinearLayout signature = new LinearLayout(context);
+        signature.setGravity(Gravity.CENTER);
+        signature.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        signature.setPadding(dp(10), dp(6), dp(12), dp(6));
+        signature.setBackground(rounded(0xcfffffff, 18));
+        ImageView emblem = new ImageView(context);
+        emblem.setImageResource(R.mipmap.ic_launcher);
+        signature.addView(emblem, LayoutHelper.createLinear(22, 22));
+        TextView brand = label(context, 14, TEXT);
+        brand.setTypeface(AndroidUtilities.bold());
+        brand.setText("glassGram");
+        signature.addView(brand, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        card.addView(signature, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+
+        int width = dp(360);
+        card.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int height = card.getMeasuredHeight();
+        card.layout(0, 0, width, height);
+        float scale = 1080f / width;
+        Bitmap bitmap = Bitmap.createBitmap(1080, (int) Math.ceil(height * scale), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.scale(scale, scale);
+        card.draw(canvas);
+        return bitmap;
+    }
+
+    private final class ShareExport {
+        private final File root;
+        private final File directory;
+        private final ArrayList<Uri> images = new ArrayList<>();
+
+        ShareExport(File root) {
+            this.root = root;
+            directory = new File(root, UUID.randomUUID().toString());
+        }
+
+        void renderNext() {
+            int index = images.size();
+            if (!Utilities.globalQueue.postRunnable(() -> {
+                Bitmap duck = null;
+                try {
+                    if (index == 0) {
+                        if (!directory.mkdirs()) {
+                            throw new IOException("Could not create statistics share directory");
+                        }
+                        File[] exports = root.listFiles();
+                        if (exports != null) {
+                            long cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L;
+                            for (File export : exports) {
+                                if (export.lastModified() < cutoff) {
+                                    deleteImages(export);
+                                }
+                            }
+                        }
+                    }
+                    RLottieNative animation = RLottieNative.createFromRawJson(AndroidUtilities.readRes(ANIMATIONS[index]));
+                    if (animation == null) {
+                        throw new IOException("Could not load statistics illustration");
+                    }
+                    try {
+                        duck = Bitmap.createBitmap(444, 444, Bitmap.Config.ARGB_8888);
+                        if (animation.getFrame(animation.getFrameCount() / 3, duck, true) < 0) {
+                            throw new IOException("Could not render statistics illustration");
+                        }
+                    } finally {
+                        animation.recycle();
+                    }
+                    Bitmap frame = duck;
+                    AndroidUtilities.runOnUIThread(() -> renderCard(index, frame));
+                } catch (Exception e) {
+                    if (duck != null) {
+                        duck.recycle();
+                    }
+                    fail(e);
+                }
+            })) {
+                fail(new IOException("Could not queue statistics image"));
+            }
+        }
+
+        private void renderCard(int index, Bitmap duck) {
+            Activity activity = getParentActivity();
+            if (shareExport != this || activity == null || isPaused()) {
+                duck.recycle();
+                cancel();
+                return;
+            }
+            Bitmap card;
+            try {
+                card = renderShareCard(activity, index, duck);
+            } catch (Exception e) {
+                fail(e);
+                return;
+            } finally {
+                duck.recycle();
+            }
+            if (!Utilities.globalQueue.postRunnable(() -> {
+                File file = new File(directory, "glassGram-" + (index + 1) + ".png");
+                try (FileOutputStream stream = new FileOutputStream(file)) {
+                    if (!card.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                        throw new IOException("Could not write statistics image");
+                    }
+                } catch (Exception e) {
+                    fail(e);
+                    return;
+                } finally {
+                    card.recycle();
+                }
+                AndroidUtilities.runOnUIThread(() -> addImage(file));
+            })) {
+                card.recycle();
+                fail(new IOException("Could not queue statistics image write"));
+            }
+        }
+
+        private void addImage(File file) {
+            Activity activity = getParentActivity();
+            if (shareExport != this || activity == null || isPaused()) {
+                cancel();
+                return;
+            }
+            try {
+                images.add(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", file));
+                if (images.size() < TITLES.length) {
+                    renderNext();
+                    return;
+                }
+                Intent send = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                send.setType("image/png");
+                send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, images);
+                ClipData clip = ClipData.newUri(activity.getContentResolver(), "glassGram", images.get(0));
+                for (int i = 1; i < images.size(); i++) {
+                    clip.addItem(new ClipData.Item(images.get(i)));
+                }
+                send.setClipData(clip);
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivity(Intent.createChooser(send, getString(R.string.GlassgramConversationShare)));
+                resetButton();
+            } catch (Exception e) {
+                fail(e);
+            }
+        }
+
+        private void fail(Exception error) {
+            FileLog.e(error);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (shareExport == this && getParentActivity() != null && !isPaused()) {
+                    showDialog(new AlertDialog.Builder(getParentActivity())
+                            .setMessage(getString(R.string.GlassgramConversationShareError))
+                            .setPositiveButton(getString(R.string.OK), null)
+                            .create());
+                }
+                cancel();
+            });
+        }
+
+        private void cancel() {
+            resetButton();
+            Utilities.globalQueue.postRunnable(() -> deleteImages(directory));
+        }
+
+        private void resetButton() {
+            if (shareExport == this) {
+                shareExport = null;
+                shareButton.setEnabled(true);
+                shareButton.setAlpha(1f);
+                shareButton.setContentDescription(getString(R.string.GlassgramConversationShare));
+            }
+        }
+    }
+
+    private static void deleteImages(File directory) {
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                file.delete();
+            }
+        }
+        directory.delete();
     }
 
     private void comparison(LinearLayout column, int index, CharSequence first, int firstLabel,

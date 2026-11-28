@@ -31,4 +31,7 @@
     <string name="GlassgramConversationReplyNote">Медианное время ответа в рамках одного разговора.</string>
     <string name="GlassgramConversationStartNote">Новый разговор начинается после паузы от 8 часов.</string>
     <string name="GlassgramConversationQuestionNote">Сообщения со знаком вопроса, на которые не ответили в течение суток.</string>
+    <string name="GlassgramConversationShare">Поделиться</string>
+    <string name="GlassgramConversationSharePreparing">Подготавливаем изображения…</string>
+    <string name="GlassgramConversationShareError">Не удалось подготовить изображения. Попробуй ещё раз.</string>
 </resources>
