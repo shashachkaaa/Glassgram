@@ -11,10 +11,6 @@
     <string name="GlassgramConversationUnanswered">Questions without a quick reply</string>
     <string name="GlassgramConversationActivity">Most active hour</string>
     <string name="GlassgramConversationSummary">Your conversations at a glance</string>
-    <string name="GlassgramConversationCounts">Sent: %1$d\nReceived: %2$d\nPersonal chats: %3$d</string>
-    <string name="GlassgramConversationReplyTimes">You reply: %1$s\nOthers reply: %2$s\nMedian time between turns within the same conversation.</string>
-    <string name="GlassgramConversationStartsCount">You started: %1$d\nOthers started: %2$d\nWe count a fresh start after a pause of at least 8 hours.</string>
-    <string name="GlassgramConversationUnansweredCount">Your questions: %1$d\nTheir questions: %2$d\nCounts messages with a question mark that had no message from the other side for 24 hours.</string>
     <string name="GlassgramConversationNoOutgoing">No sent messages in the available history.</string>
     <string name="GlassgramConversationPeak">You sent the most messages from %1$s to %2$s.</string>
     <string name="GlassgramConversationSummaryYou">After long pauses, you usually write first.</string>
@@ -25,4 +21,14 @@
     <string name="GlassgramConversationUnderMinute">less than a minute</string>
     <string name="GlassgramConversationMinutes">%d min</string>
     <string name="GlassgramConversationPage">Page %1$d of %2$d. %3$s</string>
+    <string name="GlassgramConversationSent">Sent</string>
+    <string name="GlassgramConversationReceived">Received</string>
+    <string name="GlassgramConversationYou">You</string>
+    <string name="GlassgramConversationOthers">Others</string>
+    <string name="GlassgramConversationYourQuestions">Your questions</string>
+    <string name="GlassgramConversationTheirQuestions">Their questions</string>
+    <string name="GlassgramConversationChatTotal">Personal chats: %s</string>
+    <string name="GlassgramConversationReplyNote">Median reply time within a conversation.</string>
+    <string name="GlassgramConversationStartNote">A new conversation starts after at least 8 hours of silence.</string>
+    <string name="GlassgramConversationQuestionNote">Messages with a question mark that went 24 hours without a reply.</string>
 </resources>

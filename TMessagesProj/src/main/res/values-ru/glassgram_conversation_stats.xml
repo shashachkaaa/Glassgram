@@ -11,10 +11,6 @@
     <string name="GlassgramConversationUnanswered">Вопросы без ответа за сутки</string>
     <string name="GlassgramConversationActivity">Самый активный час</string>
     <string name="GlassgramConversationSummary">Итог по перепискам</string>
-    <string name="GlassgramConversationCounts">Отправлено: %1$d\nПолучено: %2$d\nЛичных чатов: %3$d</string>
-    <string name="GlassgramConversationReplyTimes">Твой ответ: %1$s\nОтвет собеседников: %2$s\nМедиана времени между репликами внутри одного разговора.</string>
-    <string name="GlassgramConversationStartsCount">Ты начал: %1$d\nСобеседники начали: %2$d\nНовое начало считается после паузы от 8 часов.</string>
-    <string name="GlassgramConversationUnansweredCount">Твои вопросы: %1$d\nВопросы собеседников: %2$d\nСчитаем сообщения со знаком вопроса, после которых собеседник не писал в течение суток.</string>
     <string name="GlassgramConversationNoOutgoing">В доступной истории нет отправленных сообщений.</string>
     <string name="GlassgramConversationPeak">Больше всего сообщений ты отправил с %1$s до %2$s.</string>
     <string name="GlassgramConversationSummaryYou">После долгих пауз ты чаще пишешь первым.</string>
@@ -25,4 +21,14 @@
     <string name="GlassgramConversationUnderMinute">меньше минуты</string>
     <string name="GlassgramConversationMinutes">%d мин</string>
     <string name="GlassgramConversationPage">Страница %1$d из %2$d. %3$s</string>
+    <string name="GlassgramConversationSent">Отправлено</string>
+    <string name="GlassgramConversationReceived">Получено</string>
+    <string name="GlassgramConversationYou">Ты</string>
+    <string name="GlassgramConversationOthers">Собеседники</string>
+    <string name="GlassgramConversationYourQuestions">Твои вопросы</string>
+    <string name="GlassgramConversationTheirQuestions">Вопросы собеседников</string>
+    <string name="GlassgramConversationChatTotal">Личных чатов: %s</string>
+    <string name="GlassgramConversationReplyNote">Медианное время ответа в рамках одного разговора.</string>
+    <string name="GlassgramConversationStartNote">Новый разговор начинается после паузы от 8 часов.</string>
+    <string name="GlassgramConversationQuestionNote">Сообщения со знаком вопроса, на которые не ответили в течение суток.</string>
 </resources>
