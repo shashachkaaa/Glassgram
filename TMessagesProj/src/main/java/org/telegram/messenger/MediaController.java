@@ -6100,6 +6100,22 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     }
 
     public static void saveFile(String fullPath, Context context, final int type, final String name, final String mime, final Utilities.Callback<Uri> onSaved, boolean showProgress) {
+        saveFile(fullPath, context, type, name, mime, onSaved, showProgress, false);
+    }
+
+    static void saveDownloadedAttachment(File source, Context context, String name, String mime, Utilities.Callback<Uri> onSaved) {
+        boolean inDownloadCache = false;
+        try {
+            String cache = context.getCacheDir().getCanonicalPath() + File.separator;
+            inDownloadCache = source.getCanonicalPath().startsWith(cache);
+        } catch (IOException e) {
+            FileLog.e(e);
+        }
+        saveFile(source.getAbsolutePath(), context, 2, name, mime, onSaved, true, inDownloadCache);
+    }
+
+    private static void saveFile(String fullPath, Context context, final int type, final String name, final String mime,
+                                 final Utilities.Callback<Uri> onSaved, boolean showProgress, boolean fromDownloadCache) {
         if (fullPath == null || context == null) {
             return;
         }
@@ -6107,7 +6123,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         File file = null;
         if (!TextUtils.isEmpty(fullPath)) {
             file = new File(fullPath);
-            if (!file.exists() || AndroidUtilities.isInternalUri(Uri.fromFile(file))) {
+            if (!file.isFile() || !fromDownloadCache && AndroidUtilities.isInternalUri(Uri.fromFile(file))) {
                 file = null;
             }
         }
@@ -6147,7 +6163,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     Uri uri;
                     boolean result = true;
                     if (Build.VERSION.SDK_INT >= 29) {
-                        uri = saveFileInternal(type, sourceFile, null);
+                        uri = saveFileInternal(type, sourceFile, type == 2 ? name : null, type == 2 ? mime : null);
                         result = uri != null;
                     } else {
                         File destFile;
@@ -6194,7 +6210,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             try {
                                 @SuppressLint("DiscouragedPrivateApi") Method getInt = FileDescriptor.class.getDeclaredMethod("getInt$");
                                 int fdint = (Integer) getInt.invoke(inputStream.getFD());
-                                if (AndroidUtilities.isInternalUri(fdint)) {
+                                if (!fromDownloadCache && AndroidUtilities.isInternalUri(fdint)) {
                                     if (finalProgress != null) {
                                         AndroidUtilities.runOnUIThread(() -> {
                                             try {
@@ -6442,7 +6458,17 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     }
 
     static Uri saveFileInternal(int type, File sourceFile, String filename) {
+        return saveFileInternal(type, sourceFile, filename, null);
+    }
+
+    private static Uri saveFileInternal(int type, File sourceFile, String filename, String downloadMime) {
         final android.content.ContentResolver resolver = ApplicationLoader.applicationContext.getContentResolver();
+        if (type == 2) {
+            filename = FileLoader.fixFileName(filename);
+            if (TextUtils.isEmpty(filename) || ".".equals(filename) || "..".equals(filename)) {
+                filename = sourceFile.getName();
+            }
+        }
         Uri dstUri = null;
         boolean published = false;
         try {
@@ -6455,6 +6481,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             String mimeType = null;
             if (extension != null) {
                 mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase(Locale.ROOT));
+            }
+            if (type == 2 && !TextUtils.isEmpty(downloadMime)) {
+                mimeType = downloadMime;
             }
             Uri uriToInsert = null;
             if ((type == 0 || type == 1) && mimeType != null) {

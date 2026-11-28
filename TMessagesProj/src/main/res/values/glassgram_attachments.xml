@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="GlassgramNoFileViewer">No app can open this file from the chat. Save it to Downloads to open it in your file manager.</string>
+    <string name="GlassgramFileUnavailable">Couldn’t access this file. Try downloading it again.</string>
 </resources>

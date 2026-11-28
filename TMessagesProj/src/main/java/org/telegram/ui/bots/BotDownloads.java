@@ -303,7 +303,7 @@ public class BotDownloads {
 
         public void open() {
             if (file != null && file.exists()) {
-                AndroidUtilities.openForView(file, file.getName(), null, LaunchActivity.instance, null, true);
+                AndroidUtilities.openForView(file, file_name, mime, LaunchActivity.instance, null, true);
             }
         }
 

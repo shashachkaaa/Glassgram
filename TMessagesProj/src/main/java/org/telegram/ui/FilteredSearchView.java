@@ -1163,10 +1163,10 @@ public class FilteredSearchView extends FrameLayout implements Theme.Colorable, 
                 } else if (!cell.isLoading()) {
                     MessageObject messageObject = cell.getMessage();
                     messageObject.putInDownloadsStore = true;
-                    AccountInstance.getInstance(UserConfig.selectedAccount).getFileLoader().loadFile(document, messageObject, FileLoader.PRIORITY_LOW, 0);
+                    FileLoader.getInstance(messageObject.currentAccount).loadFile(document, messageObject, FileLoader.PRIORITY_LOW, 0);
                     cell.updateFileExistIcon(true);
                 } else {
-                    AccountInstance.getInstance(UserConfig.selectedAccount).getFileLoader().cancelLoadFile(document);
+                    FileLoader.getInstance(message.currentAccount).cancelLoadFile(document);
                     cell.updateFileExistIcon(true);
                 }
             }
