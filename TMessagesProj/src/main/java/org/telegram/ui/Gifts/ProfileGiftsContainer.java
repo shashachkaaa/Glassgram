@@ -134,6 +134,8 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
     private final ViewPagerFixed.TabsView tabsView;
 
     private final FrameLayout buttonContainer;
+    private final ProfileActivity.Button2 giftAction;
+    private final BlurredBackgroundDrawable notificationBackground;
     private final CharSequence sendGiftsToFriendsText, addGiftsText;
     private final ButtonWithCounterView button;
     private int buttonContainerHeightDp;
@@ -1345,11 +1347,11 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
 //        tabsView.setBackgroundColor(backgroundColor);
         addView(tabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 42, Gravity.TOP));
 
-        ProfileActivity.Button2 button2 = new ProfileActivity.Button2(context);
-        BlurredBackgroundDrawable drawable = buttonGlassFactory.create(button2, new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite));
-        drawable.setPadding(dp(8));
-        drawable.setRadius(dp(22));
-        button2.setBackground(drawable);
+        giftAction = new ProfileActivity.Button2(context);
+        notificationBackground = buttonGlassFactory.create(giftAction,
+                new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite))
+                .setPadding(dp(8))
+                .setRadius(dp(22));
 
         buttonContainer = new FrameLayout(context);
         // buttonContainer.setVisibility(INVISIBLE);
@@ -1358,7 +1360,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         lp.bottomMargin += AndroidUtilities.navigationBarHeight;
         addView(buttonContainer, lp);
 
-        buttonContainer.addView(button2, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 60, Gravity.CENTER_HORIZONTAL));
+        buttonContainer.addView(giftAction, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 60, Gravity.CENTER_HORIZONTAL));
 
         bulletinContainer = new FrameLayout(context);
 
@@ -1378,7 +1380,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         checkboxTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         checkboxTextView.setText(LocaleController.getString(R.string.Gift2ChannelNotify));
         checkboxLayout.addView(checkboxTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 9, 0, 0, 0));
-        button2.addView(checkboxLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 38, Gravity.CENTER, 0, 6, 0, 6));
+        giftAction.addView(checkboxLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 38, Gravity.CENTER, 0, 6, 0, 6));
         ScaleStateListAnimator.apply(checkboxLayout, 0.025f, 1.5f);
         checkboxLayout.setOnClickListener(v -> {
             checkbox.setChecked(!checkbox.isChecked(), true);
@@ -1420,14 +1422,15 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         addGiftsText = sb2;
 
         button = new ButtonWithCounterView(context, resourcesProvider);
-        button2.setGlassButton(button, buttonGlassFactory, resourcesProvider);
+        button.setWhiteGlass();
+        giftAction.setGlassButton(button);
         button.setUseWrapContent(true);
         button.setPadding(dp(16), 0, dp(16), 0);
         button.setRoundRadius(dp(19));
         button.setText(sendGiftsToFriendsText, false);
         button.setStateListAnimator(null);
-        button2.addView(button, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
-        button2.setOnClickListener(v -> {
+        giftAction.addView(button, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
+        giftAction.setOnClickListener(v -> {
             if (!collections.isMine() || viewPager.getCurrentPosition() == 0) {
                 if (sendToSpecificDialog) {
                     new GiftSheet(getContext(), currentAccount, dialogId, null, null)
@@ -1441,8 +1444,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             }
         });
 
-        button.setVisibility(canSwitchNotify() ? View.GONE : View.VISIBLE);
-        checkboxLayout.setVisibility(canSwitchNotify() ? View.VISIBLE : View.GONE);
+        updateGiftAction();
         buttonContainerHeightDp = 60;//canSwitchNotify() ? 50 : 10 + 48 + 10;
 
         addView(bulletinContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 200, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
@@ -1677,13 +1679,19 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
         return list.chat_notifications_enabled != null;
     }
 
+    private void updateGiftAction() {
+        boolean showNotifications = canSwitchNotify();
+        giftAction.setBackground(showNotifications ? notificationBackground : null);
+        button.setVisibility(showNotifications ? View.GONE : View.VISIBLE);
+        checkboxLayout.setVisibility(showNotifications ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.starUserGiftsLoaded) {
             if ((Long) args[0] != dialogId) return;
 
-            button.setVisibility(canSwitchNotify() ? View.GONE : View.VISIBLE);
-            checkboxLayout.setVisibility(canSwitchNotify() ? View.VISIBLE : View.GONE);
+            updateGiftAction();
             buttonContainerHeightDp = 60; // canSwitchNotify() ? 50 : 10 + 48 + 10;
             if (list.chat_notifications_enabled != null) {
                 checkbox.setChecked(list.chat_notifications_enabled, true);
@@ -1693,8 +1701,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
             fillTabs(true);
             updateTabsShown(true);
         } else if (id == NotificationCenter.updateInterfaces) {
-            button.setVisibility(canSwitchNotify() ? View.GONE : View.VISIBLE);
-            checkboxLayout.setVisibility(canSwitchNotify() ? View.VISIBLE : View.GONE);
+            updateGiftAction();
             buttonContainerHeightDp = 60; //canSwitchNotify() ? 50 : 10 + 48 + 10;
             setVisibleHeight(visibleHeight);
         }

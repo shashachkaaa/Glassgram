@@ -3557,10 +3557,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             bottomButton = new ButtonWithCounterView[2];
             for (int a = 0; a < 2; ++a) {
                 Button2 button2 = new Button2(context);
-                BlurredBackgroundDrawable drawable = getBaseSimpleGlass().factory.create(button2, new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite));
-                drawable.setPadding(dp(8));
-                drawable.setRadius(dp(22));
-                button2.setBackground(drawable);
+                if (a != 0) {
+                    BlurredBackgroundDrawable drawable = getBaseSimpleGlass().factory.create(button2,
+                            new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite));
+                    drawable.setPadding(dp(8));
+                    drawable.setRadius(dp(22));
+                    button2.setBackground(drawable);
+                }
 
                 bottomButtonContainer[a] = new FrameLayout(context);
 
@@ -3709,7 +3712,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     }
                 });
-                button2.setGlassButton(bottomButton[a], getBaseSimpleGlass().factory, resourcesProvider);
+                if (a == 0) {
+                    bottomButton[a].setWhiteGlass();
+                    button2.setGlassButton(bottomButton[a]);
+                } else {
+                    button2.setGlassButton(bottomButton[a], getBaseSimpleGlass().factory, resourcesProvider);
+                }
                 bottomButton[a].setStateListAnimator(null);
                 button2.addView(bottomButton[a], LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
                 bottomButtonContainer[a].addView(button2, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 60, Gravity.CENTER_HORIZONTAL));
@@ -17954,9 +17962,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             setPadding(dp(8 + 3), dp(8 + 3), dp(8 + 3), dp(8 + 3));
         }
 
+        public void setGlassButton(ButtonWithCounterView button) {
+            glassButton = button;
+        }
+
         public void setGlassButton(ButtonWithCounterView button, BlurredBackgroundDrawableViewFactory factory,
                                    Theme.ResourcesProvider resourcesProvider) {
-            glassButton = button;
+            setGlassButton(button);
             button.setGlassBackdrop(factory.create(button,
                     new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite))
                     .setPadding(dp(6)));

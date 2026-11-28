@@ -213,7 +213,10 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
         if (!customBackgroundColor) {
             backgroundColor = Theme.getColor(neutral ? Theme.key_buttonNeutral : Theme.key_featuredStickers_addButton, resourcesProvider);
         }
-        if (!customTextColor) {
+        if (whiteGlass) {
+            text.setTextColor(Color.BLACK);
+            subText.setTextColor(Color.BLACK);
+        } else if (!customTextColor) {
             final int key = textColorKey >= 0 ? textColorKey : filled ? (neutral ? Theme.key_buttonNeutralText : Theme.key_featuredStickers_buttonText) : Theme.key_featuredStickers_addButton;
             text.setTextColor(Theme.getColor(key, resourcesProvider));
         }
@@ -229,11 +232,11 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
         } else if (!customTextColor) {
             setRippleColor(Theme.multAlpha(text.getTextColor(), .10f));
         }
-        if (!customTextColor) {
+        if (!whiteGlass && !customTextColor) {
             subText.setTextColor(Theme.getColor(filled ? (neutral ? Theme.key_buttonNeutralText : Theme.key_featuredStickers_buttonText) : Theme.key_featuredStickers_addButton, resourcesProvider));
         }
         countText.setTextColor(backgroundColor);
-        paint.setColor(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider));
+        paint.setColor(whiteGlass ? Color.BLACK : Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider));
         invalidate();
     }
 
@@ -535,6 +538,13 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
 
     private final LiquidPressEffect liquidPress;
     private BlurredBackgroundDrawable glassBackdrop;
+    private boolean whiteGlass;
+
+    public void setWhiteGlass() {
+        whiteGlass = true;
+        setColor(Color.WHITE);
+        updateColors();
+    }
 
     public void setGlassBackdrop(BlurredBackgroundDrawable backdrop) {
         glassBackdrop = backdrop;
@@ -563,7 +573,9 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
                 final int width = getWidth(), height = getHeight();
                 final float radius = Math.min(width, height) / 2f;
                 final boolean liquid;
-                if (glassBackdrop != null) {
+                if (whiteGlass) {
+                    liquid = liquidPress.drawGlass(canvas, 0, 0, width, height, radius, null, Color.WHITE, 0, 255);
+                } else if (glassBackdrop != null) {
                     final int padding = dp(6);
                     glassBackdrop.setBounds(-padding, -padding, width + padding, height + padding);
                     liquid = liquidPress.drawGlass(canvas, 0, 0, width, height, radius, glassBackdrop, 255, background.getColor());
